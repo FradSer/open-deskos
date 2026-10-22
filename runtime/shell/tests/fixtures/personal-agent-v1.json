@@ -83,7 +83,7 @@
   "states": {
     "unavailable": {
       "state": "unavailable",
-      "message": "Personal Bot service unavailable",
+      "message": "Personal Agent service unavailable",
       "voiceInput": false
     },
     "idle-empty": {

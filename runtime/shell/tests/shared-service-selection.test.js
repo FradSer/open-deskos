@@ -14,7 +14,7 @@ function fixture({ subscribe = true, homeStatus = async () => ({ state: 'availab
     addEventListener(name, callback) { events.set(name, callback) },
     removeEventListener(name, callback) { beforeRelease(name); if (events.get(name) === callback) events.delete(name) },
     odkRemote: { subscribeLinkState(callback) { events.set('remoteLink', callback); return () => { beforeRelease('remoteLink'); if (events.get('remoteLink') === callback) events.delete('remoteLink') } } },
-    odkPersonalBot: { subscribe(callback) { events.set('homeBriefing', callback); return () => { beforeRelease('homeBriefing'); if (events.get('homeBriefing') === callback) events.delete('homeBriefing') } }, getStatus: homeStatus },
+    odkPersonalAgent: { subscribe(callback) { events.set('homeBriefing', callback); return () => { beforeRelease('homeBriefing'); if (events.get('homeBriefing') === callback) events.delete('homeBriefing') } }, getStatus: homeStatus },
     odkPlatform: {
       async getCameraFrame() { reads.camera++; return { status: 'unavailable' } },
       async getOpenCodeGoStatus() { reads.subscription++; return { state: 'unconfigured' } },

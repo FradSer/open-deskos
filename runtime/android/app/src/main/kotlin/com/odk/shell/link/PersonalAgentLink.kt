@@ -212,7 +212,7 @@ class PersonalAgentLink(
         const val CONNECT_TIMEOUT_MS = 5000
         const val CHALLENGE_TIMEOUT_MS = 5000L
         const val RECEIPT_TIMEOUT_MS = 15000L
-        const val NO_LINK = "Personal Bot link unavailable"
+        const val NO_LINK = "Personal Agent link unavailable"
         const val NO_CONTROL = "This phone holds no control credential"
     }
 }

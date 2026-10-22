@@ -10,7 +10,7 @@ const { requestLocalControl } = require('../../src/local-control-client')
 function prepareDiagnosticMain(mode) {
   assert.ok(['default', 'development', 'missing', 'missing-management', 'missing-renderer', 'missing-discovery', 'missing-control', 'missing-main-diagnosis',
     'missing-refresh', 'missing-notifications', 'missing-frame-status'].includes(mode))
-  const ids = [...['personal-bot', 'remote-bridge', 'hosted-pi', 'futu-runtime'].map(name => `odk.system.${name}-diagnostics`),
+  const ids = [...['personal-agent', 'remote-bridge', 'hosted-pi', 'futu-runtime'].map(name => `odk.system.${name}-diagnostics`),
     'odk.system.plugin-control', 'odk.system.renderer-diagnostics', 'odk.system.renderer-development', 'odk.system.renderer-control', 'odk.system.plugin-diagnostics',
     'odk.system.service-refresh', 'odk.system.service-notifications', 'odk.system.frame-status']
   const fallback = new Map(ids.map(id => [id, 0]))

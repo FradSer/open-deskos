@@ -15,3 +15,13 @@ scopes:
       description: Experimental prototypes and proof-of-concept projects in experiments/; does not cover core product runtime or peripherals
     - name: tool
       description: Build automation, codegen scripts, and repository infrastructure in tools/; does not cover core application logic
+    - name: runtime
+      description: Desktop shell application, renderer, plugins, and Android host in runtime/; does not cover integrations
+    - name: integrations
+      description: Agent services, bot integrations, and plugin connectors in integrations/; does not cover runtime shell UI
+    - name: peripherals
+      description: Hardware peripheral control and device drivers in peripherals/; does not cover host software runtime
+    - name: experiments
+      description: Experimental prototypes and proofs-of-concept in experiments/; does not cover production runtime or peripherals
+    - name: research
+      description: Hardware research and companion agent studies in research/; does not cover production application code

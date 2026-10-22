@@ -79,7 +79,7 @@ test('actual CLI routes a Main plugin from declared ownership rather than its re
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-route-'))
   const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: root, ODK_CONFIG_DIR: path.join(root, 'config') }
   const platform = resolveShellHost({ env })
-  const target = 'odk.personal-bot.extension-fixture'
+  const target = 'odk.personal-agent.extension-fixture'
   const host = createPluginHost({ capabilities: { 'plugin.control': {
     endpoint: platform.endpoint('plugin-control'), stateDir: platform.stateDir,
     snapshot: () => host.list(), setEnabled: (...args) => host.setEnabled(...args),

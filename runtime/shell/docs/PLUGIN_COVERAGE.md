@@ -50,7 +50,7 @@ Earlier macOS temporary receipts are unavailable; the current complete command h
 Read [Renderer bridge replacement](#renderer-bridge-programmatic-replacement) for its evidence limits.
 The two Windows skips require named pipe authentication and PowerShell microphone-name encoding.
 Both cases previously passed on Windows through private inputs without starting product services or recording audio.
-The [channel check](../tests/local-channel.test.js) and [launcher check](../tests/personal-bot-launcher-windows.test.js) define those requirements.
+The [channel check](../tests/local-channel.test.js) and [launcher check](../tests/personal-agent-launcher-windows.test.js) define those requirements.
 
 The latest complete command includes all nine Clock, Quota, and Pi State Bar test and scenario changes after the preceding successful command.
 Clock negative guards now require deliberate failure exits instead of matching text from killed children.
@@ -84,16 +84,16 @@ The recorded Windows handheld domain did not resolve; its recorded Tailscale and
 No deployment, activation, service change, or capture occurred during these inspections.
 A fresh private candidate passed runtime composition validation, Shell dependency validation inside Electron, and launcher smoke on 2026-10-10.
 Those candidate checks preceded the later Futu cleanup changes and do not certify the current source tree.
-It contains the Shell, Personal Bot, and Remote Bridge with copied dependencies and valid release metadata.
+It contains the Shell, Personal Agent, and Remote Bridge with copied dependencies and valid release metadata.
 All 898 captured source files remained unchanged during these checks.
 The candidate excludes local environment files and credentials; smoke uses private configuration, state, workspace, and Electron profile directories.
 `bash run.sh --smoke --user-data-dir=<private-profile>` reported `ok:true`, width 1920, and height 1280.
-Seven actual Personal Bot dependency entry imports passed; its dependency links remain inside the candidate.
+Seven actual Personal Agent dependency entry imports passed; its dependency links remain inside the candidate.
 The CommonJS dependency validator cannot directly check the ESM-only Pi entry or the MCP package root.
 The separate import check uses the actual source specifiers and does not certify the complete transitive ESM module graph.
 A subsequent private candidate includes the current Futu cleanup sources and later runtime tests.
 Its composition validation, Electron dependency validation, and isolated launcher smoke passed.
-Seven Personal Bot dependency entry imports also passed; all dependency links stayed inside this candidate.
+Seven Personal Agent dependency entry imports also passed; all dependency links stayed inside this candidate.
 All 898 captured files and the candidate inventory remained unchanged during validation.
 Its dependency manifests and lockfiles match the preceding candidate; no dependency installation occurred.
 Smoke reported `ok:true` at 1920 by 1280 pixels with private configuration, state, workspace, and Electron profiles.
@@ -101,7 +101,7 @@ These checks do not establish Linux or Windows binaries, deployment, device beha
 The authorized CM5 isolated check used Linux arm64 dependencies installed from the candidate lockfiles on 2026-10-10.
 The source archive SHA-256 was `e2d302f94e3e2e25553f45a3fb2304837b47afde7c9e4896624be96b40a65c80`.
 The candidate directory was `/tmp/odk-plugin-cm5-31b8uaXB`.
-Composition validation, Electron dependency validation, seven Personal Bot imports, and isolated launcher smoke passed as `orangepi`.
+Composition validation, Electron dependency validation, seven Personal Agent imports, and isolated launcher smoke passed as `orangepi`.
 Smoke reported `ok:true` at 1920 by 1280 pixels; all 896 archived regular files remained unchanged.
 Configuration, state, runtime endpoints, workspace, and Electron profiles used private directories.
 The first dependency installation encountered a read-only existing package store; installation passed with a candidate-owned store.
@@ -221,15 +221,15 @@ node --test --test-timeout=120000 tests/data-source-plugins.test.js tests/system
 ```
 
 The external runtime checks below also completed on 2026-10-10.
-A fresh comparison still matches all 322 captured Personal Bot inputs and all 127 final Futu audit inputs.
+A fresh comparison still matches all 322 captured Personal Agent inputs and all 127 final Futu audit inputs.
 The 24 captured Remote Bridge files and 72 peripheral host files also match their passing command snapshots.
 These comparisons establish input continuity for those checks; they do not add live provider or physical acceptance.
 
 | Scope | Result | Command and directory |
 | --- | --- | --- |
-| Current complete Personal Bot suite, including selected task engine, STT, independent Home and Watch, proactive consumers, and in-flight Agent lifecycle | 602 passed, three skipped; 26887 milliseconds | `node --test --test-timeout=120000 tests/*.test.mjs` in `integrations/personal-bot/`, with private `HOME` and short `TMPDIR` |
-| Resident Bot and Hosted Pi composition | 64 passed | `node --test --test-concurrency=1 tests/plugin-composition.test.mjs tests/task-composition.test.mjs tests/development-plugins.test.mjs tests/task-development-plugins.test.mjs tests/runtime-control.test.mjs tests/task-runtime-control.test.mjs` in `integrations/personal-bot/` |
-| Bot types | Passed | `corepack pnpm@11.22.0 typecheck` in `integrations/personal-bot/` |
+| Current complete Personal Agent suite, including selected task engine, STT, independent Home and Watch, proactive consumers, and in-flight Agent lifecycle | 602 passed, three skipped; 26887 milliseconds | `node --test --test-timeout=120000 tests/*.test.mjs` in `integrations/personal-agent/`, with private `HOME` and short `TMPDIR` |
+| Resident Bot and Hosted Pi composition | 64 passed | `node --test --test-concurrency=1 tests/plugin-composition.test.mjs tests/task-composition.test.mjs tests/development-plugins.test.mjs tests/task-development-plugins.test.mjs tests/runtime-control.test.mjs tests/task-runtime-control.test.mjs` in `integrations/personal-agent/` |
+| Bot types | Passed | `corepack pnpm@11.22.0 typecheck` in `integrations/personal-agent/` |
 | Remote Bridge | 65 passed | `node --test --test-concurrency=1 test/*.test.js` in `integrations/remote-bridge/` |
 | Futu Python | 286 passed, two native Windows checks skipped | `uv run --no-project --with pytest python -m pytest tests -q -W error::RuntimeWarning --basetemp "$odk_futu_test_root/run"` in `integrations/futu-poller/` |
 | Native Windows Futu management | 16 passed, zero skipped | `uv run --no-project --with pytest python -m pytest tests/test_windows_management.py -q -W error::RuntimeWarning` in the isolated Windows `integrations/futu-poller/` candidate |
@@ -274,11 +274,11 @@ Successful cleanup clears consumer references and does not repeat completed Seri
 The hardware loop and physical display, touch, and USB behavior remain outside these lifecycle checks.
 
 Create `odk_futu_test_root` with `mktemp -d /tmp/odk-ft-XXXXXX` before the Futu command.
-The current complete Personal Bot command reported 605 tests, 602 passes, three skips, and exit status zero on 2026-10-10.
+The current complete Personal Agent command reported 605 tests, 602 passes, three skips, and exit status zero on 2026-10-10.
 All 322 captured source, test, scenario, script, and package files remained unchanged; the final file inventory also matched.
 The preceding in-flight lifecycle run reported 595 tests, with 593 passes and two skips across 322 unchanged captured files.
 The preceding complete run reported 594 tests, with 592 passes and two skips across 299 unchanged captured files.
-The added [Agent selection scenario](../../../integrations/personal-bot/features/plugin-composition.feature) checks in-flight runtime disable through the actual resident composition and voice service.
+The added [Agent selection scenario](../../../integrations/personal-agent/features/plugin-composition.feature) checks in-flight runtime disable through the actual resident composition and voice service.
 Default Pi adapter and trusted external Agent implementations finish the pending request, release its synthetic recording, and retain service and channel identities.
 After enable, a fresh Agent answers another request; captured old callbacks cannot change the current response.
 The external Agent owns this response and cancellation behavior; default construction is refused during selected execution.
@@ -287,7 +287,7 @@ The voice comparison now calls the existing transcription consumer with the sele
 Controlled requests confirm each runtime's distinct endpoint, model, and context, plus automatic language and disabled translation for the local provider.
 Both implementations retain identical service outcomes through failure and restart without real recording or provider access.
 The extended comparison passed locally and on the isolated CM5 candidate; staged inputs remained unchanged during that command.
-The [Home consumer check](../../../integrations/personal-bot/tests/agent.test.mjs) compares the default Pi adapter with a selected external runtime through the resident composition.
+The [Home consumer check](../../../integrations/personal-agent/tests/agent.test.mjs) compares the default Pi adapter with a selected external runtime through the resident composition.
 Both use the actual Home consumer with bound synthetic plugin readings and publish identical facts and source metadata.
 Changed values update without another generation; disabled Home instances cannot publish, and fresh instances resume through the same service and channel.
 The extended check retains stale facts after generation failure and restores live facts after recovery without exposing private errors.
@@ -297,7 +297,7 @@ This check passed locally and on the isolated CM5 candidate; Bot type checking a
 The CM5 test and scenario updates have separate before and after hashes; both files remained unchanged during the command.
 The complete Bot rerun after this extension retained 594 passes and two skips across 322 unchanged captured files.
 These results do not establish proposal generation, phrasing, execution, real provider responses, or physical input.
-The separate [proactive consumer check](../../../integrations/personal-bot/tests/proactive-integration.test.mjs) selects default and external Agents through the resident composition.
+The separate [proactive consumer check](../../../integrations/personal-agent/tests/proactive-integration.test.mjs) selects default and external Agents through the resident composition.
 It compares the actual Watch for both owner rule and owner goal contracts with synthetic current evidence and offline judgment.
 Rule advice retains approved sentences; presentation and exact confirmation gate updates to isolated memory, and completed actions cannot replay.
 Generated advice retains evidence and independent judgment; it has no action or confirmation authority.
@@ -474,7 +474,7 @@ These checks use local fixtures and do not establish live providers, deployment,
 ## Open DeskOS Data Link selection verification
 
 These checks completed on 2026-10-10 and are included in the latest full Shell run.
-The [shared checks](../tests/odk-data-replacement.test.js) compare default and alternative Link implementations through the existing Personal Bot client.
+The [shared checks](../tests/odk-data-replacement.test.js) compare default and alternative Link implementations through the existing Personal Agent client.
 The [alternative](../tests/fixtures/odk-data-link-replacement.js) owns framing and listener lifecycle without calling the default listener.
 It reuses the authenticated local channel and the selected read-only control.
 Actual list and read requests preserve source readings, current package publications, and their untrusted flag.
@@ -491,7 +491,7 @@ These initial results established local Unix startup selection and consumer beha
 The existing replacement command subsequently passed all 21 scenarios on Windows x64 and CM5 Linux arm64 on 2026-10-10.
 Windows completed in 4.86 seconds; CM5 completed in 7.87 seconds, with zero failures, cancellations, or skips.
 All 232 captured inputs remained unchanged on both hosts and matched the worktree afterward.
-Private candidates retained the repository directory structure for actual Personal Bot imports.
+Private candidates retained the repository directory structure for actual Personal Agent imports.
 They reused dependencies from the previous isolated candidates through explicit links.
 Both dependency owners' manifests and lockfiles matched the captured source on each host.
 
@@ -564,8 +564,8 @@ Its startup paths include trusted preloaded, development, and signed definitions
 | Renderer surfaces | [Registry](../src/renderer/core/registry.js), [native startup](NATIVE_PLUGINS.md#renderer-startup) | Declared lifecycle, authenticated runtime commands, trusted development selections, and captured signed browser entries and assets | Complete signed replacement parity, production deployment, feature health, and supported-host acceptance |
 | Appearance | [Appearance host](../src/renderer/core/appearance-plugins.js) | Packaged and signed factory selection, local palette declarations, shared installed package context, startup preferences, and diagnosis | Complete signed implementation parity, installed-package interaction, and supported-device acceptance |
 | Installed Widgets and Apps | [Package contract](USER_APPLICATIONS.md) | Verified HTML revisions with install, update, rollback, and removal | Full interaction and resource acceptance for each package |
-| Resident Personal Bot | [Composition](../../../integrations/personal-bot/src/plugin-composition.mjs) | Versioned factories, trusted external startup selections, offline inspection, common startup preferences, and runtime component enable operations | Supported-host live management and real agent replacement parity |
-| Hosted Pi | [Task composition](../../../integrations/personal-bot/src/task-composition.mjs) | Listener, service, endpoint lifecycle, runtime diagnosis, trusted startup selections, offline inspection, common startup preferences, and independent live management | Supported-host management and task replacement acceptance |
+| Resident Personal Agent | [Composition](../../../integrations/personal-agent/src/plugin-composition.mjs) | Versioned factories, trusted external startup selections, offline inspection, common startup preferences, and runtime component enable operations | Supported-host live management and real agent replacement parity |
+| Hosted Pi | [Task composition](../../../integrations/personal-agent/src/task-composition.mjs) | Listener, service, endpoint lifecycle, runtime diagnosis, trusted startup selections, offline inspection, common startup preferences, and independent live management | Supported-host management and task replacement acceptance |
 | Remote Bridge | [Transport runtime](../../../integrations/remote-bridge/lib/plugin-runtime.js) | Declared transports, trusted startup selections, offline inspection, common startup enable preferences, and runtime transport enable operations | Unified live management, full external transport parity, and physical transport handover |
 | Futu Python | [Composition](../../../integrations/futu-poller/poller.py), [Host](../../../integrations/futu-poller/plugin_host.py) | Synchronous factories, replaceable transport, versioned ports, startup preferences, negotiated diagnosis, independent Unix management, and a token-gated Windows pipe backend | Deployed Windows operator and diagnosis integration, SDK/gateway acceptance of alternative implementations, and deployed-host acceptance |
 | S3 Remote | [Native ports](../../../peripherals/esp32-s3-remote/main/remote_plugin_ports.h), [runbook](../../../peripherals/esp32-s3-remote/README.md#native-component-plugins) | Generated descriptors, typed driver, buffer, gesture, and surface ports, local snapshots, and bounded JSON reports | Operator report transport, board startup, touch input, display, and USB behavior |
@@ -577,7 +577,7 @@ Development links separate Main factories from renderer browser entries.
 They do not load Bot, Python, or firmware code.
 Python has a separate [explicit startup selection](../../../integrations/futu-poller/README.md#trusted-development-replacements) for trusted local replacement entries.
 
-The CLI inventory covers Main, renderer, resident Personal Bot, Hosted Pi, Remote Bridge, and installed packages.
+The CLI inventory covers Main, renderer, resident Personal Agent, Hosted Pi, Remote Bridge, and installed packages.
 It does not establish a unified inventory of all runtimes.
 A Camera health result describes cached state, not current device connection.
 [Configuration](CONFIGURATION.md#plugin-diagnosis) owns health semantics and endpoint requirements.
@@ -1119,13 +1119,13 @@ The results do not establish full repository, deployed, or hardware acceptance.
 | Check | Command | Result |
 | --- | --- | --- |
 | Shell plugin composition and replacement | `node --test tests/renderer-plugin-host.test.js tests/appearance-plugins.test.js tests/plugin-composition.test.js tests/main-plugin-replacement.test.js tests/development-plugins.test.js` | 40 passed |
-| Personal Bot and Hosted Pi composition | `node --test tests/plugin-composition.test.mjs tests/task-composition.test.mjs tests/task-daemon-construction.test.mjs` | 14 passed |
+| Personal Agent and Hosted Pi composition | `node --test tests/plugin-composition.test.mjs tests/task-composition.test.mjs tests/task-daemon-construction.test.mjs` | 14 passed |
 | Remote Bridge lifecycle | `node --test integrations/remote-bridge/test/plugin-lifecycle.test.js` | 9 passed |
 | Futu Python | `uv run --with pytest pytest -q integrations/futu-poller/tests -W error::RuntimeWarning` | 64 passed |
 | Native Host and peripheral fixtures | `uv run --with pytest pytest -q peripherals/common/tests peripherals/esp32-s3-remote/tests peripherals/esp32-p4-camera/tests` | 24 passed |
 
 The Shell command runs from `runtime/shell/` through `corepack pnpm@11.22.0 exec`.
-The Bot command runs from `integrations/personal-bot/` through the same package manager.
+The Bot command runs from `integrations/personal-agent/` through the same package manager.
 The remaining commands run from the repository root.
 Native checks compile host fixtures and inspect source wiring.
 They do not refresh ESP-IDF target builds or access physical peripherals.
@@ -1191,12 +1191,12 @@ Regression checks cover destroyed-window cleanup, response identity, concurrent 
 Independent source review found no remaining issues in these changes.
 These results do not establish visual, interaction, deployed, or physical-device acceptance.
 
-### Resident Personal Bot diagnosis verification
+### Resident Personal Agent diagnosis verification
 
 The resident diagnosis checks also ran on 2026-10-08.
 The complete Shell test command passed 929 tests, skipped two tests, and reported no failures.
-The complete Personal Bot test command passed 523 tests, skipped two tests, and reported no failures.
-Personal Bot type checking passed.
+The complete Personal Agent test command passed 523 tests, skipped two tests, and reported no failures.
+Personal Agent type checking passed.
 The actual local CLI reported failure for a failed resident Agent plugin without exposing its private error.
 Six resident diagnosis tests covered authentication refusal, unavailable snapshots, cancellation, response identity, and compatibility.
 Older residents received no unknown diagnosis commands.
@@ -1223,9 +1223,9 @@ These results do not establish deployed Bridge, physical transport handover, Win
 
 ### External runtime diagnosis replacement
 
-Four independent test factories replace Personal Bot, Remote Bridge, Hosted Pi, and Futu diagnosis through existing Main selection.
+Four independent test factories replace Personal Agent, Remote Bridge, Hosted Pi, and Futu diagnosis through existing Main selection.
 They own report projection, protocol adaptation, and cancellation forwarding without calling the packaged diagnosis factories.
-Personal Bot and Remote Bridge retain their existing clients; Hosted Pi retains the shared transport probe.
+Personal Agent and Remote Bridge retain their existing clients; Hosted Pi retains the shared transport probe.
 The Futu diagnostic factory retains the owned source and actual Python publisher.
 These checks establish diagnosis plugin replacement; they do not establish independent replacement of clients, probes, or transports.
 
@@ -1262,8 +1262,8 @@ Live external providers, Windows named pipes, deployed runtimes, and supported-d
 
 The Hosted Pi diagnosis checks also ran on 2026-10-08.
 The complete Shell test command passed 938 tests, skipped two tests, and reported no failures.
-The complete Personal Bot test command passed 524 tests, skipped two tests, and reported no failures.
-Personal Bot type checking passed.
+The complete Personal Agent test command passed 524 tests, skipped two tests, and reported no failures.
+Personal Agent type checking passed.
 The real Electron fixture reported 30 renderer plugins and distinguished absent resident and Hosted Pi providers.
 The release smoke check reported a 1920 by 1280 window and exited successfully.
 
@@ -1716,7 +1716,7 @@ They do not establish real service behavior, rendered replacement acceptance, de
 
 The system channel stop retry checks ran on 2026-10-08.
 Four failing regression checks reproduced skipped client cleanup after synchronous exceptions and asynchronous rejections.
-Both Personal Bot and Remote Link now mark client stop complete only after the operation succeeds.
+Both Personal Agent and Remote Link now mark client stop complete only after the operation succeeds.
 Failed stop retains the instance and registered cleanup responsibility.
 The host retries client stop before it creates a replacement.
 Independent channel plugins remain running.
@@ -1834,7 +1834,7 @@ The resident development checks ran on 2026-10-08.
 The startup entry accepts explicit selections and requires native trust before reading the selection file.
 Each selected declaration preserves its existing identity, host, kind, ports, dependencies, and empty permissions list.
 Unknown identities, duplicate selections, incompatible declarations, and inactive optional components are rejected before factory execution.
-The [resident contract](../../../integrations/personal-bot/docs/CONTRACT.md#trusted-resident-development-selections) owns selection format and trust limits.
+The [resident contract](../../../integrations/personal-agent/docs/CONTRACT.md#trusted-resident-development-selections) owns selection format and trust limits.
 
 External CommonJS factories supply actual service, channel, runtime, home, and watch ports in controlled compositions.
 The actual resident inspection command reports declarations without executing entries or preparing operational directories.
@@ -1843,7 +1843,7 @@ Observers receive the selected resources and release their attachment cleanup.
 A failed external home factory releases its registered allocations while the resident channel and runtime remain available.
 Default startup, shutdown order, pending initialization cancellation, and cleanup retry remain covered.
 
-The [voice consumer check](../../../integrations/personal-bot/tests/development-plugins.test.mjs) also ran on 2026-10-10 with the actual resident service.
+The [voice consumer check](../../../integrations/personal-agent/tests/development-plugins.test.mjs) also ran on 2026-10-10 with the actual resident service.
 It compares the default Pi session adapter with an independent Agent loaded through the existing trusted CommonJS selection.
 Synthetic recording and transcription inputs exercise successful requests, private provider failures, runtime disable, enable, and subsequent requests.
 Both selections preserve response text, transcript, lifecycle states, public errors, recording cleanup, and retained service and channel identities.
@@ -1852,15 +1852,15 @@ The affected command passed 79 tests with zero failures or skips in 2843 millise
 The initial expectation omitted the established idle frame after resume; the corrected expectation retains that frame.
 No production source changed.
 
-Run this command from `integrations/personal-bot/`:
+Run this command from `integrations/personal-agent/`:
 
 ```sh
 node --test tests/development-plugins.test.mjs tests/plugin-composition.test.mjs tests/service.test.mjs tests/agent.test.mjs
 ```
 
-The complete macOS Personal Bot command passed 545 tests, skipped two tests, and reported no failures.
+The complete macOS Personal Agent command passed 545 tests, skipped two tests, and reported no failures.
 The complete macOS Shell command passed 1021 tests, skipped two tests, and reported no failures.
-Personal Bot type checking passed.
+Personal Agent type checking passed.
 The focused development and composition checks passed 27 tests on macOS and Linux with strict unhandled-rejection handling.
 Linux used read-only source mounts and no external network access.
 Independent review passed 27 focused checks and found no material issue.
@@ -1875,7 +1875,7 @@ The loader retains normal CommonJS caching and trusted mutable native code at st
 The Hosted Pi development checks ran on 2026-10-08.
 The shared native loader accepts separate Hosted Pi selections with at most three components.
 Explicit native trust precedes selection reads; identities, host, kind, ports, dependencies, and empty permissions remain validated.
-The [task contract](../../../integrations/personal-bot/docs/CONTRACT.md#trusted-hosted-pi-development-selections) owns selection format, bindings, and trust limits.
+The [task contract](../../../integrations/personal-agent/docs/CONTRACT.md#trusted-hosted-pi-development-selections) owns selection format, bindings, and trust limits.
 The inspection command loads no task configuration and executes no external entry or provider.
 
 External listener factories receive frozen request and disconnect callbacks from the host.
@@ -1915,7 +1915,7 @@ The new completion assertion first failed against the pending-only adapter and p
 No production source changed.
 
 The first expanded CM5 command passed 116 checks and failed one because its wrapper used the repository root as its working directory.
-The helper test requires the Personal Bot directory for its existing relative CLI path.
+The helper test requires the Personal Agent directory for its existing relative CLI path.
 The first local complete command also inherited a runtime directory, contradicting the existing absent-session fixture expectation.
 The final wrappers use the package directory and omit the inherited runtime directory.
 The complete local command retains the package script's default file scheduling; explicit runtime concurrency cases remain unchanged.
@@ -1934,7 +1934,7 @@ This checks selected composition and existing engine behavior, not an independen
 The Unix socket fixture does not establish a Windows task daemon.
 No production source changed.
 
-The [shared connection cleanup checks](../../../integrations/personal-bot/tests/task-composition.test.mjs) also ran with default and selected service factories on 2026-10-10.
+The [shared connection cleanup checks](../../../integrations/personal-agent/tests/task-composition.test.mjs) also ran with default and selected service factories on 2026-10-10.
 They use the actual task protocol listener and local socket requests.
 Failed asynchronous disconnect retains the service during partial disable and full shutdown.
 Successful retry releases the connection before closing the service once.
@@ -1943,7 +1943,7 @@ The affected command passed 29 tests with zero failures or skips in 2717 millise
 These checks establish selected service ownership; they do not establish complete task execution replacement parity.
 No production source changed.
 
-The [independent terminal record reader](../../../integrations/personal-bot/tests/task-development-plugins.test.mjs) passed locally, on CM5, and on Windows on 2026-10-10.
+The [independent terminal record reader](../../../integrations/personal-agent/tests/task-development-plugins.test.mjs) passed locally, on CM5, and on Windows on 2026-10-10.
 Its external service owns read-only dispatch and uses the existing record loader and goal projection helper.
 A construction guard prevents the selected path from creating the default task engine.
 Default and selected services return matching lists and statuses for existing finished, failed, cancelled, and interrupted records.
@@ -1958,15 +1958,15 @@ A fresh independent review found no actionable issues.
 These checks use controlled listeners and publication callbacks; task execution and live SDK session control remain separate.
 No production source changed for this comparison.
 
-Run this command from `integrations/personal-bot/`:
+Run this command from `integrations/personal-agent/`:
 
 ```sh
 node --unhandled-rejections=strict --test --test-concurrency=1 tests/task-composition.test.mjs tests/task-development-plugins.test.mjs tests/task-runtime-control.test.mjs tests/task-runner.test.mjs tests/task-client.test.mjs
 ```
 
-The complete macOS Personal Bot command passed 556 tests, skipped two tests, and reported no failures.
+The complete macOS Personal Agent command passed 556 tests, skipped two tests, and reported no failures.
 The complete macOS Shell command passed 1021 tests, skipped two tests, and reported no failures.
-Personal Bot type checking passed.
+Personal Agent type checking passed.
 The focused commands passed 47 tests on macOS and Linux with strict unhandled-rejection handling.
 Linux used read-only source mounts and no external network access.
 Independent final review passed 44 related checks and found no material issue.
@@ -2181,7 +2181,7 @@ These results do not establish another provider, rendered replacement acceptance
 
 The shared preference checks ran on 2026-10-08.
 The [configuration contract](CONFIGURATION.md#saved-plugin-preferences) owns the common file, environment exclusions, startup timing, and runtime limits.
-Personal Bot, Hosted Pi, and Remote Bridge use the same Shell configuration module in source and flattened release layouts.
+Personal Agent, Hosted Pi, and Remote Bridge use the same Shell configuration module in source and flattened release layouts.
 The existing CLI saves preferences without executing runtime code or changing running services.
 
 The [shared checks](../tests/plugin-runtime-preferences.test.js) passed eight scenarios through actual CLI preference writes and runtime inspection entries.
@@ -2189,10 +2189,10 @@ They also start controlled compositions to verify disabled factories, dependent 
 Selected native entries remain unexecuted while disabled.
 The focused preference and configuration commands passed 18 tests on macOS and Linux.
 Linux used Node 24 with a read-only checkout and no external network.
-The complete Personal Bot command passed 556 tests and skipped two tests.
+The complete Personal Agent command passed 556 tests and skipped two tests.
 Its typecheck passed.
 Remote Bridge passed 62 tests from the repository root.
-The affected Personal Bot development fixtures passed 32 strict tests after configuration isolation changes.
+The affected Personal Agent development fixtures passed 32 strict tests after configuration isolation changes.
 
 Independent review identified CLI fixtures that inherited the operator configuration.
 The fixtures now use temporary configuration directories and exclude inherited disable settings.
@@ -2561,16 +2561,16 @@ Late acquisition and late submission cleanup cannot remove that retained ownersh
 Older services without suspension methods reject partial service, channel, and runtime changes before graph mutation.
 Their complete shutdown and startup compatibility remain covered.
 
-The [service checks](../../../integrations/personal-bot/tests/service.test.mjs) use controlled recording and prompt promises without capture or model calls.
-The [composition checks](../../../integrations/personal-bot/tests/plugin-composition.test.mjs) verify provider identity and full shutdown ordering.
+The [service checks](../../../integrations/personal-agent/tests/service.test.mjs) use controlled recording and prompt promises without capture or model calls.
+The [composition checks](../../../integrations/personal-agent/tests/plugin-composition.test.mjs) verify provider identity and full shutdown ordering.
 New feature and cleanup regressions failed before their corresponding changes.
 Independent review found delayed capture retention, permanent close retry, transitive compatibility, late submission, and cleanup timing gaps.
 The updated tests reproduce those failures and verify their corrections.
 The final focused commands passed 51 tests on macOS and 51 tests on Linux.
 Linux used Node 24 Bookworm with a read-only checkout and no external network.
 The reviewer reran 51 checks and independent timing reproductions without remaining findings.
-The complete Personal Bot command passed 564 tests and skipped two tests.
-Personal Bot type checking passed.
+The complete Personal Agent command passed 564 tests and skipped two tests.
+Personal Agent type checking passed.
 The final complete Shell command passed 1091 tests and skipped two tests.
 Source syntax, documentation references, sentence limits, and the whitespace check passed.
 
@@ -2587,7 +2587,7 @@ The control plugin refuses its own identity and unknown components.
 Lifecycle failures return bounded errors without private details.
 Runtime operations do not write startup preferences.
 
-The [control checks](../../../integrations/personal-bot/tests/runtime-control.test.mjs) use actual CLI commands against temporary resident compositions.
+The [control checks](../../../integrations/personal-agent/tests/runtime-control.test.mjs) use actual CLI commands against temporary resident compositions.
 They exercise dependency cleanup, restart, provider identity, failed cleanup recovery, and endpoint removal.
 Endpoint checks compare Linux, macOS, and Windows names with the Shell Host mappings.
 Token checks use a temporary Unix socket with token authentication enabled.
@@ -2598,8 +2598,8 @@ Management starts before Agent initialization and can cancel cooperative initial
 Both startup recovery gaps failed their regression checks before correction.
 The focused commands passed 59 checks on macOS and 59 checks on offline Linux.
 Linux used Node 24 Bookworm with a read-only checkout.
-The complete Personal Bot command passed 572 checks and skipped two checks.
-Personal Bot type checking passed.
+The complete Personal Agent command passed 572 checks and skipped two checks.
+Personal Agent type checking passed.
 The complete Shell command passed 1091 checks and skipped two checks.
 
 Independent review found the startup recovery and management readiness gaps.
@@ -2617,7 +2617,7 @@ Cancellation checks prevent later startup stages after pending operations settle
 Late session acquisition and extension binding failure abort and dispose the acquired session before initialization rejects.
 The startup abort listener is removed after successful initialization or cleanup.
 
-The [Agent checks](../../../integrations/personal-bot/tests/agent.test.mjs) use injected model and session resources without model calls.
+The [Agent checks](../../../integrations/personal-agent/tests/agent.test.mjs) use injected model and session resources without model calls.
 Six startup regressions cover pre-cancellation, model setup, credential availability, late session acquisition, pending binding, and binding failure.
 The original five checks failed before implementation.
 Independent review found missing model-operation signal propagation.
@@ -2629,8 +2629,8 @@ An earlier Linux command failed because its temporary filesystem prevented helpe
 The first complete Bot command found five source-extraction assertions tied to the previous initializer signature.
 Updated extraction retains the transcription configuration scenarios with the additional cancellation parameter.
 All 16 startup checks then passed.
-The final complete Personal Bot command passed 578 checks and skipped two checks.
-Personal Bot type checking passed.
+The final complete Personal Agent command passed 578 checks and skipped two checks.
+Personal Agent type checking passed.
 The complete Shell command passed 1091 checks and skipped two checks.
 
 These checks do not establish immediate interruption of SDK session creation or extension binding.
@@ -2662,8 +2662,8 @@ An earlier Linux command failed its HTML installation fixture because the checko
 The Linux management command excludes those separate Electron installation checks.
 An initial complete Shell command also failed an Electron installation fixture and an online-failure regression before its correction.
 The final complete Shell command passed 1103 checks and skipped two checks.
-The complete Personal Bot command passed 578 checks and skipped two checks.
-Personal Bot type checking passed.
+The complete Personal Agent command passed 578 checks and skipped two checks.
+Personal Agent type checking passed.
 The complete Bridge JavaScript command passed 65 checks.
 
 These checks do not establish deployed inventories, native Windows management, firmware control, or full plugin distribution.
@@ -2686,10 +2686,10 @@ Full shutdown preserves independent service cleanup after ordinary listener clos
 Listeners without connection draining reject partial listener and service operations before graph mutation.
 Failed endpoint withdrawal retains its provider until removal can retry.
 
-The [management checks](../../../integrations/personal-bot/tests/task-runtime-control.test.mjs) execute actual CLI operations against temporary compositions.
+The [management checks](../../../integrations/personal-agent/tests/task-runtime-control.test.mjs) execute actual CLI operations against temporary compositions.
 They cover failed startup recovery, saved listener disable, authentication, provider identity, endpoint publication, and shutdown.
-The [composition checks](../../../integrations/personal-bot/tests/task-composition.test.mjs) use the real task transport for attached Console and asynchronous disconnect scenarios.
-The [development checks](../../../integrations/personal-bot/tests/task-development-plugins.test.mjs) start the actual daemon with external task factories and manage its service through the CLI.
+The [composition checks](../../../integrations/personal-agent/tests/task-composition.test.mjs) use the real task transport for attached Console and asynchronous disconnect scenarios.
+The [development checks](../../../integrations/personal-agent/tests/task-development-plugins.test.mjs) start the actual daemon with external task factories and manage its service through the CLI.
 The initial lifecycle, management, endpoint withdrawal, and disconnect regressions failed before their corresponding corrections.
 An initial complete command found a catalog assertion that omitted the new management plugin.
 The updated assertion preserves replacement versions and checks the separate management identity.
@@ -2698,8 +2698,8 @@ Each gap has regression coverage.
 The reviewer passed 16 targeted checks after correction without remaining findings.
 Focused commands passed 29 checks on macOS and 29 checks on offline Linux.
 Linux used Node 24 Bookworm with a read-only checkout and an executable temporary filesystem.
-Personal Bot type checking passed.
-The final complete Personal Bot command passed 587 checks and skipped two checks.
+Personal Agent type checking passed.
+The final complete Personal Agent command passed 587 checks and skipped two checks.
 The final complete Shell command passed 1103 checks and skipped two checks.
 
 These checks do not establish deployed Hosted Pi management, real task session parity, native Windows pipes, or device acceptance.
@@ -3517,13 +3517,13 @@ Cancelled catalog work cannot restore removed readings after the registry restar
 Corrupt or removed native selections restore actual default consumers and preserve stored revisions.
 
 The real Unix Open DeskOS Data Link serves both implementations through the existing read-only protocol.
-The actual Personal Bot client lists readings and reads Weather and published package values through that listener.
+The actual Personal Agent client lists readings and reads Weather and published package values through that listener.
 Package values and timestamps survive a Open DeskOS Data disable and enable cycle.
 The channel rejects mutation commands and removes its socket when the Open DeskOS Data dependency stops.
 All channels, configuration, and signed revisions use temporary local directories without production services or live capture.
 
 Seven replacement checks passed, including three signed factory checks and default fallback.
-The existing Personal Bot Open DeskOS Data command passed ten checks.
+The existing Personal Agent Open DeskOS Data command passed ten checks.
 The complete Shell suite passed 1,250 checks and skipped two checks.
 Fresh independent review reran all seven replacement checks without material findings.
 These results use selected synthetic providers and do not establish all source implementations or full Electron startup.
@@ -3533,17 +3533,17 @@ The synchronization checks were updated on 2026-10-10.
 Only the latest started catalog synchronization can reconcile package readings within one Open DeskOS Data instance.
 Six regressions failed before the repair; the repair adds one local generation counter without changing public interfaces.
 Both factories reject superseded results after removal, revision changes, unreadable responses, and malformed responses.
-The checks cover both completion orders and actual Personal Bot reads through the Unix listener.
+The checks cover both completion orders and actual Personal Agent reads through the Unix listener.
 The wiring check now requires one selected catalog instead of two stores and confirms the service endpoint remains available.
 The affected command passed 100 checks with zero failures and zero skips.
 A fresh independent review repeated 39 replacement and wiring checks with no actionable findings.
-The Personal Bot client command also passed all ten checks.
+The Personal Agent client command also passed all ten checks.
 
 ```sh
 node --test --test-concurrency=1 tests/odk-data-replacement.test.js tests/odk-data.test.js tests/odk-data-shell.test.js tests/odk-data-wiring.test.js tests/desk-runtime-plugins.test.js tests/user-app-system-replacement.test.js tests/user-app-pending-operations.test.js
 ```
 
-Run `node --test tests/odk-data.test.mjs` from `integrations/personal-bot/` for the client checks.
+Run `node --test tests/odk-data.test.mjs` from `integrations/personal-agent/` for the client checks.
 
 ## Installed runtime cleanup retry verification
 
@@ -5315,7 +5315,7 @@ A deterministic regression failed with two factory constructions instead of one.
 Capturing enable request generation before queuing prevents this allocation while retaining later startup preferences.
 The repaired shared Host, Renderer lifecycle, Hydra runtime, and Hydra source parity command passed 95 checks without failures or skips.
 Independent follow-up review confirmed the shutdown correction and found no additional material defect.
-Personal Bot passed 587 tests with two skips and no failures in 43.92 seconds.
+Personal Agent passed 587 tests with two skips and no failures in 43.92 seconds.
 Its TypeScript check also passed.
 Remote Bridge initially had two socket-listen failures under the long macOS temporary path.
 Using a short temporary root, `env TMPDIR=/tmp node --test integrations/remote-bridge/test/*.test.js`, passed all 65 checks in 1.36 seconds.
@@ -5342,7 +5342,7 @@ A deterministic RED scenario changed those values before and during old-surface 
 Admission now copies declaration, identity, factory, lifecycle functions, and stylesheet binding before queuing.
 The repaired shared Host, registry, and controller command passed 94 checks without failures or skips.
 Independent follow-up review confirmed the admission correction and found no additional material defect.
-Personal Bot passed 587 tests with two skips and no failures in 45.86 seconds.
+Personal Agent passed 587 tests with two skips and no failures in 45.86 seconds.
 Its TypeScript check also passed.
 Remote Bridge passed all 65 checks with a short temporary root in 1.04 seconds.
 The final complete Shell command, `corepack pnpm@11.22.0 test`, passed 1,594 tests with two Windows-only skips and no failures.
@@ -5406,7 +5406,7 @@ The first full Shell gate exposed 21 missing-module failures in two VM fixtures 
 Both fixtures now map the actual activation module.
 The same run had one existing Electron package-verification timeout.
 The affected wiring, routing, and package-control rerun passed all 31 checks in 7.56 seconds.
-Personal Bot passed 587 tests with two skips and no failures in 59.39 seconds.
+Personal Agent passed 587 tests with two skips and no failures in 59.39 seconds.
 Its TypeScript check passed.
 Remote Bridge passed all 65 checks with a short temporary root in 1.62 seconds.
 The final complete Shell command, `corepack pnpm@11.22.0 test`, passed 1,620 tests with two Windows-only skips and no failures.
@@ -5444,7 +5444,7 @@ The regression also checks recovery after provider enable.
 Independent follow-up review confirmed these corrections and found no additional material defect.
 The shared Host, Main, Native, control, actual bootstrap, and Renderer replacement command passed all 93 checks in 4.28 seconds.
 The final restoration, concrete Main contract, and Host command passed all 54 checks in 0.97 seconds.
-Personal Bot passed 587 tests with two skips and no failures in 42.23 seconds.
+Personal Agent passed 587 tests with two skips and no failures in 42.23 seconds.
 Its TypeScript check passed.
 Remote Bridge passed all 65 checks with a short temporary root in 1.70 seconds.
 The final complete Shell command, `corepack pnpm@11.22.0 test`, passed 1,633 tests with two Windows-only skips and no failures.
@@ -5479,7 +5479,7 @@ The final shared command passed all eighty-seven checks in 7.24 seconds.
 It covers preparation, browser collection, control receipts, native assets, runtime placements, CLI routing, and controller lifecycle.
 The final complete Shell command passed 1646 checks with two skips and no failures.
 It completed in 175.32 seconds from `runtime/shell/`.
-Personal Bot passed 587 checks with two skips and no failures; its typecheck also passed.
+Personal Agent passed 587 checks with two skips and no failures; its typecheck also passed.
 Remote Bridge passed all sixty-five checks without skips.
 Twelve changed JavaScript files passed syntax checks; affected document links and new sentence bounds also passed.
 
@@ -5513,7 +5513,7 @@ The first complete Shell command failed twenty-eight checks from those already-l
 The repaired fixture and restoration command passed all 180 checks in 0.57 seconds.
 The final complete Shell command passed 1657 checks with two skips and no failures.
 It completed in 160.29 seconds from `runtime/shell/`.
-Personal Bot passed 587 checks with two skips and no failures; its typecheck passed.
+Personal Agent passed 587 checks with two skips and no failures; its typecheck passed.
 Remote Bridge passed all sixty-five checks without skips.
 Independent read-only review found no material defect in capture, lifecycle, concurrency, or recovery receipts.
 Follow-up review confirmed the cleanup, shutdown, stylesheet, and fixture corrections.
@@ -7058,7 +7058,7 @@ No product source changed.
 
 The extended Open DeskOS Data comparison passed locally and on CM5 on 2026-10-11.
 The [shared scenario](../tests/features/odk-data.feature) retains source errors and byte bounds through default and signed selected registries.
-The [consumer comparison](../tests/odk-data-replacement.test.js) reads through the actual control and Personal Bot Link.
+The [consumer comparison](../tests/odk-data-replacement.test.js) reads through the actual control and Personal Agent Link.
 It verifies the selected version and prevents default registry construction during signed selection.
 
 Both consumers receive the complete value at the existing 65536-byte UTF-8 value limit.
@@ -7319,14 +7319,14 @@ All 676 captured inputs and its final inventory remained unchanged.
 ## Final external runtime and native host gates
 
 The local external component gates completed on 2026-10-11.
-Personal Bot passed 602 tests and skipped three Windows checks; its TypeScript check also passed.
+Personal Agent passed 602 tests and skipped three Windows checks; its TypeScript check also passed.
 Remote Bridge passed all 65 tests.
 Futu passed 286 tests and skipped two Windows checks.
 The native common host passed four tests, S3 host checks passed seven, and P4 host checks passed seventeen.
 These are separate component results, not physical peripheral acceptance or a complete Shell result.
 All 272 captured external inputs remained unchanged during each completed command.
 The complete CM5 component commands also passed on 2026-10-12 in private candidate state.
-Personal Bot passed 602 checks, skipped three Windows checks, and passed its TypeScript check.
+Personal Agent passed 602 checks, skipped three Windows checks, and passed its TypeScript check.
 Remote Bridge passed 65 checks; Futu passed 286 checks and skipped two Windows checks.
 The Bot command retained 1100 inputs unchanged, including 66 captured Console and shared library files.
 The Bridge and Futu commands each retained 1034 inputs unchanged.
@@ -7342,7 +7342,7 @@ These commands use synthetic inputs and private listeners; they do not establish
 No product service, release activation, camera capture, or microphone capture occurred.
 
 The initial Bot run failed because its endpoint test assumed an absent `XDG_RUNTIME_DIR`.
-The [endpoint check](../../../integrations/personal-bot/tests/task-endpoint.test.mjs) now controls and restores that environment value and checks configured fallback.
+The [endpoint check](../../../integrations/personal-agent/tests/task-endpoint.test.mjs) now controls and restores that environment value and checks configured fallback.
 Its isolated CM5 command passed all three checks in 171 milliseconds with both uploaded inputs unchanged.
 That command ran as `orangepi` with Node `v24.16.0`; it does not establish complete native Bot acceptance.
 The initial combined Python command could not collect two identically named modules.
@@ -7357,7 +7357,7 @@ Product sources, service configuration, and hardware remained unchanged.
 Run each command from its stated directory.
 
 ```sh
-# integrations/personal-bot/
+# integrations/personal-agent/
 corepack pnpm@11.22.0 test
 corepack pnpm@11.22.0 typecheck
 # Repository root; use a new short private directory for FUTU_TEST_ROOT.

@@ -169,11 +169,11 @@ test('the Android message shim preserves reply references and declares text-only
     window, setTimeout(fn) { const id = ++nextTimer; timers.set(id, fn); return id }, clearTimeout(id) { timers.delete(id) },
   })
   const ref = { messageId: 'a'.repeat(64), sourceKey: 'original', sourceRevision: 'b'.repeat(64) }
-  const pending = window.odkPersonalBot.sendText('exact text', ref)
+  const pending = window.odkPersonalAgent.sendText('exact text', ref)
   assert.deepEqual(sent[0].args, ['exact text', ref])
   assert.equal(sent[0].method, 'sendText')
-  assert.equal(window.odkPersonalBot.supportsReplyTo, true)
-  assert.equal(window.odkPersonalBot.supportsVoiceInput, false)
+  assert.equal(window.odkPersonalAgent.supportsReplyTo, true)
+  assert.equal(window.odkPersonalAgent.supportsVoiceInput, false)
   native.onmessage({ data: JSON.stringify({ id: sent[0].id, result: { accepted: true } }) })
   assert.equal((await pending).accepted, true)
   assert.equal(timers.size, 0)

@@ -76,14 +76,14 @@ The listener is an execution surface with the host user's capability. Keep it LA
 The operator reversed the former edit/test prompt guardrail, then removed direct implementation from the resident coordinator. One Hosted Pi worker capability serves voice and Console requests. It can commit, push, install, deploy, activate releases and restart services under the request's authorization. A transcript is not blanket authorization. Mis-transcribed delegated speech remains an accepted capability risk. No global second confirmation or restricted voice worker was adopted.
 
 The candidate resident uses Pi Durable; Hosted Pi workers retain Coding Agent.
-The [Personal Bot manifest](../../../integrations/personal-bot/package.json) owns their pinned versions.
+The [Personal Agent manifest](../../../integrations/personal-agent/package.json) owns their pinned versions.
 Installed host CLIs require separate version verification.
 Register each reviewed capability once as a Durable tool.
 Jev selects the intent; code activates that intent's execution allowlist.
 The provider transport advertises only Code Mode while the execution configuration retains active reviewed names.
 Direct and nested calls use the same parameter validation, executor, and turn-level mutation reservations.
 Completion, failure, and cancellation deactivate the selected tools.
-The [intent-routing contract](../../../integrations/personal-bot/docs/CONTRACT.md#intent-routing) owns this mechanism.
+The [intent-routing contract](../../../integrations/personal-agent/docs/CONTRACT.md#intent-routing) owns this mechanism.
 The coding coordinator also registers `read`, `grep`, `find`, and `ls`.
 Generic `write`, `edit`, `bash`, and `powershell` remain denied on resume.
 The personal profile also denies inspection built-ins.
@@ -103,7 +103,7 @@ Both coordinator profiles and Hosted Pi treat project settings as untrusted and 
 
 Keep development-root admission, concurrency cap, durable receipts, truthful outcomes, no interrupted-task replay and no retry of uncertain mutations. Admission is not an OS sandbox. Candidate check evidence records process exit and source samples before/after: tracked content/deletions, executable modes, symlink targets without following them, and nonignored untracked files. Exclude dependencies, ignored files, external services and environment. Matching samples are not immutable snapshots or proof of no intervening changes. Unreadable, unstable or oversized scopes report unavailable.
 
-Checks persist in tool history, not mutation receipts. Request digests identify idempotency, not source candidates. `finished` is a turn outcome; `verification: not_run` means no independent verifier. Exit zero/model prose cannot certify adequate checks. Lessons remain evidence for review, not authority or automatic memory writes. Personal memory still requires explicit user commands. Keeping resident mutation tools, split voice/Console workers and model-selected grant labels were rejected. [Personal Bot operations](PERSONAL_BOT_DEPLOYMENT.md) and its integration documentation own current control procedures.
+Checks persist in tool history, not mutation receipts. Request digests identify idempotency, not source candidates. `finished` is a turn outcome; `verification: not_run` means no independent verifier. Exit zero/model prose cannot certify adequate checks. Lessons remain evidence for review, not authority or automatic memory writes. Personal memory still requires explicit user commands. Keeping resident mutation tools, split voice/Console workers and model-selected grant labels were rejected. [Personal Agent operations](PERSONAL_AGENT_DEPLOYMENT.md) and its integration documentation own current control procedures.
 
 <a id="adr-0015"></a>
 ### ADR-0015: Live-first Pi Sessions and Pi reading
@@ -235,30 +235,30 @@ Configured latitude/longitude always win. An explicit empty location disables lo
 <a id="adr-0030"></a>
 ### ADR-0030: Declare transcription provider
 
-`ODK_PERSONAL_BOT_STT_PROVIDER` declares `openai` multipart (default) or `aliyun` DashScope JSON before file/network access. Do not infer shape from URL or include configured values in errors. OpenAI uses `ODK_PERSONAL_BOT_STT_KEY_FILE`; Aliyun uses `ALIYUNCS_TOKEN`; no credential fallback. A declared cloud provider wins over local `ODK_STT_PORT`/bridge settings.
+`ODK_PERSONAL_AGENT_STT_PROVIDER` declares `openai` multipart (default) or `aliyun` DashScope JSON before file/network access. Do not infer shape from URL or include configured values in errors. OpenAI uses `ODK_PERSONAL_AGENT_STT_KEY_FILE`; Aliyun uses `ALIYUNCS_TOKEN`; no credential fallback. A declared cloud provider wins over local `ODK_STT_PORT`/bridge settings.
 
 Both preserve normalization, language/context meaning, 25,000,000-byte upload, 45-second timeout, 64 KiB response and safe failure. [VOICE_FEEDBACK](VOICE_FEEDBACK.md#language-and-provider-contract) owns exact payload rules. URL inference, replacing multipart, a separate ASR fork and remote-readable local file paths were rejected: they break gateways/local contracts or duplicate bounds. Inline audio keeps capture local and removable.
 
 <a id="adr-0031"></a>
-### ADR-0031: Resident Personal Bot on every host
+### ADR-0031: Resident Personal Agent on every host
 
-Voice uses host-resolved channels and ADR-0025 authentication before protocol parsing. Windows uses `\\.\pipe\odk-personal-bot`; Unix retains owned sockets and old-client compatibility. Only capture is host-specific: `ffmpeg -f dshow` on Windows, `arecord` on Unix. Share signed little-endian 16-bit 16 kHz mono PCM, WAV, RMS, 640-byte/20 ms VAD frames, 60 silent frames, 4 GiB guard and temporary-file cleanup.
+Voice uses host-resolved channels and ADR-0025 authentication before protocol parsing. Windows uses `\\.\pipe\odk-personal-agent`; Unix retains owned sockets and old-client compatibility. Only capture is host-specific: `ffmpeg -f dshow` on Windows, `arecord` on Unix. Share signed little-endian 16-bit 16 kHz mono PCM, WAV, RMS, 640-byte/20 ms VAD frames, 60 silent frames, 4 GiB guard and temporary-file cleanup.
 
 Pass the actual DirectShow device name unchanged. Missing/`default` stops Windows startup explicitly. Stop ffmpeg through stdin to flush buffered samples, then terminate after the existing grace period; Windows has no SIGINT path. Use an independent interactive restart-loop task on Windows and `Restart=on-failure` user unit on Unix. Shell restart does not restart capture. Absence is unavailable, never simulated. The handheld uses a declared cloud provider.
 
-Session 0 service capture, coupling to the kiosk launcher and separate PowerShell/WinRT encoding were rejected. A native capture dependency was deferred because ffmpeg avoids a device toolchain. [PERSONAL_BOT_DEPLOYMENT](PERSONAL_BOT_DEPLOYMENT.md) and [WINDOWS_HOST](WINDOWS_HOST.md#personal-bot) own operations; live capture requires separate authorization/acceptance.
+Session 0 service capture, coupling to the kiosk launcher and separate PowerShell/WinRT encoding were rejected. A native capture dependency was deferred because ffmpeg avoids a device toolchain. [PERSONAL_AGENT_DEPLOYMENT](PERSONAL_AGENT_DEPLOYMENT.md) and [WINDOWS_HOST](WINDOWS_HOST.md#personal-agent) own operations; live capture requires separate authorization/acceptance.
 
 <a id="adr-0032"></a>
 ### ADR-0032: Correlated frame completes remote requests
 
 Pass the bounded request to the helper as a private stdin file; remove it with the exchange. Prompts/projects must never enter process arguments. The correlated response completes the request; stop the helper after it arrives. A later nonzero exit cannot undo that answer. No answer remains a timeout.
 
-Remote project paths follow target admission: absolute POSIX paths without parent segments/control characters. Send them verbatim. Only local projects use local resolution. Waiting for helper exit caused valid answers to time out; requiring a Windows pipe client or repeating target root policy on the desk was rejected. [Personal Bot control documentation](../../../integrations/personal-bot/docs/CONTRACT.md#hosted-pi-setup) owns the transport contract.
+Remote project paths follow target admission: absolute POSIX paths without parent segments/control characters. Send them verbatim. Only local projects use local resolution. Waiting for helper exit caused valid answers to time out; requiring a Windows pipe client or repeating target root policy on the desk was rejected. [Personal Agent control documentation](../../../integrations/personal-agent/docs/CONTRACT.md#hosted-pi-setup) owns the transport contract.
 
 <a id="adr-0033"></a>
 ### ADR-0033: One read-only Open DeskOS Data registry
 
-The main process registers each source once for tile IPC and Personal Bot. `list` reads no sources; `read` follows the source's refresh/state policy without a private cache or force-refresh. The read-only channel keeps request `id` separate from `readingId`; each channel's failure is independent. Both bot profiles use `odk_data` and read again for each question.
+The main process registers each source once for tile IPC and Personal Agent. `list` reads no sources; `read` follows the source's refresh/state policy without a private cache or force-refresh. The read-only channel keeps request `id` separate from `readingId`; each channel's failure is independent. Both bot profiles use `odk_data` and read again for each question.
 
 Projections retain measured numbers/times, identity and truth states. They drop binary/vendor/firmware details and mark shortened prose. Percent display scaling is shared; undeclared scales cannot be guessed. Nonlive Service Plugins show no holdings. Packages publish only declared data through the validated bridge; it remains untrusted data, never instruction or authorization. [ODK_DATA_SPEC](ODK_DATA_SPEC.md) owns fields, bounds, states and tests.
 
@@ -292,7 +292,7 @@ Source updates invalidate pending output.
 Unavailable generation retains explicitly stale content.
 The Shell renders literal text and source provenance through the authenticated status channel.
 Touch and keyboard navigation remain independent of Agent availability.
-[The Personal Bot contract](../../../integrations/personal-bot/docs/CONTRACT.md#home-briefing) owns the protocol and generation limits.
+[The Personal Agent contract](../../../integrations/personal-agent/docs/CONTRACT.md#home-briefing) owns the protocol and generation limits.
 A future mail App uses the same declared data boundary.
 A home statement grants no execution authority.
 
@@ -301,13 +301,13 @@ A home statement grants no execution authority.
 
 Android is another Shell Host. The Android app loads `src/renderer/index.html` from the same renderer the other hosts use. The build copies renderer output during packaging; the repository holds no Android copy of the renderer. An Android renderer fork was rejected because it breaks the single design source. Breakpoints, tokens and terms stay identical to the other hosts.
 
-The first Android surfaces are the Personal Agent page and the Personal Bot status panel. Other surfaces wait for a product decision.
+The first Android surfaces are the Personal Agent page and the Personal Agent status panel. Other surfaces wait for a product decision.
 
-The Android host supplies only the preload equivalents it can answer for: `odkPersonalBot` is backed by the link. The other bridges stay absent, so the renderer names its own honest unavailable condition instead of a shape this host invented. `toggle` answers `accepted: false` because Android captures no audio, and the renderer draws nothing from that value. `proposalCommand` answers `accepted: false` because the link carries no suggestion response, and the renderer draws its own sentence for it.
+The Android host supplies only the preload equivalents it can answer for: `odkPersonalAgent` is backed by the link. The other bridges stay absent, so the renderer names its own honest unavailable condition instead of a shape this host invented. `toggle` answers `accepted: false` because Android captures no audio, and the renderer draws nothing from that value. `proposalCommand` answers `accepted: false` because the link carries no suggestion response, and the renderer draws its own sentence for it.
 
 Android holds no generator. The CM5 desk produces every briefing, reply and notification, and Android receives them over Open DeskOS Link as one more authenticated link client. The phone dials the desk, so the desk gains no inbound port and Android opens no listener. Report and control authority stay separate, per ADR-0013: a report token reads the conversation, and a control token may submit an owner turn. A read grant never becomes a control grant. An Android copy of generated content was rejected because it would put the owner's personal data on a second generator.
 
-Android reports `unavailable` when the link drops. The conversation keeps the content the desk already sent, and the capsule states that the Personal Bot is unavailable. A per-message stale mark was rejected: it would change every Shell Host for a state only a phone reaches. A development frame source on the desk reproduces the Personal Agent states the resident cannot produce on demand. Android carries no fixture, so every frame on the device came from the desk. [ODK_LINK](ODK_LINK.md) owns the added frame kind and the fixture corpus.
+Android reports `unavailable` when the link drops. The conversation keeps the content the desk already sent, and the capsule states that the Personal Agent is unavailable. A per-message stale mark was rejected: it would change every Shell Host for a state only a phone reaches. A development frame source on the desk reproduces the Personal Agent states the resident cannot produce on demand. Android carries no fixture, so every frame on the device came from the desk. [ODK_LINK](ODK_LINK.md) owns the added frame kind and the fixture corpus.
 
 The engine baseline is a modern Chromium WebView of the Electron Chromium generation. `minSdk` is 26. A redroid Android 14 image with WebView 125 is the reference test device. A system WebView older than the baseline does not prove presentation; upgrading it is a separate device change.
 
@@ -330,13 +330,13 @@ Independent plugins can continue to run.
 The current composition includes these components:
 
 - The data sources in [data-sources.js](../src/plugins/data-sources.js)
-- Personal Bot, Remote Link, the built-in App manager, service notifications, and initial frame status in [system-channels.js](../src/plugins/system-channels.js)
+- Personal Agent, Remote Link, the built-in App manager, service notifications, and initial frame status in [system-channels.js](../src/plugins/system-channels.js)
 - The package catalog, Futu services, Open DeskOS Data, service refresh, installed Widget/App runtime, and Open DeskOS Data Link in [desk-runtime.js](../src/plugins/desk-runtime.js)
 - The appearance declarations in [appearance-plugins.js](../src/renderer/core/appearance-plugins.js)
 - The renderer surfaces in [registry.js](../src/renderer/core/registry.js).
 - The Remote Bridge listener and transports in [plugin-runtime.js](../../../integrations/remote-bridge/lib/plugin-runtime.js).
-- The resident Personal Bot components in [plugin-composition.mjs](../../../integrations/personal-bot/src/plugin-composition.mjs).
-- The Hosted Pi task components in [task-composition.mjs](../../../integrations/personal-bot/src/task-composition.mjs).
+- The resident Personal Agent components in [plugin-composition.mjs](../../../integrations/personal-agent/src/plugin-composition.mjs).
+- The Hosted Pi task components in [task-composition.mjs](../../../integrations/personal-agent/src/task-composition.mjs).
 
 The CLI can link [appearance declarations](CONFIGURATION.md#appearance-declarations) for existing packaged theme identities.
 Main passes the same validated selection to the renderer and installed package context.
@@ -344,12 +344,12 @@ These declarations replace palette values while preserving packaged fonts, geome
 
 The read-only [diagnosis plugin](../src/plugin-diagnostics.js) exposes current Main lifecycle states through the authenticated local channel.
 The [renderer diagnosis plugin](../src/renderer-diagnostics.js) requests bounded snapshots from known Shell main frames.
-The Personal Bot diagnosis plugin reads the resident composition through its negotiated channel capability.
+The Personal Agent diagnosis plugin reads the resident composition through its negotiated channel capability.
 The Remote Bridge diagnosis plugin reads listener and transport states through separate short connections.
 The Bridge entry accepts [trusted transport selections](../../../integrations/remote-bridge/README.md#trusted-external-transport-selections) and supports offline declaration inspection.
 The Hosted Pi diagnosis plugin reads the task composition through its existing discovered endpoint.
-The task daemon also accepts [trusted startup selections](../../../integrations/personal-bot/docs/CONTRACT.md#trusted-hosted-pi-development-selections) for listener, service, and endpoint factories.
-Its named runtime port distinguishes Hosted Pi from the resident Personal Bot on the same host type.
+The task daemon also accepts [trusted startup selections](../../../integrations/personal-agent/docs/CONTRACT.md#trusted-hosted-pi-development-selections) for listener, service, and endpoint factories.
+Its named runtime port distinguishes Hosted Pi from the resident Personal Agent on the same host type.
 The shared [runtime report validator](../src/plugin-runtime-report.js) excludes private errors and data from runtime reports.
 The CLI reports renderer snapshots separately and treats unavailable runtime channels as failures.
 These states do not certify renderer, source, service, or hardware health.
@@ -383,9 +383,9 @@ Legacy injected Weather sources can omit `stop`; the existing source contract re
 Such sources do not establish cancellation support without separate acceptance evidence.
 
 The kernel publishes frame readiness through [frame-ready.js](../src/frame-ready.js).
-The frame status plugin broadcasts Personal Bot status and sends Remote Link status only to the new frame.
+The frame status plugin broadcasts Personal Agent status and sends Remote Link status only to the new frame.
 Optional providers retain the existing unavailable and disconnected fallback states.
-The notification plugin forwards changed reading identities to the current Personal Bot instance.
+The notification plugin forwards changed reading identities to the current Personal Agent instance.
 Stopping either consumer cancels its retained callbacks without stopping its providers.
 Open DeskOS Data Link retains its listener until close succeeds, including listeners returned after startup cancellation.
 A failed close retains the required data provider and prevents replacement until cleanup succeeds.
@@ -427,12 +427,12 @@ This composition does not load third-party native code or change installed HTML 
 Remote Bridge stops its transports before its socket listener.
 Transport removal selects an available fallback and keeps the listener open.
 Source checkouts and immutable releases load the same Shell kernel.
-The [Personal Bot contract](../../../integrations/personal-bot/docs/CONTRACT.md#plugin-composition) owns its component lifecycle.
+The [Personal Agent contract](../../../integrations/personal-agent/docs/CONTRACT.md#plugin-composition) owns its component lifecycle.
 Resident runtime disable preserves its service and channel providers while voice work drains through reversible service suspension.
 The resident management plugin uses the common dispatcher through an independent authenticated endpoint.
 The unified CLI routes resident identities to this endpoint without changing startup preferences.
 Management remains available while service or voice channel dependencies restart.
-Its [development selection](../../../integrations/personal-bot/docs/CONTRACT.md#trusted-resident-development-selections) selects explicitly trusted native resident entries at startup.
+Its [development selection](../../../integrations/personal-agent/docs/CONTRACT.md#trusted-resident-development-selections) selects explicitly trusted native resident entries at startup.
 Inspection validates declarations without initializing components or preparing operational directories.
 The [Futu Python host](../../../integrations/futu-poller/plugin_host.py) implements synchronous local factory composition with the same versioned-port declarations.
 The [Futu integration](../../../integrations/futu-poller/README.md#local-component-plugins) owns its lifecycle and compatibility limits.

@@ -6,7 +6,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { createOdkLinkService } = require('../src/odk-link-service')
 const { createHostedPiSocketAdapter } = require('../src/odk-link-host-adapter')
-const { createPersonalBotClient, resolvePersonalBotSocketPath } = require('../src/personal-bot-client')
+const { createPersonalAgentClient, resolvePersonalAgentSocketPath } = require('../src/personal-agent-client')
 const { createPersonalAgentDriver } = require('../src/personal-agent-driver')
 const { resolveShellHost } = require('../src/platform')
 const { isNamedPipe, readOrCreateToken } = require('../src/local-channel')
@@ -67,7 +67,7 @@ function personalAgentSource(env, host) {
   const fixture = (env.ODK_LINK_PERSONAL_AGENT_DRIVER ?? '').trim()
   if (fixture.length === 0) {
     return {
-      personalAgent: createPersonalBotClient({ socketPath: resolvePersonalBotSocketPath(env, host), host }),
+      personalAgent: createPersonalAgentClient({ socketPath: resolvePersonalAgentSocketPath(env, host), host }),
       personalAgentDevelopment: false,
     }
   }

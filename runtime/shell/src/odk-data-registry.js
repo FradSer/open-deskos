@@ -71,7 +71,7 @@ function boundedValue(value) {
  * The Shell's Open DeskOS Data registry: one reading per plugin, each held once.
  *
  * A reading is registered with the source that owns it, so the tile that draws it
- * and the Personal Bot that answers about it read the same one. Sources decide
+ * and the Personal Agent that answers about it read the same one. Sources decide
  * whether a read performs I/O; this registry adds no refresh of its own, and it
  * changes nothing when it is read.
  */

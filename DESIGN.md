@@ -74,7 +74,7 @@ New installations use Pixel; explicit local selection survives restart. There is
 
 ## Interaction
 
-- Widgets display readings. Apps own interactive views. Swipe up from the bottom handle to return from a Widget App. This restores its source page and focus. A focused handle accepts ArrowUp, Enter, or Space. Gamepad B returns from the foreground App. A Personal Bot overlay receives Back first. Escape remains available for other App entry points. Touch and keyboard work without Remote Link or camera services.
+- Widgets display readings. Apps own interactive views. Swipe up from the bottom handle to return from a Widget App. This restores its source page and focus. A focused handle accepts ArrowUp, Enter, or Space. Gamepad B returns from the foreground App. A Personal Agent overlay receives Back first. Escape remains available for other App entry points. Touch and keyboard work without Remote Link or camera services.
 - Attribute the Console driving a Hosted Pi in the overview header for as long as it drives. Local input retains authority.
 - Show unavailable/synchronizing peripheral states honestly and keep hardware acceptance separate.
 - Pointer paging has a short spatial transition; keyboard/Remote changes are immediate. Respect reduced motion. Page marks crossfade opacity without scaling targets or animating layout width.

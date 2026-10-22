@@ -41,21 +41,23 @@ contextBridge.exposeInMainWorld('odkUserApps', {
   },
 })
 
-contextBridge.exposeInMainWorld('odkPersonalBot', {
+contextBridge.exposeInMainWorld('odkPersonalAgent', {
+  openAuthUrl: url => ipcRenderer.invoke('odk-personal-agent-auth-open',url),
+  configure: command => ipcRenderer.invoke('odk-personal-agent-config',command),
   onMic(listener) {
     const handler = () => listener()
-    ipcRenderer.on('odk-personal-bot-mic', handler)
-    return () => ipcRenderer.removeListener('odk-personal-bot-mic', handler)
+    ipcRenderer.on('odk-personal-agent-mic', handler)
+    return () => ipcRenderer.removeListener('odk-personal-agent-mic', handler)
   },
-  toggle: () => ipcRenderer.invoke('odk-personal-bot-toggle'),
+  toggle: () => ipcRenderer.invoke('odk-personal-agent-toggle'),
   supportsReplyTo: true,
-  sendText: (text, replyTo) => replyTo === undefined ? ipcRenderer.invoke('odk-personal-bot-text', text) : ipcRenderer.invoke('odk-personal-bot-text', text, replyTo),
-  getStatus: () => ipcRenderer.invoke('odk-personal-bot-status'),
-  proposalCommand: (command) => ipcRenderer.invoke('odk-personal-bot-proposal', command),
+  sendText: (text, replyTo) => replyTo === undefined ? ipcRenderer.invoke('odk-personal-agent-text', text) : ipcRenderer.invoke('odk-personal-agent-text', text, replyTo),
+  getStatus: () => ipcRenderer.invoke('odk-personal-agent-status'),
+  proposalCommand: (command) => ipcRenderer.invoke('odk-personal-agent-proposal', command),
   subscribe(listener) {
     const handler = (_event, update) => listener(update)
-    ipcRenderer.on('odk-personal-bot-status', handler)
-    return () => ipcRenderer.removeListener('odk-personal-bot-status', handler)
+    ipcRenderer.on('odk-personal-agent-status', handler)
+    return () => ipcRenderer.removeListener('odk-personal-agent-status', handler)
   },
 })
 

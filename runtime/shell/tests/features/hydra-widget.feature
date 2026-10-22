@@ -310,3 +310,8 @@ Feature: Hydra plant and environment Widget on the Desk page
     When Windows and macOS render normal and full moisture readings
     Then the original strict density limits pass on both hosts
     And the three-column strip and Pixel reading scale remain unchanged
+
+  Scenario: Shared frame changes preserve the reading threshold checks
+    Given the Pixel frame has no layout border
+    When the fixture supplies content lanes of 280 and 276 pixels
+    Then environment readings use 40 and 32 pixels respectively

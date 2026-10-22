@@ -13,7 +13,7 @@ This file lists environment variables read by the Shell and integrations. Update
 - The resource owner declares its port or socket. Clients read that declaration or the published endpoint. The STT bridge declares `ODK_STT_PORT`; the bot derives its loopback endpoint.
 - The Hosted Pi daemon checks project admission once. Clients reject invalid transport paths; they do not copy the daemon root policy.
 - Do not copy release defaults into device files. Remove a setting that only repeats the code default.
-- Installers generate personal-bot, pi-tasks, remote-bridge and odk-link units from release templates.
+- Installers generate personal-agent, pi-tasks, remote-bridge and odk-link units from release templates.
 - Use one source per setting. Keep permanent settings in environment files. A temporary systemd drop-in overrides `EnvironmentFile=`; remove it after use.
 - Use `ODK_` for new variables. Keep existing `ODK_` names unchanged.
 
@@ -23,14 +23,14 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 
 | Variable | Layer | Owner | Consumer | Default | Purpose |
 | --- | --- | --- | --- | --- | --- |
-| `ALIYUNCS_TOKEN` | L3 device (sensitive) | personal-bot.env | integrations/personal-bot/src/transcribe.mjs | — | DashScope bearer credential. Only the aliyun provider reads it. OpenAI uses ODK_PERSONAL_BOT_STT_KEY_FILE. |
+| `ALIYUNCS_TOKEN` | L3 device (sensitive) | perosnal-agent.env | integrations/personal-agent/src/transcribe.mjs | — | DashScope bearer credential. Only the aliyun provider reads it. OpenAI uses ODK_PERSONAL_AGENT_STT_KEY_FILE. |
 | `DISPLAY` | Environment | Graphical session | runtime/shell/src/main.js | — | The graphical session imports this value into the user systemd environment. |
 | `FUTU_HOST` | External tool | External consumer integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | 10.10.0.195 | Futu gateway address. |
 | `FUTU_INTERVAL` | External tool | External consumer integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | 60 | Poll interval in seconds. |
 | `FUTU_PORT` | External tool | External consumer integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | 11111 | Futu gateway port. |
 | `FUTU_RSA_FILE` | External tool (sensitive) | External consumer integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | — | Path to the gateway RSA private key copy. |
 | `FUTU_TRADE_PWD` | External tool (sensitive) | External consumer integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | — | Trade unlock password. |
-| `ODK_CHANNEL_TOKEN_FILE` | L3 device (sensitive) | Plugin and Personal Bot clients | integrations/futu-poller/poller.py, integrations/personal-bot/src/runtime-channel.mjs | — | Read-only client token file for TCP or named-pipe channels. The bot uses it for app control and Open DeskOS Data. Unix socket ownership supplies authentication without a token. |
+| `ODK_CHANNEL_TOKEN_FILE` | L3 device (sensitive) | Plugin and Personal Agent clients | integrations/futu-poller/poller.py, integrations/personal-agent/src/runtime-channel.mjs | — | Read-only client token file for TCP or named-pipe channels. The bot uses it for app control and Open DeskOS Data. Unix socket ownership supplies authentication without a token. |
 | `HOME` | Environment | Login session | runtime/shell/src/opencode-go.js, runtime/shell/src/plugin-config.js | — | Find host configuration and credentials. |
 | `LIBGL_ALWAYS_SOFTWARE` | Environment | Operator | runtime/shell/src/main.js | — | Force software rendering for diagnosis. |
 | `ODK_AGENT_BROWSER_PROBE_TIMEOUT` | L2 install | Installer override | runtime/shell/scripts/cm5-agent-browser.sh | 120 | Deadline in seconds for each browser verification command. |
@@ -39,9 +39,9 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `ODK_CHROME_SHA256` | L2 install | Installer override | runtime/shell/scripts/cm5-agent-browser.sh | Pinned in consumer | SHA-256 digest for the browser archive. A version override requires its matching reviewed digest. |
 | `ODK_CHROME_VERSION` | L2 install | Installer override | runtime/shell/scripts/cm5-agent-browser.sh | 155.0.8059.79 | Pinned Chrome for Testing release. Change the version and archive digest together. |
 | `LOCALAPPDATA` | Environment | Windows user session | runtime/shell/src/platform/index.js | — | Windows persistent state root. If absent, use AppData/Local under the user directory. |
-| `ODK_APPS_CONTROL_SOCKET` | Test | Test process | integrations/personal-bot/src/apps-control.mjs | Host app control socket (Windows: `\\.\pipe\odk-user-app-control`) | Test override only. Production uses the host endpoint. A missing Unix runtime directory makes the channel unavailable; do not guess a path. |
+| `ODK_APPS_CONTROL_SOCKET` | Test | Test process | integrations/personal-agent/src/apps-control.mjs | Host app control socket (Windows: `\\.\pipe\odk-user-app-control`) | Test override only. Production uses the host endpoint. A missing Unix runtime directory makes the channel unavailable; do not guess a path. |
 | `ODK_CAMERA_DEVICE` | L3 device | Operator | runtime/shell/src/camera-source.js | — | Camera device override. |
-| `ODK_DATA_SOCKET` | Test | Test process | integrations/personal-bot/src/odk-data.mjs | Host Open DeskOS Data socket (Windows: `\\.\pipe\odk-data`) | Test override only. Production uses the host endpoint. A missing Unix runtime directory makes Open DeskOS Data unavailable; do not guess a listener path. |
+| `ODK_DATA_SOCKET` | Test | Test process | integrations/personal-agent/src/odk-data.mjs | Host Open DeskOS Data socket (Windows: `\\.\pipe\odk-data`) | Test override only. Production uses the host endpoint. A missing Unix runtime directory makes Open DeskOS Data unavailable; do not guess a listener path. |
 | `ODK_LINK_SOCKET` | Internal | Shell | runtime/shell/src/odk-link-client.js | Host Open DeskOS Link socket | Shell client override for the local Open DeskOS Link socket. |
 | `ODK_DISABLED_PLUGINS` | L3 device | Operator | runtime/shell/src/main.js | — | Additional disabled plugin IDs. Saved enable preferences cannot override this list. |
 | `ODK_DISABLE_GPU` | L3 device | Operator | runtime/shell/src/main.js | — | Disable GPU acceleration. |
@@ -60,23 +60,22 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `ODK_SKIP_GPU_USERSPACE` | L2 install | Installer override | runtime/shell/scripts/cm5-install.sh | 0 | Skip the Mali userspace install. |
 | `ODK_SMOKE_RESULT_FILE` | Test | Smoke run | runtime/shell/src/main.js | — | Smoke result file. |
 | `ODK_TAILSCALE_BIN` | L3 device | Operator | runtime/shell/scripts/provision-tailscale.sh | /usr/bin/tailscale | Override a nonstandard Tailscale executable path. Reuse an existing host installation. |
-| `ODK_TASK_CONFIG` | L2 install | pi-tasks unit | integrations/personal-bot/src/task-store.mjs | %h/.config/odk/pi-tasks.json | Private Hosted Pi daemon configuration. Only the daemon reads and checks ownership/mode. Clients read its published endpoint descriptor. |
-| `ODK_TASK_TARGETS_FILE` | L3 device | Bot environment or drop-in | integrations/personal-bot/src/task-client.mjs | Unset | Personal Bot target list. If absent, report that configuration is required. |
-| `ODK_PROACTIVE_CONFIG` | L3 device (sensitive) | personal-bot.env | integrations/personal-bot/src/main.mjs | Unset; no polling | Private owner rules: thresholds, combinations, quiet hours, rate limits and mute state. File mode 0600. See the Personal Bot CONTRACT.md proposal section. |
-| `ODK_PERSONAL_BOT_CONFIG` | L3 device (sensitive) | personal-bot.env | integrations/personal-bot/src/personal-config.mjs | coding profile | Private profile, reviewed capability declarations, Skill paths, and fixed plugin selection. |
-| `ODK_AGENT_CATALOG_DIR` | CLI | Operator | integrations/personal-bot/src/agent-catalog/cli.mjs | Unset | CLI catalog path. The resident uses its private state directory. |
-| `ODK_AGENT_PACKAGE_CANDIDATES` | L3 device | personal-bot.env | integrations/personal-bot/src/agent.mjs | Unset | Private staged package candidates. Required only for candidate inspection and installation. |
-| `ODK_AGENT_PLUGIN_TIMEOUT_MS` | L3 device | personal-bot.env | integrations/personal-bot/src/agent.mjs | 90000 | Completion and learning deadline. Accepts 1000 through 180000 milliseconds. |
-| `ODK_PERSONAL_BOT_AUDIO_DEVICE` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | default | ALSA capture device. Windows requires the exact DirectShow device name. |
-| `ODK_PERSONAL_BOT_CAPABILITIES` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | Empty | Paths to trusted capability modules. |
-| `ODK_PERSONAL_BOT_MODEL` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | — | Pi provider/id model selection. |
-| `ODK_PERSONAL_BOT_STT_KEY_FILE` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | Unset | Required only for a nonlocal transcription endpoint. |
-| `ODK_PERSONAL_BOT_STT_LANGUAGE` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | zh | Two or three lowercase letters for a language code. |
-| `ODK_PERSONAL_BOT_STT_MODEL` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | whisper-1 | The local bridge ignores this value. No setting is required. |
-| `ODK_PERSONAL_BOT_STT_PROMPT` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | Built-in Chinese context | Maximum 1024 UTF-16 code units. An empty value disables the context. |
-| `ODK_PERSONAL_BOT_STT_PROVIDER` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | openai | Declared request shape: openai uses multipart audio; aliyun uses DashScope JSON with inline audio. Never infer the provider from the URL. |
-| `ODK_PERSONAL_BOT_STT_URL` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | Cloud OpenAI endpoint | Explicit endpoint. If absent, derive a loopback endpoint from ODK_STT_PORT. |
-| `ODK_WORKSPACE` | L3 device | runtime.env | runtime/shell/src/main.js, runtime/shell/src/user-app-system.js, integrations/personal-bot/src/main.mjs | — | Writable checkout shared by Shell and Personal Bot. |
+| `ODK_TASK_CONFIG` | L2 install | pi-tasks unit | integrations/personal-agent/src/task-store.mjs | %h/.config/odk/pi-tasks.json | Private Hosted Pi daemon configuration. Only the daemon reads and checks ownership/mode. Clients read its published endpoint descriptor. |
+| `ODK_TASK_TARGETS_FILE` | L3 device | Bot environment or drop-in | integrations/personal-agent/src/task-client.mjs | Unset | Personal Agent target list. If absent, report that configuration is required. |
+| `ODK_PROACTIVE_CONFIG` | L3 device (sensitive) | perosnal-agent.env | integrations/personal-agent/src/main.mjs | Unset; no polling | Private owner rules: thresholds, combinations, quiet hours, rate limits and mute state. File mode 0600. See the Personal Agent CONTRACT.md proposal section. |
+| `ODK_PERSONAL_AGENT_CONFIG` | L3 device (sensitive) | perosnal-agent.env | integrations/personal-agent/src/personal-config.mjs | coding profile | Private profile, reviewed capability declarations, Skill paths, and fixed plugin selection. |
+| `ODK_AGENT_CATALOG_DIR` | CLI | Operator | integrations/personal-agent/src/agent-catalog/cli.mjs | Unset | CLI catalog path. The resident uses its private state directory. |
+| `ODK_AGENT_PACKAGE_CANDIDATES` | L3 device | perosnal-agent.env | integrations/personal-agent/src/agent.mjs | Unset | Private staged package candidates. Required only for candidate inspection and installation. |
+| `ODK_AGENT_PLUGIN_TIMEOUT_MS` | L3 device | perosnal-agent.env | integrations/personal-agent/src/agent.mjs | 90000 | Completion and learning deadline. Accepts 1000 through 180000 milliseconds. |
+| `ODK_PERSONAL_AGENT_AUDIO_DEVICE` | L3 device | perosnal-agent.env | integrations/personal-agent/src/main.mjs | default | ALSA capture device. Windows requires the exact DirectShow device name. |
+| `ODK_PERSONAL_AGENT_CAPABILITIES` | L3 device | perosnal-agent.env | integrations/personal-agent/src/main.mjs | Empty | Paths to trusted capability modules. |
+| `ODK_PERSONAL_AGENT_STT_KEY_FILE` | L3 device | perosnal-agent.env | integrations/personal-agent/src/main.mjs | Unset | Required only for a nonlocal transcription endpoint. |
+| `ODK_PERSONAL_AGENT_STT_LANGUAGE` | L3 device | perosnal-agent.env | integrations/personal-agent/src/main.mjs | zh | Two or three lowercase letters for a language code. |
+| `ODK_PERSONAL_AGENT_STT_MODEL` | L3 device | perosnal-agent.env | integrations/personal-agent/src/main.mjs | whisper-1 | The local bridge ignores this value. No setting is required. |
+| `ODK_PERSONAL_AGENT_STT_PROMPT` | L3 device | perosnal-agent.env | integrations/personal-agent/src/main.mjs | Built-in Chinese context | Maximum 1024 UTF-16 code units. An empty value disables the context. |
+| `ODK_PERSONAL_AGENT_STT_PROVIDER` | L3 device | perosnal-agent.env | integrations/personal-agent/src/main.mjs | openai | Declared request shape: openai uses multipart audio; aliyun uses DashScope JSON with inline audio. Never infer the provider from the URL. |
+| `ODK_PERSONAL_AGENT_STT_URL` | L3 device | perosnal-agent.env | integrations/personal-agent/src/main.mjs | Cloud OpenAI endpoint | Explicit endpoint. If absent, derive a loopback endpoint from ODK_STT_PORT. |
+| `ODK_WORKSPACE` | L3 device | runtime.env | runtime/shell/src/main.js, runtime/shell/src/user-app-system.js, integrations/personal-agent/src/main.mjs | — | Writable checkout shared by Shell and Personal Agent. |
 | `ODK_ELECTRON_HEADERS_URL` | L2 build | Builder | runtime/shell/scripts/build-native.mjs | https://electronjs.org/headers | Electron header source. Use a mirror if the build host cannot reach GitHub; npm_config_disturl also applies. Set this override for the remote Windows handheld build when required. |
 | `ODK_CANDIDATE_RELEASE` | L2 install | cm5-install.sh → update-runtime.js | runtime/shell/scripts/update-runtime.js | — | Absolute candidate release path for this activation transaction. |
 | `ODK_CLIPROXY_MANAGEMENT_KEY` | L3 device (sensitive) | runtime.env | runtime/shell/src/opencode-go.js | — | Management key value. Prefer the file form. |
@@ -116,7 +115,7 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `ODK_PI_SSH_NODE` | L3 device | shell drop-in | runtime/shell/src/pi-sessions-source.js | — | Absolute Node path on the remote host. |
 | `ODK_RUNTIME_ROOT` | L2 install | cm5-install.sh | runtime/shell/src/user-app-context.js, runtime/shell/scripts/cm5-acceptance.sh, runtime/shell/scripts/cm5-install.sh, runtime/shell/scripts/cm5-stage-release.sh, runtime/shell/scripts/migrate-runtime.js, runtime/shell/scripts/start-kiosk.sh, runtime/shell/scripts/update-runtime.js | /opt/odk | Root for releases and mutable state. |
 | `ODK_STAGING_ID` | L2 build | cm5-stage-release.sh | runtime/shell/scripts/cm5-stage-release.sh | timestamp-$-random | Isolated staging directory identifier. |
-| `ODK_STT_PORT` | L3 device | stt-bridge unit (runtime.env override) | integrations/local-stt-bridge/scripts/provision-stt-bridge.sh, integrations/personal-bot/src/main.mjs | 17840 | Single declaration of the local STT port. The bot derives its endpoint from this value. |
+| `ODK_STT_PORT` | L3 device | stt-bridge unit (runtime.env override) | integrations/local-stt-bridge/scripts/provision-stt-bridge.sh, integrations/personal-agent/src/main.mjs | 17840 | Single declaration of the local STT port. The bot derives its endpoint from this value. |
 | `ODK_WEATHER_LAT` | L3 device | runtime.env | runtime/shell/src/weather-source.js | — | Weather latitude. A valid latitude/longitude pair disables location lookup. |
 | `ODK_WEATHER_LON` | L3 device | runtime.env | runtime/shell/src/weather-source.js | — | Weather longitude. A valid latitude/longitude pair disables location lookup. |
 | `ODK_WEATHER_PLACE` | L3 device | runtime.env | runtime/shell/src/weather-source.js | — | Weather location name. |
@@ -125,15 +124,15 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `USERPROFILE` | Environment | Windows user session | runtime/shell/src/plugin-config.js | — | Find the plugin configuration directory when HOME is absent. |
 | `PATH` | Environment | Unit / installer | runtime/shell/scripts/cm5-install.sh | — | Units pin Node and shim directories. Do not depend on an interactive version manager PATH. |
 | `PI_AGENT_DIR` | Environment | Pi runtime | runtime/shell/src/pi-sessions.js | ~/.pi/agent | Pi session and authentication directory. |
-| `PI_CODING_AGENT_DIR` | Environment | Personal Bot verifier | integrations/personal-bot/scripts/test-proactive-docker-live.mjs | ~/.pi/agent | Pi settings and authentication directory for the isolated live verifier. |
+| `PI_CODING_AGENT_DIR` | Environment | Personal Agent verifier | integrations/personal-agent/scripts/test-proactive-docker-live.mjs | ~/.pi/agent | Pi settings and authentication directory for the isolated live verifier. |
 | `ODK_FUTU_SERVICE_REVISION` | L3 device | runtime.env | runtime/shell/src/plugins/desk-runtime.js, integrations/futu-poller/poller.py | dev | Futu revision. The handshake and expected revision use this single declaration. |
-| `SystemRoot` | Environment | Windows user session | integrations/personal-bot/src/candidate-checks.mjs | — | Pass through SystemRoot and WINDIR in the minimal Windows coding_check child environment. They are session values, not host configuration. |
-| `WINDIR` | Environment | Windows user session | integrations/personal-bot/src/candidate-checks.mjs | — | Pass through with SystemRoot so Windows child processes can resolve system directories. |
+| `SystemRoot` | Environment | Windows user session | integrations/personal-agent/src/candidate-checks.mjs | — | Pass through SystemRoot and WINDIR in the minimal Windows coding_check child environment. They are session values, not host configuration. |
+| `WINDIR` | Environment | Windows user session | integrations/personal-agent/src/candidate-checks.mjs | — | Pass through with SystemRoot so Windows child processes can resolve system directories. |
 | `SERVICE_ID` | External tool | External consumer integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | futu-poller | Service identity. The Shell registry uses this same protocol identity. |
 | `WAYLAND_DISPLAY` | Environment | Graphical session | runtime/shell/src/main.js | — | Select the Ozone platform hint for a Wayland session. |
 | `WEREAD_API_KEY` | L3 device (sensitive) | runtime.env | runtime/shell/src/weread-source.js | — | WeRead synchronization credential. |
-| `XDG_RUNTIME_DIR` | Environment | Login session | runtime/shell/src/platform/index.js, runtime/shell/src/main.js, runtime/shell/src/remote-bridge-client.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/personal-bot/src/runtime-channel.mjs, integrations/personal-bot/src/host-paths.mjs | — | Unix IPC/runtime root. The platform names local endpoints; Windows uses token-authenticated named pipes. |
-| `XDG_STATE_HOME` | Environment | Login session | runtime/shell/src/platform/index.js, integrations/personal-bot/src/host-paths.mjs | ~/.local/state | Persistent state directory. |
+| `XDG_RUNTIME_DIR` | Environment | Login session | runtime/shell/src/platform/index.js, runtime/shell/src/main.js, runtime/shell/src/remote-bridge-client.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/personal-agent/src/runtime-channel.mjs, integrations/personal-agent/src/host-paths.mjs | — | Unix IPC/runtime root. The platform names local endpoints; Windows uses token-authenticated named pipes. |
+| `XDG_STATE_HOME` | Environment | Login session | runtime/shell/src/platform/index.js, integrations/personal-agent/src/host-paths.mjs | ~/.local/state | Persistent state directory. |
 
 ## Weather location and privacy
 
@@ -143,16 +142,16 @@ A host with no location asks a keyless IP location service during weather refres
 
 Requests have a three-second timeout. A failed lookup reports Unavailable with a reason. It never blocks rendering or invents a city. The renderer does not perform the lookup.
 
-## Personal Bot capability configuration
+## Personal Agent capability configuration
 
-The [unified architecture](../../../integrations/personal-bot/docs/UNIFIED_ARCHITECTURE.md) separates host tools, shared Shell, external Personal Bot, reviewed capabilities, and Skills.
+The [unified architecture](../../../integrations/personal-agent/docs/UNIFIED_ARCHITECTURE.md) separates host tools, shared Shell, external Personal Agent, reviewed capabilities, and Skills.
 On CM5, the resident runs as nonroot `orangepi`.
 Host-installed tools and private state remain outside immutable releases.
 `ODK_WORKSPACE` identifies a writable checkout, not the active release or the resident conversation directory.
 
-`ODK_PERSONAL_BOT_CONFIG` selects a private profile configuration.
+`ODK_PERSONAL_AGENT_CONFIG` selects a private profile configuration.
 The personal profile uses the canonical `capabilities` map for reviewed `didi` and `browser` declarations.
-The [profile contract](../../../integrations/personal-bot/docs/CONTRACT.md#profiles-and-memory) owns its example and file rules.
+The [profile contract](../../../integrations/personal-agent/docs/CONTRACT.md#profiles-and-memory) owns its example and file rules.
 The host registry owns validation, factories, Skills, intents, workflows, tool prefixes, lifecycle hooks, and `childAllowed`.
 Legacy top-level `didi` and `browser` declarations normalize into that map.
 Duplicate declarations fail, including duplicates across legacy and canonical fields.
@@ -161,7 +160,7 @@ Configuration cannot select arbitrary factories or native Pi plugins.
 
 `agentPlugins.enabled` selects fixed `experience`, `completion`, `learning`, `catalog`, `mcp`, `subagents`, `intent`, and `remote_conversation` identities.
 `learning` and `remote_conversation` require `completion`; `mcp` requires `catalog`.
-The [remote conversation contract](../../../integrations/personal-bot/docs/CONTRACT.md#remote-pi-conversation) owns collection, history, and follow-up limits.
+The [remote conversation contract](../../../integrations/personal-agent/docs/CONTRACT.md#remote-pi-conversation) owns collection, history, and follow-up limits.
 These selections identify reviewed DeskOS modules, not arbitrary Pi packages.
 Runtime Skills and declarative MCP packages retain their catalog and workflow limits.
 Repository `.agents/skills/` files guide coding agents and grant no resident authority.
@@ -169,25 +168,21 @@ Repository `.agents/skills/` files guide coding agents and grant no resident aut
 After parent admission, the host selects fixed child `agent_execute` dispatch without a second Jev client.
 Children cannot inherit DiDi, delegate recursively, change identities, alter packages, or invoke core lifecycle mutations.
 A permitted browser uses a separate session under the child's private `stateDir`.
-The [child contract](../../../integrations/personal-bot/docs/AGENT_TASKS.md) owns identity, storage, completion, and avatar rules.
+The [child contract](../../../integrations/personal-agent/docs/AGENT_TASKS.md) owns identity, storage, completion, and avatar rules.
 
-## Personal Bot judgment and generation
+## Personal Agent judgment and generation
 
 | Variable | Layer | Default | Consumer | Kind | Note |
 | --- | --- | --- | --- | --- | --- |
-| `ODK_JEV_PROVIDER` | device | typesafe | integrations/personal-bot/src/jev-client.mjs | config | Select typesafe or opencode; disabled uses ordinary model judgment |
-| `ODK_JEV_KEY_FILE` | device | none | integrations/personal-bot/src/provider-endpoints.mjs | config | Private TypeSafe credential path; never expose file contents |
-| `ODK_OPENCODE_KEY_FILE` | device | none | integrations/personal-bot/src/provider-endpoints.mjs | config | Private OpenCode Zen credential path; separate from Go |
-| `ODK_OPENCODE_GO_KEY_FILE` | device | none | integrations/personal-bot/src/provider-endpoints.mjs | config | Private OpenCode Go credential path; unavailable for Jev |
-| `OPENCODE_API_KEY` | device | none | integrations/personal-bot/src/provider-endpoints.mjs | config | OpenCode Zen environment credential; never expose its value |
-| `OPENCODE_GO_API_KEY` | device | none | integrations/personal-bot/src/provider-endpoints.mjs | config | Separate OpenCode Go environment credential; never expose its value |
-| `ODK_PERSONAL_AGENT_MAIN_SSH` | device | none | integrations/personal-bot/src/display-client.mjs | config | Windows display requires the fixed odk-cm5-agent SSH alias |
-| `ODK_JEV_MODEL` | device | provider default | integrations/personal-bot/src/jev-client.mjs | config | TypeSafe defaults to jev-latest; OpenCode Zen defaults to jev-1.13 |
-| `ODK_JEV_INTENT_THRESHOLD` | device | 0.8 | integrations/personal-bot/src/intent-routing.mjs | config | Minimum selected probability and confidence; initially uncalibrated, must exceed 0.5 |
-| `ODK_JEV_THRESHOLD` | device | 0.8 | integrations/personal-bot/src/proactive-jev.mjs | config | Minimum usefulness and factual support |
-| `ODK_JEV_TIMEOUT_MS` | device | 10000 | integrations/personal-bot/src/jev-client.mjs | config | Judgment deadline, integer 1000 through 30000 milliseconds |
-| `TYPESAFE_API_KEY` | device | none | integrations/personal-bot/src/provider-endpoints.mjs | config | Private TypeSafe environment credential; never expose its value |
-| `ODK_PROACTIVE_GENERATION_TIMEOUT_MS` | device | 90000 | integrations/personal-bot/src/agent.mjs | config | Total generation deadline, integer 1000 through 180000 |
+| `ODK_JEV_PROVIDER` | device | typesafe | integrations/personal-agent/src/jev-client.mjs | config | Select typesafe or opencode; disabled uses ordinary model judgment |
+| `OPENCODE_API_KEY` | device | none | External consumer: Pi ModelRuntime | config | Native Pi OpenCode environment credential; stored credentials take precedence |
+| `ODK_PERSONAL_AGENT_MAIN_SSH` | device | none | integrations/personal-agent/src/display-client.mjs | config | Windows display requires the fixed odk-cm5-agent SSH alias |
+| `ODK_JEV_MODEL` | device | provider default | integrations/personal-agent/src/jev-client.mjs | config | TypeSafe defaults to jev-latest; OpenCode Zen defaults to jev-1.13 |
+| `ODK_JEV_INTENT_THRESHOLD` | device | 0.8 | integrations/personal-agent/src/intent-routing.mjs | config | Minimum selected probability and confidence; initially uncalibrated, must exceed 0.5 |
+| `ODK_JEV_THRESHOLD` | device | 0.8 | integrations/personal-agent/src/proactive-jev.mjs | config | Minimum usefulness and factual support |
+| `ODK_JEV_TIMEOUT_MS` | device | 10000 | integrations/personal-agent/src/jev-client.mjs | config | Judgment deadline, integer 1000 through 30000 milliseconds |
+| `TYPESAFE_API_KEY` | device | none | External consumer: Pi ModelRuntime | config | Private TypeSafe environment credential; never expose its value |
+| `ODK_PROACTIVE_GENERATION_TIMEOUT_MS` | device | 90000 | integrations/personal-agent/src/agent.mjs | config | Total generation deadline, integer 1000 through 180000 |
 
 ## Saved plugin preferences
 
@@ -214,8 +209,8 @@ Custom Bridge socket paths use a separate endpoint with the `.control` suffix.
 The standard Windows control name follows the host's `remote-plugin-control` mapping.
 Endpoint mapping checks do not establish native Windows Bridge operation.
 Resident identities use the independent resident management channel selected through this inventory.
-Its Unix endpoint is `odk-personal-bot/control.sock` under `XDG_RUNTIME_DIR`.
-Windows uses the host's `personal-bot-control` named-pipe mapping and shared token.
+Its Unix endpoint is `odk-personal-agent/control.sock` under `XDG_RUNTIME_DIR`.
+Windows uses the host's `personal-agent-control` named-pipe mapping and shared token.
 Service and voice channel changes retain management access for recovery.
 The resident refuses its control identity and unknown components.
 Older service replacements without suspension support refuse partial service, channel, and runtime changes.
@@ -245,7 +240,7 @@ An unavailable endpoint disables the control plugin during startup.
 
 The Plugin CLI stores local enable preferences in `plugins.json` under `ODK_CONFIG_DIR`.
 The default directory uses `HOME`, then Windows `USERPROFILE`, then the operating system home directory.
-Main, Personal Bot, Hosted Pi, Remote Bridge, and Futu Python read this file during startup.
+Main, Personal Agent, Hosted Pi, Remote Bridge, and Futu Python read this file during startup.
 Main and renderer use the same disabled plugin snapshot.
 The appearance Host reads this snapshot before body content.
 Disabled themes fall back to Instrument without deleting the saved explicit theme.
@@ -262,7 +257,7 @@ The explicit `restore-default <id> --runtime` command restores a built-in Main f
 Each runtime applies preferences only to its registered identities.
 Disabled plugins do not execute default or external factories.
 Required consumers remain blocked until their provider is available.
-Personal Bot retains its resident channel when only the Agent runtime is disabled.
+Personal Agent retains its resident channel when only the Agent runtime is disabled.
 Hosted Pi retains listener diagnosis when its task service is disabled.
 Remote Bridge retains its listener when only a transport is disabled.
 Disabling a required listener prevents the runtime from serving its clients.
@@ -309,7 +304,7 @@ The Unix endpoint is `odk-plugins/diagnose.sock` under that directory.
 Windows uses the `odk-plugin-diagnostics` named pipe with the existing local channel token.
 The diagnosis plugin is disabled during smoke checks and when no endpoint exists.
 It accepts read-only requests and releases its listener during plugin shutdown.
-Main can also request renderer, resident Personal Bot, Hosted Pi, Remote Bridge, and Futu Python snapshots through declared runtime ports.
+Main can also request renderer, resident Personal Agent, Hosted Pi, Remote Bridge, and Futu Python snapshots through declared runtime ports.
 Firmware remains outside this channel's current scope.
 The [Futu guide](../../../integrations/futu-poller/README.md#negotiated-runtime-diagnosis) owns its negotiated protocol, deadlines, and transport limits.
 
@@ -332,7 +327,7 @@ An older service can refuse the request or remain silent until timeout.
 Both outcomes report unavailable diagnosis without changing task control.
 Reports exclude prompts, task history, endpoint paths, and private errors.
 Lifecycle availability does not establish real Agent or host acceptance.
-[Personal Bot contract](../../../integrations/personal-bot/docs/CONTRACT.md#hosted-pi-task-diagnosis) owns the request and response fields.
+[Personal Agent contract](../../../integrations/personal-agent/docs/CONTRACT.md#hosted-pi-task-diagnosis) owns the request and response fields.
 
 ### Remote Bridge lifecycle snapshots
 
@@ -353,9 +348,9 @@ Lifecycle states do not certify USB, wireless, or physical input.
 Older bridges reach the probe timeout without losing the navigation connection.
 [Remote Bridge](../../../integrations/remote-bridge/README.md#runtime-diagnosis) owns request and response fields.
 
-### Personal Bot lifecycle snapshots
+### Personal Agent lifecycle snapshots
 
-The `personal-agent` runtime reports the resident composition through the existing authenticated Personal Bot connection.
+The `personal-agent` runtime reports the resident composition through the existing authenticated Personal Agent connection.
 The response uses the `resident` instance identity.
 The channel plugin retains its existing provided port contract.
 A separate diagnosis plugin consumes that port and provides `odk:plugin-runtime/personal-agent/v1`.
@@ -372,7 +367,7 @@ The provider stops accepting requests after shutdown.
 Reports exclude private errors, voice replies, readings, and Agent data.
 Lifecycle failure can identify an Agent configuration failure while the resident channel remains available.
 These states do not certify Agent output, transcription, suggestions, or microphone operation.
-[Personal Bot contract](../../../integrations/personal-bot/docs/CONTRACT.md#resident-runtime-diagnosis) owns the protocol and capability negotiation.
+[Personal Agent contract](../../../integrations/personal-agent/docs/CONTRACT.md#resident-runtime-diagnosis) owns the protocol and capability negotiation.
 
 ### Renderer lifecycle snapshots
 

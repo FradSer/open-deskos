@@ -120,7 +120,7 @@ A **Hosted Pi** is a Pi coding session the desk hosts. A **Console**, a Pi sessi
 
 An Android Shell Host reads the desk's Personal Agent over the same listener and the same port. The phone opens one outbound connection, so the desk opens no new inbound port and the phone opens no listener.
 
-The desk owns generation. The resident Personal Bot produces every briefing, reply and notification. A phone holds no generator and no fixture, so every frame it shows came from the desk.
+The desk owns generation. The resident Personal Agent produces every briefing, reply and notification. A phone holds no generator and no fixture, so every frame it shows came from the desk.
 
 ### Reading
 

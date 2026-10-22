@@ -13,8 +13,8 @@ const { resolveStartupDisabled } = require('../src/plugin-config')
 const { createBridgePluginRuntime, loadPluginConfig } = require(integrationPath('remote-bridge/lib/plugin-runtime'))
 const run = promisify(execFile)
 const cli = path.resolve(__dirname, '../scripts/odk-plugin-cli.js')
-const botEntry = integrationPath('personal-bot/src/main.mjs')
-const taskEntry = integrationPath('personal-bot/src/task-daemon.mjs')
+const botEntry = integrationPath('personal-agent/src/main.mjs')
+const taskEntry = integrationPath('personal-agent/src/task-daemon.mjs')
 const bridgeEntry = integrationPath('remote-bridge/lib/main.js')
 
 async function fixture(t) {
@@ -28,7 +28,7 @@ async function fixture(t) {
 }
 
 for (const [id, entry] of [
-  ['odk.personal-bot.home', botEntry], ['odk.hosted-pi.endpoint', taskEntry], ['odk.remote.transport.usb-cdc', bridgeEntry],
+  ['odk.personal-agent.home', botEntry], ['odk.hosted-pi.endpoint', taskEntry], ['odk.remote.transport.usb-cdc', bridgeEntry],
 ]) {
   test(`common CLI preferences reach the actual ${id} startup inspection`, async t => {
     const f = await fixture(t)
@@ -48,12 +48,12 @@ for (const [id, entry] of [
 }
 
 test('shared resident disables block Agent and dependent factories while preserving the channel', async t => {
-  const { createPersonalBotComposition } = await import(integrationURL('personal-bot/src/plugin-composition.mjs'))
+  const { createPersonalAgentComposition } = await import(integrationURL('personal-agent/src/plugin-composition.mjs'))
   const f = await fixture(t)
-  const id = 'odk.personal-bot.runtime'
+  const id = 'odk.personal-agent.runtime'
   await f.change('disable', id)
   let calls = 0
-  const create = () => createPersonalBotComposition({ disabled: resolveStartupDisabled(f.env),
+  const create = () => createPersonalAgentComposition({ disabled: resolveStartupDisabled(f.env),
     createService: () => ({ close() {} }), openChannel: () => ({ close() {} }),
     initialize: () => { calls++; return { agent: { abort() {}, close() {} } } },
     createHome: () => { calls++; return { start() {}, close() {} } },
@@ -63,8 +63,8 @@ test('shared resident disables block Agent and dependent factories while preserv
   const catalog = await disabled.start()
   assert.equal(calls, 0)
   assert.equal(catalog.find(plugin => plugin.manifest.id === id).state, 'disabled')
-  assert.equal(catalog.find(plugin => plugin.manifest.id === 'odk.personal-bot.home').state, 'blocked')
-  assert.equal(catalog.find(plugin => plugin.manifest.id === 'odk.personal-bot.channel').state, 'running')
+  assert.equal(catalog.find(plugin => plugin.manifest.id === 'odk.personal-agent.home').state, 'blocked')
+  assert.equal(catalog.find(plugin => plugin.manifest.id === 'odk.personal-agent.channel').state, 'running')
   await f.change('enable', id)
   assert.equal(disabled.catalog().find(plugin => plugin.manifest.id === id).state, 'disabled', 'preferences apply at next startup')
   await disabled.stop()
@@ -75,7 +75,7 @@ test('shared resident disables block Agent and dependent factories while preserv
 })
 
 test('shared Hosted Pi disables retain listener diagnosis without constructing task services or publishing endpoints', async t => {
-  const { createTaskComposition } = await import(integrationURL('personal-bot/src/task-composition.mjs'))
+  const { createTaskComposition } = await import(integrationURL('personal-agent/src/task-composition.mjs'))
   const f = await fixture(t)
   await f.change('disable', 'odk.hosted-pi.service')
   let calls = 0
@@ -122,25 +122,25 @@ test('shared Remote transport disables prevent resource startup while retaining 
 })
 
 test('runtime preference adapters load the same configuration contract in a flattened release', async t => {
-  const { loadPersonalBotPluginConfig } = await import(integrationURL('personal-bot/src/plugin-composition.mjs'))
+  const { loadPersonalAgentPluginConfig } = await import(integrationURL('personal-agent/src/plugin-composition.mjs'))
   const f = await fixture(t)
   const release = path.join(f.root, 'release')
   const source = path.join(release, 'src')
   await fs.mkdir(source, { recursive: true })
   await fs.copyFile(path.resolve(__dirname, '../src/plugin-config.js'), path.join(source, 'plugin-config.js'))
   await f.change('disable', 'odk.hosted-pi.endpoint')
-  const botBase = pathToFileURL(path.join(release, 'integrations/personal-bot/src/plugin-composition.mjs')).href
+  const botBase = pathToFileURL(path.join(release, 'integrations/personal-agent/src/plugin-composition.mjs')).href
   const bridgeBase = path.join(release, 'integrations/remote-bridge/lib')
-  for (const adapter of [loadPersonalBotPluginConfig(botBase), loadPluginConfig(bridgeBase)]) {
+  for (const adapter of [loadPersonalAgentPluginConfig(botBase), loadPluginConfig(bridgeBase)]) {
     assert.deepEqual(adapter.resolveStartupDisabled(f.env), ['odk.hosted-pi.endpoint'])
     assert.equal(adapter.resolveConfigPath(f.env), path.join(f.root, 'plugins.json'))
   }
 })
 
 test('common startup disables prevent selected native replacement entries from executing', async t => {
-  const { createPersonalBotComposition, personalBotManifest } = await import(integrationURL('personal-bot/src/plugin-composition.mjs'))
-  const { createTaskComposition, hostedPiManifest } = await import(integrationURL('personal-bot/src/task-composition.mjs'))
-  const { loadPersonalBotReplacements, loadHostedPiReplacements } = await import(integrationURL('personal-bot/src/development-plugins.mjs'))
+  const { createPersonalAgentComposition, personalAgentManifest } = await import(integrationURL('personal-agent/src/plugin-composition.mjs'))
+  const { createTaskComposition, hostedPiManifest } = await import(integrationURL('personal-agent/src/task-composition.mjs'))
+  const { loadPersonalAgentReplacements, loadHostedPiReplacements } = await import(integrationURL('personal-agent/src/development-plugins.mjs'))
   const { loadBridgeReplacements, transportPlaceholder } = require(integrationPath('remote-bridge/lib/development-plugins'))
   const f = await fixture(t)
   const entry = path.join(f.root, 'must-not-execute.cjs')
@@ -151,7 +151,7 @@ test('common startup disables prevent selected native replacement entries from e
     await fs.writeFile(file, JSON.stringify({ schemaVersion: 1, replacements: [{ manifest, entry }] }))
     return load(file, { trusted: true })
   }
-  const residentReplacement = await selected(personalBotManifest('runtime'), loadPersonalBotReplacements)
+  const residentReplacement = await selected(personalAgentManifest('runtime'), loadPersonalAgentReplacements)
   const taskReplacement = await selected(hostedPiManifest('service'), loadHostedPiReplacements)
   const id = 'odk.remote.transport.usb-cdc'
   const bridgeReplacement = await selected({ schemaVersion: 1, id, name: 'Disabled USB', version: '2.0.0', host: 'remote-bridge', kind: 'transport',
@@ -160,7 +160,7 @@ test('common startup disables prevent selected native replacement entries from e
   }, loadBridgeReplacements)
   const disabled = resolveStartupDisabled(f.env)
   const unavailable = () => { throw Error('disabled default factory executed') }
-  const resident = createPersonalBotComposition({ disabled, replacementPlugins: residentReplacement,
+  const resident = createPersonalAgentComposition({ disabled, replacementPlugins: residentReplacement,
     createService: () => ({ close() {} }), openChannel: () => ({ close() {} }), initialize: unavailable, createHome: unavailable,
   })
   t.after(() => resident.stop())

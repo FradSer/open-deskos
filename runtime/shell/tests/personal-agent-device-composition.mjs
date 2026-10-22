@@ -80,7 +80,7 @@ try {
     for (const [name, present] of Object.entries(reading.composed)) {
       if (!present) findings.push('composition is missing ' + name)
     }
-    if (reading.caption !== 'Personal Bot unavailable') findings.push('the Agent states "' + reading.caption + '" instead of the unavailable condition')
+    if (reading.caption !== 'Personal Agent unavailable') findings.push('the Agent states "' + reading.caption + '" instead of the unavailable condition')
     if (reading.messages !== 0) findings.push('the host showed ' + reading.messages + ' message(s) that no desk produced')
     if (reading.notifications !== 0) findings.push('the host showed ' + reading.notifications + ' notification(s) that no desk produced')
     if (!reading.empty) findings.push('the conversation does not state its empty condition')

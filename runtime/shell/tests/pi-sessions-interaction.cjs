@@ -34,7 +34,7 @@ let snapshot
 let pendingEvent = null
 let eventRequests = 0
 let holdEvents = false
-let personalBotToggleRequests = 0
+let personalAgentToggleRequests = 0
 // The first scan stays unanswered until the first scenario releases it, so the
 // page's own loading state can be observed rather than assumed.
 let holdScan = true
@@ -79,8 +79,8 @@ ipcMain.handle('odk-weather-status', () => ({
   updatedAt: null, hint: 'Set ODK_WEATHER_LAT and ODK_WEATHER_LON', error: null, locationSource: null,
 }))
 ipcMain.handle('odk-futu-holdings', () => ({ state: 'unconfigured', service: 'futu-poller' }))
-ipcMain.handle('odk-personal-bot-toggle', () => {
-  personalBotToggleRequests += 1
+ipcMain.handle('odk-personal-agent-toggle', () => {
+  personalAgentToggleRequests += 1
   return { accepted: false }
 })
 ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
@@ -998,7 +998,7 @@ async function main() {
       const source = () => [{ ...pad, buttons: Array.from({ length: 17 }, (_value, index) => ({ pressed: held.has(index), value: held.has(index) ? 1 : 0 })) }];
       try { navigator.getGamepads = source } catch (error) { Object.defineProperty(navigator, 'getGamepads', { value: source, configurable: true }) }
       window.__odkMic = [];
-      const voice = window.odkPersonalBotStatus;
+      const voice = window.odkPersonalAgentStatus;
       const originalMic = voice.mic.bind(voice);
       voice.mic = () => { window.__odkMic.push('mic'); return originalMic() };
       window.__odkRestoreMic = () => { voice.mic = originalMic };
@@ -1048,7 +1048,7 @@ async function main() {
     await rp("window.__odkHold([3]); return true")
     await pause(200)
     assert.deepEqual(await rp('return window.__odkMic'), ['mic'], 'Y reaches the microphone entry point')
-    assert.equal(personalBotToggleRequests, 1, 'Y reaches the main fixture microphone handler')
+    assert.equal(personalAgentToggleRequests, 1, 'Y reaches the main fixture microphone handler')
     await rp("window.__odkHold([]); return true")
     await pause(150)
 

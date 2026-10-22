@@ -38,7 +38,7 @@ test('the Windows Shell Host has executable scenarios', () => {
   // is the one that is: the two must not be able to read as one sentence.
   assert.match(feature, /the Remote Link surface/)
   assert.match(feature, /Then it reports unavailable/)
-  assert.match(feature, /the personal-bot named pipe/)
+  assert.match(feature, /the personal-agent named pipe/)
   assert.match(feature, /still reports voice as unavailable/)
   // The panel is the desk's whole surface on this host: it covers the display
   // and the user cannot move it. Both halves are scenarios, not only code.
@@ -59,9 +59,9 @@ test('the Windows runbook states which surfaces are ported and which are not', (
   // must be able to tell a missing capability from a broken one.
   assert.match(runbook, /Not ported/)
   // The voice link is ported, and the runbook says what carries it and what
-  // authenticates it, so a missing personal bot service cannot read as a missing voice
+  // authenticates it, so a missing Personal Agent service cannot read as a missing voice
   // capability.
-  assert.match(runbook, /odk-personal-bot/)
+  assert.match(runbook, /odk-personal-agent/)
   assert.match(runbook, /DirectShow/)
   assert.match(runbook, /display-client\.mjs/)
   assert.match(runbook, /CM5 runs the Personal Agent/)

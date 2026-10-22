@@ -125,7 +125,7 @@ Feature: Widget continuations in the right desk pane
     When the user presses B
     Then the App releases its resources and restores the source Widget focus
     And holding B does not repeat the return action
-    And a Personal Bot overlay receives B before the App
+    And a Personal Agent overlay receives B before the App
 
   Scenario: App chrome preserves the content and accessible name
     Given a Widget has opened its App

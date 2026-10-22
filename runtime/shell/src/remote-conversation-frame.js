@@ -1,5 +1,5 @@
 'use strict'
-const {parseReplyTo}=require('./personal-bot-reply-reference')
+const {parseReplyTo}=require('./personal-agent-reply-reference')
 const sha=value=>typeof value==='string' && /^[a-f0-9]{64}$/.test(value)
 const uuid=value=>typeof value==='string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value)
 const text=(value,n)=>typeof value==='string' && value.length<=n && !/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(value)

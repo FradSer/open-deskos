@@ -69,7 +69,7 @@ Wayland startup adds `--ozone-platform-hint=auto`; root startup adds `--no-sandb
 
 [Installed packages](docs/USER_APPLICATIONS.md) own draft format, verification, placement and revision lifecycle. Drafts use writable `ODK_WORKSPACE`; the active release stays immutable. Writing a file does not install it.
 
-[Personal Bot](../../integrations/personal-bot/README.md) owns coordination. CM5 owns Personal Agent inference, transcription, memory, and Overview. Windows runs only the display client and microphone relay through a dedicated SSH alias. It has no local model fallback. See [Windows setup](docs/WINDOWS_HOST.md#personal-bot). [Deployment](docs/PERSONAL_BOT_DEPLOYMENT.md) owns host setup. [Voice feedback](docs/VOICE_FEEDBACK.md) owns recording, restore and streaming behavior. Live microphone, provider and model checks need separate authorization and evidence.
+[Personal Agent](../../integrations/personal-agent/README.md) owns coordination. CM5 owns Personal Agent inference, transcription, memory, and Overview. Windows runs only the display client and microphone relay through a dedicated SSH alias. It has no local model fallback. See [Windows setup](docs/WINDOWS_HOST.md#personal-agent). [Deployment](docs/PERSONAL_AGENT_DEPLOYMENT.md) owns host setup. [Voice feedback](docs/VOICE_FEEDBACK.md) owns recording, restore and streaming behavior. Live microphone, provider and model checks need separate authorization and evidence.
 
 ## CLIProxyAPI on Linux
 

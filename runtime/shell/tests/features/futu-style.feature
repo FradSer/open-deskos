@@ -53,7 +53,8 @@ Feature: Calm and truthful Futu holdings styling
   Scenario: Themes preserve compact readability
     Given the tile is displayed in Instrument, Pixel, or Border Beam
     When compact or wide geometry is used
-    Then the title remains at least 16 pixels, state text 18 pixels, and holdings 20 pixels
+    Then the title remains at least 16 pixels and state text remains at least 18 pixels
+    And normal holdings scale from 20 to 24 pixels within their content lane
     And data remains contained
     And Pixel numerals have normal letter spacing
 

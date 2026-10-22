@@ -50,7 +50,7 @@ adb -s <serial> shell "run-as com.odk.shell sh -c 'cat /data/local/tmp/odk-link.
 
 The report token reads the Personal Agent. The control credential is separate and optional; without it the phone reads the desk and refuses to submit. `run-as` needs a debug or a debuggable build.
 
-Without a configuration file the phone reports `Personal Bot link unavailable`. It dials the desk itself, so the desk gains no inbound port and the phone opens no listener.
+Without a configuration file the phone reports `Personal Agent link unavailable`. It dials the desk itself, so the desk gains no inbound port and the phone opens no listener.
 
 ## Install and run
 
@@ -65,7 +65,7 @@ A debug build enables WebView remote debugging. Verification reads the rendered 
 
 ## Host bridge
 
-The renderer reads `window.odkPersonalBot` through an asynchronous message shim. Android uses `WebViewCompat.addWebMessageListener` for the exact local asset origin. Native code checks the current WebView, `isMainFrame`, the source origin and the current document URL. Body fields cannot grant these permissions. App frames and external documents cannot submit owner requests.
+The renderer reads `window.odkPersonalAgent` through an asynchronous message shim. Android uses `WebViewCompat.addWebMessageListener` for the exact local asset origin. Native code checks the current WebView, `isMainFrame`, the source origin and the current document URL. Body fields cannot grant these permissions. App frames and external documents cannot submit owner requests.
 
 The host refuses external main-page resources and navigation. Status delivery and asynchronous replies also check the document epoch and Shell URL. An old callback cannot deliver into a new document.
 

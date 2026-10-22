@@ -14,7 +14,7 @@ const { integrationPath } = require('./helpers/repo-root')
 const SCRIPT_PATH = path.join(__dirname, '..', 'scripts', 'cm5-agent-browser.sh')
 const script = fs.readFileSync(SCRIPT_PATH, 'utf8')
 const installer = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-install.sh'), 'utf8')
-const feature = fs.readFileSync(integrationPath('personal-bot/features/browser.feature', __dirname), 'utf8')
+const feature = fs.readFileSync(integrationPath('personal-agent/features/browser.feature', __dirname), 'utf8')
 
 // Run the script with a stubbed `uname` so the host guard is asserted by its
 // result on any development host rather than by the absence of its text.
@@ -35,7 +35,7 @@ function runWithStubbedHost(architecture) {
 
 test('the installer provisions the browser infrastructure without letting it fail the installation', () => {
   assert.match(installer, /scripts\/cm5-agent-browser\.sh" install/)
-  // A missing browser degrades one Personal Bot capability. It must not make the
+  // A missing browser degrades one Personal Agent capability. It must not make the
   // Shell uninstallable, so the step warns and continues.
   assert.match(installer, /if ! \$SUDO "\$\{DIR\}\/scripts\/cm5-agent-browser\.sh" install; then/)
   assert.match(installer, /warning: agent-browser was not provisioned/)
@@ -99,7 +99,7 @@ test('the CLI is exposed on the host command path for the resident service', () 
   assert.match(script, /ln -sfn "\$\{CLI_BIN\}" "\/usr\/local\/bin\/agent-browser"/)
   // Device configuration names a stable path, not a version the next run replaces.
   assert.match(script, /ln -sfn "\$\{CHROME_BIN\}" "\$\{INSTALL_DIR\}\/chrome"/)
-  // The personal bot unit already carries /usr/local/bin on its PATH.
+  // The Personal Agent unit already carries /usr/local/bin on its PATH.
   assert.match(installer, /PATH=.*\/usr\/local\/bin/)
 })
 

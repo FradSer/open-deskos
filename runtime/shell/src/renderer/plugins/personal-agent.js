@@ -12,7 +12,7 @@
     mount(el, ctx) {
       el.innerHTML = `<div class="agent-panel">
         <header class="agent-head"><span class="agent-avatar" data-avatar="onee" aria-hidden="true"><img class="agent-avatar-fallback" src="avatars/onee.svg" alt="" /></span>
-          <details class="agent-identity"><summary aria-label="Edit Agent identity"><h1 class="agent-name"></h1><span class="agent-state" role="status">Checking Personal Bot…</span><svg data-tabler="chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M6 9l6 6l6 -6" /></svg></summary><form class="agent-identity-form"><p class="agent-status-detail">Checking Personal Bot…</p>
+          <details class="agent-identity"><summary aria-label="Edit Agent identity"><h1 class="agent-name"></h1><span class="agent-state" role="status">Checking Personal Agent…</span><svg data-tabler="chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M6 9l6 6l6 -6" /></svg></summary><form class="agent-identity-form"><p class="agent-status-detail">Checking Personal Agent…</p>
             <label>Name<input name="name" maxlength="40" required /></label>
             <button type="submit">Save</button></form></details></header>
         <nav class="agent-thread-nav" aria-label="Session thread" hidden><button class="agent-thread-all" type="button">All messages</button><span></span></nav>
@@ -20,12 +20,17 @@
         <button class="agent-latest" type="button" hidden>Jump to latest <svg data-tabler="arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 13l-6 6" /><path d="M6 13l6 6" /></svg></button>
         </div>
         <aside class="agent-reply-context" aria-label="Reply reference" hidden><div><span class="agent-reply-session"></span><span class="agent-reply-preview"></span></div><button class="agent-reply-cancel" type="button">Cancel reply</button></aside>
-        <form class="agent-composer" data-mode="voice"><button class="agent-mic" type="button" aria-label="Start voice request"><svg data-tabler="microphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 5a3 3 0 0 1 3 -3a3 3 0 0 1 3 3v5a3 3 0 0 1 -3 3a3 3 0 0 1 -3 -3l0 -5" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M8 21l8 0" /><path d="M12 17l0 4" /></svg><span class="agent-mic-label">Tap to talk</span></button><button class="agent-keys" type="button" aria-label="Switch to keyboard input"><svg data-tabler="keyboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8" /><path d="M6 10l0 .01" /><path d="M10 10l0 .01" /><path d="M14 10l0 .01" /><path d="M18 10l0 .01" /><path d="M6 14l0 .01" /><path d="M18 14l0 .01" /><path d="M10 14l4 .01" /></svg></button><textarea rows="1" maxlength="3000" aria-label="Message Personal Agent"></textarea><button class="agent-send" type="submit" aria-label="Send message"><svg data-tabler="arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 11l-6 -6" /><path d="M6 11l6 -6" /></svg></button></form>
+        <div class="agent-input-row"><section class="agent-pi-config" aria-label="Pi configuration">
+          <label class="agent-pi-command-label"><span class="sr-only">Pi commands</span><select class="agent-pi-command" aria-label="Pi commands"><option value="">Pi</option><option value="login">/login</option><option value="model">/model</option><option value="thinking">/thinking</option></select></label>
+          <form class="agent-pi-form" hidden><label class="agent-pi-choice-label"><span></span><select class="agent-pi-choice"></select></label><label class="agent-pi-secret-label" hidden><span></span><input class="agent-pi-value" autocomplete="off" maxlength="3000" /></label><p class="agent-pi-status" role="status"></p><a class="agent-pi-auth-link" target="_blank" rel="noreferrer" hidden>Open Pi sign-in</a><div class="agent-pi-actions"><button type="submit">Apply</button><button type="button" class="agent-pi-close">Close</button></div></form>
+        </section>
+        <form class="agent-composer" data-mode="voice"><button class="agent-mic" type="button" aria-label="Start voice request"><svg data-tabler="microphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 5a3 3 0 0 1 3 -3a3 3 0 0 1 3 3v5a3 3 0 0 1 -3 3a3 3 0 0 1 -3 -3l0 -5" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M8 21l8 0" /><path d="M12 17l0 4" /></svg><span class="agent-mic-label">Tap to talk</span></button><button class="agent-keys" type="button" aria-label="Switch to keyboard input"><svg data-tabler="keyboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8" /><path d="M6 10l0 .01" /><path d="M10 10l0 .01" /><path d="M14 10l0 .01" /><path d="M18 10l0 .01" /><path d="M6 14l0 .01" /><path d="M18 14l0 .01" /><path d="M10 14l4 .01" /></svg></button><textarea rows="1" maxlength="3000" aria-label="Message Personal Agent"></textarea><button class="agent-send" type="submit" aria-label="Send message"><svg data-tabler="arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 11l-6 -6" /><path d="M6 11l6 -6" /></svg></button></form></div>
       </div>`
       const $ = selector => el.querySelector(selector)
       const conversation = $('.agent-conversation')
       const input = $('textarea')
       const composer = $('.agent-composer')
+      let closePiConfig = () => {}
       const micControl = $('.agent-mic')
       const keysControl = $('.agent-keys')
       const voiceLabel = $('.agent-mic-label')
@@ -46,11 +51,11 @@
       ctx.trackCleanup?.(() => { stopCapsuleMotion();root.document.removeEventListener('visibilitychange', pauseCapsule);reducedMotion?.removeEventListener('change', stopCapsuleMotion) })
       const avatar = root.odkPersonalAgentAvatar.mount($('.agent-avatar'))
       const busyStates = ['starting', 'sending', 'recording', 'transcribing', 'thinking']
-      const stateLabels = { idle: 'Ready', thinking: 'Working…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
+      const stateLabels = { idle: 'Ready', thinking: 'Working…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Agent unavailable', error: 'Request failed. You can try again.' }
       const voiceFailures = {microphone:'Microphone unavailable',timeout:'Recording timed out. Try again.',unavailable:'Recording connection lost. Try again.',protocol:'Recording transfer failed. Try again.',invalid_audio:'Recording audio is invalid. Try again.',cleanup:'Recording cleanup failed'}
       let composerMode = 'keyboard'
       let voiceStarted = false
-      function voiceAvailable() { return root.odkPersonalBot?.supportsVoiceInput !== false }
+      function voiceAvailable() { return root.odkPersonalAgent?.supportsVoiceInput !== false }
       function fieldControl() { return composerMode === 'keyboard' ? input : micControl }
       // The voice control states the next action of its own mode. A host that
       // declares no voice input states that condition instead.
@@ -282,7 +287,7 @@
           const item = remoteRecords.get(button.dataset.recordKey)
           const source = item?.sources.find(source => source.key === button.dataset.sourceKey && source.revision === button.dataset.sourceRevision)
           const ambiguous = !source || referenceCount(item, source) !== 1
-          const unsupported = root.odkPersonalBot?.supportsReplyTo !== true
+          const unsupported = root.odkPersonalAgent?.supportsReplyTo !== true
           button.disabled = pending || unsupported || ambiguous
           const note = button.parentElement.querySelector('.agent-reply-unavailable')
           note.textContent = ambiguous ? 'Reply reference is ambiguous.' : unsupported ? 'Session replies need an updated host.' : ''
@@ -290,7 +295,7 @@
         }
       }
       function selectReply(item, source) {
-        if (pending || root.odkPersonalBot?.supportsReplyTo !== true || referenceCount(item, source) !== 1) return
+        if (pending || root.odkPersonalAgent?.supportsReplyTo !== true || referenceCount(item, source) !== 1) return
         selectedReply = Object.freeze({ reference: Object.freeze({ messageId: item.id, sourceKey: source.key, sourceRevision: source.revision }),
           sessionId: source.sessionId, taskName: taskName(source), threadId: source.threadId, preview: item.text.length > 100 ? item.text.slice(0, 100) + '…' : item.text })
         if (source.threadId) openThread({ id: source.threadId, sessionId: source.sessionId, name: taskName(source) })
@@ -320,7 +325,7 @@
           button.type = 'button';button.className = 'agent-session-reply'
           button.textContent = 'Reply';button.dataset.sourceKey = source.key
           button.dataset.sourceRevision = source.revision;button.dataset.replyMessageId = item.id;button.dataset.recordKey = recordKey
-          button.disabled = root.odkPersonalBot?.supportsReplyTo !== true
+          button.disabled = root.odkPersonalAgent?.supportsReplyTo !== true
           if (button.disabled) button.title = 'Session replies need an updated host.'
           button.setAttribute('aria-label', `Reply to ${taskName(source)}`)
           button.addEventListener('click', () => selectReply(item, source))
@@ -356,7 +361,7 @@
           const terminal = ['idle', 'error', 'unconfirmed'].includes(item.state)
           if (!durable && ((!owner.live && !owner.historyTerminal) || (terminal && !owner.completed))) {
             owner.prompt = item.transcript;owner.user.textContent = item.transcript
-            root.odkPersonalBotReply.render(owner.response, item.message)
+            root.odkPersonalAgentReply.render(owner.response, item.message)
             owner.response.setAttribute('aria-busy', String(['thinking', 'transcribing'].includes(item.state)))
             owner.completed = terminal
             owner.historyTerminal = terminal
@@ -399,7 +404,7 @@
           if (reply.answer) {
             if (!row.answer) { row.answer = message('assistant', '');timelineEntry(row.answer.closest('article'), reply.at + 0.5, [threadId]) }
             timelineEntry(row.answer.closest('article'), reply.at + 0.5, [threadId])
-            root.odkPersonalBotReply.render(row.answer, reply.answer)
+            root.odkPersonalAgentReply.render(row.answer, reply.answer)
           }
         }
         while (durableReplies.size > 128) {
@@ -514,7 +519,7 @@
         const reply = status.message
         if (!status.replyTo && !turn?.bound && !turn?.historyTerminal && reply && ['thinking', 'idle', 'error'].includes(status.state)) {
           if (!turn) turn = { prompt: '', response: message('assistant', '') }
-          root.odkPersonalBotReply.render(turn.response, reply)
+          root.odkPersonalAgentReply.render(turn.response, reply)
         }
         for (const notification of Array.isArray(status.notifications) ? status.notifications : []) {
           if (!notification || typeof notification.id !== 'string' || !notification.id || typeof notification.message !== 'string' || !notification.message || seenNotifications.has(notification.id)) continue
@@ -525,7 +530,7 @@
           turn.response.setAttribute('aria-busy', String(status.state === 'thinking'))
           if (['idle', 'error'].includes(status.state)) turn.completed = true
         }
-        const caption = status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '')) : status.state === 'thinking' ? 'Thinking…' : status.state === 'error' && Object.hasOwn(voiceFailures,status.voiceFailure) ? voiceFailures[status.voiceFailure] : stateLabels[status.state] || 'Personal Bot status unknown'
+        const caption = status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '')) : status.state === 'thinking' ? 'Thinking…' : status.state === 'error' && Object.hasOwn(voiceFailures,status.voiceFailure) ? voiceFailures[status.voiceFailure] : stateLabels[status.state] || 'Personal Agent status unknown'
         setState(status.proposalError || caption || 'Ready', status.proposalError ? 'Suggestions unavailable' : caption)
         sendControl.disabled = busy || status.state === 'unavailable' || pending
 
@@ -537,16 +542,16 @@
         if (bottom) latest()
         else $('.agent-latest').hidden = false
       }
-      const unsub = root.odkPersonalBot?.subscribe(render)
+      const unsub = root.odkPersonalAgent?.subscribe(render)
       ctx.trackCleanup?.(() => {
-        released = true;avatar.destroy();composer.removeEventListener('focusin', engageAvatar);composer.removeEventListener('focusout', disengageAvatar);clearTimeout(scrollIdle);delete conversation.dataset.scrolling;unsub?.()
+        released = true;closePiConfig();avatar.destroy();composer.removeEventListener('focusin', engageAvatar);composer.removeEventListener('focusout', disengageAvatar);clearTimeout(scrollIdle);delete conversation.dataset.scrolling;unsub?.()
         conversation.removeEventListener('scroll', handleScroll)
         conversation.removeEventListener('wheel', handleHistoryWheel)
         conversation.removeEventListener('keydown', handleHistoryKey)
         lastSnapshot = undefined;remoteArchive.clear();remoteObservedAt.clear();ownerArchive.clear();replyArchive.clear();allowedHistory.clear();historyEntries = []
       })
       const initialRevision = revision
-      root.odkPersonalBot?.getStatus().then(status => { if (revision === initialRevision) render(status) }).catch(() => { if (revision === initialRevision) render({ state: 'unavailable' }) })
+      root.odkPersonalAgent?.getStatus().then(status => { if (revision === initialRevision) render(status) }).catch(() => { if (revision === initialRevision) render({ state: 'unavailable' }) })
       $('.agent-identity-form').addEventListener('submit', event => {
         event.preventDefault()
         const form = new FormData(event.currentTarget)
@@ -561,6 +566,7 @@
       $('.agent-composer').addEventListener('submit', async event => {
         event.preventDefault()
         const text = input.value.trim()
+        if(/^\/(login|model|thinking)$/.test(text)){input.value='';openPiConfig(text.slice(1));return}
         if (!text || pending || $('.agent-send').disabled) return
         pending = true
         const avatarIntent = avatar.intent('sending')
@@ -570,9 +576,9 @@
         $('.agent-send').disabled = true
         try {
           const submittedReply = selectedReply
-          if (submittedReply && root.odkPersonalBot?.supportsReplyTo !== true) throw Error('unsupported')
+          if (submittedReply && root.odkPersonalAgent?.supportsReplyTo !== true) throw Error('unsupported')
           if (!submittedReply) openThread(null)
-          const receipt = await (submittedReply ? root.odkPersonalBot.sendText(text, submittedReply.reference) : root.odkPersonalBot.sendText(text))
+          const receipt = await (submittedReply ? root.odkPersonalAgent.sendText(text, submittedReply.reference) : root.odkPersonalAgent.sendText(text))
           if (released) return
           if (!receipt?.accepted) throw Error('refused')
           if (input.value.trim() === text) input.value = ''
@@ -607,7 +613,7 @@
         const requestRevision = revision
         const avatarIntent = avatar.intent(lastStatus === 'recording' ? 'transcribing' : 'preparing')
         try {
-          const receipt = await root.odkPersonalBotStatus?.mic()
+          const receipt = await root.odkPersonalAgentStatus?.mic()
           if (receipt?.accepted === false) throw Error('Recording control refused')
         } catch {
           if (!released && revision === requestRevision) {
@@ -616,6 +622,89 @@
           }
         }
       })
+      const piCommand=$('.agent-pi-command'),piForm=$('.agent-pi-form'),piChoice=$('.agent-pi-choice')
+      const piValue=$('.agent-pi-value'),piStatus=$('.agent-pi-status'),piLink=$('.agent-pi-auth-link')
+      let piSnapshot,piMode='',piPoll,piRevision=0,piPending=false
+      function setPiOptions(items,label) {
+        piChoice.replaceChildren(...items.map(item=>{const option=document.createElement('option');option.value=item.value;option.textContent=item.label;return option}))
+        $('.agent-pi-choice-label span').textContent=label
+        piChoice.setAttribute('aria-label',label)
+      }
+      function showPi(snapshot) {
+        piSnapshot=snapshot
+        piChoice.hidden=false;$('.agent-pi-choice-label').hidden=false;$('.agent-pi-secret-label').hidden=true
+        piLink.hidden=true;piStatus.textContent=''
+        const submit=piForm.querySelector('[type="submit"]');submit.disabled=false;submit.textContent='Apply'
+        if(piMode==='login' && snapshot.login && !['done','error'].includes(snapshot.login.state)) {
+          const login=snapshot.login,prompt=login.prompt
+          piStatus.textContent=login.event?.message || 'Complete Pi sign-in.'
+          if(login.event?.url){piLink.href=login.event.url;piLink.textContent='Open Pi sign-in';piLink.hidden=false}
+          if(prompt?.type==='select')setPiOptions(prompt.options.map(o=>({value:o.id,label:o.label})),prompt.message)
+          else {
+            $('.agent-pi-choice-label').hidden=true
+            if(prompt){$('.agent-pi-secret-label').hidden=false;$('.agent-pi-secret-label span').textContent=prompt.message;piValue.type=prompt.type==='secret'?'password':'text';piValue.setAttribute('aria-label',prompt.message);piValue.focus()}
+            else submit.disabled=true
+          }
+          if(login.state==='working')piPoll=setTimeout(()=>runPi({action:'list'}),1000)
+        } else if(piMode==='login') {
+          const options=snapshot.providers.flatMap(p=>p.methods.map(method=>({value:JSON.stringify([p.id,method]),label:`${p.name} · ${method==='oauth'?'Sign in':'API key'}`})))
+          setPiOptions(options,'Provider')
+          if(snapshot.login)piStatus.textContent=snapshot.login.state==='done'?'Signed in with Pi.':snapshot.login.message
+          submit.disabled=!options.length
+        } else if(piMode==='model') {
+          setPiOptions(snapshot.models.map(m=>({value:JSON.stringify([m.provider,m.id]),label:`${m.name || m.id} · ${m.provider}`})),'Model')
+          if(snapshot.selected)piChoice.value=JSON.stringify([snapshot.selected.provider,snapshot.selected.id])
+          if(!snapshot.models.length)piStatus.textContent='No authenticated models. Use /login first.'
+          submit.disabled=!snapshot.models.length || snapshot.busy
+        } else {
+          setPiOptions((snapshot.thinkingLevels || []).map(level=>({value:level,label:level})),'Thinking level')
+          piChoice.value=snapshot.thinkingLevel || 'off'
+          submit.disabled=!(snapshot.thinkingLevels || []).length || snapshot.busy
+          if(submit.disabled)piStatus.textContent='Select an available model first.'
+        }
+      }
+      async function runPi(command) {
+        if(piPending)return
+        piPending=true;piCommand.disabled=true;const revision=piRevision
+        piForm.querySelector('[type="submit"]').disabled=true
+        try {
+          if(!root.odkPersonalAgent?.configure)throw Error('Pi configuration is unavailable on this display.')
+          const snapshot=await root.odkPersonalAgent.configure(command)
+          if(released || revision!==piRevision)return
+          showPi(snapshot)
+        } catch(error) {
+          if(!released && revision===piRevision){piStatus.textContent=error.message || 'Pi configuration failed. Retry.';piForm.querySelector('[type="submit"]').disabled=false}
+        } finally {piPending=false;piCommand.disabled=false}
+      }
+      async function openPiConfig(mode) {
+        if(!['login','model','thinking'].includes(mode))return
+        if(piMode==='login' && piSnapshot?.login && !['done','error'].includes(piSnapshot.login.state))return
+        piRevision++;clearTimeout(piPoll);piMode=mode;piCommand.value=mode;piForm.hidden=false
+        piValue.value='';piStatus.textContent='Loading Pi configuration…'
+        await runPi({action:'list'})
+        if(!released && !piForm.hidden)piChoice.focus()
+      }
+      closePiConfig=()=>{
+        piRevision++;clearTimeout(piPoll)
+        if(piMode==='login')void root.odkPersonalAgent?.configure?.({action:'cancel'}).catch(()=>{})
+        piValue.value='';piForm.hidden=true;piCommand.value='';piMode=''
+        if(!released){setComposerMode('keyboard');input.focus()}
+      }
+      piLink.addEventListener('click',event=>{event.preventDefault();void root.odkPersonalAgent?.openAuthUrl?.(piLink.href).then(opened=>{if(!opened)piStatus.textContent=`Open this URL in your browser: ${piLink.href}`}).catch(()=>{piStatus.textContent=`Open this URL in your browser: ${piLink.href}`})})
+      piCommand.addEventListener('change',()=>openPiConfig(piCommand.value))
+      piForm.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closePiConfig()}})
+      $('.agent-pi-close').addEventListener('click',closePiConfig)
+      piForm.addEventListener('submit',event=>{
+        event.preventDefault();if(piPending)return
+        let command
+        if(piMode==='login') {
+          if(piSnapshot?.login?.state==='prompt'){command={action:'answer',value:piSnapshot.login.prompt.type==='select'?piChoice.value:piValue.value};piValue.value=''}
+          else {const [provider,method]=JSON.parse(piChoice.value);command={action:'login',provider,method}}
+        } else if(piMode==='model'){const [provider,model]=JSON.parse(piChoice.value);command={action:'model',provider,model}}
+        else command={action:'thinking',level:piChoice.value}
+        void runPi(command)
+      })
+      input.addEventListener('input',()=>{if(/^\/(login|model|thinking)$/.test(input.value.trim()))piCommand.value=input.value.trim().slice(1)})
       function engageAvatar() { avatar.engage(composerMode === 'keyboard') }
       function disengageAvatar() { avatar.engage(false) }
       composer.addEventListener('focusin', engageAvatar)

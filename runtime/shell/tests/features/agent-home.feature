@@ -255,7 +255,7 @@ Feature: Personal Agent home briefing
     And briefing, placement, pointer, release, recovery, and deadline assertions remain required
 
   Scenario: Agent and briefing stay beside paged Widgets
-    Given the Shell has current desk readings and a Personal Bot session
+    Given the Shell has current desk readings and a Personal Agent session
     When the user changes a Widget page by touch or keyboard
     Then the Agent stays on the left and the briefing moves with the first Widget page
     And only the bottom page dots change
@@ -263,7 +263,7 @@ Feature: Personal Agent home briefing
     And display-only Widgets have a subtle outer border
 
   Scenario: Text and voice share the resident conversation
-    Given Personal Bot is available
+    Given Personal Agent is available
     When the user sends text or records a spoken request
     Then the resident session streams its reply into one conversation scroll area
     And the composer stays at the bottom
@@ -314,7 +314,7 @@ Feature: Personal Agent home briefing
     And Pi status retains space beside the icon
 
   Scenario: Agent recovery feedback remains readable
-    Given a Personal Bot request fails
+    Given a Personal Agent request fails
     When the resident Agent shows recovery feedback
     Then the feedback uses at least 14 pixel text
     And its live status region announces the available recovery action

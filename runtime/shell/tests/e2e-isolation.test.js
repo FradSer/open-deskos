@@ -74,7 +74,7 @@ test('Shell fixtures provide explicit empty development discovery', () => {
 })
 
 test('standalone Shell fixtures provide current Remote Link state', () => {
-  for (const file of ['e2e.js', 'page-indicator.cjs', 'personal-bot-status.cjs', 'personal-bot-floating-panel.cjs',
+  for (const file of ['e2e.js', 'page-indicator.cjs', 'personal-agent-status.cjs', 'personal-agent-floating-panel.cjs',
     'pi-sessions-states.cjs', 'proactive-jev-e2e.cjs', 'pi-overview-markdown.cjs', 'pixel-font.cjs',
     'user-app-desktop.cjs', 'pi-sessions-interaction.cjs', 'session-tabs-style.cjs', 'proactive-panel.cjs',
     'widget-sequential-refinement.cjs', 'user-app-context.cjs', 'voice-input-ui.cjs', 'widget-app-styles.cjs', 'weather-layout.cjs']) {

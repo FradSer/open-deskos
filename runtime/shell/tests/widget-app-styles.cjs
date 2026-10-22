@@ -6,7 +6,7 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 const { installPiPageCompatibilityFixture } = require('./helpers/pi-page-compatibility.cjs')
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 ipcMain.handle('odk-renderer-development-plugins', () => [])
-ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable' }))
+ipcMain.handle('odk-personal-agent-status', () => ({ state: 'unavailable' }))
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 const { resolvePages } = require('./helpers/pages')
 

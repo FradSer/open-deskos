@@ -52,7 +52,7 @@ Feature: One system-owned application lifecycle
 
   Scenario: Voice and Shell share system workspace configuration
     Given a system runtime environment file defines ODK_WORKSPACE
-    When the Shell and Personal Bot user services start
+    When the Shell and Personal Agent user services start
     Then both load the same shared environment file
     And bot-specific configuration remains separate
 

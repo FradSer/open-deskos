@@ -129,7 +129,7 @@ function restartServices(releaseId, kiosk) {
     console.error('Open DeskOS Link restart did not complete; restart it to run the active release, and the desk keeps reporting either way.')
   }
 
-  const botResult = restartRequiredService(releaseId, kiosk, 'odk-personal-bot.service', 'required Personal Bot component')
+  const botResult = restartRequiredService(releaseId, kiosk, 'odk-personal-agent.service', 'required Personal Agent component')
   if (botResult.ok === false) return botResult
   const tasksResult = restartRequiredService(releaseId, kiosk, 'odk-pi-tasks.service', 'required Hosted Pi control')
   if (tasksResult.ok === false) return tasksResult

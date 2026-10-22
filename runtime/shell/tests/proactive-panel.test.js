@@ -21,15 +21,15 @@ class Element {
 function fixture() {
   const surface = new Element(); surface.hidden = true
   const selectors = ['content', 'heading', 'input', 'transcript', 'stage', 'icon', 'title', 'detail', 'progress', 'level']
-  surface.selectors = Object.fromEntries(selectors.map(name => [`.personal-bot-status-${name}`, new Element()]))
-  surface.selectors['.personal-bot-status-level span'] = new Element()
-  const content = surface.selectors['.personal-bot-status-content']; surface.append(content)
+  surface.selectors = Object.fromEntries(selectors.map(name => [`.personal-agent-status-${name}`, new Element()]))
+  surface.selectors['.personal-agent-status-level span'] = new Element()
+  const content = surface.selectors['.personal-agent-status-content']; surface.append(content)
   const local = new Element('button'), commands = [], events = {}
   const document = { querySelector: () => null, getElementById: () => surface, activeElement: local, body: { children: [local, surface] }, createElement: tag => new Element(tag) }
   let render
-  const window = { odkPersonalBot: { subscribe: callback => { render = callback }, onMic() {}, proposalCommand: async command => { commands.push(command); return { accepted: true } } },
-    odkPersonalBotReply: { render: (el, text) => { el.textContent = text } }, addEventListener: (name, callback) => { events[name] = callback }, dispatchEvent() {} }
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/personal-bot-status.js'), 'utf8'), { window, document, CustomEvent: class {}, console })
+  const window = { odkPersonalAgent: { subscribe: callback => { render = callback }, onMic() {}, proposalCommand: async command => { commands.push(command); return { accepted: true } } },
+    odkPersonalAgentReply: { render: (el, text) => { el.textContent = text } }, addEventListener: (name, callback) => { events[name] = callback }, dispatchEvent() {} }
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/personal-agent-status.js'), 'utf8'), { window, document, CustomEvent: class {}, console })
   return { surface, content, local, commands, render, window, events }
 }
 const proposal = () => ({ id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry', status: 'pending', confirmation: '记住 watering：检查盆土', advice: '<script>不可信文本</script>', action: { tool: 'memory_update' }, evidence: [{ readingId: 'hydra', field: 'soil', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z' }] })
@@ -38,8 +38,8 @@ test('proactive popup is nonmodal and preserves local focus and input authority'
   const f = fixture(); f.render({ state: 'idle', proposals: [proposal()], proposalPopup: true })
   assert.equal(f.surface.hidden, false); assert.equal(f.surface.dataset.proactive, 'true')
   assert.equal(f.local.inert, undefined); assert.equal(f.content.focused, undefined)
-  assert.equal(f.window.odkPersonalBotStatus.visible(), false, 'Passive proposal must not block Shell navigation')
-  assert.equal(f.window.odkPersonalBotStatus.handleInput('left'), false)
+  assert.equal(f.window.odkPersonalAgentStatus.visible(), false, 'Passive proposal must not block Shell navigation')
+  assert.equal(f.window.odkPersonalAgentStatus.handleInput('left'), false)
   assert.equal(f.commands[0].type, 'proposal_presented')
   assert.ok(flatten(f.content).some(n => n.textContent === '<script>不可信文本</script>'))
 })
@@ -63,31 +63,31 @@ test('silent data does not open, expiry removes execution and a voice turn takes
 test('a recovered service error clears without replacing the same suggestion controls', () => {
   const f = fixture(), status = { state: 'idle', proposals: [proposal()], proposalHiddenCount: 1, proposalPopup: true }
   f.render({ ...status, proposalError: 'generation_unavailable' })
-  assert.equal(f.content.querySelector('.personal-bot-proposal-error').textContent, 'generation_unavailable')
+  assert.equal(f.content.querySelector('.personal-agent-proposal-error').textContent, 'generation_unavailable')
   const section = f.content.children[0], controls = flatten(section).filter(n => n.tagName === 'BUTTON')
   f.render({ ...status, proposalPopup: false })
-  assert.equal(f.content.querySelector('.personal-bot-proposal-error'), null)
+  assert.equal(f.content.querySelector('.personal-agent-proposal-error'), null)
   assert.equal(f.content.children[0], section)
   assert.deepEqual(flatten(section).filter(n => n.tagName === 'BUTTON'), controls)
   assert.equal(f.surface.hidden, false)
   f.render({ ...status, proposalError: 'checkpoint_failed' })
-  assert.equal(f.content.querySelector('.personal-bot-proposal-error').textContent, 'checkpoint_failed')
+  assert.equal(f.content.querySelector('.personal-agent-proposal-error').textContent, 'checkpoint_failed')
 })
 
 test('unchanged service status preserves an uncertain command warning and disabled confirmation', async () => {
   const f = fixture(), p = proposal(), status = { state: 'idle', proposals: [p], proposalHiddenCount: 0, proposalPopup: true }
   f.render(status)
-  f.window.odkPersonalBot.proposalCommand = async command => { f.commands.push(command); throw Error('Controlled offline delivery failure') }
+  f.window.odkPersonalAgent.proposalCommand = async command => { f.commands.push(command); throw Error('Controlled offline delivery failure') }
   await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Accept').click()
   const confirmation = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation)
   await confirmation.click()
-  const warning = f.content.querySelector('.personal-bot-proposal-error')
+  const warning = f.content.querySelector('.personal-agent-proposal-error')
   assert.match(warning.textContent, /not delivered.*do not repeat an uncertain action/)
   assert.equal(confirmation.disabled, true)
   const count = f.commands.length
   f.render({ ...status, proposalPopup: false, proposalError: 'generation_unavailable' })
   f.render({ ...status, proposalPopup: false })
-  assert.equal(f.content.querySelector('.personal-bot-proposal-error'), warning)
+  assert.equal(f.content.querySelector('.personal-agent-proposal-error'), warning)
   assert.match(warning.textContent, /not delivered.*do not repeat an uncertain action/)
   assert.equal(confirmation.disabled, true)
   assert.equal(flatten(f.content).find(n => n.textContent === p.confirmation), confirmation)
@@ -96,7 +96,7 @@ test('unchanged service status preserves an uncertain command warning and disabl
 
 test('ride details are read-only and explicit endpoint selection enters the ordinary owner channel', async () => {
   const f = fixture(), turns = []
-  f.window.odkPersonalBot.sendText = async text => { turns.push(text); return { accepted: true } }
+  f.window.odkPersonalAgent.sendText = async text => { turns.push(text); return { accepted: true } }
   const ride = { ...proposal(), action: null, confirmation: '', ridePreview: { handle: 'preview-handle', status: 'choose_places', sandbox: true, expiresAt: Date.now() + 60000, measuredAt: new Date().toISOString(), from: [{ handle: 'from-a', name: '<script>起点甲</script>', city: '测试市', address: '测试路' }, { handle: 'from-b', name: '起点乙', city: '测试市' }], to: [{ handle: 'to-a', name: '终点', city: '测试市' }] } }
   f.render({ state: 'idle', proposals: [ride], proposalPopup: true })
   const open = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'View ride details')
@@ -118,13 +118,13 @@ test('ride details are read-only and explicit endpoint selection enters the ordi
 test('actual service, private socket and Shell client deliver restored ride refresh into the renderer', { timeout: 10000 }, async t => {
   const { integrationURL } = require('./helpers/repo-root')
   const { tmpdir } = require('node:os')
-  const load = file => import(integrationURL(`personal-bot/src/${file}`, __dirname))
-  const { PersonalBotService } = await load('service.mjs'), { listen } = await load('socket.mjs')
+  const load = file => import(integrationURL(`personal-agent/src/${file}`, __dirname))
+  const { PersonalAgentService } = await load('service.mjs'), { listen } = await load('socket.mjs')
   const { createIntentStore, createIntentRuntime } = await load('intents.mjs'), { proposalStateStore } = await load('proactive-state.mjs')
   const { createRidePreview } = await load('didi/preview.mjs'), { ProactiveWatch } = await load('proactive.mjs')
   const { createProposalTools } = await load('proactive-tools.mjs'), { guardIntentTools } = await load('intent-routing.mjs')
   const { protectProactivePath } = await load('proactive-private.mjs')
-  const { createPersonalBotClient } = require('../src/personal-bot-client.js')
+  const { createPersonalAgentClient } = require('../src/personal-agent-client.js')
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'odk-ride-wire-'))); protectProactivePath(dir)
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
   const store = createIntentStore(path.join(dir, 'intent.md')), checkpoint = proposalStateStore(path.join(dir, 'state.json'))
@@ -132,9 +132,9 @@ test('actual service, private socket and Shell client deliver restored ride refr
   const at = new Date(now).toISOString().slice(11, 16)
   store.save({ wish: '查看午间行程', condition: '每天提醒', at, timeZone: 'UTC', windowMinutes: 10, memoryKeys: [], observations: [], ride: { city: '测试市', from: '测试办公楼', to: '测试健身馆' } })
   const f = fixture()
-  const service = new PersonalBotService({ record: async () => assert.fail('No capture'), transcribe: async () => assert.fail('No transcription'), prompt: async text => {
+  const service = new PersonalAgentService({ record: async () => assert.fail('No capture'), transcribe: async () => assert.fail('No transcription'), prompt: async text => {
     turns.push(text); currentText = text
-    const tool = guardIntentTools(createProposalTools(() => watch, () => currentText, { intentPreviews: true }), () => 'ride').find(t => t.name === 'personal_bot_ride_preview')
+    const tool = guardIntentTools(createProposalTools(() => watch, () => currentText, { intentPreviews: true }), () => 'ride').find(t => t.name === 'personal_agent_ride_preview')
     await tool.execute('owner-refresh', { handle: text.split(' ')[1] }, new AbortController().signal)
     return '新预览已刷新，请重新选择地点。'
   } })
@@ -156,10 +156,10 @@ test('actual service, private socket and Shell client deliver restored ride refr
   const endpoint = process.platform === 'win32' ? '\\\\.\\pipe\\odk-ride-wire-' + process.pid : path.join(dir, 'agent.sock')
   const token = 'a'.repeat(64), server = await listen(endpoint, service, { token })
   t.after(() => server.close())
-  const client = createPersonalBotClient({ socketPath: endpoint, token, reconnectDelayMs: 60000 })
+  const client = createPersonalAgentClient({ socketPath: endpoint, token, reconnectDelayMs: 60000 })
   t.after(() => client.stop())
-  f.window.odkPersonalBot.sendText = async text => ({ accepted: await client.sendText(text) })
-  f.window.odkPersonalBot.proposalCommand = async cmd => ({ accepted: client.proposalCommand(cmd) })
+  f.window.odkPersonalAgent.sendText = async text => ({ accepted: await client.sendText(text) })
+  f.window.odkPersonalAgent.proposalCommand = async cmd => ({ accepted: client.proposalCommand(cmd) })
   client.subscribe(frame => f.render(frame))
   const until = predicate => new Promise(resolve => { let off = () => {}; off = client.subscribe(frame => { if (predicate(frame)) { off(); resolve(frame) } }) })
   const connected = until(frame => frame.state === 'idle'); client.start(); await connected

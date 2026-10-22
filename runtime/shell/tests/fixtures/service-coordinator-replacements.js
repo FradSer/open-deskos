@@ -9,16 +9,16 @@ const factories = {
   'odk.system.service-notifications': ctx => ({ ports: {
     [SYSTEM_PORTS.serviceNotifications]: { publish(ids) {
       if (ctx.signal.aborted) return
-      const destination = ctx.get(SYSTEM_PORTS.personalBot)
+      const destination = ctx.get(SYSTEM_PORTS.personalAgent)
       return destination?.servicePush(ids)
     } },
   } }),
   'odk.system.frame-status': ctx => {
     const send = frame => {
       if (ctx.signal.aborted) return
-      const agent = ctx.get(SYSTEM_PORTS.personalBot)
+      const agent = ctx.get(SYSTEM_PORTS.personalAgent)
       const remote = ctx.get(SYSTEM_PORTS.remoteLink)
-      ctx.capability('broadcast')('odk-personal-bot-status', agent ? agent.snapshot() : { state: 'unavailable' })
+      ctx.capability('broadcast')('odk-personal-agent-status', agent ? agent.snapshot() : { state: 'unavailable' })
       frame.send('odk-remote-link-state', remote ? remote.status() : { state: 'disconnected', sequence: 0 })
     }
     ctx.onCleanup(ctx.capability('shell.frames').subscribe(send))

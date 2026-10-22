@@ -8,7 +8,7 @@ const { StringDecoder } = require('node:string_decoder')
 const { boundedEvent, retainEvents, MAX_EVENTS, MAX_SESSION_EVENT_BYTES } = require('./pi-session-events')
 const { isNamedPipe, listenChannel } = require('./local-channel')
 const { projectPersonalAgentFrame } = require('./personal-agent-frame')
-const { parseReplyTo } = require('./personal-bot-reply-reference')
+const { parseReplyTo } = require('./personal-agent-reply-reference')
 
 // The service bounds reported data itself: a reporting machine is never trusted
 // to have bounded its own events. Its bounds are the shared ones, so a reporter
@@ -387,7 +387,7 @@ function createOdkLinkService({
 
   /**
    * One frame per change reaches every attached phone. The desk assembles that
-   * frame from the resident Personal Bot client it already runs, so Android and
+   * frame from the resident Personal Agent client it already runs, so Android and
    * the Electron renderer read the same fields.
    */
   function publishPersonalAgent() {
@@ -415,7 +415,7 @@ function createOdkLinkService({
     if (typeof value.then === 'function') {
       value.then((status) => { if (status) setPersonalAgentStatus(status) }).catch((error) => {
         // A refused snapshot is a state the phone must see, not a silence.
-        setPersonalAgentStatus({ state: 'unavailable', message: error?.message || 'Personal Bot snapshot unavailable' })
+        setPersonalAgentStatus({ state: 'unavailable', message: error?.message || 'Personal Agent snapshot unavailable' })
       })
       return
     }

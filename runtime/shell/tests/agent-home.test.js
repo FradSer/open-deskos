@@ -6,7 +6,7 @@ const path = require('node:path')
 
 function services() {
   let receive
-  const root = { odkPersonalBot: { subscribe(fn) { receive = fn }, getStatus: async () => ({ state: 'unavailable' }) } }
+  const root = { odkPersonalAgent: { subscribe(fn) { receive = fn }, getStatus: async () => ({ state: 'unavailable' }) } }
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/services.js'), 'utf8'), {
     window: root, navigator: { onLine: true }, setInterval: () => 0, console,
   })

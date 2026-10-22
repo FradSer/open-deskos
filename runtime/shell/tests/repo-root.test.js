@@ -62,13 +62,13 @@ for (const sealed of [false, true]) test(`integration paths stay inside the ${se
   const root = makeTree([
     sealed ? 'scripts/cm5-install.sh' : 'runtime/shell/package.json',
     'peripherals/esp32-p4-camera/README.md',
-    'integrations/personal-bot/src/service.mjs',
+    'integrations/personal-agent/src/service.mjs',
   ])
   try {
     const start = path.join(root, ...(sealed ? ['tests'] : ['runtime', 'shell', 'tests']))
-    const expected = path.join(root, 'integrations', 'personal-bot', 'src', 'service.mjs')
-    assert.equal(integrationPath('personal-bot/src/service.mjs', start), expected)
-    assert.equal(integrationURL('personal-bot/src/service.mjs', start), require('node:url').pathToFileURL(expected).href)
+    const expected = path.join(root, 'integrations', 'personal-agent', 'src', 'service.mjs')
+    assert.equal(integrationPath('personal-agent/src/service.mjs', start), expected)
+    assert.equal(integrationURL('personal-agent/src/service.mjs', start), require('node:url').pathToFileURL(expected).href)
   } finally { fs.rmSync(root, { recursive: true, force: true }) }
 })
 
@@ -84,7 +84,7 @@ test('browser provisioning checks consume the flat release integration', { skip:
     fs.copyFileSync(path.join(runtime, relative), destination)
   }
   fs.mkdirSync(path.join(release, 'peripherals', 'esp32-p4-camera'), { recursive: true })
-  const feature = 'personal-bot/features/browser.feature'
+  const feature = 'personal-agent/features/browser.feature'
   const packagedFeature = path.join(release, 'integrations', feature)
   fs.mkdirSync(path.dirname(packagedFeature), { recursive: true })
   fs.copyFileSync(integrationPath(feature, __dirname), packagedFeature)

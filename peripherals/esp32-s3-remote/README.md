@@ -30,7 +30,7 @@ These declarations do not load third-party firmware at runtime.
 
 - Directional ring taps and cardinal swipes (minimum 40px) emit up/down/left/right regardless of cached page/mode.
 - Center tap emits `primary`; hold ≥600ms emits `secondary`. Back emits `back`.
-- MIC emits `mic` only, never audio. Personal Bot captures from its configured microphone: first toggle starts, second submits, and VAD ends after speech plus 1.2s silence. There is no recording-duration deadline. The accepted P4 device setting is `plughw:CARD=Microphone,DEV=0`; failures remain visible. See [Personal Bot](../../integrations/personal-bot/README.md).
+- MIC emits `mic` only, never audio. Personal Agent captures from its configured microphone: first toggle starts, second submits, and VAD ends after speech plus 1.2s silence. There is no recording-duration deadline. The accepted P4 device setting is `plughw:CARD=Microphone,DEV=0`; failures remain visible. See [Personal Agent](../../integrations/personal-agent/README.md).
 - The contextual Touch Bar renders 1–4 ASCII action labels from authoritative state; absent actions show an idle placeholder. Press emits `{"v":1,"type":"input","input":"action","action":"refresh"}`.
 
 ## State protocol

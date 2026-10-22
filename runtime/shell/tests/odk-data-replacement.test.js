@@ -11,7 +11,7 @@ const { createOdkDataLinkReplacement } = require('./fixtures/odk-data-link-repla
 // Load the Bot SDK once before timed Link scenarios; transport deadlines remain unchanged.
 let odkDataRequest
 test.before(async () => {
-  ;({ odkDataRequest } = await import(integrationURL('personal-bot/src/odk-data.mjs')))
+  ;({ odkDataRequest } = await import(integrationURL('personal-agent/src/odk-data.mjs')))
 }, { timeout: 30000 })
 
 for (const alternative of [false, true]) {
@@ -243,7 +243,7 @@ for (const signed of [false, true]) {
     assert.equal((await data.control.dispatch({ command: 'read', readingId: 'timer' })).reading.value.remaining_seconds, 7)
   })
 
-  test(`${signed ? 'signed' : 'default'} catalog reconciliation preserves the Personal Bot consumer`, {
+  test(`${signed ? 'signed' : 'default'} catalog reconciliation preserves the Personal Agent consumer`, {
     timeout: 10000,
   }, async t => {
     const selected = signed ? await selection(t) : null

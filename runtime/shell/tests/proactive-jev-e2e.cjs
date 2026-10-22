@@ -1,4 +1,4 @@
-// Explicit opt-in device E2E. Reads deployed modules and a protected Jev key;
+// Explicit opt-in device E2E. Reads deployed modules and native Pi authentication;
 // IPC, owner writes and checkpoints belong to this fixture. The explicit actual
 // Widget mode reads live Open DeskOS Data without writing to any production source.
 const { app, BrowserWindow, ipcMain } = require('electron')
@@ -12,11 +12,11 @@ const { pathToFileURL } = require('node:url')
 
 if (!process.argv.includes('--live-jev-e2e')) throw Error('Explicit --live-jev-e2e required')
 const option = name => process.argv[process.argv.indexOf(name) + 1]
-for (const name of ['--runtime-root', '--personal-bot-root', '--jev-key', '--receipt']) {
+for (const name of ['--runtime-root', '--personal-agent-root', '--receipt']) {
   if (!process.argv.includes(name)) throw Error(`Missing ${name}`)
 }
 const runtime = path.resolve(option('--runtime-root'))
-const personalBotRoot = path.resolve(option('--personal-bot-root'))
+const personalAgentRoot = path.resolve(option('--personal-agent-root'))
 const receipt = path.resolve(option('--receipt'))
 const generated = process.argv.includes('--generated-e2e')
 const actual = process.argv.includes('--actual-widget-e2e')
@@ -27,7 +27,7 @@ if (generated) {
   for (let i = 0; i < process.argv.length; i++) if (process.argv[i] === '--env-file') {
     for (const line of fs.readFileSync(process.argv[++i], 'utf8').split(/\r?\n/)) {
       const m = line.match(/^([A-Z][A-Z0-9_]+)=(.*)$/)
-      if (!m || /^(HOME|DISPLAY|XDG_|APPDATA|LOCALAPPDATA)/.test(m[1]) || (m[1].startsWith('ODK_') && m[1] !== 'ODK_PERSONAL_BOT_MODEL')) continue
+      if (!m || /^(HOME|DISPLAY|XDG_|APPDATA|LOCALAPPDATA)/.test(m[1]) || m[1].startsWith('ODK_')) continue
       process.env[m[1]] = m[2].replace(/^"(.*)"$/, '$1')
     }
   }
@@ -69,11 +69,11 @@ async function cleanup() {
 }
 
 app.whenReady().then(async () => {
-  const load = name => import(pathToFileURL(path.join(personalBotRoot, 'src', name)))
-  const [{ ProactiveWatch }, { createJevJudge }, { PersonalBotService }, { listen }, { proposalStateStore }] = await Promise.all([
+  const load = name => import(pathToFileURL(path.join(personalAgentRoot, 'src', name)))
+  const [{ ProactiveWatch }, { createJevJudge }, { PersonalAgentService }, { listen }, { proposalStateStore }] = await Promise.all([
     load('proactive.mjs'), load('proactive-jev.mjs'), load('service.mjs'), load('socket.mjs'), load('proactive-state.mjs'),
   ])
-  const { createPersonalBotClient } = require(path.join(runtime, 'src/personal-bot-client.js'))
+  const { createPersonalAgentClient } = require(path.join(runtime, 'src/personal-agent-client.js'))
   const { createHydraStore } = require(path.join(runtime, 'src/hydra-mqtt.js'))
   const { createShellOdkData } = require(path.join(runtime, 'src/odk-data.js'))
   const { protectProactivePath } = await load('proactive-private.mjs')
@@ -92,30 +92,30 @@ app.whenReady().then(async () => {
   const { createOdkDataRegistry } = require(path.join(runtime, 'src/odk-data-registry.js'))
   const registry = generated ? createOdkDataRegistry({ onPublish: id => { if (forward) client.servicePush([id]) } }) : createShellOdkData({ hydra: { snapshot: () => hydra.snapshot(Date.now()) } }).registry
   if (generated) {
-    const { createPersonalBot } = await load('agent.mjs')
-    generator = await createPersonalBot({ stateDir: path.join(profile, 'generator'), model: process.env.ODK_PERSONAL_BOT_MODEL, personal: { profile: 'personal', skillPaths: [], memoryFile: path.join(profile, 'generator/memory.json') } })
+    const { createPersonalAgent } = await load('agent.mjs')
+    generator = await createPersonalAgent({ stateDir: path.join(profile, 'generator'), personal: { profile: 'personal', skillPaths: [], memoryFile: path.join(profile, 'generator/memory.json') } })
     for (const id of ['example.parcels', 'example.ci']) registry.register({ id, label: id, kind: 'package', declaration: { fields: { status: { type: 'string' }, measured_at: { type: 'string' } } } })
   }
-  const judge = createJevJudge({ env: { ODK_JEV_KEY_FILE: option('--jev-key') } })
-  service = new PersonalBotService({ record: async () => assert.fail('No microphone capture'), transcribe: async () => assert.fail('No transcription'), prompt: async () => assert.fail('No conversation call') })
-  const endpoint = process.platform === 'win32' ? `\\\\.\\pipe\\odk-jev-e2e-${randomBytes(8).toString('hex')}` : path.join(profile, 'personal-bot/agent.sock')
+  const judge = createJevJudge({ env: process.env })
+  service = new PersonalAgentService({ record: async () => assert.fail('No microphone capture'), transcribe: async () => assert.fail('No transcription'), prompt: async () => assert.fail('No conversation call') })
+  const endpoint = process.platform === 'win32' ? `\\\\.\\pipe\\odk-jev-e2e-${randomBytes(8).toString('hex')}` : path.join(profile, 'personal-agent/agent.sock')
   const token = process.platform === 'win32' ? randomBytes(32).toString('base64url') : ''
   server = await listen(endpoint, service, { token })
-  client = createPersonalBotClient({ socketPath: endpoint, token })
+  client = createPersonalAgentClient({ socketPath: endpoint, token })
   for (const channel of ['odk-opencode-go-status', 'odk-pi-sessions', 'odk-hydra-status', 'odk-weread-highlight', 'odk-futu-holdings', 'odk-weather-status', 'odk-user-apps-list', 'odk-camera-frame', 'odk-app-manager-list', 'odk-remote-publish-page-state']) {
     ipcMain.handle(channel, () => ({ ok: false, sessions: [], workspaces: [], apps: [] }))
   }
-  ipcMain.handle('odk-personal-bot-status', () => client.snapshot())
+  ipcMain.handle('odk-personal-agent-status', () => client.snapshot())
   const commands = []
-  ipcMain.handle('odk-personal-bot-proposal', (_event, command) => { commands.push(command); return { accepted: client.proposalCommand(command) } })
+  ipcMain.handle('odk-personal-agent-proposal', (_event, command) => { commands.push(command); return { accepted: client.proposalCommand(command) } })
   win = new BrowserWindow({ show: false, width: 480, height: 854, useContentSize: true, webPreferences: { preload: path.join(runtime, 'src/preload.js'), contextIsolation: true, sandbox: true } })
   win.webContents.session.webRequest.onBeforeRequest((details, callback) => callback({ cancel: /^https?:/.test(details.url) }))
   await win.loadFile(path.join(runtime, 'src/renderer/index.html'))
   const run = expression => win.webContents.executeJavaScript(expression)
-  client.subscribe(status => win.webContents.send('odk-personal-bot-status', status))
+  client.subscribe(status => win.webContents.send('odk-personal-agent-status', status))
   client.start()
   await until(() => client.snapshot().state === 'idle', 'authenticated client')
-  const snapshot = () => run(`(() => { const panel=document.getElementById('personal-bot-status'); return {hidden:panel.hidden,proactive:panel.dataset.proactive,modal:panel.getAttribute('aria-modal'),focus:document.activeElement?.id,overflow:document.documentElement.scrollWidth>innerWidth,rows:[...panel.querySelectorAll('.personal-bot-proposal')].map(n=>({state:n.querySelector('.personal-bot-proposal-state').textContent,evidence:[...n.querySelectorAll('.personal-bot-proposal-evidence')].map(e=>e.textContent),advice:n.textContent,buttons:[...n.querySelectorAll('button')].map(b=>({text:b.textContent,height:b.getBoundingClientRect().height}))}))} })()`)
+  const snapshot = () => run(`(() => { const panel=document.getElementById('personal-agent-status'); return {hidden:panel.hidden,proactive:panel.dataset.proactive,modal:panel.getAttribute('aria-modal'),focus:document.activeElement?.id,overflow:document.documentElement.scrollWidth>innerWidth,rows:[...panel.querySelectorAll('.personal-agent-proposal')].map(n=>({state:n.querySelector('.personal-agent-proposal-state').textContent,evidence:[...n.querySelectorAll('.personal-agent-proposal-evidence')].map(e=>e.textContent),advice:n.textContent,buttons:[...n.querySelectorAll('button')].map(b=>({text:b.textContent,height:b.getBoundingClientRect().height}))}))} })()`)
   if(actual) {
  const {readProactiveFile}=await load('proactive-private.mjs')
  const {odkDataRequest}=await load('odk-data.mjs')
@@ -145,7 +145,7 @@ app.whenReady().then(async () => {
     })
     service.attachWatch(watch)
     service.propose({ proposals: [], popup: false })
-    await run('odkPersonalBotStatus.close()')
+    await run('odkPersonalAgentStatus.close()')
     await pause(150)
     return store
   }
@@ -169,7 +169,7 @@ app.whenReady().then(async () => {
     assert.ok(generationCount > 0, 'Actual evidence must reach generator')
     await pause(500)
     record({case:'actual_heartbeat',proposals:watch.list(),dom:await snapshot()})
-    if(watch.list().some(p=>p.status==='pending')){assert.equal(client.proposalCommand({type:'proposal_list'}),true);await until(()=>watch.list().some(p=>p.presented),'heartbeat explicit advice acknowledgement');record({case:'actual_explicit_view',dom:await snapshot()});await run('odkPersonalBotStatus.close()')}
+    if(watch.list().some(p=>p.status==='pending')){assert.equal(client.proposalCommand({type:'proposal_list'}),true);await until(()=>watch.list().some(p=>p.presented),'heartbeat explicit advice acknowledgement');record({case:'actual_explicit_view',dom:await snapshot()});await run('odkPersonalAgentStatus.close()')}
     const ids=[...watch.selectedSources()].filter(id=>!id.startsWith('pi-tasks.'))
     const before=generationCount
     assert.equal(client.servicePush(ids),true)
@@ -217,7 +217,7 @@ app.whenReady().then(async () => {
     forward = true; source(true)
     await until(() => watch.list().some(p => p.status === 'pending'), 'generic published source push', 90000)
     await check('service_push')
-    await run(`[...document.querySelectorAll('.personal-bot-proposal button')].find(b=>b.textContent==='Ignore').click()`)
+    await run(`[...document.querySelectorAll('.personal-agent-proposal button')].find(b=>b.textContent==='Ignore').click()`)
     await until(() => watch.list().some(p => p.status === 'ignored'), 'generated UI ignore')
     assert.ok(store.load().proposals.some(p => p.status === 'ignored'))
     assert.equal(executeCount, 0); assert.equal(service.status.transcript, '')
@@ -250,7 +250,7 @@ app.whenReady().then(async () => {
   await until(() => watch.list().some(p => p.status === 'pending'), 'Hydra push judgment')
   await assertPanel('service_push', 5)
   assert.equal(judgments.length, 2, 'four source messages must coalesce to one push judgment')
-  await run(`[...document.querySelectorAll('.personal-bot-proposal button')].find(b=>b.textContent==='Ignore').click()`)
+  await run(`[...document.querySelectorAll('.personal-agent-proposal button')].find(b=>b.textContent==='Ignore').click()`)
   await until(() => watch.list().some(p => p.status === 'ignored'), 'UI ignore through private channel')
   assert.ok(ownerWrites.at(-1).snoozed['e2e-dry-soil'] > Date.now())
   assert.equal(pushStore.load().proposals[0].status, 'ignored')
@@ -258,7 +258,7 @@ app.whenReady().then(async () => {
   await watch.close()
 
   // A controlled transport fault exercises the actual adapter's error path.
-  const unavailableJudge = createJevJudge({ env: { ODK_JEV_KEY_FILE: option('--jev-key') }, fetchImpl: async () => { throw Error('E2E transport unavailable') } })
+  const unavailableJudge = createJevJudge({ env: process.env, fetchImpl: async () => { throw Error('E2E transport unavailable') } })
   await setup('unavailable', unavailableJudge)
   await watch.tick()
   await until(() => !!client.snapshot().proposalError, 'unavailable status crossing channel')

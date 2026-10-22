@@ -38,7 +38,7 @@ function fixture({ smokeMode = false, independent = false } = {}) {
     ipc: { handle: (name, handler) => handlers.set(name, handler), removeHandler: name => handlers.delete(name) },
     'shell.frames': { subscribe: callback => { frames.add(callback); return () => frames.delete(callback) } },
     broadcast: (name, value) => broadcasts.push([name, value]),
-    'system.personal-bot': { create: () => { instances.bot.push(currentBot); return currentBot }, options: { socketPath: null }, smokeMode },
+    'system.personal-agent': { create: () => { instances.bot.push(currentBot); return currentBot }, options: { socketPath: null }, smokeMode },
     'system.remote-link': { create: options => { callbacks.set('mic', options.onRemoteMic); instances.remote.push(currentRemote); return currentRemote }, options: { socketPath: null }, smokeMode },
     'system.app-manager': { create: () => apps },
   } })
@@ -47,7 +47,7 @@ function fixture({ smokeMode = false, independent = false } = {}) {
   return { host, handlers, broadcasts, callbacks, calls, bot, remote, instances, apps, frames, setBot: value => { currentBot = value }, setRemote: value => { currentRemote = value }, setState: value => { state = value }, setConnected: value => { connected = value } }
 }
 
-for (const [kind, id] of [['bot', 'odk.system.personal-bot'], ['remote', 'odk.transport.remote-link']]) {
+for (const [kind, id] of [['bot', 'odk.system.personal-agent'], ['remote', 'odk.transport.remote-link']]) {
   for (const asynchronous of [false, true]) {
     test(`${kind} retries ${asynchronous ? 'rejected' : 'throwing'} client stop before replacement`, async t => {
       const f = fixture()
@@ -65,7 +65,7 @@ for (const [kind, id] of [['bot', 'odk.system.personal-bot'], ['remote', 'odk.tr
       await f.host.setEnabled(id, true)
       assert.equal(attempts, 2, 'cleanup must retry the actual client operation')
       assert.equal(f.instances[kind].length, 1, 'retained client must prevent replacement')
-      const independent = kind === 'bot' ? 'odk.transport.remote-link' : 'odk.system.personal-bot'
+      const independent = kind === 'bot' ? 'odk.transport.remote-link' : 'odk.system.personal-agent'
       assert.equal(f.host.list().find(record => record.manifest.id === independent).state, 'running')
       failed = false
       await f.host.setEnabled(id, true)
@@ -80,7 +80,7 @@ for (const [kind, id] of [['bot', 'odk.system.personal-bot'], ['remote', 'odk.tr
 test('default system plugins preserve Remote events and App manager endpoints', async () => {
   const f = fixture()
   await f.host.start()
-  assert.equal(f.host.get(SYSTEM_PORTS.personalBot), f.bot)
+  assert.equal(f.host.get(SYSTEM_PORTS.personalAgent), f.bot)
   assert.equal(f.host.get(SYSTEM_PORTS.appManager), f.apps)
   f.callbacks.get('navigation')('right')
   f.callbacks.get('input')('primary')
@@ -88,7 +88,7 @@ test('default system plugins preserve Remote events and App manager endpoints', 
   assert.deepEqual(f.broadcasts, [
     ['odk-remote-link-state', { state: 'disconnected', sequence: 1 }],
     ['odk-remote-navigation', { direction: 'right' }], ['odk-remote-input', { input: 'primary' }],
-    ['odk-personal-bot-mic', undefined],
+    ['odk-personal-agent-mic', undefined],
   ])
   assert.deepEqual(f.handlers.get('odk-remote-link-state')(), { state: 'disconnected', sequence: 1 })
   assert.equal(f.handlers.get('odk-remote-publish-page-state')(null, { page: 'home' }), true)
@@ -101,13 +101,13 @@ test('default system plugins preserve Remote events and App manager endpoints', 
   assert.deepEqual(f.calls.filter(value => typeof value === 'string'), ['bot:start', 'remote:start', 'remote:stop', 'bot:stop'])
 })
 
-test('Personal Bot preserves busy, pending, and stale acknowledgement guards', async () => {
+test('Personal Agent preserves busy, pending, and stale acknowledgement guards', async () => {
   const f = fixture()
   const current = { agents: { state: 'live', tasks: [{ taskId: 'fixture-child', state: 'running' }] }, transcript: 'Current input', activated: true }
   f.bot.snapshot = () => ({ ...current, state: 'idle' })
   await f.host.start()
   f.broadcasts.length = 0
-  const toggle = f.handlers.get('odk-personal-bot-toggle')
+  const toggle = f.handlers.get('odk-personal-agent-toggle')
   assert.deepEqual(toggle(), { accepted: true })
   assert.equal(f.broadcasts[0][1].state, 'starting')
   assert.deepEqual(f.broadcasts[0][1].agents, current.agents)
@@ -141,7 +141,7 @@ test('Personal Bot preserves busy, pending, and stale acknowledgement guards', a
 test('proposal validation remains bounded at the same IPC boundary', async () => {
   const f = fixture()
   await f.host.start()
-  const proposal = f.handlers.get('odk-personal-bot-proposal')
+  const proposal = f.handlers.get('odk-personal-agent-proposal')
   for (const request of [null, { type: 'unknown' }, { type: 'proposal_respond', id: 'short', decision: 'accept' }, { type: 'proposal_presented', ids: ['short'] }, { type: 'proposal_list', text: 'x'.repeat(4096) }]) {
     assert.deepEqual(proposal(null, request), { accepted: false })
   }
@@ -155,7 +155,7 @@ test('smoke composition does not start optional clients', async () => {
   const f = fixture({ smokeMode: true })
   await f.host.start()
   assert.deepEqual(f.calls, [])
-  assert.equal(f.handlers.has('odk-personal-bot-status'), true)
+  assert.equal(f.handlers.has('odk-personal-agent-status'), true)
   assert.equal(f.handlers.has('odk-remote-link-state'), true)
   await f.host.stop()
 })
@@ -170,19 +170,19 @@ test(`${independent ? 'independent' : 'default'} notification plugin forwards un
   assert.equal(forwarder.publish(ids), true)
   assert.equal(f.calls.at(-1), ids)
   await f.host.setEnabled('odk.system.service-notifications', false)
-  assert.equal(f.host.get(SYSTEM_PORTS.personalBot), f.bot)
+  assert.equal(f.host.get(SYSTEM_PORTS.personalAgent), f.bot)
   const count = f.calls.length
   assert.equal(forwarder.publish(ids), undefined)
   assert.equal(f.calls.length, count)
   await f.host.setEnabled('odk.system.service-notifications', true)
   assert.notEqual(f.host.get(SYSTEM_PORTS.serviceNotifications), forwarder)
   assert.equal(f.host.get(SYSTEM_PORTS.serviceNotifications).publish(ids), true)
-  await f.host.setEnabled('odk.system.personal-bot', false)
+  await f.host.setEnabled('odk.system.personal-agent', false)
   assert.equal(f.host.get(SYSTEM_PORTS.serviceNotifications).publish(ids), undefined)
   const replacement = { ...f.bot, servicePush: values => { f.calls.push(['replacement', values]); return false } }
   f.setBot(replacement)
-  await f.host.setEnabled('odk.system.personal-bot', true)
-  assert.equal(f.host.get(SYSTEM_PORTS.personalBot), replacement)
+  await f.host.setEnabled('odk.system.personal-agent', true)
+  assert.equal(f.host.get(SYSTEM_PORTS.personalAgent), replacement)
   assert.equal(f.host.get(SYSTEM_PORTS.serviceNotifications).publish(ids), false)
   await f.host.stop()
 })
@@ -196,20 +196,20 @@ test(`${independent ? 'independent' : 'default'} frame status preserves broadcas
   assert.equal(f.frames.size, 1)
   const initial = [...f.frames][0]
   initial(frame)
-  assert.deepEqual(f.broadcasts, [['odk-personal-bot-status', { state: 'idle' }]])
+  assert.deepEqual(f.broadcasts, [['odk-personal-agent-status', { state: 'idle' }]])
   assert.deepEqual(sends, [['odk-remote-link-state', { state: 'disconnected', sequence: 1 }]])
-  await f.host.setEnabled('odk.system.personal-bot', false)
+  await f.host.setEnabled('odk.system.personal-agent', false)
   await f.host.setEnabled('odk.transport.remote-link', false)
   f.broadcasts.length = 0
   sends.length = 0
   for (const callback of f.frames) callback(frame)
-  assert.deepEqual(f.broadcasts, [['odk-personal-bot-status', { state: 'unavailable' }]])
+  assert.deepEqual(f.broadcasts, [['odk-personal-agent-status', { state: 'unavailable' }]])
   assert.deepEqual(sends, [['odk-remote-link-state', { state: 'disconnected', sequence: 0 }]])
-  await f.host.setEnabled('odk.system.personal-bot', true)
+  await f.host.setEnabled('odk.system.personal-agent', true)
   f.setState('thinking')
   f.broadcasts.length = 0
   for (const callback of f.frames) callback(frame)
-  assert.deepEqual(f.broadcasts, [['odk-personal-bot-status', { state: 'thinking' }]])
+  assert.deepEqual(f.broadcasts, [['odk-personal-agent-status', { state: 'thinking' }]])
   await f.host.setEnabled('odk.transport.remote-link', true)
   sends.length = 0
   for (const callback of f.frames) callback(frame)
@@ -233,7 +233,7 @@ test('session replies retain exact references across the system channel and refu
  f.bot.sendText=async(...args)=>{sent.push(args);return true}
  await f.host.start()
  try {
-  const send=f.handlers.get('odk-personal-bot-text')
+  const send=f.handlers.get('odk-personal-agent-text')
   const reference={messageId:'a'.repeat(64),sourceKey:'b'.repeat(64),sourceRevision:'c'.repeat(64)}
   assert.deepEqual(await send(null,'继续',reference),{accepted:true})
   assert.deepEqual(sent,[['继续',reference]])

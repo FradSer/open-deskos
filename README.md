@@ -24,7 +24,7 @@ pnpm test
 | Shell development and CM5 operations | [Shell runbook](runtime/shell/README.md) |
 | Windows operations | [Windows runbook](runtime/shell/docs/WINDOWS_HOST.md) |
 | Runtime terms and boundaries | [Shell context](runtime/shell/CONTEXT.md) |
-| Resident agent and its operations | [Personal Bot](integrations/personal-bot/README.md) |
+| Resident agent and its operations | [Personal Agent](integrations/personal-agent/README.md) |
 | Remote transport | [Remote Bridge](integrations/remote-bridge/README.md) |
 | Touch Remote Control | [S3 Remote](peripherals/esp32-s3-remote/README.md) |
 | UVC camera and UAC microphone | [P4 camera](peripherals/esp32-p4-camera/README.md) |

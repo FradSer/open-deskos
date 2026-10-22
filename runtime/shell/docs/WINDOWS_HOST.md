@@ -51,7 +51,7 @@ pnpm run build:native
 | Surface | Windows contract |
 | --- | --- |
 | Remote Control / Remote Bridge | Not ported. The Unix link and service are absent. Report unavailable/disconnected. |
-| Voice Agent / Personal Bot | Windows display and DirectShow microphone client. CM5 owns the Personal Agent; a disconnected main service reports unavailable. |
+| Voice Agent / Personal Agent | Windows display and DirectShow microphone client. CM5 owns the Personal Agent; a disconnected main service reports unavailable. |
 | Open DeskOS Link | Ported. TCP reporting listener defaults to 8765. The runtime channel is `\\.\pipe\odk-link`. |
 | Open DeskOS Data | Ported on both sides. Shell and bot use `\\.\pipe\odk-data` with the host channel token. |
 | External package control | Ported on both sides. Use `\\.\pipe\odk-user-app-control` with the host channel token. Install/update/rollback/remove remain available. |
@@ -127,21 +127,21 @@ node -e "const n=require('node:net');const fs=require('node:fs');const t=fs.read
 
 An `ack` with `ok:true` proves the token and service handshake were accepted.
 
-## Personal Bot
+## Personal Agent
 
-Windows runs `integrations/personal-bot/src/display-client.mjs` through the interactive `OdkPersonalBot` task.
+Windows runs `integrations/personal-agent/src/display-client.mjs` through the interactive `OdkPersonalAgent` task.
 CM5 runs the Personal Agent, model calls, transcription, memory, and task coordination.
 Windows captures microphone audio and relays owner input to CM5.
-The local display channel is `\\.\pipe\odk-personal-bot`.
+The local display channel is `\\.\pipe\odk-personal-agent`.
 The host channel token authenticates the channel.
 A disconnected central service reports unavailable; Windows does not start a local agent.
 Overview uses the central agent projection. Other Widget data sources retain their existing configuration.
 
-Set the fixed operator alias and microphone in `%LOCALAPPDATA%\odk\personal-bot.env`:
+Set the fixed operator alias and microphone in `%LOCALAPPDATA%\odk\perosnal-agent.env`:
 
 ```ini
 ODK_PERSONAL_AGENT_MAIN_SSH=odk-cm5-agent
-ODK_PERSONAL_BOT_AUDIO_DEVICE=麦克风 (Realtek High Definition Audio)
+ODK_PERSONAL_AGENT_AUDIO_DEVICE=麦克风 (Realtek High Definition Audio)
 ```
 
 Use the exact DirectShow device name from ffmpeg. Do not add the `audio=` prefix.
@@ -158,22 +158,22 @@ Keep existing Mac aliases, keys, and authorized key entries.
 Never copy provider credentials to the display client or relay.
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-bot.ps1 -Report
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-bot.ps1 -InstallFfmpeg -Start
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-agent.ps1 -Report
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-agent.ps1 -InstallFfmpeg -Start
 ```
 
 `-Report` makes no changes. `-InstallFfmpeg` permits the dependency installation.
 Registration requires the display entry, `ssh.exe`, and the exact central alias setting.
 The task runs in the logged-on interactive session; Session 0 has no microphone endpoint.
-Logs use `%LOCALAPPDATA%\odk\personal-bot.log`.
+Logs use `%LOCALAPPDATA%\odk\personal-agent.log`.
 A missing entry or invalid alias stops startup without a local fallback.
 Missing ffmpeg or microphone configuration disables capture, not keyboard display.
 
 Use the published protocol for acceptance:
 
 ```powershell
-node scripts\personal-bot-acceptance.mjs
-node scripts\personal-bot-acceptance.mjs --status
+node scripts\personal-agent-acceptance.mjs
+node scripts\personal-agent-acceptance.mjs --status
 ```
 
 The first command performs live microphone and central provider work. `--status` only reads state.
@@ -181,7 +181,7 @@ Host fixture checks do not establish pairing, device audio, or central model acc
 
 ## State and private configuration
 
-Display state is under `%LOCALAPPDATA%\odk`. The central Personal Agent owns its memory and model authentication on CM5. Separate local Pi tools can retain their own `~\.pi\agent` configuration. Use `.env.local` for Shell settings and `personal-bot.env` for the display alias and microphone. See [CONFIGURATION](CONFIGURATION.md) for the complete inventory and location privacy rules.
+Display state is under `%LOCALAPPDATA%\odk`. The central Personal Agent owns its memory and model authentication on CM5. Separate local Pi tools can retain their own `~\.pi\agent` configuration. Use `.env.local` for Shell settings and `perosnal-agent.env` for the display alias and microphone. See [CONFIGURATION](CONFIGURATION.md) for the complete inventory and location privacy rules.
 
 - Keep Personal Agent model and transcription credentials on CM5, outside Shell settings and command lines.
 - `WEREAD_API_KEY` is the operator-provisioned WeRead credential. Historical handheld acceptance used the same authorized credential as CM5 and produced a live cache.

@@ -24,7 +24,7 @@ async function waitFor(expression) {
   }
   assert.fail(`Child avatar condition failed: ${expression}`)
 }
-const send = (agents, state = 'idle') => win.webContents.send('odk-personal-bot-status', { state, agents })
+const send = (agents, state = 'idle') => win.webContents.send('odk-personal-agent-status', { state, agents })
 
 app.whenReady().then(async () => {
   win = new BrowserWindow({ width: 1280, height: 800, show: false, useContentSize: true, webPreferences: {
@@ -60,7 +60,7 @@ app.whenReady().then(async () => {
   win.webContents.setZoomFactor(1)
   win.setContentSize(1280, 800)
   await evaluate(`(async()=>{await odkTheme.set('instrument');window.dispatchEvent(new Event('resize'));await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))})()`)
-  win.webContents.send('odk-personal-bot-status', { state: 'idle', transcript: 'Compare the regional report.', message: 'I am checking all three requested regions.', agents: { state: 'live', tasks: [saved] } })
+  win.webContents.send('odk-personal-agent-status', { state: 'idle', transcript: 'Compare the regional report.', message: 'I am checking all three requested regions.', agents: { state: 'live', tasks: [saved] } })
   await waitFor(`document.querySelector('.agent-child-name').textContent === 'Reporter 中文'`)
   await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
   if (process.env.ODK_AGENT_AVATAR_CAPTURE) {

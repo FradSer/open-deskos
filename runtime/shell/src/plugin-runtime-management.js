@@ -6,7 +6,7 @@ const RUNTIMES = Object.freeze([
   { scope: 'electron-main', endpoint: 'plugin-control' },
   { scope: 'electron-renderer', endpoint: 'renderer-plugin-control' },
   { scope: 'remote-bridge', endpoint: 'remote-plugin-control' },
-  { scope: 'personal-agent', endpoint: 'personal-bot-control' },
+  { scope: 'personal-agent', endpoint: 'personal-agent-control' },
   { scope: 'personal-agent', endpoint: 'hosted-pi-control' },
   { scope: 'python-agent', endpoint: 'futu-plugin-control' },
 ])

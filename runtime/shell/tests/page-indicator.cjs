@@ -34,7 +34,7 @@ function check(name, ok, detail) {
 ipcMain.handle('odk-camera-frame', () => ({ status: 'unavailable', frame: null, capturedAt: null }))
 ipcMain.handle('odk-weather-status', () => ({ status: 'unconfigured', place: null, current: null, daily: null, updatedAt: null, hint: null, error: null }))
 ipcMain.handle('odk-futu-holdings', () => ({ state: 'unavailable', service: 'futu-poller', snapshot: null, updatedAt: null }))
-ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable' }))
+ipcMain.handle('odk-personal-agent-status', () => ({ state: 'unavailable' }))
 ipcMain.handle('odk-renderer-development-plugins', () => [])
 ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured' }))
 ipcMain.handle('odk-pi-sessions', () => ({ summary: { running: 2, total: 2, workspacesCount: 1 }, sessions: [] }))

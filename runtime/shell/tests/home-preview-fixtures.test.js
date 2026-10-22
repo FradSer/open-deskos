@@ -34,11 +34,11 @@ test('normal Home preview has complete, consistent readings without provider acc
   assert.match(text, /Taipei.*26°C/)
   assert.match(text, new RegExp(read('odk-hydra-status').nodes[0].soilPercent + '%'))
   assert.equal(preview.briefing.generatedAt, now)
-  assert.equal(read('odk-personal-bot-status').message, preview.reply)
+  assert.equal(read('odk-personal-agent-status').message, preview.reply)
   assert.equal(preview.synthetic, true)
   assert.equal(preview.updates.length,2)
-  assert.deepEqual([...read('odk-personal-bot-status').remote.messages].reverse().filter(m=>m.presentation==='assistant_update').map(m=>m.text),preview.updates)
-  assert(read('odk-personal-bot-status').remote.messages.some(m=>m.presentation===undefined),'legacy reports remain in the synthetic preview')
+  assert.deepEqual([...read('odk-personal-agent-status').remote.messages].reverse().filter(m=>m.presentation==='assistant_update').map(m=>m.text),preview.updates)
+  assert(read('odk-personal-agent-status').remote.messages.some(m=>m.presentation===undefined),'legacy reports remain in the synthetic preview')
 })
 
 test('Widget harness retains declared spans and the original Home with Overview', async () => {

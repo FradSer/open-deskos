@@ -9,7 +9,7 @@ const vm = require('node:vm')
 const { createShellOdkData } = require('../src/odk-data')
 
 // The wired main process is the seam where the tile, the installed packages and
-// the Personal Bot meet. Only the launcher, the display and the store's bytes are
+// the Personal Agent meet. Only the launcher, the display and the store's bytes are
 // stood in for: the user-application system that owns the publish handler and
 // the catalog hook runs for real, or this file would test nothing.
 function deferred() {
@@ -145,7 +145,7 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
     './local-channel': require('../src/local-channel'),
     './panel': { KIOSK_WINDOW_LOCK: {}, enterPanel() {}, resolvePanelBounds: () => null },
     './remote-bridge-client': { resolveRemoteBridgeSocketPath: () => null, createRemoteBridgeClient: () => ({ onLinkState: () => () => {}, onNavigation: () => () => {}, onInput: () => () => {}, start() {}, stop() { remoteStopCount += 1 }, getLinkState: () => 'disconnected' }) },
-    './personal-bot-client': { resolvePersonalBotSocketPath: () => null, createPersonalBotClient: () => ({ subscribe: () => () => {}, start() {}, stop() {}, servicePush: ids => servicePushes.push(ids), toggle: () => false, snapshot: () => ({ state: 'unavailable' }) }) },
+    './personal-agent-client': { resolvePersonalAgentSocketPath: () => null, createPersonalAgentClient: () => ({ subscribe: () => () => {}, start() {}, stop() {}, servicePush: ids => servicePushes.push(ids), toggle: () => false, snapshot: () => ({ state: 'unavailable' }) }) },
     './odk-data-control': { listenOdkData: async () => {
       if (odkDataListenGate) {
         odkDataListenWaiting = true
@@ -273,11 +273,11 @@ test('a disabled data-source plugin withdraws only its reading and endpoint', as
   assert.equal(odkData.registry.list().some(entry => entry.id === 'odk.tile.hydra'), true)
 })
 
-test('a disabled Personal Bot plugin leaves direct data and package controls available', async () => {
-  const shell = wireShell({ env: { ODK_DISABLED_PLUGINS: 'odk.system.personal-bot' } })
+test('a disabled Personal Agent plugin leaves direct data and package controls available', async () => {
+  const shell = wireShell({ env: { ODK_DISABLED_PLUGINS: 'odk.system.personal-agent' } })
   const odkData = await shell.ready()
-  assert.equal(shell.handlers.has('odk-personal-bot-toggle'), false)
-  assert.equal(shell.handlers.has('odk-personal-bot-status'), false)
+  assert.equal(shell.handlers.has('odk-personal-agent-toggle'), false)
+  assert.equal(shell.handlers.has('odk-personal-agent-status'), false)
   assert.equal(shell.handlers.has('odk-user-apps-dispatch'), true)
   assert.equal(shell.handlers.get('odk-hydra-status')().nodes[0].soilPercent, 30)
   assert.equal(odkData.registry.list().some(entry => entry.id === 'odk.tile.hydra'), true)
@@ -471,7 +471,7 @@ test('Main dispatches frame readiness and source notifications through the defau
   shell.servicePushes.length = 0
   shell.finishFrame()
   assert.deepEqual(shell.frameMessages, [
-    ['odk-personal-bot-status', { state: 'unavailable' }],
+    ['odk-personal-agent-status', { state: 'unavailable' }],
     ['odk-remote-link-state', { state: 'disconnected', sequence: 0 }],
   ])
   shell.notifyHydra()

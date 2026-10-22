@@ -855,7 +855,7 @@ async function main() {
   ipcMain.handle('odk-weread-highlight', () => ({ status: 'unconfigured', highlight: null }))
   ipcMain.handle('odk-futu-holdings', () => ({ state: 'live', service: 'futu-poller', snapshot: { totals: { marketVal: 313835.5, plVal: 5946.95, plRatio: 0.0193 }, positions: [ { code: 'US.TEM', marketVal: 7311, dayRatio: 0.031 }, { code: 'US.SDGR', marketVal: 5373, dayRatio: -0.012 }, { code: 'US.TSLA', marketVal: 7067, dayRatio: 0.0074 } ] }, updatedAt: Date.now() }))
   ipcMain.handle('odk-weather-status', () => ({ status: 'live', place: 'Shenzhen', current: { temperature: 25, unit: '°C', condition: 'Partly cloudy', sky: 'cloud', code: 2 }, daily: { high: 27, low: 21 }, updatedAt: Date.now(), hint: null, error: null }))
-  ipcMain.handle('odk-personal-bot-status', () => ({ state: 'idle', message: '', briefing: {
+  ipcMain.handle('odk-personal-agent-status', () => ({ state: 'idle', message: '', briefing: {
     state: 'live', generatedAt: Date.now(), omittedSources: 0,
     items: [{ text: 'Review the current desk readings before planning your next step.',
       sources: [{ id: 'odk.tile.weather', label: 'Weather', state: 'live', updatedAt: Date.now() }] }],

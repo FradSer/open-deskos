@@ -80,7 +80,7 @@ async function briefing(win, check) {
     { text: 'First Agent statement <script>literal</script>.', sources: [{ id: 'odk.tile.weather', label: 'Weather', state: 'live', updatedAt: Date.now() }] },
     { text: 'Second Agent statement.', sources: [{ id: 'mail', label: 'Mail', state: 'unconfigured' }] },
   ] }
-  win.webContents.send('odk-personal-bot-status', { state: 'idle', message: '', briefing: frame })
+  win.webContents.send('odk-personal-agent-status', { state: 'idle', message: '', briefing: frame })
   await new Promise(resolve => setTimeout(resolve, 30))
   const result = await win.webContents.executeJavaScript(`(() => {
     const narrative = document.querySelector('#dash-narrative');
@@ -99,7 +99,7 @@ async function briefing(win, check) {
   check('Agent text remains literal', result.safe)
   check('fixed plugin statements cannot replace the Agent briefing', result.unchanged)
   check('Today announces briefing changes', result.live === 'polite')
-  win.webContents.send('odk-personal-bot-status', { state: 'idle', message: '', briefing: before })
+  win.webContents.send('odk-personal-agent-status', { state: 'idle', message: '', briefing: before })
 }
 
 module.exports = async function run(win, check) {

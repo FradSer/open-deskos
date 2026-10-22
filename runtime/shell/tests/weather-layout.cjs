@@ -8,7 +8,7 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 if (process.platform === 'linux') app.disableHardwareAcceleration()
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 ipcMain.handle('odk-renderer-development-plugins', () => [])
-ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable' }))
+ipcMain.handle('odk-personal-agent-status', () => ({ state: 'unavailable' }))
 const { collectWidgetContent, measureDensity } = require('./helpers/widget-density')
 const { resolvePages } = require('./helpers/pages')
 
