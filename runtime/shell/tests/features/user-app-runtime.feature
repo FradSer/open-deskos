@@ -150,3 +150,25 @@ Feature: Sandboxed self-contained user applications
     When verification rejects a later update
     Then the active revision and persisted catalog bytes remain unchanged
     And runtime restart retains the accepted revision and rollback history
+
+  # Creation contract: verified packages declare public HTTPS JSON sources.
+  # The main process owns requests, freshness, response limits, and failure states.
+  # Frames remain opaque and cannot fetch directly or select undeclared URLs.
+  # CM5 acceptance requires Agent creation and modification of a Widget and App.
+  # The Widget shows sourced UTC time; the App adds a named Refresh control.
+  # Both inherit the active appearance and retain readable unavailable states.
+  Scenario: Read a declared public API through the system bridge
+    Given an installed revision declares a fixed public HTTPS JSON source
+    When its authenticated frame requests that source by name
+    Then the main process returns bounded JSON and its retrieval time
+    And concurrent reads share one request and respect the declared refresh interval
+    And an App can request the same source through its Refresh control
+    And the iframe keeps its network restriction
+
+  Scenario: Refuse undeclared and unsafe API access
+    Given a package requests an undeclared source, old revision, or private network address
+    When the system checks its verified declaration and resolved addresses
+    Then no network request starts
+    And redirects, non-JSON responses, oversized responses, and timeouts fail explicitly
+    And a failed refresh reports stale data without labelling it live
+    And closing the runtime aborts requests and refuses later reads

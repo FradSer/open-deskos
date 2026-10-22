@@ -165,3 +165,23 @@ test('only an opted-in ready App can request its fixed Home return', async () =>
     assert.equal(h.listeners.size, 0)
   }
 })
+
+test('API requests bind frame identity and revision and reject forged or released messages', async () => {
+  const h = create(); const requests = []
+  let release
+  h.root.odkUserApps = { readApi: (...args) => { requests.push(args); return new Promise(resolve => { release = resolve }) } }
+  const revision = 'a'.repeat(32)
+  const mounted = h.mount(h.container, { id: 'clock', revision, url: `odk-user-app://app/clock/${revision}` })
+  const [receive] = h.listeners
+  const data = { type: 'odk-user-app-api-read', token: 'token', sourceId: 'clock', requestId: 1, appId: 'other' }
+  receive({ source: {}, data })
+  receive({ source: h.frame.contentWindow, data: { ...data, token: 'wrong' } })
+  await Promise.resolve(); assert.equal(requests.length, 0)
+  receive({ source: h.frame.contentWindow, data })
+  await Promise.resolve(); assert.deepEqual(requests, [['clock', revision, 'clock']])
+  const before = h.posted.length
+  disposeQuietly(mounted)
+  release({ ok: true, state: 'live', data: { time: 1 } })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(h.posted.length, before, 'late data cannot reach a released frame')
+})
