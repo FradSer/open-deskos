@@ -240,7 +240,6 @@ html[data-theme='pixel'] #home-summary .dash {
 #home-desk #page-center { position: relative; inset: auto; z-index: 21; }
 #home-desk #dots { touch-action: none; user-select: none; }
 #home-desk #dots[data-mode="handle"] { padding: 0; background: transparent; }
-#home-desk #dots[data-mode="handle"]::before { content: none; }
 #home-desk #dots[data-mode="handle"] .dot { width: 144px; height: 44px; padding: 0; background: transparent; touch-action: none; }
 #home-desk #dots[data-mode="handle"] .dot:not(.active) { display: none; }
 #home-desk #dots[data-mode="handle"] .dot::before {

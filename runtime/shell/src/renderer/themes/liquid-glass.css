@@ -113,6 +113,17 @@ html[data-theme='liquid-glass'] input:is([type='checkbox'], [type='radio'], [typ
   accent-color: var(--odk-primary);
 }
 
+html[data-theme='liquid-glass'] .agent-composer[data-mode='voice'] .agent-mic {
+  background-color: var(--odk-glass-control-fill);
+  background-image: var(--odk-glass-control-material);
+}
+
+html[data-theme='liquid-glass'] #app-back {
+  border: 1px solid var(--odk-control-stroke, var(--odk-stroke));
+  background-color: var(--odk-glass-control-fill);
+  background-image: var(--odk-glass-control-material);
+}
+
 html[data-theme='liquid-glass'] #personal-agent .agent-mic.lg-surface {
   visibility: inherit;
   border-radius: var(--odk-radius-pill) !important;
