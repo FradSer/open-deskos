@@ -11,6 +11,8 @@ Feature: Bounded requests over runtime channels
     When its microphone fails or its transfer times out
     Then CM5 reports a microphone or timeout failure instead of a normal cancellation
     And invalid audio, invalid frames, and cleanup failures remain errors
+    And displays select captions from validated cause codes without matching owner wording
+    And a later input clears the previous cause code
     And provider diagnostics and credentials never enter public status
 
   Scenario: CM5 owns the shared Personal Agent

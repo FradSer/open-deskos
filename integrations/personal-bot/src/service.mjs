@@ -149,17 +149,17 @@ export class PersonalBotService {
   notify(message) {
     if (this.closed) return
     this.pendingNotifications.push({ id: randomUUID(), message: boundedText(message, 4096, 'Ride update') })
-    if (!this.starting && ['idle', 'error'].includes(this.status.state)) this.setState(this.status.state, this.status.message)
+    if (!this.starting && ['idle', 'error'].includes(this.status.state)) this.setState(this.status.state, this.status.message, this.status.transcript, this.status.voiceFailure)
   }
 
-  setState(state, message = '', transcript = this.status.transcript) {
+  setState(state, message = '', transcript = this.status.transcript, voiceFailure = undefined) {
     const limit = this.proposalFrame.proposals.length ? 8192 : 16384
     const reply = boundedText(message, limit, 'Response')
     const notifications = !this.starting && ['idle', 'error'].includes(state) ? this.pendingNotifications.splice(0) : []
     const judgment = this.dependencies.getJudgmentStatus?.()
     this.status = {
       ...(judgment ? {judgment} : {}), ...this.proposalFrame, ...this.replyFrame, ...(this.jev ? { jev: this.jev } : {}), agents: this.agentFrame, ...(this.remoteFrame ? { remote: this.remoteFrame } : {}), ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), replyInput: true, textInput: true, v: 1, type: 'status', state, level: 0,
-      message: reply, ...(notifications.length ? { notifications } : {}),
+      message: reply, ...(state === 'error' && ['microphone','timeout','unavailable','protocol','invalid_audio','cleanup'].includes(voiceFailure) ? {voiceFailure} : {}), ...(notifications.length ? { notifications } : {}),
       transcript: boundedText(transcript, 4096, 'Transcript'),
     }
     for (const listener of this.listeners) listener(this.status)
@@ -190,11 +190,11 @@ export class PersonalBotService {
       this.setState('recording')
       this.observeRecording(this.recording,captureId)
     } catch {
-      if (!this.closed) this.setState('error', 'Microphone unavailable')
+      if (!this.closed) this.setState('error', 'Microphone unavailable', this.status.transcript, 'microphone')
     } finally {
       this.starting = false
       this.drainRemote()
-      if (['idle', 'error'].includes(this.status.state) && this.pendingNotifications.length) this.setState(this.status.state, this.status.message)
+      if (['idle', 'error'].includes(this.status.state) && this.pendingNotifications.length) this.setState(this.status.state, this.status.message, this.status.transcript, this.status.voiceFailure)
       this.watch?.setBusy(!['idle', 'error'].includes(this.status.state))
     }
   }
@@ -232,7 +232,7 @@ export class PersonalBotService {
       const cleaned=await this.discard()
       if(!cleaned)this.recording=recording
       this.starting=!cleaned
-      if(!this.closed)this.setState(cleaned && reason==='cancelled'?'idle':'error',cleaned?failures[reason] ?? '':'Recording cleanup failed')
+      if(!this.closed)this.setState(cleaned && reason==='cancelled'?'idle':'error',cleaned?failures[reason] ?? '':'Recording cleanup failed',this.status.transcript,cleaned?reason:'cleanup')
       this.watch?.setBusy(!cleaned)
       return cleaned
     })()
@@ -244,7 +244,7 @@ export class PersonalBotService {
     if (this.status.state !== 'recording' || this.closed) return
     this.setState('transcribing')
     await this.discard()
-    if (!this.closed) this.setState('error', 'Microphone unavailable')
+    if (!this.closed) this.setState('error', 'Microphone unavailable', this.status.transcript, 'microphone')
   }
 
   finish() {
