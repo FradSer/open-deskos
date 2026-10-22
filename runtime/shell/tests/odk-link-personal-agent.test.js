@@ -281,6 +281,10 @@ test('central conversation identity and availability survive the phone frame', (
   assert.equal(frame.textInput, true)
   assert.equal(frame.replyInput, true)
   assert.equal(frame.voiceInput, false)
+  for(const voiceFailure of ['microphone','timeout','unavailable','protocol','invalid_audio','cleanup'])assert.equal(projectPersonalAgentFrame({state:'error',voiceFailure,message:'Updated wording'}).voiceFailure,voiceFailure)
+  for(const voiceFailure of ['unknown',{code:'microphone'}])assert.equal(projectPersonalAgentFrame({state:'error',voiceFailure}).voiceFailure,undefined)
+  assert.equal(projectPersonalAgentFrame({state:'idle',voiceFailure:'microphone'}).voiceFailure,undefined)
+
 })
 
 test('a new personal control role binds raw first-frame bytes and forwards the stored reply', async () => {

@@ -259,8 +259,8 @@ async function assertSimpleConversation() {
     assert.equal(accessible,true,theme+': high-contrast task labels retain full readable emphasis')
   }
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]})
-  for(const failure of ['Microphone unavailable','Recording timed out. Try again.','Recording connection lost. Try again.','Recording transfer failed. Try again.','Recording audio is invalid. Try again.','Recording cleanup failed']) {
-    publishStatus({...frame,state:'error',transcript:'',message:failure});await evaluate('new Promise(r=>setTimeout(r,20))')
+  for(const [voiceFailure,failure] of Object.entries({microphone:'Microphone unavailable',timeout:'Recording timed out. Try again.',unavailable:'Recording connection lost. Try again.',protocol:'Recording transfer failed. Try again.',invalid_audio:'Recording audio is invalid. Try again.',cleanup:'Recording cleanup failed'})) {
+    publishStatus({...frame,state:'error',transcript:'',voiceFailure,message:'Updated owner wording'});await evaluate('new Promise(r=>setTimeout(r,20))')
     assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),failure,'voice failures retain their actual safe cause')
   }
   publishStatus({...frame,state:'idle',transcript:'',message:''});await evaluate('new Promise(r=>setTimeout(r,20))')

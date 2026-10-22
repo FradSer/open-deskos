@@ -47,7 +47,7 @@
       const avatar = root.odkPersonalAgentAvatar.mount($('.agent-avatar'))
       const busyStates = ['starting', 'sending', 'recording', 'transcribing', 'thinking']
       const stateLabels = { idle: 'Ready', thinking: 'Working…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
-      const voiceFailures = new Set(['Microphone unavailable', 'Recording timed out. Try again.', 'Recording connection lost. Try again.', 'Recording transfer failed. Try again.', 'Recording audio is invalid. Try again.', 'Recording cleanup failed'])
+      const voiceFailures = {microphone:'Microphone unavailable',timeout:'Recording timed out. Try again.',unavailable:'Recording connection lost. Try again.',protocol:'Recording transfer failed. Try again.',invalid_audio:'Recording audio is invalid. Try again.',cleanup:'Recording cleanup failed'}
       let composerMode = 'keyboard'
       let voiceStarted = false
       function voiceAvailable() { return root.odkPersonalBot?.supportsVoiceInput !== false }
@@ -525,7 +525,7 @@
           turn.response.setAttribute('aria-busy', String(status.state === 'thinking'))
           if (['idle', 'error'].includes(status.state)) turn.completed = true
         }
-        const caption = status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '')) : status.state === 'thinking' ? 'Thinking…' : status.state === 'error' && voiceFailures.has(status.message) ? status.message : stateLabels[status.state] || 'Personal Bot status unknown'
+        const caption = status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '')) : status.state === 'thinking' ? 'Thinking…' : status.state === 'error' && Object.hasOwn(voiceFailures,status.voiceFailure) ? voiceFailures[status.voiceFailure] : stateLabels[status.state] || 'Personal Bot status unknown'
         setState(status.proposalError || caption || 'Ready', status.proposalError ? 'Suggestions unavailable' : caption)
         sendControl.disabled = busy || status.state === 'unavailable' || pending
 
