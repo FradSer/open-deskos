@@ -24,6 +24,20 @@ Feature: Personal Agent home briefing
     And compact inventories use one request within the input byte budget
     And independent batches run concurrently within the shared deadline
 
+  Scenario: Overview selection bounds provider reasoning
+    Given the configured Model Studio model enables thinking by default
+    When Overview starts an isolated selection
+    Then its provider request disables thinking and bounds output tokens
+    And the resident Agent keeps its original model configuration
+
+  Scenario: Busy Pi activity does not starve Overview
+    Given a model selection is pending while Pi activity changes
+    When the selection completes
+    Then selected facts bind to current activity and verification qualifiers
+    And changed selection context schedules another selection
+    And removed facts and hidden sources cannot remain displayed
+    And reordered sessions retain their selected task identities
+
   Scenario: Fresh facts survive generation failure
     Given Overview has an earlier generated summary
     And current source values have changed

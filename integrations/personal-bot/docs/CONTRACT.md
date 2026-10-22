@@ -884,8 +884,11 @@ Ordinary numeric changes bind into the retained template.
 Changes to goals, activity, lifecycle states, waiting counts, and attention thresholds require selection again.
 Time-sensitive fields also participate in attention checks.
 Templates expire after 15 minutes.
-The host confirms source identity and selection context before publishing pending output.
-It binds the latest ordinary values before publication.
+The host confirms source identity before publishing pending output.
+Pending selections bind to current host fact identities and verification qualifiers.
+Changed context schedules another selection without discarding compatible current facts.
+Reordered Pi sessions retain their task identities.
+Removed or hidden sources cannot supply displayed facts.
 
 Each semantic fact retains its source identity, field references, context, units, and measurement state.
 Nested measurements retain their units and enclosing object names.
@@ -898,6 +901,11 @@ Each model request contains at most 256 fact candidates and 48,000 bytes.
 Larger inputs use separate batches, followed by selection across their candidates.
 Every fact reaches its batch before that reduction.
 Up to four independent batches run concurrently within one generation deadline.
+Each candidate includes its display cost, with separator allowance.
+Format corrections identify oversized selections and request fewer facts.
+Overview limits each response to 2,048 tokens.
+[Model Studio](https://help.aliyun.com/en/model-studio/deep-thinking) requests explicitly disable thinking.
+This policy applies only to Overview sessions.
 Long facts can supply analysis context without being selectable for display.
 Context text above 8,192 characters carries an explicit incomplete flag.
 Each request uses a temporary Pi session without tools, extensions, Skills, or memory.

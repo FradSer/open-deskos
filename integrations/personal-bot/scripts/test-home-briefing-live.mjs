@@ -1,9 +1,11 @@
 // Explicit live-provider acceptance. No microphone, task submission, or owner-state writes.
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createPersonalBot } from '../src/agent.mjs'
+import { ModelRuntime } from '@earendil-works/pi-coding-agent'
 import { createDurableAgentSession } from '../src/durable-agent-session.mjs'
 import { HomeBriefing } from '../src/home-briefing.mjs'
 import { homeFactVariables } from '../src/home-template.mjs'
@@ -17,13 +19,29 @@ if (!process.argv.includes('--run')) {
 const output = process.env.ODK_OVERVIEW_LIVE_OUTPUT || await mkdtemp(join(tmpdir(), 'odk-overview-live-'))
 await mkdir(output, { recursive: true, mode: 0o700 })
 const stateDir = await mkdtemp(join(tmpdir(), 'odk-overview-agent-'))
-const report = { realModel: true, microphoneCapture: false, ownerTaskSubmission: false, scenarios: [], passed: false }
+const fingerprint = async () => Object.fromEntries(await Promise.all([
+  ...['agent.mjs', 'home-briefing.mjs', 'home-template.mjs', 'home-sources.mjs'].map(name => `../src/${name}`),
+  './test-home-briefing-live.mjs',
+].map(async name => [name, createHash('sha256').update(await readFile(new URL(name, import.meta.url))).digest('hex')])))
+const report = { realModel: true, microphoneCapture: false, ownerTaskSubmission: false, sourceHashes: await fingerprint(), scenarios: [], passed: false }
 let bot, current, requests = 0
 try {
   bot = await createPersonalBot({ stateDir, model: process.env.ODK_PERSONAL_BOT_MODEL,
     personal: { profile: 'personal', skillPaths: [], memoryFile: join(stateDir, 'memory.json') },
-    env: { ...process.env, ODK_JEV_PROVIDER: 'disabled', ODK_PROACTIVE_GENERATION_TIMEOUT_MS: '180000' },
-  }, { createSession: async options => {
+    env: { ...process.env, ODK_JEV_PROVIDER: 'disabled' },
+  }, { createRuntime: async options => {
+    const runtime = await ModelRuntime.create(options)
+    return new Proxy(runtime, { get(target, key) {
+      if (key === 'streamSimple') return (model, context, options) => target.streamSimple(model, context, {
+        ...options, onPayload: payload => {
+          current.controls.push({ model: model.id, provider: model.provider,
+            enableThinking: payload.enable_thinking, maxTokens: payload.max_tokens ?? payload.max_completion_tokens })
+        },
+      })
+      const value = Reflect.get(target, key, target)
+      return typeof value === 'function' ? value.bind(target) : value
+    } })
+  }, createSession: async options => {
     const result = await createDurableAgentSession(options)
     if (options.ephemeral) {
       assert.deepEqual(options.tools, [])
@@ -50,28 +68,43 @@ try {
         telemetry = { startedAt: Date.now(), facts: payload.variables.length }; current.telemetry.push(telemetry)
         console.log(JSON.stringify({ modelRequest: requests, facts: payload.variables.length }))
         for (const fact of payload.variables) { current.seenSources.add(fact.id); current.seenFacts.add(fact.factId) }
+        if (current.mutate) { const mutate = current.mutate; current.mutate = null; mutate() }
         return prompt(text, ...args)
       }
     }
     return result
   } })
   report.model = bot.generationModel
-  async function check(name, access, expected, synthetic) {
-    current = { seenSources: new Set(), seenFacts: new Set(), requests: 0, telemetry: [], failures: [] }
+  async function check(name, access, expected, synthetic, mutate) {
+    current = { seenSources: new Set(), seenFacts: new Set(), requests: 0, telemetry: [], failures: [], controls: [], mutate: undefined }
     let sourceFacts
     const home = new HomeBriefing({ ...access, requireBindings: true,
       generate: input => { sourceFacts = homeFactVariables(input.readings, input.now); return bot.generateBriefing(input) }, publish() {}, onFailure: failure => current.failures.push(failure) })
     const started = Date.now()
+    if (mutate) current.mutate = () => { mutate(); home.invalidate() }
     try {
       await home.refresh()
       const row = { name, synthetic, state: home.frame.state, coverage: home.frame.coverage,
-        requests: current.requests, telemetry: current.telemetry, failures: current.failures, elapsedMs: Date.now() - started,
+        requests: current.requests, controls: current.controls, telemetry: current.telemetry, failures: current.failures, elapsedMs: Date.now() - started,
         consideredSources: [...current.seenSources].sort(), consideredFacts: current.seenFacts.size,
         items: home.frame.items, passed: false }
       report.scenarios.push(row)
       assert.equal(home.frame.state, 'live', 'Real generation must succeed without fallback')
       for (const fact of sourceFacts) assert.ok(current.seenFacts.has(fact.factId), `Fact did not reach real model: ${fact.factId}`)
       assert.equal(home.frame.omittedSources, 0)
+      if (!synthetic) assert.ok(!current.seenSources.has('odk.data.connection'), 'The live source inventory must be reachable')
+      assert.equal(current.controls.length, current.requests, 'Every prompt must reach the provider payload boundary')
+      for (const control of current.controls) {
+        assert.ok(control.maxTokens <= 2048, 'Overview output budget must reach the provider')
+        if (control.provider === 'bailian') {
+          assert.equal(control.enableThinking, false)
+          assert.ok(current.telemetry.every(row => row.usage?.reasoning === 0), 'The provider must confirm zero reasoning tokens')
+        }
+      }
+      if (mutate) {
+        assert.match(home.frame.items.map(item => item.text).join(' '), /finished/)
+        assert.match(home.frame.items.map(item => item.text).join(' '), /verification not_run/)
+      }
       assert.equal(home.frame.coverage.readSources, home.frame.coverage.totalSources)
       if (expected) {
         assert.ok(home.frame.items.some(item => item.sources.some(source => source.id === expected)), `Expected urgent Agent source ${expected}`)
@@ -93,17 +126,23 @@ try {
     const access = createHomeSourceAccess({ dataRequest: async (command, options) => command === 'list' ? { readings } : { reading: readings.find(reading => reading.id === options.id) },
       runtime: () => ({ agent: { agentTasks: { list: () => ({ tasks: [task], total: 1 }), status: () => task } } }), remote: () => null })
     await check(`agent-${state}`, access, 'odk.agent.overview-acceptance-task', true)
+    if (state === 'failed') await check('agent-changing-during-generation', access, 'odk.agent.overview-acceptance-task', true, () => { task.state = 'finished' })
   }
   const access = createHomeSourceAccess({ dataRequest: odkDataRequest, runtime: () => null, remote: () => null })
   await check('connected-device-readings', access, undefined, false)
   report.passed = true
 } catch (error) {
-  report.failure = { name: error.name, message: error.message.slice(0, 250) }
+  report.failure = { name: error.name, message: error.code === 'ERR_ASSERTION' ? error.message.slice(0, 250) : 'Live setup or generation failed; inspect safe scenario diagnostics.' }
   console.error(JSON.stringify(report.failure))
   process.exitCode = 1
 } finally {
   await bot?.close()
   report.requests = requests
+  if (JSON.stringify(report.sourceHashes) !== JSON.stringify(await fingerprint())) {
+    report.passed = false
+    report.failure = { name: 'SourceChanged', message: 'Live verification source changed during the run.' }
+    process.exitCode = 1
+  }
   await writeFile(join(output, 'report.json'), JSON.stringify(report, null, 2) + '\n', { mode: 0o600 })
   console.log(JSON.stringify({ passed: report.passed, requests, evidence: output }))
 }

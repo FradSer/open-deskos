@@ -111,7 +111,7 @@ test('real SDK resource loader loads the widget skill without undefined agentDir
   assert.match(instructions, /accepted, queued, or running admission from completed execution/)
 })
 
-async function generationFixture(t, env, generatorPrompt = () => new Promise(() => {}), inspect = (_options) => {}, defaultRouting = false) {
+async function generationFixture(t, env, generatorPrompt = () => new Promise(() => {}), inspect = (_options) => {}, defaultRouting = false, runtimeOverride = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'voice-generation-env-'))
   await mkdir(join(dir, 'private'), { mode: 0o700 })
   t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
@@ -131,7 +131,7 @@ async function generationFixture(t, env, generatorPrompt = () => new Promise(() 
     personal: { profile: 'personal', memoryFile: join(dir, 'private', 'memory.json'), skillPaths: [] },
     env,
   }, {
-    createRuntime: async () => ({ getAvailable: async () => [{ provider: 'fixture', id: 'model' }], getModel: () => undefined }),
+    createRuntime: async () => ({ getAvailable: async () => [{ provider: 'fixture', id: 'model' }], getModel: () => undefined, ...runtimeOverride }),
     ...(defaultRouting ? {} : {createIntentRouter: () => async () => ({ intent: 'conversation' })}),
     createSession: async options => {
       const generator = ++sessionNumber > 1
@@ -349,6 +349,7 @@ test('invalid fact selections retry without restoring required source coverage',
     const request = JSON.parse(text.slice(text.indexOf('{')))
     if (++attempts === 2) {
       assert.match(request.formatCorrection, /integer selector/)
+      assert.match(request.formatCorrection, /exactly one selector/)
       assert.equal(request.variables[0].required,undefined)
       assert.equal(request.variables[0].icon,'portfolio')
       assert.match(request.variables[0].text,/Futu holdings/)
@@ -718,4 +719,42 @@ test('actual owner turns share one internal follow-up identity and supply displa
  assert.equal(owners[0],owners[1]);assert.equal(owners[2],owners[3]);assert.notEqual(owners[0],owners[2]);assert(Object.isFrozen(owners[0]))
  assert.equal(owners[0].text,'Continue the displayed roundtrip task.');assert.equal(owners[2].text,'Now inspect its required rounds.')
  const count=owners.length;await assert.rejects(tools.find(tool=>tool.name==='remote_pi_followup').execute('outside',{sourceKey:'displayed-source',sourceRevision:'a'.repeat(64),prompt:'outside'},undefined),/unavailable/);assert.equal(owners.length,count)
+})
+
+test('Overview disables Model Studio thinking at the SDK request boundary without changing the resident model', async t => {
+  const { streamSimple } = await import('@earendil-works/pi-ai/api/openai-completions')
+  const { fixtureModel } = await import('./helpers/pi-fixture.mjs')
+  const model = { ...fixtureModel, provider: 'bailian', id: 'deepseek-v4.1-flash', api: 'openai-completions', reasoning: true,
+    baseUrl: 'https://workspace.cn-beijing.maas.aliyuncs.com/compatible-mode/v1' }
+  let generatedRuntime, payload
+  const runtime = { streamSimple: (value, context, options) => streamSimple(value, context, {
+    ...options, apiKey: 'synthetic-only', onPayload: value => { payload = value; throw Error('Stop fixture before transport') },
+  }) }
+  const bot = await generationFixture(t, {}, async emit => {
+    emit({ type: 'message_end', message: assistant('{"items":[]}') })
+  }, options => { generatedRuntime = options.modelRuntime }, false, runtime)
+  await bot.generateBriefing({ readings: [{ id: 'one', label: 'One', state: 'live', value: { count: 1 } }] })
+  const context = { messages: [{ role: 'user', content: 'Select facts', timestamp: Date.now() }] }
+  await generatedRuntime.streamSimple(model, context, { maxTokens: 16000 }).result()
+  assert.equal(payload.enable_thinking, false)
+  assert.ok((payload.max_tokens ?? payload.max_completion_tokens) <= 2048)
+  assert.equal(model.compat, undefined, 'Owner model metadata stays unchanged')
+  await runtime.streamSimple(model, context, { maxTokens: 16000 }).result()
+  assert.equal(payload.enable_thinking, undefined, 'Owner requests keep their existing provider policy')
+})
+
+test('oversized selections receive exact character costs and a specific retry correction', async t => {
+  let attempts = 0
+  const bot = await generationFixture(t, {}, async (emit, text) => {
+    const request = JSON.parse(text.slice(text.indexOf('{')))
+    if (++attempts === 2) {
+      assert.match(request.formatCorrection, /Select fewer/)
+      assert.equal(request.maxCharacters, 240)
+      for (const fact of request.variables) assert.equal(fact.characters, fact.text.length + 2)
+    }
+    emit({ type: 'message_end', message: assistant(JSON.stringify({ items: [{ sources: attempts === 1 ? [0, 1] : [0] }] })) })
+  })
+  const readings = [0, 1].map(index => ({ id: `s${index}`, label: `Source ${index}`, state: 'live', value: { note: 'x'.repeat(120) } }))
+  await bot.generateBriefing({ readings })
+  assert.equal(attempts, 2)
 })

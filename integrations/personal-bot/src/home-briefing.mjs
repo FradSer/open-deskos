@@ -1,4 +1,4 @@
-import { resolveHomeTemplate, homeTemplateVariables, homeSelectionInstructions, homeAttention, fallbackHomeSelection } from './home-template.mjs'
+import { resolveHomeTemplate, homeTemplateVariables, homeSelectionInstructions, homeAttention, fallbackHomeSelection, rebindHomeSelection } from './home-template.mjs'
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const STATES = new Set(['live', 'stale', 'unavailable', 'unconfigured', 'unauthorized', 'error'])
 const ICONS = new Set(['sessions', 'plants', 'weather', 'mail', 'calendar', 'tasks', 'reading', 'portfolio', 'quota', 'apps', 'status'])
@@ -258,21 +258,35 @@ export class HomeBriefing {
           }
         } else this.emit('loading')
         stage = 'generate'
-        const raw = await this.generate({ readings, omittedSources, now: this.now(), previous: this.frame.items.filter(item => item.sources.every(source => readings.some(reading => reading.id === source.id))), ...(this.requireBindings ? { variables: homeTemplateVariables(readings) } : {}), signal: controller.signal })
+        let raw = await this.generate({ readings, omittedSources, now: this.now(), previous: this.frame.items.filter(item => item.sources.every(source => readings.some(reading => reading.id === source.id))), ...(this.requireBindings ? { variables: homeTemplateVariables(readings) } : {}), signal: controller.signal })
         if (!current()) return
+        let selectionChanged = false
         // A push reports possible change, not changed content. Repeated telemetry
         // must not cancel a slow model; confirm against fresh readings before use.
         if (this.requireBindings || revision !== this.revision) {
           const confirmationRevision = this.revision
           const latest = await snapshot()
           if (!current()) return
-          if (confirmationRevision !== this.revision || (this.requireBindings ? layoutFingerprint(latest.readings, this.now()) !== layout : contentFingerprint(latest.readings) !== fingerprint) || latest.omittedSources !== omittedSources) {
+          if (confirmationRevision !== this.revision || (!this.requireBindings && (contentFingerprint(latest.readings) !== fingerprint || latest.omittedSources !== omittedSources))) {
             this.fingerprint = ''
             this.emit(this.frame.items.length ? 'stale' : 'loading')
             this.schedule()
             return
           }
           if (this.requireBindings) {
+            selectionChanged = layoutFingerprint(latest.readings, this.now()) !== layout || latest.omittedSources !== omittedSources
+            if (selectionChanged) {
+              stage = 'validate'
+              raw = rebindHomeSelection(raw, readings, latest.readings)
+              if (!raw.items.length) {
+                const items = boundSourceFacts(latest.readings, this.now())
+                this.template = null
+                this.sourceOnly = true
+                this.emit('loading', { items, generatedAt: 0, omittedSources: latest.omittedSources })
+                this.schedule()
+                return
+              }
+            }
             readings = latest.readings
             omittedSources = latest.omittedSources
             fingerprint = contentFingerprint(readings)
@@ -282,12 +296,13 @@ export class HomeBriefing {
         const items = validateHomeBriefing(this.requireBindings ? resolveHomeTemplate(raw, readings) : raw, readings, { requireSegments: this.requireBindings })
         if (this.requireBindings) {
           this.template = structuredClone(raw)
-          this.templateLayout = layoutFingerprint(readings, this.now())
+          this.templateLayout = selectionChanged ? '' : layoutFingerprint(readings, this.now())
           this.templateCreatedAt = this.now()
         }
         this.fingerprint = fingerprint
         this.sourceOnly = false
         this.emit(items.length ? 'live' : 'empty', { items, generatedAt: this.now(), omittedSources })
+        if (selectionChanged) this.schedule()
       } catch (error) {
         if (current()) {
           const name = typeof error?.name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,47}$/.test(error.name) ? error.name : 'Error'

@@ -267,3 +267,27 @@ test('independent source batches start together before final selection', async (
     assert.ok(entered <= 4, 'Model concurrency stays bounded')
   } finally { release(); await pending }
 })
+
+test('rebinding follows task identities across reordered Pi sessions', async () => {
+  const { rebindHomeSelection } = await import('../src/home-template.mjs')
+  const task = (id, state) => ({ id, name: id, state })
+  const before = [source('pi', 'sessions', { sessions: [task('Task A', 'waiting'), task('Task B', 'running')] })]
+  const after = [source('pi', 'sessions', { sessions: [task('Task B', 'running'), task('Task A', 'finished')] })]
+  const facts = homeFactVariables(before)
+  const raw = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith('sessions.0.state'))] }] }, facts)
+  const fresh = resolveHomeTemplate(rebindHomeSelection(raw, before, after), after)
+  assert.match(fresh.items[0].text, /Task A finished/)
+  assert.doesNotMatch(fresh.items[0].text, /Task B/)
+})
+
+test('rebinding keeps complete current facts within the existing display budget', async () => {
+  const { rebindHomeSelection } = await import('../src/home-template.mjs')
+  const before = [source('agent', 'tasks', { goal: 'x'.repeat(130), state: 'running', verification: 'not_run' })]
+  const after = [source('agent', 'tasks', { goal: 'x'.repeat(130), state: 'finished', verification: 'not_run' })]
+  const facts = homeFactVariables(before)
+  const raw = compileHomeSelection({ items: [{ sources: facts.map((_, index) => index) }] }, facts)
+  const fresh = resolveHomeTemplate(rebindHomeSelection(raw, before, after), after)
+  assert.ok(fresh.items.reduce((sum, item) => sum + item.text.length, 0) <= 240)
+  assert.match(fresh.items[0].text, /verification not_run/)
+  assert.doesNotMatch(fresh.items[0].text, /running/)
+})
