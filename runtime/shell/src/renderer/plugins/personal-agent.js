@@ -112,7 +112,7 @@
       let lastStatus = 'unknown'
       setComposerMode(voiceAvailable() ? 'voice' : 'keyboard')
       let pending = false
-      function setState(message, caption = message) {
+      function setState(caption) {
         const changed = state.textContent !== caption
         if (changed) state.textContent = caption
         state.hidden = !caption
@@ -528,7 +528,7 @@
           if (['idle', 'error'].includes(status.state)) turn.completed = true
         }
         const caption = status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '') || (root.odkPersonalAgentAvatar.phaseFor(status) === 'working' ? captionFor(status) : '')) : captionFor(status)
-        setState(status.proposalError || caption || 'Ready', status.proposalError ? 'Suggestions unavailable' : caption)
+        setState(status.proposalError ? 'Suggestions unavailable' : caption)
         sendControl.disabled = busy || status.state === 'unavailable' || pending
 
         lastStatus = status.state
@@ -568,10 +568,10 @@
           if (!receipt?.accepted) throw Error('refused')
           if (input.value.trim() === text) input.value = ''
           if (selectedReply === submittedReply || (submittedReply && selectedReply?.reference === submittedReply.reference)) { selectedReply = null;replyContext() }
-          if (revision === submittedRevision) setState('Submitted. Waiting for the resident session…', 'Waiting for response…')
+          if (revision === submittedRevision) setState('Waiting for response…')
         } catch {
           if (!released && revision === submittedRevision) {
-            setState('Message delivery was not confirmed. Draft kept; check the service before sending again.', 'Delivery not confirmed')
+            setState('Delivery not confirmed')
             avatar.fail(avatarIntent)
           }
         } finally {
@@ -602,7 +602,7 @@
           if (receipt?.accepted === false) throw Error('Recording control refused')
         } catch {
           if (!released && revision === requestRevision) {
-            setState('Unable to control recording. You can use keyboard input.', 'Microphone unavailable')
+            setState('Microphone unavailable')
             avatar.fail(avatarIntent)
           }
         }

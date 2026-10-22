@@ -61,11 +61,12 @@ Feature: Personal Agent home briefing
     And copy fits within the remaining area above its readable floor
     And longer content remains reachable at that floor
 
-  Scenario: Home hides the identity editing entry
-    Given the Agent has a saved name and icon
+  Scenario: Home preserves the saved name in a read-only capsule
+    Given the Agent has a previously saved name
     When the Agent panel renders
-    Then the title has no visible or focusable pencil entry
-    And saved identity data and editing logic remain intact
+    Then the title displays the saved name without changing the stored identity
+    And the capsule has no arrow or identity editor
+    And the capsule has no pointer or keyboard editing interaction
 
   Scenario: Conversation uses separate spaced message bubbles
     Given the Agent has a name and a conversation with replies
