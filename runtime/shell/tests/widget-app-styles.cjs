@@ -177,14 +177,14 @@ async function widgetDesignRoles(win) {
           const heading = tile.querySelector('.widget-heading')
           const r = heading?.getBoundingClientRect(), frame = tile.getBoundingClientRect()
           const style = heading && getComputedStyle(heading)
-          return { id: tile.dataset.widget.slice('odk.tile.'.length), sessionReading: !heading && !tile.querySelector('.widget-head') && tile.querySelector('.widget-launch')?.getAttribute('aria-label') === 'Open Pi Sessions' && ['.pi-widget-count', '.pi-widget-live-tag', '.pi-widget-summary'].every(selector => { const r = tile.querySelector(selector)?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), yearReading: !heading && ['.year-pct', '.year-context', '.meter'].every(selector => { const node = tile.querySelector(selector), r = node?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), dialReading: !heading && !tile.querySelector('.widget-head') && tile.querySelector('.widget-launch')?.getAttribute('aria-label') === 'Open Pomodoro' && ['.pomodoro-ring-wrap', '.ring-mmss', '.pomodoro-context'].every(selector => { const node = tile.querySelector(selector), r = node?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), legacyReading: !heading && !!tile.querySelector('.weread-text') && !!tile.querySelector('.weread-foot'), originalReadingSurface: getComputedStyle(tile).backgroundColor === 'rgba(0, 0, 0, 0)', text: heading?.textContent.trim(), visible: !!r && r.width > 0 && r.height > 0 && style.opacity !== '0', font: parseFloat(style?.fontSize), contained: !!r && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }
+          return { id: tile.dataset.widget.slice('odk.tile.'.length), sessionReading: !heading && !tile.querySelector('.widget-head') && tile.querySelector('.widget-launch')?.getAttribute('aria-label') === 'Open Pi Sessions' && ['.pi-widget-count', '.pi-widget-live-tag', '.pi-widget-summary'].every(selector => { const r = tile.querySelector(selector)?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), yearReading: !heading && ['.year-pct', '.year-context', '.meter'].every(selector => { const node = tile.querySelector(selector), r = node?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), dialReading: !heading && !tile.querySelector('.widget-head') && tile.querySelector('.widget-launch')?.getAttribute('aria-label') === 'Open Pomodoro' && ['.pomodoro-ring-wrap', '.ring-mmss', '.pomodoro-context'].every(selector => { const node = tile.querySelector(selector), r = node?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), legacyReading: !heading && !!tile.querySelector('.weread-text') && !!tile.querySelector('.weread-foot'), sharedReadingSurface: getComputedStyle(tile).backgroundColor === getComputedStyle(document.querySelector('.w-hydra')).backgroundColor, text: heading?.textContent.trim(), visible: !!r && r.width > 0 && r.height > 0 && style.opacity !== '0', font: parseFloat(style?.fontSize), contained: !!r && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }
         })
       })()`)
       for (const row of readings) {
         if (row.id === 'pi-sessions') check(`${theme} ${width}: Pi keeps its reading and accessible App entry without a heading`, row.sessionReading, row)
         else if (row.id === 'year') check(`${theme} ${width}: Year identifies itself through its percentage, context and meter without a heading`, row.yearReading, row)
         else if (row.id === 'pomodoro') check(`${theme} ${width}: Pomodoro carries its reading in the dial without a heading`, row.dialReading, row)
-        else if (row.id === 'weread') check(`${theme} ${width}: Reading retains the original excerpt and book details`, row.legacyReading && (theme === 'liquid-glass' || row.originalReadingSurface), row)
+        else if (row.id === 'weread') check(`${theme} ${width}: Reading retains the original excerpt and book details`, row.legacyReading && row.sharedReadingSurface, row)
         else check(`${theme} ${width}: ${row.id} identifies its instrument with a readable heading`, row.text === names[row.id] && row.visible && row.contained && row.font >= 16, row)
       }
       const weather = await win.webContents.executeJavaScript(`(() => {
@@ -212,22 +212,18 @@ async function widgetDesignRoles(win) {
       }
     }
   }
-  const glassFrame = await win.webContents.executeJavaScript(`(() => {
-    const tile = document.querySelector('[data-widget="odk.tile.pi-sessions"]')
-    const radius = tile.style.borderRadius, hadSurface = tile.classList.contains('lg-surface')
-    try {
-      tile.classList.add('lg-surface')
-      // The SDK writes this inline value when it installs the measured path.
-      tile.style.borderRadius = '0px'
-      const actual = getComputedStyle(tile).borderTopLeftRadius
-      const expected = getComputedStyle(document.getElementById('app-view')).borderTopLeftRadius
-      return { actual, expected, rounded: parseFloat(actual) > 0 && actual === expected }
-    } finally {
-      tile.style.borderRadius = radius
-      if (!hadSurface) tile.classList.remove('lg-surface')
+  await resize(win, 1280, 800)
+  await page(win, PAGES.dot('home'))
+  const glassFrame = await win.webContents.executeJavaScript(`(async () => {
+    const tile=document.querySelector('[data-widget="odk.tile.pi-sessions"]'),deadline=performance.now()+5000;
+    while(!['sdk','fallback'].includes(document.documentElement.dataset.liquidGlass)) {
+      if(performance.now()>deadline)throw Error('Glass frame did not settle');
+      await new Promise(r=>setTimeout(r,20));
     }
+    const sdk=document.documentElement.dataset.liquidGlass==='sdk',s=getComputedStyle(tile),launch=getComputedStyle(tile.querySelector('.widget-launch'));
+    return {sdk,ready:!sdk||tile.classList.contains('lg-surface'),radius:s.borderTopLeftRadius,clip:s.clipPath,edge:s.borderTopColor,shadow:s.boxShadow,launchRadius:launch.borderTopLeftRadius};
   })()`)
-  check('Liquid Glass SDK clipping retains the shared rounded frame', glassFrame.rounded, glassFrame)
+  check('Liquid Glass separates SDK shape from keyboard target geometry', glassFrame.ready && parseFloat(glassFrame.launchRadius)>0 && (glassFrame.sdk ? glassFrame.radius==='0px' && glassFrame.clip!=='none' && glassFrame.edge==='rgba(0, 0, 0, 0)' && glassFrame.shadow==='none' : parseFloat(glassFrame.radius)>0 && glassFrame.edge!=='rgba(0, 0, 0, 0)'), glassFrame)
 }
 
 async function pomodoroCentering(win) {
@@ -326,8 +322,9 @@ async function surfaceAffordances(win) {
         const css = getComputedStyle(nodes[0])
         return { static: nodes.every(node => {
           const style = getComputedStyle(node)
+          const sdk = document.documentElement.dataset.theme === 'liquid-glass' && document.documentElement.dataset.liquidGlass === 'sdk' && node.classList.contains('lg-surface')
           return style.borderTopStyle === 'solid' && style.borderTopWidth === '1px'
-            && style.borderTopColor !== 'rgba(0, 0, 0, 0)' && getComputedStyle(node, '::after').content === 'none'
+            && (sdk ? style.borderTopColor === 'rgba(0, 0, 0, 0)' && style.boxShadow === 'none' && style.clipPath !== 'none' : style.borderTopColor !== 'rgba(0, 0, 0, 0)') && getComputedStyle(node, '::after').content === 'none'
             && !node.matches('[tabindex],button') && !node.querySelector('button:not(.widget-launch),input,select,textarea,a[href]')
             && node.querySelector('.widget-launch')?.tagName === 'BUTTON'
         }), color: css.borderTopColor }

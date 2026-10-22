@@ -356,16 +356,27 @@ app.whenReady().then(async () => {
       await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {features})
       await js(`(async()=>{
         const frameStyle=n=>{const s=getComputedStyle(n);return [s.borderTopWidth,s.borderTopStyle,s.borderTopColor,s.borderTopLeftRadius,s.backgroundColor,s.backgroundImage,s.boxShadow,s.backdropFilter]};
+        let commonFrame;
         for(const tile of document.querySelectorAll('#pages-track .widget')){
           const pages=[...document.querySelectorAll('#pages-track > .page')];
           document.querySelectorAll('.dot')[pages.indexOf(tile.closest('.page'))].click();
+          document.activeElement?.blur();
           await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-          if(odkTheme.get()==='liquid-glass') await until(()=>['sdk','fallback'].includes(document.documentElement.dataset.liquidGlass));
+          if(odkTheme.get()==='liquid-glass') await until(()=>document.documentElement.dataset.liquidGlass==='fallback'||(document.documentElement.dataset.liquidGlass==='sdk'&&tile.classList.contains('lg-surface')));
+          const assertFrame=n=>{
+            const s=getComputedStyle(n),sdk=odkTheme.get()==='liquid-glass'&&document.documentElement.dataset.liquidGlass==='sdk'&&n.classList.contains('lg-surface');
+            if(sdk&&(s.borderTopColor!=='rgba(0, 0, 0, 0)'||s.boxShadow!=='none'))throw Error('SDK edge has a second CSS frame: '+n.className);
+            if(!sdk&&(s.borderTopWidth!=='1px'||s.borderTopStyle!=='solid'||s.borderTopColor==='rgba(0, 0, 0, 0)'))throw Error('Fallback frame missing: '+n.className);
+          };
+          assertFrame(tile);
           const source=frameStyle(tile);
+          if(commonFrame&&JSON.stringify(source)!==JSON.stringify(commonFrame))throw Error('Widget uses a different Shell frame: '+tile.dataset.widget+JSON.stringify({source,commonFrame}));
+          commonFrame=source;
           if(!await odkAppPlatform.openApp({appId:tile.dataset.openApp,widgetId:tile.dataset.widget,route:'home'}))throw Error('Frame fixture App failed to open: '+tile.dataset.widget);
           const card=document.getElementById('app-view');
           if(odkTheme.get()==='liquid-glass') await until(()=>document.documentElement.dataset.liquidGlass==='fallback'||(document.documentElement.dataset.liquidGlass==='sdk'&&card.classList.contains('lg-surface')));
           const app=frameStyle(card);
+          assertFrame(card);
           if(JSON.stringify(source)!==JSON.stringify(app))throw Error('Frame mismatch '+tile.dataset.widget+': '+JSON.stringify({source,app}));
           await odkAppPlatform.closeApp();
         }
