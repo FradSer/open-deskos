@@ -71,6 +71,17 @@ Use the same term for the same state.
 Name the actual failure and available recovery action.
 Distinguish empty, unconfigured, unauthorized, unavailable, stale, malformed, and failed states.
 
+## Surface-family consistency
+
+Define the material family across cards, action controls, fields, and composite inputs when changing a theme.
+Use shared semantic tokens and the existing appearance owner.
+Keep border, fill, reflection, and corner treatment consistent with each component's role.
+Assign one frame owner to composite inputs and transparent hit targets.
+Keep text links readable without adding a card around each link.
+Preserve recording, error, selected, disabled, and focus meaning when replacing control fills.
+Bound expensive material surfaces; use the shared static treatment where another rendered surface adds no useful effect.
+Keep opaque, readable controls when accessibility preferences suppress transparency.
+
 ## Controls and motion
 
 Use native controls with accessible names and associated labels.
