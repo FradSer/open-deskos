@@ -9,6 +9,7 @@ const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 const { once } = require('node:events')
+const { integrationURL } = require('./helpers/repo-root')
 const { createPersonalBotClient, resolvePersonalBotSocketPath } = require('../src/personal-bot-client')
 
 test('separate home frames preserve voice replies and stale content across reconnect', { timeout: 3000 }, async t => {
@@ -163,7 +164,7 @@ test('voice levels and long Markdown replies cross the socket with validated bou
   const full = await send({ state: 'idle', message, transcript: '\u0002'.repeat(4096) })
   assert.equal(full.message, message)
   assert.equal(full.transcript, '\u0002'.repeat(4096))
-  const {PersonalBotService}=await import('../../../integrations/personal-bot/src/service.mjs')
+  const {PersonalBotService}=await import(integrationURL('personal-bot/src/service.mjs', __dirname))
   for(const reason of ['microphone','timeout','unavailable','protocol','invalid_audio','cancelled']) {
     const service=new PersonalBotService({record:async()=>{throw Error('unused')},transcribe:async()=>'',prompt:async()=>''})
     const recording={done:new Promise(()=>{}),stop:async()=>'',cleanup:async()=>{}}

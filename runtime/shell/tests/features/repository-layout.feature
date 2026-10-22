@@ -33,3 +33,9 @@ Feature: Open DeskOS repository architecture
     When the repository layout is checked
     Then every harness configures its window without showing or focusing it
     And a harness that would show a window fails the check
+
+  Scenario: Voice status checks use the integration inside a sealed release
+    Given the release has its own Personal Bot service and a different ambient integration
+    When the voice status boundary test imports the resident producer
+    Then it uses the service inside that release
+    And the complete socket and voice failure assertions run without ambient source access

@@ -123,3 +123,43 @@ test('Android source checks reject a source link outside the Android source boun
     assert.throws(() => androidPath('file.js', path.join(root, 'tests')), /Android source escapes/)
   } finally { fs.rmSync(root, { recursive: true, force: true }) }
 })
+
+test('voice status checks consume the flat release integration', { skip: posixOnlyReason('cm5-tooling') }, t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-voice-release-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const release = path.join(root, 'releases', 'candidate')
+  const runtime = path.resolve(__dirname, '..')
+  const copy = relative => {
+    const target = path.join(release, relative)
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.copyFileSync(path.join(runtime, relative), target)
+  }
+  for (const relative of ['tests/personal-bot-client.test.js', 'tests/not-ported.js',
+    'tests/helpers/repo-root.js', 'scripts/cm5-install.sh']) copy(relative)
+  const modules = new Set()
+  function copyModule(module) {
+    if (modules.has(module.filename) || !module.filename.startsWith(path.join(runtime, 'src') + path.sep)) return
+    modules.add(module.filename)
+    copy(path.relative(runtime, module.filename))
+    module.children.forEach(copyModule)
+  }
+  const client = require.resolve('../src/personal-bot-client')
+  require(client)
+  copyModule(require.cache[client])
+  fs.mkdirSync(path.join(release, 'peripherals/esp32-p4-camera'), { recursive: true })
+  for (const name of ['service.mjs', 'errors.mjs']) {
+    const relative = `personal-bot/src/${name}`
+    const target = path.join(release, 'integrations', relative)
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.copyFileSync(integrationPath(relative, __dirname), target)
+  }
+  const ambient = path.join(root, 'integrations/personal-bot/src/service.mjs')
+  fs.mkdirSync(path.dirname(ambient), { recursive: true })
+  fs.writeFileSync(ambient, 'throw Error("Ambient resident service must not run")\n')
+  const env = { ...process.env }
+  delete env.NODE_TEST_CONTEXT
+  const result = spawnSync(process.execPath, ['--test', '--test-name-pattern=voice levels and long Markdown', 'tests/personal-bot-client.test.js'], {
+    cwd: release, env, encoding: 'utf8', timeout: 10000,
+  })
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
+})
