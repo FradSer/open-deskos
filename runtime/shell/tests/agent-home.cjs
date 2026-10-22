@@ -238,15 +238,17 @@ async function assertSimpleConversation() {
     }
   }
   const longName='Android 客户端连接与设备输入验证'.repeat(3).slice(0,40)
-  publishStatus({...frame,remote:{...frame.remote,messages:[{...item,sources:[{...source,taskName:longName}]}]}})
-  await evaluate('new Promise(r=>setTimeout(r,30))')
-  for(const theme of ['instrument','pixel','border-beam','liquid-glass']) for(const [width,height]of [[1920,1280],[1280,800],[480,854],[320,480]]) {
-    await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
-    await resize(width,height)
-    const named=await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),n=document.querySelector('[data-remote-id="${item.id}"] .agent-session-open');return {text:n.textContent,overflow:c.scrollWidth-c.clientWidth,height:n.getBoundingClientRect().height}})()`)
-    assert.equal(named.text,longName,'long task names update in place without changing the source reference')
-    assert.ok(named.overflow<=1&&named.height>=44,JSON.stringify(named))
-    await assertSessionActionGeometry(item.id, theme+' long-name', width)
+  for(const taskName of [longName,'A']) {
+    publishStatus({...frame,remote:{...frame.remote,messages:[{...item,sources:[{...source,taskName}]}]}})
+    await evaluate('new Promise(r=>setTimeout(r,30))')
+    for(const theme of ['instrument','pixel','border-beam','liquid-glass']) for(const [width,height]of [[1920,1280],[1280,800],[480,854],[320,480]]) {
+      await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
+      await resize(width,height)
+      const named=await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),n=document.querySelector('[data-remote-id="${item.id}"] .agent-session-open');return {text:n.textContent,overflow:c.scrollWidth-c.clientWidth,height:n.getBoundingClientRect().height}})()`)
+      assert.equal(named.text,taskName,'task names update in place without changing the source reference')
+      assert.ok(named.overflow<=1&&named.height>=44,JSON.stringify(named))
+      await assertSessionActionGeometry(item.id, theme+' task-name', width)
+    }
   }
   for(const theme of ['instrument','pixel','border-beam','liquid-glass']) for(const features of [[{name:'prefers-contrast',value:'more'}],[{name:'forced-colors',value:'active'}]]) {
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features})
@@ -266,11 +268,11 @@ async function assertSessionActionGeometry(id, theme, width) {
     const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');canvas.width=canvas.height=1;
     const rgba=color=>{ctx.clearRect(0,0,1,1);ctx.fillStyle=color;ctx.fillRect(0,0,1,1);return [...ctx.getImageData(0,0,1,1).data]};
     const rs=getComputedStyle(reply),probe=document.createElement('i');probe.style.color='var(--odk-surface)';document.body.append(probe);const surface=rgba(getComputedStyle(probe).color);probe.remove();
-    return {padding:[parseFloat(s.paddingInlineStart),parseFloat(s.paddingInlineEnd)],textInset:[text.left-t.left,t.right-text.right],center:Math.abs(t.y+t.height/2-r.y-r.height/2),taskHeight:t.height,replyHeight:r.height,taskWidth:t.width,textWidth:text.width,lines:range.getClientRects().length,borders:parseFloat(s.borderInlineStartWidth)+parseFloat(s.borderInlineEndWidth),fontSize:parseFloat(s.fontSize),foreground:rgba(s.color),replyForeground:rgba(rs.color),surface,edgeAlpha:rgba(s.borderTopColor)[3],replyEdgeAlpha:rgba(rs.borderTopColor)[3]};
+    return {padding:[parseFloat(s.paddingInlineStart),parseFloat(s.paddingInlineEnd)],textInset:[text.left-t.left,t.right-text.right],center:Math.abs(t.y+t.height/2-r.y-r.height/2),taskHeight:t.height,replyHeight:r.height,replyWidth:r.width,taskWidth:t.width,textWidth:text.width,lines:range.getClientRects().length,borders:parseFloat(s.borderInlineStartWidth)+parseFloat(s.borderInlineEndWidth),fontSize:parseFloat(s.fontSize),foreground:rgba(s.color),replyForeground:rgba(rs.color),surface,edgeAlpha:rgba(s.borderTopColor)[3],replyEdgeAlpha:rgba(rs.borderTopColor)[3]};
   })()`)
   assert.ok(geometry.padding.every(value=>value>=12)&&geometry.textInset.every(value=>value>=12), 'Task text needs capsule padding: '+JSON.stringify({theme,width,...geometry}))
-  assert.ok(geometry.center<=1&&geometry.taskHeight>=44&&geometry.replyHeight>=44, 'Task and Reply must align: '+JSON.stringify({theme,width,...geometry}))
-  assert.ok(geometry.lines>1||geometry.taskWidth<=geometry.textWidth+geometry.padding.reduce((a,b)=>a+b,0)+geometry.borders+1,'Task capsule must fit its label: '+JSON.stringify({theme,width,...geometry}))
+  assert.ok(geometry.center<=1&&geometry.taskHeight>=44&&geometry.replyHeight>=44&&geometry.taskWidth>=44&&geometry.replyWidth>=44, 'Task and Reply must align: '+JSON.stringify({theme,width,...geometry}))
+  assert.ok(geometry.lines>1||geometry.taskWidth<=Math.max(44,geometry.textWidth+geometry.padding.reduce((a,b)=>a+b,0)+geometry.borders)+1,'Task capsule must fit its label: '+JSON.stringify({theme,width,...geometry}))
   const luminance=rgba=>rgba.slice(0,3).map(n=>n/255).map(n=>n<=0.04045?n/12.92:((n+0.055)/1.055)**2.4).reduce((sum,n,i)=>sum+n*[0.2126,0.7152,0.0722][i],0)
   const ink=luminance(geometry.foreground),surface=luminance(geometry.surface),contrast=(Math.max(ink,surface)+0.05)/(Math.min(ink,surface)+0.05)
   assert.ok(geometry.fontSize>=14&&contrast>=4.5&&ink<luminance(geometry.replyForeground)&&geometry.edgeAlpha<geometry.replyEdgeAlpha*0.6,'Task label must stay readable and secondary to Reply: '+JSON.stringify({theme,width,contrast,...geometry}))
