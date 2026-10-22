@@ -9,6 +9,8 @@ Preserve these distinctions during responsive changes.
 Rank the primary answer, supporting readings, and metadata before choosing their visual roles.
 Preserve this order through theme overrides and responsive rules.
 Reduce supporting emphasis before reducing the primary reading when space is limited.
+Keep the primary reading's share of its own lane across Cell sizes and themes.
+Size a reading by that lane and by the width its value needs; a longer value steps down for its own glyphs only.
 Keep each reading above its readability floor.
 When the primary reading is unavailable, show that state instead of promoting a supporting value as its substitute.
 Never replace missing evidence with a plausible value.
@@ -69,6 +71,17 @@ Use the same term for the same state.
 Name the actual failure and available recovery action.
 Distinguish empty, unconfigured, unauthorized, unavailable, stale, malformed, and failed states.
 
+## Surface-family consistency
+
+Define the material family across cards, action controls, fields, and composite inputs when changing a theme.
+Use shared semantic tokens and the existing appearance owner.
+Keep border, fill, reflection, and corner treatment consistent with each component's role.
+Assign one frame owner to composite inputs and transparent hit targets.
+Keep text links readable without adding a card around each link.
+Preserve recording, error, selected, disabled, and focus meaning when replacing control fills.
+Bound expensive material surfaces; use the shared static treatment where another rendered surface adds no useful effect.
+Keep opaque, readable controls when accessibility preferences suppress transparency.
+
 ## Controls and motion
 
 Use native controls with accessible names and associated labels.
@@ -115,7 +128,7 @@ Use existing plugin implementations as examples:
 | Need | Example | Required distinction |
 | --- | --- | --- |
 | Retained design examples | Chatbot (`message` icon), Settings (`settings` icon) | Keep each name and icon; show `Pending` and `Integration not available`; add no controls. These examples do not describe packaged Widgets. |
-| Focus timer | `plugins/pomodoro.js` | Keep the heading separate from the centered dial; controls belong to the App |
+| Focus timer | `plugins/pomodoro.js` | Keep the dial and its countdown as the whole reading; state words only for what the dial cannot show; controls belong to the App |
 | Provider allowance | `plugins/quota-page.js` | Use the actual provider name; preserve unknown readings |
 | Current weather | `plugins/weather.js` | Make current temperature dominant; keep the daily high and low as supporting readings |
 | Session summary | `plugins/pi-sessions.js` | Keep count, status capsule, and Idle count; retain the accessible App entry |

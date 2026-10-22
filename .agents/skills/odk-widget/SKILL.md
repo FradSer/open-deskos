@@ -44,6 +44,7 @@ Use its ownership and evidence gates when a source change affects a Widget or Ap
 - Built-in plugins use only `DESIGN.md` semantic `--odk-*` tokens.
 - Installable packages cannot inherit Shell custom properties. Define a small local palette from the design values.
 - Use color for functional state. Follow the selected theme material, including Liquid Glass, with a readable fallback.
+- For theme changes, include controls and composite inputs in the [surface-family contract](references/design.md#surface-family-consistency).
 - Do not add unrelated glow, decorative tint, or another visual system.
 - Keep primary readings, row values, and actionable states at least 14px in `secondary-strong` or brighter.
 - Reserve 12px `secondary` for non-data captions. Keep all supporting text at least 12px.
@@ -57,7 +58,7 @@ Use its ownership and evidence gates when a source change affects a Widget or Ap
 
 Write Given/When/Then in the affected `.feature` file.
 Define title visibility, accessible names, insets, spans, and independent reading geometry in the existing shared Widget harness.
-Define the primary reading and its supporting readings before choosing display sizes.
+Define the primary reading, its supporting readings, and the lane the primary reading may fill before choosing display sizes.
 Verify their rendered hierarchy across themes, Cell sizes, and replacement paths.
 Keep these assertions active in normal and replacement paths.
 For a bug, describe the failed visible state and add a failing test through a public interface.
@@ -95,6 +96,7 @@ In an installable package, do not reference unresolved Shell `--odk-*` propertie
 
 Read [verification](references/verification.md) for stress states, density, font settling, IPC fixtures, safety, and evidence limits.
 Run deterministic assertions against the final candidate.
+For shared appearance changes, apply the [interaction coverage gate](references/verification.md#theme-interaction-coverage).
 For design review, capture a populated normal preview before using failure-state screenshots as evidence.
 Apply the preview consistency and capability checks in the verification reference.
 

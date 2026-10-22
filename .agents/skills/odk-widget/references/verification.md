@@ -36,6 +36,8 @@ Capture each supported theme and the applicable reference and compact dimensions
 Assert actual heading visibility, accessible names, header insets, reading containment, and retained layout spans.
 Assert the primary reading's visual priority against supporting readings after fonts and theme styles settle.
 Use component-specific comparisons of text size, weight, and occupied space; presence and containment alone cannot establish hierarchy.
+Assert the primary reading's share of the lane it may fill; a ratio to captions passes while the numeral under-fills its own container.
+Hold one value's lane share across Cell sizes, so no responsive or theme rule shrinks the primary reading.
 Include compact Cells, long values, and each inherited theme in the affected surface harness.
 Apply the same hierarchy contract to independent replacement surfaces.
 When a component needs a deliberate type-role exception, reconcile its feature contract with the shared contract before changing the gate.
@@ -60,6 +62,19 @@ Wait for its acknowledgement, then capture and inspect the actual frame.
 Keep native fonts, scale, zoom, gutters, and viewport dimensions in the evidence.
 When hosts disagree, inspect selected fonts and glyph metrics before changing geometry or acceptance limits.
 Do not repair capture failures with blind sleeps, repeated full runs, relaxed assertions, or GPU bypasses.
+
+## Theme interaction coverage
+
+Inventory visible Shell controls and identify each control's frame owner before checking a shared theme.
+Include resident panels, built-in Apps, dialogs, and controls that appear after interaction.
+Compare rendered edges, fills, reflections, and focus markers against the accepted material family.
+Check default, hover, pressed, selected, disabled, busy, recording, and invalid states where applicable.
+Verify pointer, keyboard, touch, and source recovery after the appearance change.
+Check reduced transparency, increased contrast, and forced colors separately.
+Keep integrated fields and transparent hit targets under their existing container frame.
+Wire reusable assertions into the existing shared harness, rather than a screenshot-only path.
+Shared stylesheets or token names do not establish rendered parity.
+When equal Widget/App typography is required, compare actual font sizes with identical content, including expanded and compact continuations.
 
 ## Difficult states
 
