@@ -26,17 +26,19 @@ test('Liquid Glass uses the local SDK stylesheet and static accessibility fallba
   const html = fs.readFileSync(path.join(renderer, 'index.html'), 'utf8')
   const css = fs.readFileSync(path.join(renderer, 'themes/liquid-glass.css'), 'utf8')
   const appearance = fs.readFileSync(path.join(renderer, 'core/liquid-glass-appearance.js'), 'utf8')
+  const frame = fs.readFileSync(path.join(renderer, 'card-frame.css'), 'utf8')
+  assert.match(html, /href="card-frame\.css"/)
 
   assert.match(html, /core\/liquid-glass-appearance\.js/)
   assert.match(html, /id="liquid-glass-backdrop" class="lg-content" aria-hidden="true" hidden/)
   assert.match(css, /@glass-sdk\/liquid-glass\/dist\/styles\.css/)
-  assert.match(css, /html\[data-theme='liquid-glass'\]\[data-liquid-glass='sdk'\][\s\S]*?background: transparent;/)
-  assert.match(css, /html\[data-theme='liquid-glass'\]\[data-liquid-glass='sdk'\][\s\S]*?backdrop-filter: none;/)
+  assert.match(frame, /data-liquid-glass='sdk'[\s\S]*?--odk-frame-fill: transparent;/)
+  assert.match(frame, /data-liquid-glass='sdk'[\s\S]*?--odk-frame-filter: none;/)
   assert.match(css, /--odk-primary:\s*#f3f7fc/)
   assert.match(css, /--odk-radius-card:\s*32px/)
   assert.match(css, /#liquid-glass-backdrop\s*\{\s*position:\s*absolute;\s*inset:\s*0;/)
   assert.doesNotMatch(css, /#status-bar::before/)
-  assert.match(css, /#home-desk :is\(\.widget\[data-interaction='display-only'\], :where\(#app-view\)\)\s*\{[^}]*background:\s*var\(--odk-glass-material\)/)
+  assert.match(frame, /--odk-frame-fill:\s*var\(--odk-glass-material\)/)
   assert.match(css, /prefers-reduced-transparency/)
   assert.match(css, /forced-colors/)
   assert.match(appearance, /requestAdapter/)
@@ -46,7 +48,7 @@ test('Liquid Glass uses the local SDK stylesheet and static accessibility fallba
 })
 
 test('Liquid Glass keeps Widgets visible while SDK clip paths are prepared', () => {
-  const css = fs.readFileSync(path.join(renderer, 'themes/liquid-glass.css'), 'utf8')
+  const css = fs.readFileSync(path.join(renderer, 'card-frame.css'), 'utf8')
   assert.match(css, /html\[data-theme='liquid-glass'\] #home-desk :is\(\.widget, #app-view\)\.lg-surface\s*\{[^}]*visibility:\s*inherit;/)
 })
 

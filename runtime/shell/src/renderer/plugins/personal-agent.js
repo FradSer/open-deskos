@@ -287,10 +287,6 @@
           note.textContent = ambiguous ? 'Reply reference is ambiguous.' : unsupported ? 'Session replies need an updated host.' : ''
           note.hidden = !note.textContent
         }
-        for (const button of conversation.querySelectorAll('.agent-message-reply')) {
-          const article = button.closest('.agent-message')
-          button.disabled = ![...article.querySelectorAll('.agent-session-reply')].some(choice => !choice.disabled)
-        }
       }
       function selectReply(item, source) {
         if (pending || root.odkPersonalBot?.supportsReplyTo !== true || referenceCount(item, source) !== 1) return
@@ -327,19 +323,6 @@
           row.append(button, note)
         }
         return row
-      }
-      function messageReply(item, recordKey, details) {
-        const button = document.createElement('button')
-        button.type = 'button';button.className = 'agent-message-reply'
-        button.textContent = 'Reply'
-        button.setAttribute('aria-label', item.sources.length === 1 ? 'Reply to this update' : 'Choose a session to reply')
-        button.addEventListener('click', () => {
-          const current = remoteRecords.get(recordKey)
-          if (!current || button.disabled) return
-          if (current.sources.length === 1) selectReply(current, current.sources[0])
-          else details.querySelector('.agent-session-reply:not(:disabled)')?.focus({ preventScroll: true })
-        })
-        return button
       }
       function timelineEntry(article, at, ids) {
         const threads = [...new Set(ids.filter(Boolean))]
@@ -476,13 +459,11 @@
             timeline.delete(remoteMessages.get(first));remoteMessages.get(first)?.remove(); remoteMessages.delete(first);remoteRecords.delete(first)
           }
           const details = document.createElement('div')
-          details.className = 'agent-update-sources'
+          details.className = 'agent-message-actions agent-update-sources'
           details.setAttribute('role','group')
           details.setAttribute('aria-label','Related tasks')
           for (const source of item.sources || []) details.append(sessionLabel(source, item, recordKey))
-          const actions = document.createElement('div');actions.className = 'agent-message-actions'
-          if (item.sources?.length === 1) actions.append(messageReply(item, recordKey, details))
-          actions.append(details);body.append(actions)
+          body.append(details)
         }
         updateReplyChoices()
         renderReplies()

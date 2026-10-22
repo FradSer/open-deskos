@@ -8,10 +8,6 @@
   padding: 0;
 }
 
-html:not([data-theme='liquid-glass']) #home-desk .widget.w-weread {
-  background: transparent;
-}
-
 .w-weread .weread-body {
   display: flex;
   flex: 1;

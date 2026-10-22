@@ -49,13 +49,6 @@ html[data-theme='liquid-glass'] #liquid-glass-backdrop {
   background-attachment: fixed;
 }
 
-html[data-theme='liquid-glass'] #home-desk :is(.widget[data-interaction='display-only'], :where(#app-view)) {
-  background: var(--odk-glass-material);
-  box-shadow: var(--odk-glass-frame-shadow);
-  backdrop-filter: blur(14px) saturate(1.25);
-  -webkit-backdrop-filter: blur(14px) saturate(1.25);
-}
-
 /* The visible control owns its frame. Hit layers and integrated text fields
    retain the frame supplied by their Widget, page handle, or composer. */
 html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summary, [role='button'], .agent-composer, #dots):not(:where(.widget-launch, .dot, .agent-composer textarea, input[type='checkbox'], input[type='radio'], input[type='range'])) {
@@ -127,23 +120,6 @@ html[data-theme='liquid-glass'] #personal-agent .agent-mic.lg-surface {
 }
 
 html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #personal-agent .agent-mic.lg-surface {
-  background: transparent;
-  box-shadow: inset 0 0.5px 0 rgba(246, 250, 255, 0.12);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-/* Keep the static shape visible until the SDK sets its measured clip path. */
-html[data-theme='liquid-glass'] #home-desk :is(.widget, #app-view).lg-surface {
-  visibility: inherit;
-  box-sizing: border-box;
-  color: var(--odk-primary);
-  /* The SDK resets the inline radius for clipping. Keep the CSS frame rounded. */
-  border-radius: var(--odk-frame-radius) !important;
-}
-
-html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #home-desk :is(.widget, #app-view).lg-surface,
-html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #home-summary .dash.lg-surface {
   background: transparent;
   box-shadow: inset 0 0.5px 0 rgba(246, 250, 255, 0.12);
   backdrop-filter: none;
@@ -260,12 +236,6 @@ html[data-theme='liquid-glass'] .w-weread .weread-text {
     --odk-glass-control-filter: none;
     --odk-glass-control-disabled-opacity: 1;
   }
-  html[data-theme='liquid-glass'] #home-desk :is(.widget[data-interaction='display-only'], :where(#app-view)) {
-    background: var(--odk-surface);
-    box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
 }
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
@@ -281,11 +251,4 @@ html[data-theme='liquid-glass'] .w-weread .weread-text {
     --odk-glass-control-disabled-opacity: 1;
   }
   html[data-theme='liquid-glass'] body { background: Canvas; }
-  html[data-theme='liquid-glass'] #home-desk :is(.widget[data-interaction='display-only'], :where(#app-view)) {
-    background: Canvas;
-    color: CanvasText;
-    box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
 }

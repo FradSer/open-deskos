@@ -519,6 +519,11 @@ Scenario: Hidden previews capture the current native viewport
     Then its header shows no Ready caption or status dot
     And messages have concise descriptive task names below their text
     And task names open the exact task thread and preserve explicit reply selection
+    And task capsules keep readable horizontal text padding
+    And each single-task capsule and its Reply button share a vertical center
+    And single-task and multiple-task messages use the same two-column task row
+    And each task row has exactly one Reply button and one task label
+    And long task names wrap without horizontal conversation overflow
     And no Sources, Conversation details, or Earlier messages disclosures appear
     And scrolling up loads retained messages without a history button
     When the agent processes a request

@@ -203,7 +203,8 @@ async function assertSimpleConversation() {
   assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Thinking…')
   assert.equal(await evaluate(`document.querySelector('.agent-state').hidden`),false)
   publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,20))')
-  await evaluate(`document.querySelector('.agent-message-reply').click()`)
+  assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${item.id}"] .agent-session-reply').length`),1,'single and multiple sources use one Reply per task row')
+  await evaluate(`document.querySelector('.agent-session-reply').click()`)
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),false,'single-source reply retains its exact reference')
   await evaluate(`document.querySelector('.agent-reply-cancel').click()`)
   const second={...source,key:'5e'.repeat(32),revision:'6f'.repeat(32),threadId:'7a'.repeat(32),sessionId:'synthetic-second-session',project:'/synthetic/v8',taskName:'外壳模型调整'}
@@ -226,26 +227,39 @@ async function assertSimpleConversation() {
   }
   publishStatus(replies);await evaluate('new Promise(r=>setTimeout(r,20))')
   await evaluate(`document.querySelectorAll('.agent-update-sources').forEach(d=>d.open=false)` )
-  for(const theme of ['instrument','pixel','border-beam']){
+  for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
     await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
-    for(const [width,height]of [[1920,1280],[480,854],[320,480]]){
+    for(const [width,height]of [[1920,1280],[1280,800],[480,854],[320,480]]){
       await resize(width,height);await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))')
       const geometry=await evaluate(`(()=>{const p=document.querySelector('.agent-panel').getBoundingClientRect(),c=document.querySelector('.agent-composer').getBoundingClientRect(),v=document.querySelector('.agent-conversation');return {viewport:innerWidth,panel:{left:p.left,right:p.right,width:p.width},overflow:v.scrollWidth>v.clientWidth+1,composer:c.bottom<=p.bottom&&c.right<=p.right,reply:[...document.querySelectorAll('.agent-session-reply')].filter(n=>getComputedStyle(n).display!=='none').every(n=>n.getBoundingClientRect().height>=44),scroller:getComputedStyle(v).overflowY}})()`)
       assert.ok(geometry.panel.left>=0&&geometry.panel.right<=width, 'Agent fits viewport: '+JSON.stringify(geometry));assert.equal(geometry.overflow,false);assert.equal(geometry.composer,true);assert.equal(geometry.reply,true);assert.equal(geometry.scroller,'auto')
+      await assertSessionActionGeometry(item.id, theme, width)
       fs.writeFileSync(path.join(os.tmpdir(),`odk-simple-agent-${theme}-${width}.png`),(await capturePaintedPage(win)).toPNG())
     }
   }
   const longName='Android 客户端连接与设备输入验证'.repeat(3).slice(0,40)
   publishStatus({...frame,remote:{...frame.remote,messages:[{...item,sources:[{...source,taskName:longName}]}]}})
   await evaluate('new Promise(r=>setTimeout(r,30))')
-  for(const [width,height]of [[1920,1280],[480,854],[320,480]]) {
+  for(const theme of ['instrument','pixel','border-beam','liquid-glass']) for(const [width,height]of [[1920,1280],[1280,800],[480,854],[320,480]]) {
+    await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
     await resize(width,height)
     const named=await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),n=document.querySelector('[data-remote-id="${item.id}"] .agent-session-open');return {text:n.textContent,overflow:c.scrollWidth-c.clientWidth,height:n.getBoundingClientRect().height}})()`)
     assert.equal(named.text,longName,'long task names update in place without changing the source reference')
     assert.ok(named.overflow<=1&&named.height>=44,JSON.stringify(named))
+    await assertSessionActionGeometry(item.id, theme+' long-name', width)
   }
   publishStatus({...frame,remote:{...frame.remote,state:'unavailable'}});await evaluate('new Promise(r=>setTimeout(r,20))')
   assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Task updates unavailable','actual connection failure remains visible in the header')
+}
+
+async function assertSessionActionGeometry(id, theme, width) {
+  const geometry = await evaluate(`(()=>{
+    const article=document.querySelector('[data-remote-id="${id}"]'),task=article.querySelector('.agent-session-open'),reply=article.querySelector('.agent-session-reply');
+    const t=task.getBoundingClientRect(),r=reply.getBoundingClientRect(),s=getComputedStyle(task),range=document.createRange();range.selectNodeContents(task);const text=range.getBoundingClientRect();
+    return {padding:[parseFloat(s.paddingInlineStart),parseFloat(s.paddingInlineEnd)],textInset:[text.left-t.left,t.right-text.right],center:Math.abs(t.y+t.height/2-r.y-r.height/2),taskHeight:t.height,replyHeight:r.height};
+  })()`)
+  assert.ok(geometry.padding.every(value=>value>=12)&&geometry.textInset.every(value=>value>=12), 'Task text needs capsule padding: '+JSON.stringify({theme,width,...geometry}))
+  assert.ok(geometry.center<=1&&geometry.taskHeight>=44&&geometry.replyHeight>=44, 'Task and Reply must align: '+JSON.stringify({theme,width,...geometry}))
 }
 
 async function assertCapsuleStack() {
@@ -595,14 +609,14 @@ app.whenReady().then(async () => {
     await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');c.scrollTop=0;c.dispatchEvent(new Event('scroll'))})()`)
     await evaluate('new Promise(r=>setTimeout(r,30))')
     assert.ok(await evaluate(`document.querySelectorAll('.agent-message').length>36`),'upward scrolling loads another batch')
-    await evaluate(`document.querySelector('[data-remote-id="${messages[7].id}"] .agent-message-reply').click();document.querySelector('.agent-reply-cancel').click();window.beforeCancelLoad=document.querySelectorAll('.agent-message').length;const c=document.querySelector('.agent-conversation');c.scrollTop=81;c.dispatchEvent(new Event('scroll'));c.scrollTop=0;c.dispatchEvent(new Event('scroll'))`)
+    await evaluate(`document.querySelector('[data-remote-id="${messages[7].id}"] .agent-session-reply').click();document.querySelector('.agent-reply-cancel').click();window.beforeCancelLoad=document.querySelectorAll('.agent-message').length;const c=document.querySelector('.agent-conversation');c.scrollTop=81;c.dispatchEvent(new Event('scroll'));c.scrollTop=0;c.dispatchEvent(new Event('scroll'))`)
     assert.equal(await evaluate(`document.querySelectorAll('.agent-message').length>window.beforeCancelLoad`),true,'cancel reply immediately restores all-thread history loading without a new push')
     await evaluate(`for(let i=0;i<16;i++){const c=document.querySelector('.agent-conversation');c.scrollTop=81;c.dispatchEvent(new Event('scroll'));c.scrollTop=0;c.dispatchEvent(new Event('scroll'))}`)
     assert.equal(await evaluate(`!!document.querySelector('[data-reply-id="${replies[0].id}"]')`),true)
     assert.equal(await evaluate(`document.querySelectorAll('.agent-message').length`),88,'all three kinds eventually mount exactly once')
     assert.equal(await evaluate(`(()=>{const times=[...document.querySelectorAll('.agent-conversation > .agent-message')].map(n=>{if(n.dataset.remoteId)return ${JSON.stringify(messages)}.find(m=>m.id===n.dataset.remoteId).at;if(n.dataset.replyId)return ${JSON.stringify(replies)}.find(r=>r.id===n.dataset.replyId).at;const answer=/^Answer (\\d+)/.exec(n.querySelector('.agent-message-body').textContent);if(answer)return Number(answer[1])*10+0.5;return ${JSON.stringify(turns)}.find(t=>t.id===n.dataset.ownerTurnId)?.at});return times.every((at,i)=>i===0||at>=times[i-1])})()`),true,'remote updates, owner turns and replies share chronological order')
     const expected=messages[7]
-    await evaluate(`document.querySelector('[data-remote-id="${expected.id}"] .agent-message-reply').click()`)
+    await evaluate(`document.querySelector('[data-remote-id="${expected.id}"] .agent-session-reply').click()`)
     assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),false)
     assert.equal(await evaluate(`document.querySelector('textarea').value`),'Draft 中文')
     assert.equal(await evaluate(`([...document.querySelectorAll('.agent-message')].filter(n=>!n.hidden)).every(n=>JSON.parse(n.dataset.threadIds||'[]').includes('${'b'.repeat(64)}'))`),true,'reply selection keeps the exact source thread')
@@ -824,8 +838,8 @@ app.whenReady().then(async () => {
     publishStatus({state:'idle',remote:{state:'live',messages:[{id:'a'.repeat(64),text:'Synthetic completion',presentation:'assistant_update',sources:[source]}],replies:[]}})
     await evaluate('new Promise(r=>setTimeout(r,30))')
     assert.equal(await evaluate(`document.querySelector('.agent-session-reply').disabled`),true,'an old single-argument bridge cannot reply')
-    assert.equal(await evaluate(`document.querySelector('.agent-message-reply').disabled`),true,'the simplified primary Reply also refuses an old bridge')
-    await evaluate(`document.querySelector('.agent-message-reply').dispatchEvent(new MouseEvent('click'))`)
+    assert.equal(await evaluate(`document.querySelector('.agent-session-reply').disabled`),true,'the shared task-row Reply refuses an old bridge')
+    await evaluate(`document.querySelector('.agent-session-reply').dispatchEvent(new MouseEvent('click'))`)
     await evaluate(`document.querySelector('.agent-session-reply').dispatchEvent(new MouseEvent('click'));document.querySelector('textarea').value='Ordinary legacy request';document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
     assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true)
     assert.deepEqual(sentText,['Ordinary legacy request']);assert.deepEqual(sentReplyTo,[undefined])

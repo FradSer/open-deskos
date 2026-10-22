@@ -113,7 +113,11 @@ Feature: Widget continuations in the right desk pane
     Given a supported theme and a Widget App
     When the App opens
     Then the App card has the same border width, color, and radius as its source Widget
+    And all eight Widgets use the same Shell-owned frame material in each theme
     And no extra active outline or nested runtime border surrounds the App
+    And Liquid Glass uses one continuous SDK edge without a second CSS border or inset shadow
+    And fallback and accessible modes retain the shared visible CSS border
+    And keyboard launch targets retain rounded focus geometry independently of SDK clipping
     And its content remains reachable at compact sizes and 200 percent zoom
 
   Scenario: Gamepad B returns from a foreground App
