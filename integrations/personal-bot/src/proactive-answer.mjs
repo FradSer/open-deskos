@@ -19,7 +19,7 @@ export async function answerSuggestions(watch) {
   const caution = uncertain ? '\n另有动作的执行结果尚未确认，请先核实，不要重复执行。' : ''
   if (!pending.length) return `目前没有基于最新读数触发的新建议。${caution}`
   const shown = pending.slice(0, 5)
-  const items = shown.map((p, i) => `${i + 1}. ${p.advice}\n依据：${p.evidence.map(measuredEvidence).join('；')}${p.action ? `\n尚未执行。如要执行，请另行确认：“${p.confirmation}”。` : ''}`)
+  const items = shown.map((p, i) => `${i + 1}. ${p.advice}${p.reason ? `\n建议原因：${p.reason}` : ''}${p.snoozedUntil > 0 ? `\n已设置稍后提醒：${new Date(p.snoozedUntil).toISOString()}` : ''}\n依据：${p.evidence.map(measuredEvidence).join('；')}${p.action ? `\n尚未执行。如要执行，请另行确认：“${p.confirmation}”。` : ''}`)
   const remaining = pending.length > shown.length ? `\n还有 ${pending.length - shown.length} 条，请在建议面板查看。` : ''
   return `当前有 ${pending.length} 条建议：\n\n${items.join('\n\n')}${remaining}${caution}`
 }

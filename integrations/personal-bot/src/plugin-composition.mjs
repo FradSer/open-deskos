@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { createProducerControl, PRODUCER_PORT } from './producer-readings.mjs'
 
 const require = createRequire(import.meta.url)
 
@@ -10,20 +11,23 @@ export const BOT_PORTS = Object.freeze({
   runtime: 'odk:personal-bot/runtime/v1',
   home: 'odk:personal-bot/home/v1',
   watch: 'odk:personal-bot/watch/v1',
+  'task-readings': 'odk:producer-readings/personal-agent-tasks/v1',
+  'remote-readings': 'odk:producer-readings/personal-agent-reports/v1',
 })
 
 const componentDependencies = Object.freeze({
   service: [], channel: ['service'], runtime: ['service', 'channel'],
-  home: ['service', 'runtime'], watch: ['service', 'runtime', 'home'],
+  home: ['service', 'runtime'], watch: ['service', 'runtime'],
+  'task-readings': ['runtime'], 'remote-readings': ['runtime'],
 })
 
-export function personalBotManifest(name) {
+export function personalBotManifest(name, { legacy = false } = {}) {
   if (!Object.hasOwn(componentDependencies, name)) throw Error('unknown resident component')
   return {
-    schemaVersion: 1, id: `odk.personal-bot.${name}`, name: `Personal Bot ${name}`, version: '1.0.0',
+    schemaVersion: 1, id: `odk.personal-bot.${name}`, name: `Personal Bot ${name}`, version: name === 'watch' && !legacy ? '2.0.0' : '1.0.0',
     kind: 'service', host: 'personal-agent', permissions: [],
     provides: [{ interface: BOT_PORTS[name] }],
-    requires: componentDependencies[name].map(dependency => ({ interface: BOT_PORTS[dependency] })),
+    requires: (name === 'watch' && legacy ? ['service', 'runtime', 'home'] : componentDependencies[name]).map(dependency => ({ interface: BOT_PORTS[dependency] })),
   }
 }
 
@@ -32,7 +36,8 @@ export function validatePersonalBotReplacement(raw) {
   const manifest = validatePluginManifest(structuredClone(raw))
   const name = Object.keys(BOT_PORTS).find(name => manifest.id === `odk.personal-bot.${name}`)
   if (!name) throw Error('unknown resident replacement identity')
-  const original = validatePluginManifest(personalBotManifest(name))
+  const legacy = name === 'watch' && manifest.requires.some(port => port.interface === BOT_PORTS.home)
+  const original = validatePluginManifest(personalBotManifest(name, { legacy }))
   const ports = list => list.map(port => `${port.interface}:${Boolean(port.optional)}`).sort()
   if (manifest.host !== original.host || manifest.kind !== original.kind || manifest.permissions.length
     || JSON.stringify(ports(manifest.provides)) !== JSON.stringify(ports(original.provides))
@@ -82,9 +87,9 @@ function once(operation) {
   }
 }
 
-export function createPersonalBotComposition({ createService, openChannel, initialize, createHome, createWatch = undefined, onRuntime = (_runtime, _context = { stopping: false }) => {}, onError = (_id, _error) => {}, replacementPlugins = [], disabled = [], onService = (_service) => {}, onHome = (_home, _service, _context) => {}, onWatch = (_watch, _service, _context) => {}, control = undefined }) {
+export function createPersonalBotComposition({ createService, openChannel, initialize, createHome, createWatch = undefined, createTaskReadings = undefined, createRemoteReadings = undefined, onRuntime = (_runtime, _context = { stopping: false }) => {}, onError = (_id, _error) => {}, replacementPlugins = [], disabled = [], onService = (_service) => {}, onHome = (_home, _service, _context) => {}, onWatch = (_watch, _service, _context) => {}, control = undefined }) {
   const replacements = new Map()
-  const active = new Set(['service', 'channel', 'runtime', ...(createHome ? ['home'] : []), ...(createWatch ? ['watch'] : [])].map(name => `odk.personal-bot.${name}`))
+  const active = new Set(['service', 'channel', 'runtime', ...(createHome ? ['home'] : []), ...(createWatch ? ['watch'] : []), ...(createTaskReadings ? ['task-readings'] : []), ...(createRemoteReadings ? ['remote-readings'] : [])].map(name => `odk.personal-bot.${name}`))
   for (const definition of replacementPlugins) {
     const manifest = validatePersonalBotReplacement(definition.manifest)
     if (!active.has(manifest.id) || replacements.has(manifest.id) || typeof definition.create !== 'function') throw Error('invalid or inactive resident replacement')
@@ -121,10 +126,14 @@ export function createPersonalBotComposition({ createService, openChannel, initi
         if (context.signal.aborted) return
         const { createPluginControl } = loadShellModule('plugin-control.js', import.meta.url)
         const { listenOdkData } = loadShellModule('odk-data-control.js', import.meta.url)
-        server = await listenOdkData({ ...control, requestTimeoutMs: 30000, control: createPluginControl({
+        const management = createPluginControl({
           scope: 'personal-agent', signal: context.signal, protectedIds: ['odk.personal-bot.control'],
           snapshot: () => host.list(), setEnabled,
-        }) })
+        })
+        const projections = createProducerControl({ current: () => !context.signal.aborted,
+          ports: () => host.list().flatMap(plugin => plugin.manifest.provides.filter(port => PRODUCER_PORT.test(port.interface)).map(port => host.get(port.interface))).filter(Boolean) })
+        server = await listenOdkData({ ...control, requestTimeoutMs: 30000, control: { dispatch: request =>
+          ['producer_list', 'producer_read'].includes(request?.command) ? projections.dispatch(request) : management.dispatch(request) } })
       } }
     },
   })
@@ -158,6 +167,15 @@ export function createPersonalBotComposition({ createService, openChannel, initi
     if (!context.signal.aborted) onRuntime(runtime, { stopping: false })
     return { ports: { [BOT_PORTS.runtime]: runtime } }
   })
+  for (const [name, factory] of [['task-readings', createTaskReadings], ['remote-readings', createRemoteReadings]]) {
+    if (!factory) continue
+    register(name, async context => {
+      const provider = await selected(name, context, () => factory(context.get(BOT_PORTS.runtime), context))
+      context.onCleanup(() => provider?.close?.())
+      if (!provider || typeof provider.list !== 'function' || typeof provider.read !== 'function') throw Error('invalid producer reading port')
+      return { ports: { [BOT_PORTS[name]]: provider } }
+    })
+  }
   for (const [name, factory] of [
     ['home', createHome],
     ['watch', createWatch],

@@ -200,7 +200,7 @@ test('a proactive heartbeat uses production Durable generation and preserves ded
   await watch.tick()
   assert.equal(watch.list()[0].id, proposal.id)
   assert.equal(frames.at(-1).popup, false)
-  assert.equal(generations, 2)
+  assert.equal(generations, 1, 'unchanged observations reuse the persisted generation checkpoint')
 })
 
 test('production recovery blocks old tool authority while a fresh persisted request can execute', async t => {

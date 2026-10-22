@@ -6,6 +6,46 @@ This ledger distinguishes previous checks, live results, and work that remains u
 This work includes reviewed commits, pull requests, and merges into `main`.
 Production deployment and physical acceptance require separate host evidence.
 
+## Current design implementation
+
+The implementation branch is `codex/personal-agent-design`.
+Its upstream baseline is `42cde10e5853c13b7f8436e7a48f8d5621e9d0e9`.
+Overview commit `1a9aed97` supplies the reviewed selection reference.
+This section tracks current work; the evidence sections below retain their original candidate boundaries.
+
+| Work | Owner boundary | Current result |
+| --- | --- | --- |
+| Source projections | Producer plugins, existing registry, authenticated transport | Implemented; replacement and cancellation checks pass |
+| Independent Home and Watch | Versioned composition and compatible replacements | Implemented; legacy Watch contracts remain supported |
+| Complete fact selection | Source identity, time, units, verification, bounded batches | Implemented; four-theme all-source rendering passes |
+| Continuing work | Existing task and session references; no second task store | Implemented; fresh references and bounded owner history |
+| Proposal needs and feedback | Durable occurrence, candidate feedback, separate presentation | Implemented; restart, recurrence, capacity, and feedback checks pass |
+| Completion applicability | Conversation, query, admission, and execution remain distinct | Implemented; query learning accepts independent host checks only |
+| Interface clarity | Existing surfaces, disclosed evidence, visible presentation receipts | Implemented; keyboard, simulated touch, and long-body checks pass |
+| Cross-host capabilities | Public projections and explicit supported operations | Implemented; Android projection remains read-only |
+| Quality and cost | Offline behavior evaluation, semantic reuse, bounded generation | Implemented; eight offline replay scenarios pass |
+
+Independent reviews found and verified repairs for ownership, cancellation, capacity, batch isolation, feedback identity, recurrence, and learning evidence.
+Checks use isolated state and controlled provider responses.
+The full Personal suite passed 1291 tests, skipped eight gated cases, and had no failures.
+This run includes the final legacy capacity compatibility checks.
+Type checking passes.
+The broad Shell run passed 2479 tests and skipped three cases.
+It found 15 configuration and fixture failures; their repairs pass all 67 affected checks.
+Hydra's fixture now uses the actual Shell display-only frame.
+All 168 matrix cases and four-theme capture checks pass with unchanged size, font, and density thresholds.
+The complete Electron E2E run passes; all driver, motion, geometry, composition, density, and theme gates return zero.
+Android projection tests pass: 9 tests, zero failures.
+The recommendation panel passes four themes, three sizes, five states, keyboard input, simulated touch, and visible-body acknowledgement.
+All-source Overview synthesis passes four renderer themes.
+Shared Widget styles and density checks pass without profile changes.
+One native fade capture failed during parallel checks; the unchanged strict gate passed in E2E and a separate rerun.
+Offline replay measures host behavior; it does not establish model quality, calibration, user benefit, or disk durability.
+The store retains 64 full proposals and 1024 compact handled receipts.
+Capacity recovery requires an obsolete topic update or removal and restart; unknown actions remain protected.
+The branch is prepared for pull-request review.
+Live models, physical input, target-device acceptance, and deployment remain unverified.
+
 ## Implemented scope
 
 | Requirement | Implementation | Remaining acceptance |

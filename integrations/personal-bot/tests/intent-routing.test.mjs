@@ -16,6 +16,69 @@ function routerFixture(value = response()) {
   return { route, requests }
 }
 
+test('routing uses bounded current work references and owner history without private results', async () => {
+  const f = routerFixture(response('task_query'))
+  const taskId = '11111111-2222-4333-8444-555555555555'
+  const references = [{ kind: 'agent_task', id: taskId, name: 'Researcher', state: 'finished', verification: 'not_run', updatedAt: '2026-10-23T00:00:00Z', response: 'PRIVATE_TASK_RESULT', role: 'PRIVATE_ROLE' }]
+  const history = [{ text: '让 Researcher 分析报告', intent: 'agent_work', answer: 'PRIVATE_ANSWER' }]
+  await f.route({ text: '刚才那项结果呢', profile: 'personal', workReferences: references, ownerHistory: history })
+  const state = f.requests[0].body.state
+  assert.deepEqual(state.workReferences, [{ kind: 'agent_task', id: taskId, name: 'Researcher', state: 'finished', verification: 'not_run', updatedAt: '2026-10-23T00:00:00Z' }])
+  assert.deepEqual(state.ownerHistory, [{ text: '让 Researcher 分析报告', intent: 'agent_work' }])
+  assert(!JSON.stringify(state).includes('PRIVATE_'))
+})
+
+test('owner history survives intervening conversation and references are read anew each turn', async () => {
+  const routed = []
+  let current = [{ kind: 'agent_task', id: '11111111-2222-4333-8444-555555555555', name: 'Researcher', state: 'running', verification: 'not_run', updatedAt: '2026-10-23T00:00:00Z' }]
+  let intent = 'agent_work'
+  const turn = createIntentTurn({ profile: 'personal', tools: [], getWorkReferences: () => current,
+    route: async input => { routed.push(structuredClone(input)); return { intent } } })
+  await turn.prepare('分析报告'); turn.complete('分析报告', 'PRIVATE_RESULT')
+  intent = 'conversation'; await turn.prepare('谢谢'); turn.complete('谢谢', 'PRIVATE_REPLY')
+  current = current.map(item => ({ ...item, state: 'finished' }))
+  intent = 'task_query'; await turn.prepare('刚才那项进展呢')
+  assert.equal(routed.at(-1).workReferences[0].state, 'finished')
+  assert(routed.at(-1).ownerHistory.some(item => item.text === '分析报告'))
+  assert(!JSON.stringify(routed).includes('PRIVATE_'))
+  intent = 'agent_work'
+  for (let i = 0; i < 6; i++) { await turn.prepare(`work-${i}`); turn.complete(`work-${i}`, 'PRIVATE_RESULT') }
+  intent = 'conversation'; await turn.prepare('谢谢'); turn.complete('谢谢', 'PRIVATE_REPLY')
+  intent = 'task_query'; await turn.prepare('工作进度')
+  assert.deepEqual(routed.at(-1).ownerHistory.map(item => item.text), Array.from({ length: 6 }, (_, i) => `work-${i}`))
+})
+
+test('clarification covers the current object and outcome without a fixed capability menu', async () => {
+  const turn = createIntentTurn({ profile: 'personal', tools: [], route: async () => ({ intent: 'clarify' }) })
+  const result = await turn.prepare('处理一下')
+  assert.match(result.answer, /对象|结果/)
+  assert.doesNotMatch(result.answer, /Widget\/App/)
+})
+
+test('read-only displayed suggestion identities reach routing without private advice or action authority', async () => {
+  const f = routerFixture(response('proposal_response'))
+  const id = '11111111-2222-4333-8444-555555555555'
+  const proposals = [{ id, action: null, status: 'pending', offered: true, presented: true, advice: 'PRIVATE_ADVICE', evidence: ['PRIVATE_EVIDENCE'] },
+    { id: '22222222-2222-4333-8444-555555555555', action: null, status: 'pending', offered: true, presented: false },
+    { id: '33333333-2222-4333-8444-555555555555', action: null, status: 'pending', offered: true, presented: true, snoozedUntil: 2000 }]
+  const turn = createIntentTurn({ route: f.route, profile: 'personal', tools: [], getWatch: () => ({ list: () => proposals, now: () => 1000 }) })
+  await turn.prepare('这条已处理')
+  const state = f.requests[0].body.state
+  assert.deepEqual(state.displayedSuggestions, [{ id }])
+  assert.deepEqual(state.pendingConfirmations, [])
+  assert(!JSON.stringify(state).includes('PRIVATE_'))
+  assert.match(f.requests[0].body.questions.intent.instructions, /displayedSuggestions.*not.*permission/i)
+})
+
+test('continuing-work history excludes personal notes and conversational content', async () => {
+  const f = routerFixture(response('task_query'))
+  await f.route({ text: '刚才的工作呢', profile: 'personal', ownerHistory: [
+    { text: 'PRIVATE_OWNER_NOTE', intent: 'memory' }, { text: 'PRIVATE_CONVERSATION', intent: 'conversation' },
+    { text: '检查报告', intent: 'agent_work' },
+  ] })
+  assert.deepEqual(f.requests[0].body.state.ownerHistory, [{ text: '检查报告', intent: 'agent_work' }])
+})
+
 test('every route including suggestions, confirmation and conversation uses Jev Choice', async () => {
   const examples = { session_continue: '继续 pi 的 session', task_query: '查询任务', widget_create: '创建一个 widget', app_create: '创建 app', suggestions: '有什么建议', proposal_response: '确认执行 123', conversation: '你好' }
   for (const [intent, text] of Object.entries(examples)) {

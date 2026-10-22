@@ -8,6 +8,15 @@ export { validateAgentPlugins } from './selection.mjs'
 const RECEIPT_LIMIT = 32768
 const TURN_LIMIT = 131072
 
+/** Workflow meaning selects verification scope, never execution permission. */
+export function pluginWorkKind(intent, profile = 'personal') {
+  if (intent === 'conversation') return 'conversation'
+  if (['odk_data', 'task_query', 'suggestions', 'app_query', 'package_query'].includes(intent)) return 'query'
+  if (intent === 'coding_work' && profile === 'coding') return 'execution'
+  if (['coding_work', 'agent_work', 'session_continue'].includes(intent)) return 'admission'
+  return 'execution'
+}
+
 function resultEvidence(result, durable) {
   const output = (durable ? result.output : result.content) ?? []
   const content = output.map(part => part.type === 'text' ? part.text : `[${part.type} content omitted]`).join('\n')
@@ -55,7 +64,7 @@ export function createAgentPluginRuntime({ store, config, infer }) {
             if (owner.receipts.length >= 64) { owner.overflow = true; break }
             const budget = Math.max(0, Math.min(RECEIPT_LIMIT, TURN_LIMIT - owner.bytes))
             const text = Buffer.from(source.text).subarray(0, budget).toString('utf8')
-            owner.receipts.push({ id: `tool-${owner.receipts.length + 1}`, tool: 'coding_check', status: source.status,
+            owner.receipts.push({ id: `tool-${owner.receipts.length + 1}`, tool: 'coding_check', kind: 'host_check', status: source.status,
               text, truncated: source.truncated || Buffer.byteLength(source.text) > budget })
             owner.bytes += Buffer.byteLength(text)
           }
@@ -69,10 +78,10 @@ export function createAgentPluginRuntime({ store, config, infer }) {
     }
   }
   return {
-    beginTurn(request) {
+    beginTurn(request, intent = 'agent_execute', profile = 'personal') {
       turn?.controller.abort()
       epoch++
-      turn = request ? { epoch, request, receipts: [], bytes: 0, finished: false, overflow: false, controller: new AbortController() } : undefined
+      turn = request ? { epoch, request, workKind: pluginWorkKind(intent, profile), receipts: [], bytes: 0, finished: false, overflow: false, controller: new AbortController() } : undefined
     },
     context() {
       if (!enabled('experience')) return ''
@@ -156,8 +165,12 @@ export function createAgentPluginRuntime({ store, config, infer }) {
       let learning = { status: 'skipped', added: [] }
       if (!enabled('completion')) return { verification, learning }
       current(owner, signal)
+      if (owner.workKind === 'conversation' && !owner.receipts.length) return {
+        verification: { status: 'not_run', summary: 'Conversation requested no execution verification.', checks: [] }, learning,
+      }
       if (!owner.receipts.length) return { verification: { status: 'needs_review', summary: 'No tool receipts were produced; execution was not verified.', checks: [] }, learning }
-      const input = { request: owner.request, answer, receipts: structuredClone(owner.receipts) }
+      const workKind = owner.workKind === 'conversation' ? 'derivation' : owner.workKind
+      const input = { request: owner.request, workKind, answer, receipts: structuredClone(owner.receipts) }
       try {
         if (owner.overflow || owner.receipts.some(receipt => receipt.status === 'running')) throw Error('Incomplete receipt inventory')
         verification = validateCompletion(await infer('completion', input, signal), owner.receipts)
@@ -166,12 +179,14 @@ export function createAgentPluginRuntime({ store, config, infer }) {
         verification = { status: 'needs_review', summary: 'Completion verification is unavailable or has insufficient evidence.', checks: [] }
       }
       current(owner, signal)
-      if (!enabled('learning') || verification.status !== 'passed' || verification.checks.some(check => check.scope === 'admission')) return { verification, learning }
+      const checkedWork = owner.workKind === 'query' && owner.receipts.some(receipt => receipt.kind === 'host_check' && receipt.status === 'succeeded' && !receipt.truncated)
+      if ((owner.workKind !== 'execution' && !checkedWork) || !enabled('learning') || verification.status !== 'passed' || verification.checks.some(check => check.scope === 'admission')) return { verification, learning }
       if (!selection.autoLearn) return { verification, learning: { status: 'disabled', added: [] } }
       try {
-        const output = await infer('learning', { ...input, verification, existingExperience: store.load().entries.map(({ id, title }) => ({ id, title })) }, signal)
+        const learningReceipts = checkedWork ? owner.receipts.filter(receipt => receipt.kind === 'host_check') : owner.receipts
+        const output = await infer('learning', { ...input, receipts: structuredClone(learningReceipts), verification, existingExperience: store.load().entries.map(({ id, title }) => ({ id, title })) }, signal)
         current(owner, signal)
-        const lessons = validateLessons(output, owner.receipts)
+        const lessons = validateLessons(output, learningReceipts)
         const candidates = lessons.map(({ title, body, evidence }) => ({ title, body, sources: evidence.map(citation => {
           const source = owner.receipts.find(receipt => receipt.id === citation.id)
           return { tool: source.tool, digest: experienceDigest(citation.quote) }

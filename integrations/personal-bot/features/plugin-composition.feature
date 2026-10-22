@@ -299,3 +299,21 @@ Feature: Personal Bot plugin composition
     Then the listener retains its identity and the fresh service reads the same records
     And endpoint publication follows service availability
     And the saved record bytes remain unchanged
+
+  Scenario: Overview and suggestions have independent lifecycles
+    Given the default Overview and Watch plugins are running
+    When the operator disables Overview
+    Then Watch keeps its identity and continues to read declared sources
+    And its pending proposal checkpoint remains unchanged
+    When the operator enables Overview
+    Then only Overview receives a new instance
+    And a legacy Watch replacement retains its declared Overview dependency
+
+  Scenario: Resident producers expose declared read-only readings
+    Given resident task and remote report providers own their current data
+    When Open DeskOS Data reads their declared service readings
+    Then it receives bounded public projections from the current owners
+    And no Overview-specific source adapter or copied values are used
+    When a producer is disabled or unavailable
+    Then its reading becomes unavailable without blocking other sources
+    And neither a read nor a listing starts generation or a mutation

@@ -4,7 +4,7 @@ import { ProactiveWatch, validateOwnerConfig } from '../src/proactive.mjs'
 import { createJevJudge } from '../src/proactive-jev.mjs'
 
 const stamp = '2026-10-02T10:00:00.000Z'
-const config = () => ({ version: 2, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 60000, maxCandidates: 8, maxPush: 3, suppressed: [], snoozed: {}, rules: [{ id: 'deliveries', goal: '及时处理需要我领取的物品。', observations: [{ readingId: 'thirdparty.parcels', fields: ['ready', 'count'] }], delivery: 'immediate', urgent: false }] })
+const config = () => ({ version: 2, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 60000, maxCandidates: 8, maxPush: 3, generationIntervalMs: 0, attentionCooldownMs: 0, suppressed: [], snoozed: {}, rules: [{ id: 'deliveries', goal: '及时处理需要我领取的物品。', observations: [{ readingId: 'thirdparty.parcels', fields: ['ready', 'count'] }], delivery: 'immediate', urgent: false }] })
 const suggestion = (key, advice, evidenceIds = ['e0']) => ({ topicId: 'deliveries', key, advice, reason: '依据当前状态。', evidenceIds })
 function fixture(overrides = {}) {
   const requests = [], frames = []
@@ -69,7 +69,7 @@ test('selected service push invokes generation and Jev; superseded generation ca
 
 test('maxPush limits delivery and quiet hours queue affirmative generated advice', async () => {
   const c = config(); c.maxPush = 1
-  const f = fixture({ config: c }); await f.watch.tick(); assert.equal(f.watch.list().length, 1)
+  const f = fixture({ config: c }); await f.watch.tick(); assert.equal(f.watch.list().length, 2); assert.equal(f.watch.list().filter(p => p.offered).length, 1)
   const quiet = config(); quiet.quietHours = { start: '00:00', end: '23:59', timeZone: 'UTC' }
   const q = fixture({ config: quiet }); await q.watch.tick(); assert.equal(q.watch.list().length, 2); assert.equal(q.frames.at(-1).popup, false)
 })

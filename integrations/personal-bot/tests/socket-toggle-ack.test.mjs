@@ -9,6 +9,35 @@ import { join } from 'node:path'
 import { listen } from '../src/socket.mjs'
 import { randomUUID } from 'node:crypto'
 
+test('the authenticated proposal channel carries candidate feedback without inventing action confirmation', { timeout: 5000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'odk-feedback-channel-'))
+  const received = []
+  const service = { status: { v: 1, type: 'status', state: 'idle' }, subscribe: () => () => {},
+    async proposalCommand(command) { received.push(command) },
+  }
+  const server = await listen(endpoint(directory, 'agent'), service, { token: fixtureToken })
+  const clients = []
+  t.after(async () => { for (const client of clients) client.destroy(); await server.close(); await rm(directory, { recursive: true, force: true }) })
+  const id = randomUUID()
+  for (const decision of ['done', 'snooze', 'useful', 'irrelevant', 'incorrect']) {
+    const client = connect(endpoint(directory, 'agent')); clients.push(client)
+    await once(client, 'connect')
+    const reply = new Promise(resolve => { client.once('data', resolve); client.once('close', resolve) })
+    client.write((process.platform === 'win32' ? JSON.stringify({ v: 1, token: fixtureToken }) + '\n' : '') + JSON.stringify({ v: 1, type: 'proposal_respond', id, decision }) + '\n')
+    await reply
+    assert.equal(received.at(-1)?.decision, decision)
+    assert.equal(received.at(-1)?.id, id)
+    assert.equal(received.at(-1)?.confirmation, undefined)
+    client.destroy()
+  }
+  const client = connect(endpoint(directory, 'agent')); clients.push(client)
+  await once(client, 'connect')
+  const closed = once(client, 'close')
+  client.write((process.platform === 'win32' ? JSON.stringify({ v: 1, token: fixtureToken }) + '\n' : '') + JSON.stringify({ v: 1, type: 'proposal_respond', id, decision: 'execute_anything' }) + '\n')
+  await closed
+  assert.equal(received.length, 5)
+})
+
 test('a transport batch admits separate bounded owner commands in order', {timeout:3000}, async t=>{
   const directory=await mkdtemp(join(tmpdir(),'voice-batch-')),calls=[]
   const service={status:{v:1,type:'status',state:'idle',message:''},subscribe:()=>()=>{},sendText:text=>{calls.push(text);return true}}

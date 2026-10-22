@@ -1,4 +1,4 @@
-import { resolveHomeTemplate, homeTemplateVariables, homeSelectionInstructions } from './home-template.mjs'
+import { resolveHomeTemplate, homeTemplateVariables, homeSelectionInstructions, homeAttention, fallbackHomeSelection } from './home-template.mjs'
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const STATES = new Set(['live', 'stale', 'unavailable', 'unconfigured', 'unauthorized', 'error'])
 const ICONS = new Set(['sessions', 'plants', 'weather', 'mail', 'calendar', 'tasks', 'reading', 'portfolio', 'quota', 'apps', 'status'])
@@ -29,7 +29,16 @@ function valueShape(value) {
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, field]) => [key, valueShape(field)]))
   return typeof value
 }
-const layoutFingerprint = readings => JSON.stringify(readings.map(({ id, label, kind, state, home, value }) => ({ id, label, kind, state, home, shape: valueShape(value) })))
+function selectionValue(value, path = '', now = Date.now()) {
+  if (Array.isArray(value)) return value.map((item, index) => selectionValue(item, `${path}.${index}`, now))
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([key]) => !MEASUREMENT_TIMES.has(key)).map(([key, child]) => [key, selectionValue(child, path ? `${path}.${key}` : key, now)]))
+  if (typeof value === 'number') return /(?:^|\.)(waiting|blocked|failed|error)$/.test(path) ? value : { type: 'number', attention: homeAttention(path, value, {}, now) }
+  if (typeof value === 'string' && /(?:At|Time|deadline)$/.test(path)) return { value, attention: homeAttention(path, value, {}, now) }
+  return value
+}
+const layoutFingerprint = (readings, now) => JSON.stringify(readings.map(({ id, label, kind, state, home, value }) => ({ id, label, kind, state, home, shape: valueShape(value), selection: selectionValue(value, '', now) })))
+const partialValue = value => typeof value === 'string' ? value.length > 8192 : Boolean(value && typeof value === 'object'
+  && (value.truncated === true || value.incomplete === true || Object.values(value).some(partialValue)))
 
 function failureKind(stage, error, code, status) {
   if (status === 429) return 'provider_rate_limited'
@@ -51,10 +60,7 @@ export function validateHomeBriefing(raw, readings, { requireSegments = false } 
   const compact = requireSegments || raw.items.some(item => item?.segments !== undefined)
   if (compact && (raw.items.length > 2 || raw.items.reduce((sum, item) => sum + (item?.text?.length || 0), 0) > 240)) throw Error('Home sentence too long')
   for (const source of readings) {
-    if (source.home?.mode === 'required' && !raw.items.some(item => item?.readingIds?.includes(source.id) && typeof item.text === 'string' && item.text.toLowerCase().includes(source.label.toLowerCase()) && (!compact || item.segments?.some(segment => segment.icon === source.home.icon)))) throw Error('Required home source omitted')
-  }
-  for (const source of readings) {
-    if (source.home?.icon !== 'portfolio' || source.home.fields.length !== 1 || source.home.fields[0] !== 'todayChangePercent' || source.state !== 'live' || !Number.isFinite(source.value?.todayChangePercent)) continue
+    if (!raw.items.some(item => item?.readingIds?.includes(source.id)) || source.home?.icon !== 'portfolio' || source.home.fields.length !== 1 || source.home.fields[0] !== 'todayChangePercent' || source.state !== 'live' || !Number.isFinite(source.value?.todayChangePercent)) continue
     for (const item of raw.items.filter(item => item.readingIds?.includes(source.id))) {
       if (item.segments?.some(segment => segment.icon === 'portfolio' && !readings.some(reading => item.readingIds.includes(reading.id) && reading.home?.icon === 'portfolio' && segment.text.includes(reading.label)))) throw Error('Invalid portfolio percentage')
     }
@@ -85,18 +91,13 @@ export function validateHomeBriefing(raw, readings, { requireSegments = false } 
   })
 }
 
-function boundSourceFacts(readings) {
-  const variables = homeTemplateVariables(readings)
-  const segments = variables.flatMap((variable, index) => [
-    ...(index ? [{ text: ', ' }] : []), { text: variable.example, icon: variable.icon },
-  ])
-  const raw = { items: [{ text: segments.map(segment => segment.text).join(''), segments, readingIds: variables.map(variable => variable.id) }] }
-  return validateHomeBriefing(resolveHomeTemplate(raw, readings), readings, { requireSegments: true })
+function boundSourceFacts(readings, now) {
+  return validateHomeBriefing(resolveHomeTemplate(fallbackHomeSelection(readings, now), readings), readings, { requireSegments: true })
 }
 
 /** A read-only, replaceable home synthesis, independent of voice and proposals. */
 export class HomeBriefing {
-  constructor({ list, read, generate, publish, onFailure = (_failure) => {}, now = Date.now, requireBindings = false }) {
+  constructor({ list, read, generate, publish, onFailure = (_failure) => {}, now = Date.now, requireBindings = false, readTimeoutMs = 10000 }) {
     this.requireBindings = requireBindings
     this.template = null
     this.sourceOnly = false
@@ -108,6 +109,8 @@ export class HomeBriefing {
     this.publish = publish
     this.onFailure = onFailure
     this.now = now
+    this.readTimeoutMs = readTimeoutMs
+    this.coverage = undefined
     this.frame = { state: 'unavailable', items: [], generatedAt: 0, omittedSources: 0 }
     this.revision = 0
     this.fingerprint = ''
@@ -121,7 +124,9 @@ export class HomeBriefing {
 
   emit(state, extra = {}) {
     if (this.closed) return
+    const coverage = Object.hasOwn(extra, 'items') ? this.coverage : this.frame.coverage ?? this.coverage
     this.frame = { ...this.frame, state, ...extra }
+    if (coverage) this.frame.coverage = { ...coverage, selectedSources: new Set(this.frame.items.flatMap(item => item.sources.map(source => source.id))).size }
     this.publish(this.frame)
   }
 
@@ -144,6 +149,22 @@ export class HomeBriefing {
     this.timer = setTimeout(() => { void this.refresh() }, 1000)
   }
 
+  async readSource(id, signal) {
+    const controller = new AbortController()
+    const abort = () => controller.abort(signal.reason)
+    signal.addEventListener('abort', abort, { once: true })
+    if (signal.aborted) abort()
+    let timer, cancel
+    const cancelled = new Promise((_, reject) => {
+      cancel = () => reject(Error('Home source unavailable'))
+      controller.signal.addEventListener('abort', cancel, { once: true })
+      if (controller.signal.aborted) cancel()
+      timer = setTimeout(() => controller.abort(), this.readTimeoutMs)
+    })
+    try { return await Promise.race([Promise.resolve().then(() => this.read(id, controller.signal)), cancelled]) }
+    finally { clearTimeout(timer); signal.removeEventListener('abort', abort); controller.signal.removeEventListener('abort', cancel) }
+  }
+
   refresh() {
     if (this.closed) return Promise.resolve()
     if (this.pending) return this.pending
@@ -159,22 +180,24 @@ export class HomeBriefing {
           stage = 'readings'
           const catalog = await this.list(controller.signal)
           if (!Array.isArray(catalog)) throw Error('Invalid source catalog')
-          if (catalog.filter(entry => entry?.home?.mode === 'required').length > 16) throw Error('Too many required home sources')
           if (!current()) throw Error('Home closed')
-          let entries = catalog.map(entry => ({ ...entry, ...(entry?.home !== undefined ? { home: homeDeclaration(entry.home) } : {}) })).filter(e => e.home?.mode !== 'hidden' && e && typeof e.id === 'string' && ID.test(e.id)
-            && typeof e.label === 'string' && e.label.trim() && e.label.length <= 128 && !/[\x00-\x1f]/.test(e.label)).sort((a, b) => Number(b.home?.mode === 'required') - Number(a.home?.mode === 'required') || (b.home?.priority ?? 0) - (a.home?.priority ?? 0)).slice(0, 64)
-          const optionalSlots = Math.max(0, 3 - entries.filter(entry => entry.home?.mode === 'required').length)
-          let optionalCount = 0
-          entries = entries.filter(entry => entry.home?.mode === 'required' || optionalCount++ < optionalSlots)
-          const requiredFallback = entry => ({ id: entry.id, label: entry.label, kind: entry.kind, state: 'error', value: null, home: entry.home })
-          let reservedBytes = entries.filter(entry => entry.home?.mode === 'required').reduce((sum, entry) => sum + Buffer.byteLength(JSON.stringify(requiredFallback(entry))), 0)
-          const results = await Promise.allSettled(entries.map(e => this.read(e.id, controller.signal)))
+          const entries = catalog.filter(e => e && e.home?.mode !== 'hidden' && typeof e.id === 'string' && ID.test(e.id)
+            && typeof e.label === 'string' && e.label.trim() && e.label.length <= 128 && !/[\x00-\x1f]/.test(e.label))
+            .map(entry => ({ ...entry, ...(entry.home !== undefined ? { home: homeDeclaration(entry.home) } : {}) }))
+          const results = new Array(entries.length)
+          let cursor = 0
+          await Promise.all(Array.from({ length: Math.min(4, entries.length) }, async () => {
+            while (cursor < entries.length && current()) {
+              const index = cursor++
+              try { results[index] = { status: 'fulfilled', value: await this.readSource(entries[index].id, controller.signal) } }
+              catch { results[index] = { status: 'rejected' } }
+            }
+          }))
           if (!current()) throw Error('Home closed')
-          let bytes = 0
           const readings = []
+          let failedSources = 0, incompleteSources = 0
           for (const [index, result] of results.entries()) {
             const entry = entries[index]
-            if (entry.home?.mode === 'required') reservedBytes -= Buffer.byteLength(JSON.stringify(requiredFallback(entry)))
             const value = result.status === 'fulfilled' ? result.value : null
             const valid = value && value.id === entry.id && STATES.has(value.state)
               && (value.value === null || (typeof value.value === 'object' && !Array.isArray(value.value)))
@@ -183,17 +206,13 @@ export class HomeBriefing {
             let source = valid ? { id: entry.id, label: entry.label, kind: entry.kind, state: value.state, value: selected, ...home,
               ...(Number.isFinite(value.updatedAt) && value.updatedAt >= 0 && value.updatedAt <= 8640000000000000 ? { updatedAt: value.updatedAt } : {}) }
               : { id: entry.id, label: entry.label, kind: entry.kind, state: 'unavailable', value: null, ...home }
-            let size = Buffer.byteLength(JSON.stringify(source))
-            if (size > 8192 || bytes + size + reservedBytes > 48000) {
-              if (entry.home?.mode !== 'required') continue
-              source = requiredFallback(entry)
-              size = Buffer.byteLength(JSON.stringify(source))
-              if (bytes + size + reservedBytes > 48000) throw Error('Required home metadata exceeds limit')
-            }
+            if (Buffer.byteLength(JSON.stringify(source)) > 65536) source = { ...source, state: 'error', value: null }
+            if (!valid || source.state !== 'live') failedSources++
+            if (partialValue(source.value)) incompleteSources++
             readings.push(source)
-            bytes += size
           }
           const omittedSources = catalog.filter(entry => entry?.home?.mode !== 'hidden').length - readings.length
+          this.coverage = { totalSources: entries.length + omittedSources, readSources: entries.length, failedSources, incompleteSources }
           return { readings, omittedSources }
         }
         let { readings, omittedSources } = await snapshot()
@@ -214,7 +233,7 @@ export class HomeBriefing {
           omittedSources = latest.omittedSources
         }
         let fingerprint = contentFingerprint(readings)
-        const layout = layoutFingerprint(readings)
+        const layout = layoutFingerprint(readings, this.now())
         if (this.requireBindings && this.template && this.templateLayout === layout && this.now() - this.templateCreatedAt < MAX_AGE_MS) {
           try {
             const items = validateHomeBriefing(resolveHomeTemplate(this.template, readings), readings, { requireSegments: true })
@@ -230,7 +249,7 @@ export class HomeBriefing {
         }
         if (this.requireBindings && (!this.frame.items.length || this.sourceOnly)) {
           try {
-            const items = boundSourceFacts(readings)
+            const items = boundSourceFacts(readings, this.now())
             this.sourceOnly = true
             this.emit('loading', { items, generatedAt: 0, omittedSources })
           } catch {
@@ -239,7 +258,7 @@ export class HomeBriefing {
           }
         } else this.emit('loading')
         stage = 'generate'
-        const raw = await this.generate({ readings, omittedSources, previous: this.requireBindings ? (this.template?.items || []).filter(item => item.readingIds.every(id => readings.some(reading => reading.id === id))) : this.frame.items.filter(item => item.sources.every(source => readings.some(reading => reading.id === source.id))), ...(this.requireBindings ? { variables: homeTemplateVariables(readings) } : {}), signal: controller.signal })
+        const raw = await this.generate({ readings, omittedSources, now: this.now(), previous: this.frame.items.filter(item => item.sources.every(source => readings.some(reading => reading.id === source.id))), ...(this.requireBindings ? { variables: homeTemplateVariables(readings) } : {}), signal: controller.signal })
         if (!current()) return
         // A push reports possible change, not changed content. Repeated telemetry
         // must not cancel a slow model; confirm against fresh readings before use.
@@ -247,7 +266,7 @@ export class HomeBriefing {
           const confirmationRevision = this.revision
           const latest = await snapshot()
           if (!current()) return
-          if (confirmationRevision !== this.revision || (this.requireBindings ? layoutFingerprint(latest.readings) !== layout : contentFingerprint(latest.readings) !== fingerprint) || latest.omittedSources !== omittedSources) {
+          if (confirmationRevision !== this.revision || (this.requireBindings ? layoutFingerprint(latest.readings, this.now()) !== layout : contentFingerprint(latest.readings) !== fingerprint) || latest.omittedSources !== omittedSources) {
             this.fingerprint = ''
             this.emit(this.frame.items.length ? 'stale' : 'loading')
             this.schedule()
@@ -263,7 +282,7 @@ export class HomeBriefing {
         const items = validateHomeBriefing(this.requireBindings ? resolveHomeTemplate(raw, readings) : raw, readings, { requireSegments: this.requireBindings })
         if (this.requireBindings) {
           this.template = structuredClone(raw)
-          this.templateLayout = layoutFingerprint(readings)
+          this.templateLayout = layoutFingerprint(readings, this.now())
           this.templateCreatedAt = this.now()
         }
         this.fingerprint = fingerprint
@@ -277,12 +296,12 @@ export class HomeBriefing {
           const status = Number.isInteger(rawStatus) && rawStatus >= 400 && rawStatus <= 599 ? rawStatus : undefined
           const failure = { stage, kind: failureKind(stage, error, code, status), name, ...(code ? { code } : {}), ...(status ? { status } : {}) }
           try { this.onFailure(failure) } catch { /* Diagnostics cannot affect briefing recovery. */ }
-          if ((!this.frame.items.length || this.sourceOnly) && this.requireBindings && ['generate', 'validate'].includes(stage)) {
+          if (this.requireBindings && ['generate', 'validate'].includes(stage)) {
             try {
               const recheckRevision = this.revision
               const fresh = await snapshot()
               if (!current() || recheckRevision !== this.revision) return
-              const items = boundSourceFacts(fresh.readings)
+              const items = boundSourceFacts(fresh.readings, this.now())
               // These are current bound source values, not a successful model summary.
               this.sourceOnly = true
               this.emit('error', { items, generatedAt: 0, omittedSources: fresh.omittedSources })

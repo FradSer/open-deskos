@@ -1,6 +1,42 @@
 Feature: Owner controlled proactive Personal Bot proposals
   Proposals are read-only agent state, never plugin instructions or authorization.
 
+  Scenario: Recommendation selection does not erase an unresolved need
+    Given several fresh recommendations exceed the automatic presentation budget
+    When the watch selects the next recommendations to present
+    Then all supported needs remain pending
+    And urgent eligible needs precede routine or silent recommendations
+
+  Scenario: A changed need has a new occurrence
+    Given the owner saw a recommendation
+    When its selected observation values change without changing its semantic key
+    Then a new occurrence can be presented
+    But timestamp-only refreshes retain the original acknowledgement
+    And a need that clears and returns has a new durable observation episode
+
+  Scenario: Feedback applies to one recommendation occurrence
+    Given two recommendations belong to one topic
+    When the owner marks one done, irrelevant, incorrect, or ignored
+    Then the same handled occurrence cannot return after regeneration or restart
+    And the other recommendation remains available
+    When the owner postpones one recommendation
+    Then only that occurrence waits until its saved snooze deadline
+    And an explicit snooze can resume a routine occurrence after its daily acknowledgement
+    And useful feedback records no action or completion
+
+  Scenario: Stable observations reuse bounded generation work
+    Given unchanged semantic observations and a recent successful generation
+    When a heartbeat refreshes only measurement timestamps
+    Then the watch refreshes evidence without another generation request
+    And changed observations or an elapsed generation interval permit another request
+    And each round has a bounded number of generation attempts
+
+  Scenario: A failed topic does not disable healthy recommendations
+    Given one topic fails generation or judgment
+    When another topic has a supported recommendation
+    Then the healthy recommendation remains readable and dismissible
+    And the failed topic remains reported as unavailable
+
   Scenario: Recommendations do not assert that an action already happened
     Given fresh observations explicitly report a pending need and its deadline
     When generated advice recommends addressing that need without adding facts
@@ -19,7 +55,8 @@ Feature: Owner controlled proactive Personal Bot proposals
     When a heartbeat or selected service event arrives
     Then the generation model returns zero or more evidence-referencing suggestions
     And Jev independently judges every candidate in one batch
-    And only its selected candidates are presented, ordered by judgment probability
+    And supported candidates remain pending independently of the presentation budget
+    And due time and urgency precede judgment probability for eligible presentations
     And generated advice cannot supply tools, permissions or fabricated evidence
 
   Scenario: Generic generation preserves source and lifecycle boundaries
@@ -376,3 +413,27 @@ Feature: Owner controlled proactive Personal Bot proposals
     When the unchanged Shell groups each fact icon with its first label token
     Then every fact starts with its own label rather than a separator
     And separators remain after the preceding fact without increasing segment or source limits
+
+  Scenario: Offline replay measures deterministic lifecycle behavior
+    Given synthetic observations and fixed local generation and judgment fixtures
+    When replay covers silence, repeated observations, completion, restart, snooze, quiet hours, busy state, and stale data
+    Then every scenario reports its expected lifecycle outcome and primitive call counts
+    And the report records zero actions and no real model quality or calibration claim
+
+  Scenario: Ending ordinary conversation preserves automatic attention policy
+    Given generated suggestions are deferred while the owner is busy
+    When ordinary conversation ends during quiet hours or an attention cooldown
+    Then automatic presentation remains deferred
+    And an explicit suggestions query retains its separate interaction behavior
+
+  Scenario: Failed read-only feedback preserves committed state
+    Given a visible read-only suggestion is pending
+    When its feedback checkpoint cannot be saved
+    Then the response fails and the suggestion keeps its previous state
+    And no handled receipt, completion claim, or action is published
+
+  Scenario: Legacy processed history retains its original capacity policy
+    Given an old checkpoint contains processed history without occurrence identities
+    When a supported new need enters the full store
+    Then old processed history can release capacity under its original policy
+    And unknown or executing records remain protected

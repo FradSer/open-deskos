@@ -6,8 +6,8 @@ import { createIntentStore, createIntentRuntime } from './intents.mjs'
 import { createIntentJudge } from './intent-jev.mjs'
 import { createIntentTools } from './intent-tools.mjs'
 import { odkDataRequest } from './odk-data.mjs'
-import { resolveHomeTemplate, homeTemplateVariables, compileHomeSelection } from './home-template.mjs'
-import { generateWithinDeadline } from './proactive-generation-session.mjs'
+import { resolveHomeTemplate, generateHomeSelection, compileHomeSelection } from './home-template.mjs'
+import { generateWithinDeadline, generationDeadlineMs } from './proactive-generation-session.mjs'
 import { homeInstructions, validateHomeBriefing } from './home-briefing.mjs'
 import { Check } from 'typebox/value'
 import { randomUUID } from 'node:crypto'
@@ -23,7 +23,7 @@ import { createProposalTools } from './proactive-tools.mjs'
 import { createJevIntentRouter, createIntentTurn, guardIntentTools, intentToolNames, proposalConfirmations, isExtensionTool } from './intent-routing.mjs'
 import { normalizeCapabilityDeclarations, createReviewedCapabilities, childCapabilityDeclarations } from './reviewed-capabilities.mjs'
 import { generationInstructions, validateGeneratedBatch } from './proactive-generation.mjs'
-import { createAgentPluginRuntime } from './agent-plugins/runtime.mjs'
+import { createAgentPluginRuntime, pluginWorkKind } from './agent-plugins/runtime.mjs'
 import { renderPluginInput } from './agent-plugins/prompt.mjs'
 import { createExperienceStore } from './agent-plugins/experience.mjs'
 import { createHostedCompletionTool } from './agent-plugins/hosted-completion.mjs'
@@ -201,6 +201,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     if (config.getWatch) customTools.push(...createProposalTools(config.getWatch, () => currentTurn, { intentPreviews: Boolean(intents), currentTurnId: () => intentTurn.getTurn() }))
     if (intents) customTools.push(...createIntentTools({ runtime: intents, judge: intentJudgment, currentTurn: () => ({ text: currentTurn, intent: intentTurn.getIntent(), turn: intentTurn.getTurn() }), getWatch: config.getWatch ?? (() => undefined), memory: async () => JSON.parse(await memory.read()) }))
     const intentTurn = createIntentTurn({ route: routeIntent, profile, tools: customTools.map(tool => tool.name), childExecution: Boolean(config.childAgent), getRemoteContext: () => remoteContext(),
+      getWorkReferences: () => tasks?.workReferences?.() ?? [],
       capabilities: () => customTools.map(tool => ({ name: tool.name, description: tool.description?.slice(0, 2048) || tool.name })),
       extensionTools: () => customTools.filter(tool => isExtensionTool(tool) || tool.name.startsWith('agent_mcp_')).map(tool => ({ name: tool.name,
         description: `${tool.description?.slice(0, 2048) || tool.name}${tool.name.startsWith('agent_mcp_') ? `\n${packages?.routingDescription() ?? ''}` : ''}` })), getWatch: config.getWatch })
@@ -264,7 +265,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
       beginTurn: async (text, owner) => {
         if(text && intentTurn.getIntent()==='session_continue')owner?.requireDeliveryAcknowledgement?.()
         currentTurn = text.trim(); ownerTurn = text ? Object.freeze({text:intentTurn.getRequestText(),turn:intentTurn.getTurn(),id:owner?.id??randomUUID(),bind:bound=>{activeReply=bound;owner?.bind(bound)}}) : undefined; memory?.beginTurn(text); reviewed?.beginTurn(text)
-        plugins?.beginTurn(text)
+        plugins?.beginTurn(text, intentTurn.getIntent(), profile)
         packages?.beginTurn(text, intentTurn.getIntent())
         if (!text) { activeReply=undefined;intentTurn.clear(); await session.setActiveToolsByName(baseTools) }
       },
@@ -279,7 +280,8 @@ export async function createPersonalBot(config, { createSession = createDurableA
         if(intentTurn.getIntent()==='session_continue' && !activeReply)return '暂不能确认原会话的指令投递结果。'
         if(!plugins)return answer
         const notes = []
-        if (lastTaskResult.verification.status === 'needs_review') notes.push('还没有足够证据确认任务已完成。')
+        if (lastTaskResult.verification.status === 'needs_review') notes.push(pluginWorkKind(intentTurn.getIntent(), profile) === 'query'
+          ? '查询结果还缺少足够的来源证据。' : '还没有足够证据确认任务已完成。')
         if (lastTaskResult.verification.status === 'passed' && lastTaskResult.verification.checks.some(check => check.scope === 'admission')) notes.push('指令已受理，任务是否完成还需确认。')
         if (lastTaskResult.learning.status === 'needs_review') notes.push('经验学习未完成；现有经验已保留。')
         return [answer, ...notes].filter(Boolean).join('\n\n')
@@ -311,9 +313,12 @@ export async function createPersonalBot(config, { createSession = createDurableA
       get lastTaskResult() { return structuredClone(lastTaskResult) },
       generationModel: session.model ? `${session.model.provider}/${session.model.id}` : config.model ?? 'default',
       generateBriefing: async ({ signal, ...input }) => {
-        const variables = homeTemplateVariables(input.readings)
-        const selection = await generateWithinDeadline({
-          signal, timeoutMs: (config.env ?? process.env).ODK_PROACTIVE_GENERATION_TIMEOUT_MS,
+        const duration = generationDeadlineMs((config.env ?? process.env).ODK_PROACTIVE_GENERATION_TIMEOUT_MS)
+        const deadlineAt = Date.now() + duration
+        const combined = AbortSignal.any([lifetime.signal, AbortSignal.timeout(duration), ...(signal ? [signal] : [])])
+        return generateHomeSelection(input.readings, { now: input.now, previous: input.previous,
+          choose: (request, variables) => generateWithinDeadline({
+          signal: combined, timeoutMs: Math.max(1000, deadlineAt - Date.now()),
           formatCorrection: homeInstructions,
           validate: raw => { validateHomeBriefing(resolveHomeTemplate(compileHomeSelection(raw, variables), input.readings), input.readings, { requireSegments: true }) },
           create: async () => {
@@ -326,8 +331,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
             return generator
           },
           prompt: (generator, text) => sessionAdapter(generator).prompt(text),
-        }, { ...input, previous: undefined, variables: variables.map(({ id, icon }, selector) => ({ selector, id, icon: icon ?? 'status', required: input.readings[selector].home?.mode === 'required' })) })
-        return compileHomeSelection(selection, variables)
+        }, request) })
       },
       generateProposals: async ({ signal, ...input }) => generateWithinDeadline({
         signal, timeoutMs: (config.env ?? process.env).ODK_PROACTIVE_GENERATION_TIMEOUT_MS,

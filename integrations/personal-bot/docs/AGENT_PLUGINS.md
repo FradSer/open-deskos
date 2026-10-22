@@ -53,6 +53,10 @@ A full file rejects new entries and preserves existing content.
 ## Completion checks
 
 The `completion` plugin receives the current request, answer, and bounded host-observed tool receipts.
+The host distinguishes conversation, source queries, admission, and direct execution.
+Ordinary conversation without receipts skips execution verification and automatic learning.
+Actual conversation computations still require derivation evidence.
+Direct coding-profile work retains execution checks.
 A separate temporary model conversation checks the requested outcomes.
 That conversation has no tools, Skills, project context, execution environment, or owner conversation history.
 It uses the configured resident model.
@@ -61,7 +65,7 @@ A passed check cites exact successful receipt text.
 Receipts retain literal output text and separate structured JSON to support exact citations.
 Section labels aid reading; they do not define authority or authenticated parsing boundaries.
 Missing, failed, invalid, or truncated evidence requires review.
-A task without tool receipts also requires review.
+A requested execution task without tool receipts also requires review.
 This includes content-only tasks until separate content checks exist.
 
 Admission checks cover explicitly requested task launches or prompt delivery.
@@ -115,6 +119,9 @@ The Hosted Pi execution receipt retains its separate `verification: not_run` fie
 
 The `learning` plugin runs only after passed completion checks.
 Admission checks cannot trigger learning.
+Ordinary source queries skip procedural learning.
+Queries with imported independent host checks can learn from those checks only.
+Their learning input and citation validation exclude ordinary query receipts.
 Each proposed lesson must cite exact successful tool receipt text.
 Hosted verification imports the underlying host check receipts.
 Verifier summaries cannot support a learned lesson.
@@ -143,6 +150,7 @@ node --test tests/agent-plugin-runtime.test.mjs tests/agent-plugin-integration.t
 node --test tests/agent-inspection-completion.test.mjs tests/hosted-completion*.test.mjs tests/check-history.test.mjs
 pnpm typecheck
 pnpm test
+pnpm test:proactive:evaluate
 ```
 
 The [feature scenarios](../features/agent-plugins.feature) retain the full requested capability scope.

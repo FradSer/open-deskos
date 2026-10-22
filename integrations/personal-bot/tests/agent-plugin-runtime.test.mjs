@@ -18,6 +18,63 @@ async function fixture(t) {
 
 const success = { content: [{ type: 'text', text: 'The report contains all three requested regions. Checks: 3 passed, 0 failed.' }], details: {} }
 
+test('conversation skips execution verification and learning without claiming success', async t => {
+  const directory = await fixture(t)
+  let calls = 0
+  const runtime = createAgentPluginRuntime({ store: createExperienceStore(join(directory, 'conversation.json')),
+    config: { enabled: ['completion', 'learning'], autoLearn: true }, infer: async () => { calls++; throw Error('Conversation needs no execution verifier') } })
+  runtime.beginTurn('你好', 'conversation')
+  const result = await runtime.finishTurn('你好。')
+  assert.equal(result.verification.status, 'not_run')
+  assert.equal(result.learning.status, 'skipped')
+  assert.equal(calls, 0)
+  runtime.beginTurn('Create the requested report.', 'agent_execute')
+  assert.equal((await runtime.finishTurn('Done.')).verification.status, 'needs_review')
+})
+
+test('source queries retain receipt verification and skip automatic procedural learning', async t => {
+  const directory = await fixture(t)
+  for (const intent of ['odk_data', 'task_query', 'app_query', 'package_query']) {
+    const calls = []
+    const runtime = createAgentPluginRuntime({ store: createExperienceStore(join(directory, `${intent}.json`)),
+      config: { enabled: ['completion', 'learning'], autoLearn: true }, infer: async kind => {
+        calls.push(kind)
+        return { status: 'passed', summary: 'The source answered the query.', checks: [{ requirement: 'Read the current source', scope: 'completion', status: 'passed', evidence: [{ id: 'tool-1', quote: 'Actual source value: 7' }] }] }
+      } })
+    runtime.beginTurn('Read the source.', intent)
+    await runtime.observeTools([{ name: 'odk_data', execute: async () => ({ content: [{ type: 'text', text: 'Actual source value: 7' }], details: {} }) }])[0].execute('query', {})
+    const result = await runtime.finishTurn('The observed value is 7.')
+    assert.equal(result.verification.status, 'passed')
+    assert.equal(result.learning.status, 'skipped')
+    assert.deepEqual(calls, ['completion'])
+  }
+})
+
+test('query learning can cite only imported host checks without promoting unrelated reads', async t => {
+  const directory = await fixture(t)
+  for (const source of ['ordinary', 'host']) {
+    let learningInput
+    const store = createExperienceStore(join(directory, `${source}.json`))
+    const runtime = createAgentPluginRuntime({ store, config: { enabled: ['completion', 'learning'], autoLearn: true },
+      infer: async (kind, input) => {
+        if (kind === 'completion') return { status: 'passed', summary: 'The requested check passed.', checks: [{ requirement: 'Check task evidence', scope: 'completion', status: 'passed', evidence: [{ id: 'tool-3', quote: 'Assertions: 3 passed' }] }] }
+        learningInput = input
+        return { lessons: [{ title: 'Validate region counts', body: 'Assert region count and uniqueness before reporting the result.',
+          evidence: [{ id: source === 'host' ? 'tool-3' : 'tool-1', quote: source === 'host' ? 'Assertions: 3 passed' : 'Unrelated method' }] }] }
+      } })
+    runtime.beginTurn('Check task evidence.', 'task_query')
+    const tools = runtime.observeTools([
+      { name: 'skill_read', execute: async () => ({ content: [{ type: 'text', text: 'Unrelated method' }], details: {} }) },
+      { name: 'coding_task_verify', execute: async () => ({ content: [{ type: 'text', text: 'Checked task' }], details: { completionReceipts: [{ text: 'Assertions: 3 passed', status: 'succeeded', truncated: false }] } }) },
+    ])
+    await tools[0].execute('ordinary', {}); await tools[1].execute('host', {})
+    const outcome = await runtime.finishTurn('The check passed.')
+    assert.deepEqual(learningInput.receipts.map(receipt => receipt.kind), ['host_check'])
+    assert.equal(outcome.learning.status, source === 'host' ? 'applied' : 'needs_review')
+    assert.equal(store.load().entries.length, source === 'host' ? 1 : 0)
+  }
+})
+
 test('Given invalid plugin judgments When validation fails Then only fixed host codes describe the failure', () => {
   const receipts = [{ id: 'tool-1', status: 'succeeded', text: 'checked', truncated: false }]
   const valid = { status: 'passed', summary: 'Checked', checks: [{ requirement: 'Read', scope: 'completion', status: 'passed', evidence: [{ id: 'tool-1', quote: 'checked' }] }] }

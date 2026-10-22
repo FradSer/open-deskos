@@ -200,6 +200,14 @@ export async function openAgentTasks({ directory, createWorker, onUpdate }) {
       return { tasks: copy([...state.tasks].reverse().slice(offset, offset + limit).map(({ request: _request, role: _role, response: _response, ...metadata }) => metadata)), total: state.tasks.length }
     },
     activity: active,
+    workReferences() {
+      available()
+      return [...state.tasks].sort((a, b) => Number(ACTIVE.has(b.state)) - Number(ACTIVE.has(a.state))
+        || b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8).map(task => ({
+        kind: 'agent_task', id: task.taskId, name: task.identity?.name ?? 'Temporary task', state: task.state,
+        verification: task.verification.status, updatedAt: task.updatedAt,
+      }))
+    },
     cancel(taskId) {
       available()
       const task = get(taskId)

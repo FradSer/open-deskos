@@ -117,7 +117,7 @@ test('explicit owner notes reach real Durable context after restart and reflect 
   } finally { await bot.close() }
 })
 
-test('configured Durable resident verifies, learns, clears shortcut outcomes, and retrieves after restart', async t => {
+test('configured Durable query verifies, skips procedural learning, and clears shortcut outcomes across restart', async t => {
   const { directory, config } = await fixture(t)
   const stages = []
   let residentCalls = 0
@@ -141,7 +141,7 @@ test('configured Durable resident verifies, learns, clears shortcut outcomes, an
       return assistant(JSON.stringify({ lessons: [{ title: 'Resolve configured targets', body: 'Read configured target inventory before selecting a task host.', evidence: [{ id: receipt.id, quote: 'targets' }] }] }))
     }
     residentCalls++
-    if (residentCalls > 2) assert.match(user.content, /Resolve configured targets/)
+    assert.doesNotMatch(user.content, /Resolve configured targets/)
     const latest = context.messages.at(-1)
     if (latest.role !== 'toolResult') return assistant([{ type: 'toolCall', id: `query-${residentCalls}`, name: 'codemode', arguments: { code: 'text(await tools.coding_targets({}));' } }], 'toolUse')
     return assistant('没有配置可用目标。')
@@ -154,9 +154,9 @@ test('configured Durable resident verifies, learns, clears shortcut outcomes, an
   let bot = await createPersonalBot(config, deps)
   t.after(() => bot.close())
   assert.equal(await bot.prompt('查询配置目标'), '没有配置可用目标。')
-  assert.deepEqual(stages, ['completion', 'learning'])
+  assert.deepEqual(stages, ['completion'])
   assert.equal(bot.lastTaskResult.verification.status, 'passed')
-  assert.equal(bot.lastTaskResult.learning.status, 'applied')
+  assert.equal(bot.lastTaskResult.learning.status, 'skipped')
   await assert.rejects(readFile(config.personal.memoryFile), /ENOENT/)
   for (const shortcut of ['clarify', 'failure', 'suggestions']) {
     if (shortcut !== 'clarify') {
@@ -177,11 +177,9 @@ test('configured Durable resident verifies, learns, clears shortcut outcomes, an
   await bot.close()
   bot = await createPersonalBot(config, deps)
   assert.equal(await bot.prompt('再次查询配置目标'), '没有配置可用目标。')
-  const persisted = JSON.parse(await readFile(join(config.stateDir, 'personal-agent', 'experience.json'), 'utf8'))
-  assert.equal(persisted.entries.length, 1)
-  assert.equal(persisted.entries[0].title, 'Resolve configured targets')
-  assert(!JSON.stringify(persisted).includes('查询配置目标'))
-  assert.equal(await readFile(join(directory, 'state', 'durable', 'personal', 'main.jsonl'), 'utf8').then(text => text.includes('Resolve configured targets')), true)
+  assert.equal(bot.lastTaskResult.learning.status, 'skipped')
+  await assert.rejects(readFile(join(config.stateDir, 'personal-agent', 'experience.json')), /ENOENT/)
+  assert.equal(await readFile(join(directory, 'state', 'durable', 'personal', 'main.jsonl'), 'utf8').then(text => text.includes('Resolve configured targets')), false)
 })
 
 test('a failed completion check changes the final answer and never starts learning', async t => {
@@ -197,7 +195,7 @@ test('a failed completion check changes the final answer and never starts learni
   t.after(() => bot.close())
   const snapshots = []
   const answer = await bot.prompt('查询目标', text => snapshots.push(text))
-  assert.match(answer, /还没有足够证据确认任务已完成。/)
+  assert.match(answer, /查询结果还缺少足够的来源证据。/)
   assert.doesNotMatch(answer, /完成后校验|Harness|needs_review/)
   assert.equal(snapshots.at(-1), answer)
   assert.equal(bot.lastTaskResult.verification.status, 'needs_review')

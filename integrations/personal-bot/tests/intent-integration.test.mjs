@@ -55,7 +55,7 @@ for (const profile of ['coding', 'personal']) {
         events.push('jev')
         const { state, questions } = JSON.parse(options.body)
         states.push(state)
-        return Response.json({ model: 'jev-fixture', answers: { intent: { type: 'choice', choice: selected, confidence: 1,
+        return Response.json({ model: 'jev-fixture', answers: { ...(questions.continuation ? { continuation: { type: 'choice', choice: 'current', confidence: 1, probabilities: Object.fromEntries(Object.keys(questions.continuation.criteria).map(key => [key, key === 'current' ? 1 : 0])) } } : {}), intent: { type: 'choice', choice: selected, confidence: 1,
           probabilities: Object.fromEntries(Object.keys(questions.intent.criteria).map(key => [key, key === selected ? 1 : 0])) } } })
       } }),
       createRuntime: async () => ({ getAvailable: async () => [fixtureModel] }),
@@ -100,8 +100,8 @@ for (const profile of ['coding', 'personal']) {
     for (const [intent, text] of [['task_query', '现在任务怎样了'], ['session_continue', '继续那个 Pi 会话'], ['widget_create', '创建天气 widget'], ['app_create', '创建 App'], ['odk_data', '今天花怎么样'], ['odk_data', '现在花怎么样']]) {
       selected = intent
       const snapshots=[]
-      assert.equal(await agent.prompt(text,snapshot=>snapshots.push(snapshot)), intent==='session_continue'?'暂不能确认原会话的指令投递结果。':'offline routed response')
-      if(intent==='session_continue')assert.deepEqual(snapshots,[], 'a continuation without a delivery receipt must not stream a model acknowledgement')
+      assert.equal(await agent.prompt(text,snapshot=>snapshots.push(snapshot)), intent==='session_continue'?'这条需求要交给哪个 Pi 任务？告诉我任务名称即可。':'offline routed response')
+      if(intent==='session_continue')assert.deepEqual(snapshots,[], 'a continuation without a selected task must ask for its name without streaming an acknowledgement')
       assert.equal(states.at(-1).text, text)
       assert(states.at(-1).availableTools.includes('coding_task_start'))
       assert(states.at(-1).capabilities.some(tool => tool.name === 'odk_data' && tool.description.includes('runtime data')))
