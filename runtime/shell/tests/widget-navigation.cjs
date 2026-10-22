@@ -153,17 +153,17 @@ app.whenReady().then(async () => {
       await until(() => !!document.getElementById('pomodoro-toggle'));
       document.getElementById('pomodoro-toggle').click();
       await odkAppPlatform.closeApp();
-      await until(() => document.querySelector('.pomodoro-state').textContent === 'Focusing');
+      await until(() => document.querySelector('[data-widget="odk.tile.pomodoro"] .pomodoro-state').textContent === 'Focusing');
       launch.click();
       await until(() => !!document.getElementById('pomodoro-toggle'));
       document.getElementById('pomodoro-toggle').click();
       await odkAppPlatform.closeApp();
-      await until(() => document.querySelector('.pomodoro-state').textContent === 'Paused');
+      await until(() => document.querySelector('[data-widget="odk.tile.pomodoro"] .pomodoro-state').textContent === 'Paused');
       launch.click();
       await until(() => !!document.getElementById('pomodoro-reset'));
       document.getElementById('pomodoro-reset').click();
       await odkAppPlatform.closeApp();
-      await until(() => document.querySelector('.pomodoro-state').textContent === 'Ready' && document.querySelector('.ring-mmss').textContent === '25:00');
+      await until(() => document.querySelector('[data-widget="odk.tile.pomodoro"] .pomodoro-state').hidden === true && document.querySelector('[data-widget="odk.tile.pomodoro"] .ring-mmss').textContent === '25:00');
     })()`)
     console.log('PASS ' + theme + ': Pomodoro Widget follows actual App start, pause, and reset')
     await js(`document.querySelectorAll('.dot')[2].click(); document.getElementById('sb-pi-status').focus()`)

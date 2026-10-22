@@ -215,22 +215,16 @@
    sky beside the condition instead, and the range below both. The numeral keeps
    the room that frees. */
 /* A compact cell keeps the same supporting row and steps its type and sky down, so a
-   wrapped place, the condition and the sky all stay inside the inset. The query reads
-   the tile's inner width, which is 182px in the desk's smallest 215px cell and 244px
-   in a 293px one. */
+   wrapped place, the condition and the sky all stay inside the inset. It does not step
+   the reading down: the numeral keeps the share of its lane it holds in a large cell,
+   and the lane's own ceiling bounds it. The fit factor for a long value belongs to the
+   value, not to the cell, so one reading does not change size with the cell. The query
+   reads the tile's inner width, which is 182px in the desk's smallest 215px cell and
+   244px in a 293px one. */
 @container (max-width: 220px) {
   .w-weather-content {
-    --w-weather-reading: 26cqi;
     --w-weather-glyph: clamp(24px, 15cqi, 32px);
     gap: 1cqi;
-  }
-
-  [data-widget='odk.tile.weather'][data-reading-length='3'] .w-weather-content {
-    --w-weather-reading: 27cqi;
-  }
-
-  [data-widget='odk.tile.weather'][data-reading-length='4'] .w-weather-content {
-    --w-weather-reading: 22cqi;
   }
 
   .w-weather-place {

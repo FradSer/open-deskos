@@ -224,10 +224,11 @@
   filter: contrast(1.1) saturate(0.9);
 }
 
-/* Zpix's narrower digits can carry a larger primary reading. CSS grid snapping
-   follows resize and theme changes immediately, without a timer or inline sizes. */
+/* Zpix's narrower digits carry the same lane share as the other themes: with a
+   smaller ink width per digit, the shared reading factor still lands inside the
+   lane's ceiling. CSS grid snapping follows resize and theme changes immediately,
+   without a timer or inline sizes. */
 [data-theme='pixel'] .w-weather-content {
-  --w-weather-reading: 38cqi;
   --w-weather-glyph: round(nearest, clamp(24px, 20cqi, 48px), 24px);
 }
 
@@ -246,13 +247,16 @@
 }
 
 @container (max-width: 220px) {
+  /* The pixel reading keeps the Zpix share of its lane at a compact cell; only the sky
+     steps down, so a compact cell does not shrink the primary answer. */
   [data-theme='pixel'] .w-weather-content {
-    --w-weather-reading: 32cqi;
     /* One grid unit of the pixel set: a stepped-down sky still lands on whole units. */
     --w-weather-glyph: 24px;
   }
 }
 
-[data-theme='pixel'] .w-pomodoro {
-  --pomodoro-time-size: clamp(24px, 15cqi, 100px);
+/* Zpix's narrower advances carry the same ring-derived countdown as the other themes,
+   so one dial reads at one size per card. Only the tracking differs. */
+[data-theme='pixel'] .w-pomodoro .ring-mmss {
+  letter-spacing: normal;
 }

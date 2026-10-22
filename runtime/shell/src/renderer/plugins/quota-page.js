@@ -304,13 +304,14 @@
           return
         }
 
-        const windows = (Array.isArray(accounts) ? accounts : [])
+        const usable = (Array.isArray(accounts) ? accounts : [])
           .filter((account) => !account.error)
           .flatMap((account) => (account.groups || []).flatMap((group) => (group.quotas || []).map(quota => ({ ...quota, account }))))
           .filter((quota) => isPercent(quota.remainingPct))
+        const allowance = usable.filter((quota) => quota.horizon === 'long')
+        const windows = allowance.length ? allowance : usable
 
         if (windows.length > 0) {
-          // The tightest window is the one that can stop work, so it leads.
           const lowest = windows.reduce((min, quota) => (quota.remainingPct < min.remainingPct ? quota : min), windows[0])
           const percent = Math.round(lowest.remainingPct)
           showWindow(lowest.remainingPct < 25 ? 'Low' : 'Available', lowest.label || 'Remaining quota', percent, ({ codex: 'ChatGPT', antigravity: 'Antigravity', xai: 'Grok' })[lowest.account.provider] || 'AI usage')

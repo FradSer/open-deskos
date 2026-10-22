@@ -18,26 +18,33 @@
         return node
       }
       const body = make('div', 'pomodoro-body widget-signal')
+      const state = make('span', 'pomodoro-state w-state', 'App timer')
+      const lane = make('div', 'pomodoro-lane')
       const ring = make('div', 'pomodoro-ring-wrap')
       const artwork = vector('svg', { viewBox: '0 0 120 120', 'aria-hidden': 'true' })
       for (const className of ['ring-track', 'ring-arc']) {
         artwork.append(vector('circle', { class: className, cx: '60', cy: '60', r: '50' }))
       }
       ring.append(artwork, make('span', 'ring-mmss', '--:--'), make('span', 'pomodoro-context', 'Focus'))
-      body.append(ring)
-      const heading = make('div', 'widget-head pomodoro-head')
-      heading.append(make('span', 'widget-heading', 'Pomodoro'), make('span', 'pomodoro-state w-state', 'App timer'))
-      element.replaceChildren(heading, body)
+      lane.append(ring)
+      body.append(state, lane)
+      element.replaceChildren(body)
       if (!context.onTick || !context.trackCleanup) return
-      const time = ring.querySelector('.ring-mmss'), state = heading.querySelector('.pomodoro-state')
+      const time = ring.querySelector('.ring-mmss')
       const arc = artwork.querySelector('.ring-arc')
       let active = true, provider = null, release = null
       context.trackCleanup(() => { active = false; release?.(); release = null })
+      // The dial carries the reading; the App's own state word sits above it, and an
+      // idle session states nothing instead of a Ready label.
+      function setState(label) {
+        if (state.textContent !== label) state.textContent = label
+        const hidden = !label
+        if (state.hidden !== hidden) state.hidden = hidden
+      }
       function paint(value) {
         if (!active) return
-        const label = value.mode === 'idle' ? 'Ready' : value.state
+        setState(value.mode === 'idle' ? '' : value.state)
         if (time.textContent !== value.time) time.textContent = value.time
-        if (state.textContent !== label) state.textContent = label
         arc.style.strokeDashoffset = String(314 * Math.max(0, Math.min(1, value.remaining / value.duration)))
       }
       function updateReading() {
@@ -48,7 +55,7 @@
           if (current) release = current.subscribe(value => { if (context.focus === current) paint(value) })
         }
         if (current) paint(current.snapshot())
-        else { time.textContent = '--:--'; state.textContent = 'App timer'; arc.style.strokeDashoffset = '314' }
+        else { if (time.textContent !== '--:--') time.textContent = '--:--'; setState('App timer'); arc.style.strokeDashoffset = '314' }
       }
       context.onTick(updateReading)
       updateReading()

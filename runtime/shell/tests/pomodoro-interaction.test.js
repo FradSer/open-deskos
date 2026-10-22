@@ -273,28 +273,33 @@ scenario('the resting Home Widget makes no stale session-state claim', () => {
   assert.equal(app.tile.state, 'App timer')
   assert.match(el.innerHTML, /pomodoro-context">Focus/)
   assert.doesNotMatch(el.innerHTML, /Not started/)
+  // The dial identifies the instrument: no title repeats the App name, and no label
+  // claims that a session has started.
+  assert.doesNotMatch(el.innerHTML, /widget-heading|pomodoro-head|Ready/)
 })
 scenario('the Widget reads the App session and releases its read-only subscription', () => {
   const app = mount()
   const nodes = new Map()
   const el = { innerHTML: '', dataset: {}, querySelector(selector) {
-    if (!nodes.has(selector)) nodes.set(selector, { textContent: '', style: {} })
+    if (!nodes.has(selector)) nodes.set(selector, { textContent: '', hidden: false, style: {} })
     return nodes.get(selector)
   } }
   const cleanups = []
   let tick
   app.tile.mount(el, { focus: app.focus, onTick(callback) { tick = callback }, trackCleanup(fn) { cleanups.push(fn) } })
   const read = selector => nodes.get(selector).textContent
+  const states = selector => ({ text: nodes.get(selector).textContent, hidden: nodes.get(selector).hidden })
   assert.equal(read('.ring-mmss'), '25:00')
-  assert.equal(read('.pomodoro-state'), 'Ready')
+  assert.deepEqual(states('.pomodoro-state'), { text: '', hidden: true })
   assert.deepEqual(Object.keys(app.focus).sort(), ['snapshot', 'subscribe'])
   app.toggle.click()
-  assert.equal(read('.pomodoro-state'), 'Focusing')
+  // A running session states the App's own word; only the removed Ready label is gone.
+  assert.deepEqual(states('.pomodoro-state'), { text: 'Focusing', hidden: false })
   app.advance(61000)
   tick()
   assert.equal(read('.ring-mmss'), '23:59')
   app.toggle.click()
-  assert.equal(read('.pomodoro-state'), 'Paused')
+  assert.deepEqual(states('.pomodoro-state'), { text: 'Paused', hidden: false })
   app.advance(60000)
   tick()
   assert.equal(read('.ring-mmss'), '23:59')

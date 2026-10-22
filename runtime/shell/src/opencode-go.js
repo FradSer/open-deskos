@@ -189,22 +189,24 @@ function resetAt(window, now = new Date()) {
   return null
 }
 
-function codexWindow(label, window, now) {
+function codexWindow(window, now, fallbackSeconds, name = '') {
   if (!window) return null
   const remainingPct = remainingPercentFromUsed(window.used_percent)
   if (remainingPct === null) return null
-  return {
-    label,
-    remainingPct,
-    resetAt: resetAt(window, now),
-    description: null,
-  }
+  const reported = Number(window.limit_window_seconds)
+  const seconds = Number.isFinite(reported) && reported > 0 ? reported : fallbackSeconds
+  const [unit, divisor] = seconds % 86400 === 0 ? ['day', 86400]
+    : seconds % 3600 === 0 ? ['hour', 3600] : seconds % 60 === 0 ? ['minute', 60] : ['second', 1]
+  const count = seconds / divisor
+  const period = seconds === 604800 ? 'weekly' : `${count} ${unit}${count === 1 ? '' : 's'}`
+  const label = name ? `${name} · ${period}` : seconds === 604800 ? 'Weekly limit' : `${count} ${unit} limit`
+  return { label, remainingPct, resetAt: resetAt(window, now), description: null, horizon: seconds >= 86400 ? 'long' : 'short' }
 }
 
 function codexLimitsGroup(rateLimit, now) {
   const quotas = [
-    codexWindow('5 hour limit', rateLimit?.primary_window, now),
-    codexWindow('Weekly limit', rateLimit?.secondary_window, now),
+    codexWindow(rateLimit?.primary_window, now, 18000),
+    codexWindow(rateLimit?.secondary_window, now, 604800),
   ].filter(Boolean)
   return quotas.length ? { title: 'Codex limits', description: null, quotas } : null
 }
@@ -213,8 +215,8 @@ function codexAdditionalGroups(limits, now) {
   return (Array.isArray(limits) ? limits : []).map((limit) => {
     const name = limit.limit_name || 'Additional limit'
     const quotas = [
-      codexWindow(`${name} · 5 hours`, limit.rate_limit?.primary_window, now),
-      codexWindow(`${name} · weekly`, limit.rate_limit?.secondary_window, now),
+      codexWindow(limit.rate_limit?.primary_window, now, 18000, name),
+      codexWindow(limit.rate_limit?.secondary_window, now, 604800, name),
     ].filter(Boolean)
     return quotas.length ? { title: name, description: null, quotas } : null
   }).filter(Boolean)

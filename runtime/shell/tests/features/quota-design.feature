@@ -61,11 +61,15 @@ Feature: Read AI quotas with clear provenance and recovery
     Then text and controls remain contained and readable
     And refresh has a visible keyboard focus indicator
 
-  Scenario: The Home Widget states the tightest known window
-    Given subscriptions with several quota windows below 25 percent
-    And a second account with a healthy window
+  Scenario: The Home Widget states the allowance that governs the period
+    Given a subscription states a weekly allowance beside its session window
+    And a second account states no window length
     When the AI usage Widget reads the shared subscription service
-    Then it names the window with the least remaining quota and its percentage
+    Then it names the weekly window and its percentage
+    And a short window from another account cannot replace an available weekly allowance
+    And explicit window duration determines both its label and horizon
+    When no account supplies a longer allowance
+    Then the Widget reports the least remaining usable quota
     And its meter carries that percentage for assistive technology
     And the Widget offers no refresh action of its own
     When the user presses the Widget

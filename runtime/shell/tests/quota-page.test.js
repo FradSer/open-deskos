@@ -142,16 +142,37 @@ const windows = (values) => ({ state: 'available', snapshot: { accounts: values.
   provider: 'codex', fileName: `account-${index}.json`, groups: [{ title: 'Codex limits', quotas: [{ label, remainingPct, resetAt: null }] }],
 })) } })
 
-test('the AI usage Widget states the tightest known window without owning a control', () => {
-  const tile = mountTile(windows([['Weekly limit', 58], ['5 hour limit', 12]]))
+// One account states both of its Codex windows, which is what the provider does.
+const statedWindows = (quotas, index = 0) => ({ state: 'available', snapshot: { accounts: [{
+  provider: 'codex', fileName: `account-${index}.json`,
+  groups: [{ title: 'Codex limits', quotas: quotas.map(([label, remainingPct, horizon]) => ({ label, remainingPct, resetAt: null, horizon })) }],
+}] } })
+
+test('the AI usage Widget reports the allowance its subscription states', () => {
+  const tile = mountTile(statedWindows([['Weekly limit', 58, 'long'], ['5 hour limit', 12, 'short']]))
   assert.equal(tile.plugin.kind, 'tile')
   assert.equal(tile.plugin.interaction, 'display-only')
   assert.equal(tile.plugin.opensApp, 'quota')
   assert.doesNotMatch(tile.el.innerHTML, /<button|Refresh/)
+  assert.equal(tile.text('.quota-state'), 'Available')
+  assert.equal(tile.text('.quota-tile-value'), '58%')
+  assert.equal(tile.text('.quota-tile-context'), 'Weekly limit')
+  assert.deepEqual(tile.meter(), { hidden: false, now: '58', spoken: '58% remaining', label: 'Weekly limit', width: '58%', low: false, rule: false })
+  const mixed=statedWindows([['Weekly limit',58,'long'],['5 hour limit',12,'short']])
+  mixed.snapshot.accounts.push(statedWindows([['Short limit',1,'short']],1).snapshot.accounts[0])
+  tile.update(mixed)
+  assert.equal(tile.text('.quota-tile-value'),'58%','another account cannot replace an available weekly allowance with its short window')
+  assert.equal(tile.text('.quota-tile-context'),'Weekly limit')
+})
+
+test('the AI usage Widget falls back to the tightest window an account states', () => {
+  // A provider that reports no window length keeps the previous reading: the window
+  // that can stop work now is the one the desk reports.
+  const tile = mountTile(statedWindows([['Five hourly window', 76], ['Billing period', 12]]))
   assert.equal(tile.text('.quota-state'), 'Low')
   assert.equal(tile.text('.quota-tile-value'), '12%')
-  assert.equal(tile.text('.quota-tile-context'), '5 hour limit')
-  assert.deepEqual(tile.meter(), { hidden: false, now: '12', spoken: '12% remaining', label: '5 hour limit', width: '12%', low: true, rule: false })
+  assert.equal(tile.text('.quota-tile-context'), 'Billing period')
+  assert.deepEqual(tile.meter(), { hidden: false, now: '12', spoken: '12% remaining', label: 'Billing period', width: '12%', low: true, rule: false })
 })
 
 test('the AI usage Widget states a healthy window and every unavailable reading honestly', () => {
@@ -243,7 +264,7 @@ test('the usage Widget requests its initial shared reading and ignores completio
 })
 
 
-test('the quota Widget identifies the service behind the tightest window', () => {
+test('the quota Widget identifies the service that owns its reported window', () => {
   const status = windows([['Weekly', 58], ['5 hour', 12]])
   status.snapshot.accounts[1].provider = 'antigravity'
   const tile = mountTile(status)

@@ -38,6 +38,7 @@ Feature: Built-in App interiors
     Given the Pomodoro App has started a session
     When the user returns to Home
     Then the display-only Widget shows the current App timer and its state
+    And an idle session states no Ready label
     And the Widget reads the same session after the App closes
     And releasing the Widget removes its reading subscription
     And its neutral reading does not claim that the session has not started
