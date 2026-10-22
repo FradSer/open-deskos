@@ -77,4 +77,26 @@ class PersonalAgentFrameTest {
         assertTrue(frame.getBoolean("replyInput"))
     }
 
+    @Test fun suggestionsRemainReadableWithoutResponseAuthority() {
+        val p = JSONObject().put("id", "e311a280-c0b9-4411-96cd-4e1e92385349").put("status", "pending")
+            .put("advice", "Inspect the soil.").put("reason", "A current reading is low.").put("ruleId", "soil")
+            .put("offered", true).put("presented", false).put("evidence", org.json.JSONArray())
+            .put("action", JSONObject().put("tool", "memory_update").put("params", JSONObject().put("private", "never forward")))
+            .put("confirmation", "private confirmation").put("result", "PRIVATE_TOOL_RESULT")
+        val input = JSONObject().put("state", "idle").put("proposals", org.json.JSONArray().put(p)).put("proposalPopup", true)
+            .put("proposalCapabilities", JSONObject().put("read", true).put("respond", true).put("acknowledge", true))
+        val frame = PersonalAgentFrame.project(input)
+        val readable = frame.getJSONArray("proposals").getJSONObject(0)
+        assertEquals(p.getString("advice"), readable.getString("advice"))
+        assertEquals(p.getString("reason"), readable.getString("reason"))
+        assertTrue(readable.isNull("action"))
+        assertEquals("", readable.getString("confirmation"))
+        assertTrue(frame.getJSONObject("proposalCapabilities").getBoolean("read"))
+        assertFalse(frame.getJSONObject("proposalCapabilities").getBoolean("respond"))
+        assertFalse(frame.getJSONObject("proposalCapabilities").getBoolean("acknowledge"))
+        assertFalse(frame.toString().contains("never forward"))
+        assertFalse(frame.toString().contains("PRIVATE_TOOL_RESULT"))
+        assertTrue(frame.getBoolean("proposalPopup"))
+    }
+
 }

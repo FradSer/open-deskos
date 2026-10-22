@@ -148,6 +148,7 @@ test('proposal validation remains bounded at the same IPC boundary', async () =>
   assert.deepEqual(proposal(null, { type: 'proposal_list' }), { accepted: true })
   assert.deepEqual(proposal(null, { type: 'proposal_respond', id: 'a'.repeat(36), decision: 'ignore' }), { accepted: true })
   assert.deepEqual(f.calls.filter(value => typeof value === 'object'), [{ type: 'proposal_list' }, { type: 'proposal_respond', id: 'a'.repeat(36), decision: 'ignore' }])
+  for (const decision of ['done', 'snooze', 'useful', 'irrelevant', 'incorrect']) assert.deepEqual(proposal(null, { type: 'proposal_respond', id: 'a'.repeat(36), decision }), { accepted: true })
   await f.host.stop()
 })
 

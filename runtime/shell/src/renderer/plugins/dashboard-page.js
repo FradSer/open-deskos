@@ -93,6 +93,10 @@
     el.querySelector('.dash-presence').dataset.state = frame.state
     narrative.dataset.state = frame.state
     narrative.setAttribute('aria-busy', String(frame.state === 'loading'))
+    const coverage = frame.coverage
+    const coverageText = coverage ? `Read ${coverage.readSources} of ${coverage.totalSources} connected sources; ${coverage.failedSources} unavailable or stale; ${coverage.incompleteSources} partial; ${coverage.selectedSources} selected.` : ''
+    narrative.setAttribute('aria-description', coverageText)
+    narrative.title = coverageText
     narrative.replaceChildren()
     if (frame.items.length && frame.state !== 'live' && frame.state !== 'loading') {
       const availability = doc.createElement('span')

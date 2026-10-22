@@ -257,3 +257,13 @@
 .personal-bot-ride-details label { display: grid; gap: 8px; font-size: 14px; color: var(--odk-secondary-strong); }
 .personal-bot-ride-details select { min-height: 44px; width: 100%; min-width: 0; max-width: 100%; font: inherit; color: var(--odk-primary); background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: 8px; }
 .personal-bot-ride-details select:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
+
+.personal-bot-proposal-advice { font-size: inherit; color: var(--odk-primary); }
+.personal-bot-proposal-reason, .personal-bot-proposal-feedback, .personal-bot-proposal-capability { color: var(--odk-secondary-strong); font-size: 14px; }
+.personal-bot-proposals details { min-width: 0; }
+.personal-bot-proposals summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--odk-secondary-strong); font-size: 14px; text-decoration: underline; text-underline-offset: 0.2em; }
+.personal-bot-proposals summary:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
+.personal-bot-proposals details[open] > summary { margin-block-end: var(--odk-space-2); }
+.personal-bot-proposal-sources { overflow-wrap: anywhere; }
+.personal-bot-proposal-sources p + p { margin-block-start: var(--odk-space-2); }
+.personal-bot-proposal-history > .personal-bot-proposal { margin-block-start: var(--odk-space-3); }

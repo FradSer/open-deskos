@@ -30,7 +30,15 @@ function parseHomeBriefing(frame) {
     items.push({ text: item.text, sources, ...(compact ? { segments: item.segments.map(segment => ({ ...segment })) } : {}) })
   }
   if ((frame.state === 'empty' && items.length) || (frame.state === 'live' && !items.length)) return unavailable()
-  return { state: frame.state, generatedAt: frame.generatedAt, omittedSources: frame.omittedSources, items }
+  let coverage
+  if (frame.coverage !== undefined) {
+    const keys = ['totalSources', 'readSources', 'failedSources', 'incompleteSources', 'selectedSources']
+    if (!frame.coverage || keys.some(key => !Number.isSafeInteger(frame.coverage[key]) || frame.coverage[key] < 0)
+      || frame.coverage.readSources > frame.coverage.totalSources
+      || keys.slice(2).some(key => frame.coverage[key] > frame.coverage.readSources)) return unavailable()
+    coverage = Object.fromEntries(keys.map(key => [key, frame.coverage[key]]))
+  }
+  return { state: frame.state, generatedAt: frame.generatedAt, omittedSources: frame.omittedSources, items, ...(coverage ? { coverage } : {}) }
 }
 
 module.exports = { parseHomeBriefing }

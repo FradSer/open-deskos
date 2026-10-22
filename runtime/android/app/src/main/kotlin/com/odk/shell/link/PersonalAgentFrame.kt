@@ -63,11 +63,59 @@ object PersonalAgentFrame {
             val value = status.opt(key)
             if (value is JSONObject) frame.put(key, value)
         }
+        if (status.has("proposals") || status.has("proposalCapabilities")) {
+            val proposals = readableProposals(status.optJSONArray("proposals") ?: JSONArray())
+            val readable = proposals != null && (!status.has("proposalCapabilities") || status.optJSONObject("proposalCapabilities")?.opt("read") == true)
+            frame.put("proposalCapabilities", JSONObject().put("read", readable).put("respond", false).put("acknowledge", false))
+            frame.put("proposals", if (readable) proposals else JSONArray())
+            frame.put("proposalPopup", readable && status.opt("proposalPopup") == true)
+            frame.put("proposalInteraction", readable && status.opt("proposalInteraction") == true)
+            val omitted = status.opt("proposalHiddenCount")
+            frame.put("proposalHiddenCount", if (omitted is Number && omitted.toDouble().isFinite() && omitted.toDouble() >= 0 && omitted.toDouble() <= 9007199254740991.0 && omitted.toDouble() % 1.0 == 0.0) omitted else 0)
+        }
         if (frame.toString().toByteArray(Charsets.UTF_8).size > MAX_BYTES) {
             return unavailable("Personal Agent state exceeded its bound")
         }
         return frame
     }
+    private fun readableProposals(value: JSONArray): JSONArray? {
+        if (value.length() > 64) return null
+        val kept = JSONArray()
+        for (index in 0 until value.length()) {
+            val p = value.optJSONObject(index) ?: return null
+            val id = p.opt("id")
+            if (id !is String || !Regex("[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}").matches(id) ||
+                !validText(p.opt("advice"), 1000) || p.optString("status") !in setOf("pending", "ignored", "expired", "executing", "completed", "unknown")) return null
+            val row = JSONObject().put("id", id).put("status", p.getString("status")).put("advice", p.getString("advice"))
+                .put("action", JSONObject.NULL).put("confirmation", "").put("offered", p.opt("offered") == true).put("presented", p.opt("presented") == true)
+            for ((key, limit) in mapOf("ruleId" to 128, "reason" to 600, "createdAt" to 40, "completedAt" to 40)) {
+                val text = p.opt(key)
+                if (text is String && text.length <= limit) row.put(key, text)
+            }
+            val feedback = p.opt("feedback")
+            if (feedback is String && feedback in setOf("done", "snooze", "useful", "irrelevant", "incorrect")) row.put("feedback", feedback)
+            val snoozed = p.opt("snoozedUntil")
+            if (snoozed is Number && snoozed.toDouble().isFinite() && snoozed.toDouble() >= 0) row.put("snoozedUntil", snoozed)
+            val evidence = p.optJSONArray("evidence") ?: return null
+            if (evidence.length() > 8) return null
+            val readings = JSONArray()
+            for (eindex in 0 until evidence.length()) {
+                val e = evidence.optJSONObject(eindex) ?: return null
+                val data = e.opt("value")
+                if ((data !is String && data !is Number && data !is Boolean) || (data is Number && !data.toDouble().isFinite()) ||
+                    (data is String && data.length > 256) || !listOf("readingId", "field", "state", "measuredAt").all { validText(e.opt(it), 256) }) return null
+                val reading = JSONObject()
+                for (key in listOf("readingId", "field", "value", "state", "measuredAt")) reading.put(key, e.get(key))
+                val rule = e.opt("ruleId")
+                if (rule is String && rule.length <= 128) reading.put("ruleId", rule)
+                readings.put(reading)
+            }
+            row.put("evidence", readings)
+            kept.put(row)
+        }
+        return kept
+    }
+
     private fun conversation(value: JSONObject): JSONObject? {
         val revision = value.opt("revision")
         val turns = value.optJSONArray("turns") ?: return null

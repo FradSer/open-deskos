@@ -136,7 +136,7 @@ function createSystemChannelPlugins() {
         })
         bind(ctx, 'odk-personal-bot-proposal', (_event, command) => {
           if (!command || !['proposal_list', 'proposal_presented', 'proposal_respond'].includes(command.type) || JSON.stringify(command).length > 4096) return { accepted: false }
-          if (command.type === 'proposal_respond' && (typeof command.id !== 'string' || command.id.length !== 36 || !['accept', 'ignore', 'mute'].includes(command.decision) || (command.confirmation !== undefined && (typeof command.confirmation !== 'string' || command.confirmation.length > 2048)))) return { accepted: false }
+          if (command.type === 'proposal_respond' && (typeof command.id !== 'string' || command.id.length !== 36 || !['accept', 'ignore', 'mute', 'done', 'snooze', 'useful', 'irrelevant', 'incorrect'].includes(command.decision) || (command.confirmation !== undefined && (typeof command.confirmation !== 'string' || command.confirmation.length > 2048)))) return { accepted: false }
           if (command.type === 'proposal_presented' && (!Array.isArray(command.ids) || command.ids.length > 64 || !command.ids.every(id => typeof id === 'string' && id.length === 36))) return { accepted: false }
           return { accepted: client.proposalCommand(command) }
         })

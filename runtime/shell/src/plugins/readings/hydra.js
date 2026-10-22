@@ -34,7 +34,7 @@ function createHydraReadings(hydra) {
   if (!hydra?.snapshot) return []
   return [{
     id: 'odk.tile.hydra',
-    home: { mode: 'optional', priority: 50, icon: 'plants', fields: ['greenhouse', 'plants'] },
+    home: { mode: 'optional', priority: 0, icon: 'plants', fields: ['greenhouse', 'plants'] },
     label: 'Hydra plants',
     kind: 'tile',
     read: async () => {

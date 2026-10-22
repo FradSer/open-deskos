@@ -69,7 +69,7 @@ for (const replacement of [false, true, 'signed']) {
     const f = await fixture(t, replacement, async () => payload)
     assert.equal(await f.ipc(), payload)
     const [declaration] = f.host.get('odk:desk-reading/quota/v1')
-    assert.deepEqual(declaration.home, { mode: 'optional', priority: 40, icon: 'quota', fields: ['accounts'] })
+    assert.deepEqual(declaration.home, { mode: 'optional', priority: 0, icon: 'quota', fields: ['accounts'] })
     assert.equal(declaration.label, 'API quota')
     assert.deepEqual(await declaration.read(), { state: 'live', value: { asOf: undefined, accounts: [{
       id: 'fixture', provider: null, account: null, plan: null, groups: [{ title: null, windows: [

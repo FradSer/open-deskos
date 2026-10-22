@@ -45,6 +45,15 @@ A failed declaration or identity collision leaves existing readings and package 
 Service refresh withdraws only readings owned by that service composition.
 These local factory ports grant no additional authority to installed HTML packages.
 
+The Personal Agent reading adapter is a separate source plugin.
+It discovers declared resident projections through the authenticated management transport.
+The versioned producer interface supports only `producer_list` and `producer_read`.
+Task and Remote Pi plugins own their projections and source identities.
+The adapter retains declarations but reads values from current producers on each request.
+It cannot read memory, generate suggestions, control tasks, or return cached source values.
+Producer disable withdraws declarations during service refresh.
+An unavailable producer cannot block another producer's declared readings.
+
 ## Agent-facing values
 
 A source registers its projection with the state mapping. The projection can rename, drop or shorten fields. It must not infer measurements.

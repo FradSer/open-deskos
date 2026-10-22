@@ -288,8 +288,10 @@ Host checks do not prove device presentation, capture, or physical input.
 The first page uses generated Personal Agent content from the read-only Open DeskOS Data registry.
 Fixed plugin contributions no longer define that page.
 The Agent uses a separate temporary session without tools, extensions, Skills, or memory.
-Source updates invalidate pending output.
-Unavailable generation retains explicitly stale content.
+All visible sources and read-only Agent activity participate without reserved category positions.
+Source changes require selection checks before pending output can publish.
+Generation failure can display current source-bound facts with an explicit error state.
+Unavailable sources retain explicitly stale content.
 The Shell renders literal text and source provenance through the authenticated status channel.
 Touch and keyboard navigation remain independent of Agent availability.
 [The Personal Bot contract](../../../integrations/personal-bot/docs/CONTRACT.md#home-briefing) owns the protocol and generation limits.

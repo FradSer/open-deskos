@@ -87,8 +87,9 @@ app.whenReady().then(async () => {
       const host = document.createElement('div')
       host.className = 'widget widget-display-only w-hydra'
       host.dataset.widget = 'odk.tile.hydra-preview'
+      host.dataset.interaction = 'display-only'
       host.style.cssText = 'position:fixed;left:0;top:0;width:' + width + 'px;height:' + height + 'px;--cell-dim:' + Math.min(width, height) + 'px;'
-      document.body.append(host)
+      document.getElementById('home-desk').append(host)
       window.odkPlatform = { getHydraStatus: async () => snapshot }
       host.cleanups = []
       window.odkPlugins.get('odk.tile.hydra').mount(host, { onTick() {}, trackCleanup(cleanup) { host.cleanups.push(cleanup) } })
@@ -99,6 +100,11 @@ app.whenReady().then(async () => {
       return host
     }
     const release = host => { for (const cleanup of host.cleanups) cleanup(); host.remove() }
+    const frameFor = host => ({
+      owner: host.parentElement.id,
+      interaction: host.dataset.interaction,
+      borders: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(getComputedStyle(host)['border' + side + 'Width'])),
+    })
     const cases = []
     for (const [name, width, height, , full] of ${JSON.stringify(CELLS)}) {
       for (const theme of ${JSON.stringify(THEMES)}) {
@@ -120,6 +126,7 @@ app.whenReady().then(async () => {
         const hint = host.querySelector('.hydra-hint')
         cases.push({
           name, theme, cell: width + 'x' + height,
+          frame: frameFor(host),
           shape: body ? body.dataset.shape : null,
           contentWidth: body.getBoundingClientRect().width,
           environmentFont: parseFloat(getComputedStyle(host.querySelector('.hydra-env-value')).fontSize),
@@ -183,6 +190,7 @@ app.whenReady().then(async () => {
         const padding = getComputedStyle(host)
         unconfigured.push({
           name, theme, cell: width + 'x' + height,
+          frame: frameFor(host),
           shape: body?.dataset.shape,
           padding: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(padding['padding' + side])),
           badge: host.querySelector('.hydra-badge').textContent,
@@ -200,6 +208,9 @@ app.whenReady().then(async () => {
   })()`)
 
   let checked = 0
+  for (const row of [...result.cases, ...result.unconfigured]) {
+    assert.deepEqual(row.frame, { owner: 'home-desk', interaction: 'display-only', borders: [1, 1, 1, 1] }, JSON.stringify(row))
+  }
   for (const row of result.cases) {
     const where = JSON.stringify(row)
     assert.deepEqual(row.escaping, [], where)
@@ -309,20 +320,27 @@ app.whenReady().then(async () => {
   }
   if (captureDir) {
     for (const theme of THEMES) {
-      await win.webContents.executeJavaScript(`(async () => {
+      const frame = await win.webContents.executeJavaScript(`(async () => {
         window.odkTheme.set('${theme}');
         const host = document.createElement('div');
         host.className = 'widget widget-display-only w-hydra';
         host.id = 'hydra-capture';
+        host.dataset.interaction = 'display-only';
         host.style.cssText = 'position:fixed;z-index:1000;left:0;top:0;width:1103px;height:730px;--cell-dim:357px';
-        document.body.append(host);
+        document.getElementById('home-desk').append(host);
         window.odkPlatform = { getHydraStatus: async () => (${JSON.stringify(LIVE)}) };
         window.hydraCaptureCleanups = [];
         window.odkPlugins.get('odk.tile.hydra').mount(host, { onTick() {}, trackCleanup(cleanup) { window.hydraCaptureCleanups.push(cleanup) } });
         await document.fonts.ready;
         await new Promise(r => setTimeout(r, 300));
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        return {
+          owner: host.parentElement.id,
+          interaction: host.dataset.interaction,
+          borders: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(getComputedStyle(host)['border' + side + 'Width'])),
+        };
       })()`)
+      assert.deepEqual(frame, { owner: 'home-desk', interaction: 'display-only', borders: [1, 1, 1, 1] }, `${theme} capture frame`)
       const image = await win.webContents.capturePage({ x: 0, y: 0, width: 1103, height: 730 })
       assert.equal(image.isEmpty(), false)
       const normalized = image.resize({ width: 1103, height: 730 })

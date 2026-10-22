@@ -26,7 +26,7 @@ function createQuotaReadings(quota) {
   if (!quota?.read) return []
   return [{
     id: 'odk.page.quota',
-    home: { mode: 'optional', priority: 40, icon: 'quota', fields: ['accounts'] },
+    home: { mode: 'optional', priority: 0, icon: 'quota', fields: ['accounts'] },
     label: 'API quota',
     kind: 'page',
     read: async () => {

@@ -31,6 +31,32 @@ function personalAgentUnavailable(message) {
   return { state: 'unavailable', message }
 }
 
+function readableProposals(value) {
+  if (!Array.isArray(value) || value.length > 64) return null
+  const kept = []
+  for (const p of value) {
+    if (!p || typeof p.id !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(p.id) ||
+        typeof p.advice !== 'string' || p.advice.length > 1000 || !['pending', 'ignored', 'expired', 'executing', 'completed', 'unknown'].includes(p.status)) return null
+    const row = { id: p.id, status: p.status, advice: p.advice, action: null, confirmation: '', offered: p.offered === true, presented: p.presented === true }
+    for (const [key, limit] of [['ruleId', 128], ['reason', 600], ['createdAt', 40], ['completedAt', 40]]) {
+      if (typeof p[key] === 'string' && p[key].length <= limit) row[key] = p[key]
+    }
+    if (['done', 'snooze', 'useful', 'irrelevant', 'incorrect'].includes(p.feedback)) row.feedback = p.feedback
+    if (Number.isFinite(p.snoozedUntil) && p.snoozedUntil >= 0) row.snoozedUntil = p.snoozedUntil
+    row.evidence = []
+    if (!Array.isArray(p.evidence) || p.evidence.length > 8) return null
+    for (const e of p.evidence) {
+      if (!e || !['string', 'number', 'boolean'].includes(typeof e.value) || (typeof e.value === 'number' && !Number.isFinite(e.value)) ||
+          (typeof e.value === 'string' && e.value.length > 256) || !['readingId', 'field', 'state', 'measuredAt'].every(key => typeof e[key] === 'string' && e[key].length <= 256)) return null
+      const item = Object.fromEntries(['readingId', 'field', 'value', 'state', 'measuredAt'].map(key => [key, e[key]]))
+      if (typeof e.ruleId === 'string' && e.ruleId.length <= 128) item.ruleId = e.ruleId
+      row.evidence.push(item)
+    }
+    kept.push(row)
+  }
+  return kept
+}
+
 function projectPersonalAgentFrame(status) {
   if (!status || typeof status !== 'object' || !PERSONAL_AGENT_STATES.has(status.state)) {
     return personalAgentUnavailable('Personal Agent state unavailable')
@@ -58,6 +84,15 @@ function projectPersonalAgentFrame(status) {
   }
   for (const key of ['briefing', 'agents', 'remote']) {
     if (status[key] && typeof status[key] === 'object') frame[key] = status[key]
+  }
+  if (Array.isArray(status.proposals) || status.proposalCapabilities !== undefined) {
+    const proposals = readableProposals(status.proposals ?? [])
+    const readable = proposals !== null && (status.proposalCapabilities === undefined || status.proposalCapabilities?.read === true)
+    frame.proposalCapabilities = { read: readable, respond: false, acknowledge: false }
+    frame.proposals = readable ? proposals : []
+    frame.proposalPopup = readable && status.proposalPopup === true
+    frame.proposalInteraction = readable && status.proposalInteraction === true
+    frame.proposalHiddenCount = Number.isSafeInteger(status.proposalHiddenCount) && status.proposalHiddenCount >= 0 ? status.proposalHiddenCount : 0
   }
   if (Buffer.byteLength(JSON.stringify(frame), 'utf8') > MAX_PERSONAL_AGENT_FRAME_BYTES) {
     return personalAgentUnavailable('Personal Agent state exceeded its bound')

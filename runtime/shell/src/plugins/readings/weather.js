@@ -17,7 +17,7 @@ function createWeatherReadings(weather) {
   if (!weather?.refresh) return []
   return [{
     id: 'odk.tile.weather',
-    home: { mode: 'optional', priority: 80, icon: 'weather', fields: ['place', 'temperatureC', 'condition'] },
+    home: { mode: 'optional', priority: 0, icon: 'weather', fields: ['place', 'temperatureC', 'condition'] },
     label: 'Weather',
     kind: 'tile',
     read: async () => {
