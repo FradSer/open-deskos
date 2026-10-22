@@ -7,6 +7,14 @@ import { protectProactivePath } from '../src/proactive-private.mjs'
 import { RemoteConversation, validateRemoteSummary, validateRemoteReview } from '../src/remote-conversation.mjs'
 const row = (key,revision='a'.repeat(64)) => ({ key, machine:'synthetic-mac',sessionId:key,project:'/synthetic/project',revision,updatedAt:1,state:'settled',availability:'live',conclusionOutcome:'reported_finished',eventId:revision,latestEventIsAssistant:true,conclusionIsLatestAssistant:true,conclusion:'Computed total: 6',truncated:false,control:'report_only' })
 const updates = (value, records) => [{text:value,taskName:'Task result',sourceKeys:records.map(record=>record.key)}]
+test('routing context indexes distinct named sessions before repeated recent summaries', async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-index-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const remote=new RemoteConversation({file:join(directory,'remote.json'),read:async()=>({ok:true,records:[],total:0,nextCursor:null}),synthesize:async()=>({}),publish:()=>{}})
+ remote.data.messages=Array.from({length:8},(_,i)=>({id:String(i),text:'Repeated recent summary '+i,sources:[{...row(i===0?'older':'recent'),taskName:i===0?'SDLC 插件优化':'Repeated task'}]}))
+ const context=remote.context()
+ assert(context.slice(0,8192).includes('SDLC 插件优化'),'an older named session remains visible to initial routing')
+ assert(context.indexOf('SDLC 插件优化')<context.indexOf('Repeated recent summary'),'the compact index precedes verbose repeated updates')
+})
 test('all connected conclusions are paged, synthesized once, and retain source context after restart',async t=>{
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-conversation-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
  const batches=[];let calls=0

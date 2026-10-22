@@ -1,4 +1,13 @@
 Feature: Every Personal Bot user turn receives a typed intent judgment
+  Scenario: A task name resolves a previous clarification
+    Given the owner supplied a task instruction and the Bot requested its Pi session
+    When the owner supplies the displayed task name after another unclear turn
+    Then the model receives the bounded unresolved owner requests and a distinct task name index
+    And a typed choice selects the applicable original request without rewriting its text
+    And the host forwards that request and the current clarification to the original session once
+    And a later instruction can select the same session from conversation context without a UI reply
+    And unrelated requests, ambiguous choices, and unknown deliveries cannot replay an earlier request
+
   Scenario: All routed capabilities support historical direct calls without bypassing Code Mode
     Given either profile has registered reviewed capabilities and a historical direct tool call
     When the intent classifier selects an intent and the model invokes an exact allowed capability directly or through codemode

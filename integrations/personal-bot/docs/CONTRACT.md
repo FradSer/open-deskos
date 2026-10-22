@@ -1081,6 +1081,10 @@ An owner follow-up still receives a typed intent judgment before capability exec
 It carries the configured target, exact project, and task ID without accepting replacement endpoint fields.
 An owner can name a displayed task without a reply reference.
 Initial classification receives at most 8,192 characters of untrusted displayed task context.
+A bounded, distinct session-name index precedes the recent summaries.
+The router retains up to six unresolved owner requests, within 8,192 bytes, during this runtime.
+A typed choice can join one unexecuted request with its current clarification, preserving both texts.
+The host consumes unresolved requests before handler execution, including failed or cancelled attempts.
 This context supplies no control authority.
 The model selects a retained source key and revision.
 The host binds that source to the original owner text.

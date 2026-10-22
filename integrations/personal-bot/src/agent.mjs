@@ -256,7 +256,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
       streamResponse: () => intentTurn.getIntent()!=='session_continue',
       beginTurn: async (text, owner) => {
         if(text && intentTurn.getIntent()==='session_continue')owner?.requireDeliveryAcknowledgement?.()
-        currentTurn = text.trim(); ownerTurn = text ? Object.freeze({text,turn:intentTurn.getTurn(),id:owner?.id??randomUUID(),bind:bound=>{activeReply=bound;owner?.bind(bound)}}) : undefined; memory?.beginTurn(text); reviewed?.beginTurn(text)
+        currentTurn = text.trim(); ownerTurn = text ? Object.freeze({text:intentTurn.getRequestText(),turn:intentTurn.getTurn(),id:owner?.id??randomUUID(),bind:bound=>{activeReply=bound;owner?.bind(bound)}}) : undefined; memory?.beginTurn(text); reviewed?.beginTurn(text)
         plugins?.beginTurn(text)
         packages?.beginTurn(text, intentTurn.getIntent())
         if (!text) { activeReply=undefined;intentTurn.clear(); await session.setActiveToolsByName(baseTools) }

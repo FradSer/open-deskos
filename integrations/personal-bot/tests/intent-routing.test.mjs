@@ -67,6 +67,66 @@ test('follow-up intent state excludes previous answers and tool-derived private 
   assert(!f.requests.some(request => JSON.stringify(request.body).includes('PRIVATE_FIXTURE_EVIDENCE')))
 })
 
+test('a task-name clarification selects an unchanged unresolved owner request across intervening unclear turns', async () => {
+  const requests=[]
+  let choice='clarify'
+  const route=createJevIntentRouter({env:{},request:async input=>{
+    requests.push(input)
+    const value=response(choice)
+    if(input.questions.continuation)value.answers.continuation={type:'choice',choice:choice==='session_continue'?'request_1':'current',confidence:0.99,probabilities:Object.fromEntries(Object.keys(input.questions.continuation.criteria).map(key=>[key,key===(choice==='session_continue'?'request_1':'current')?1:0]))}
+    return value
+  }})
+  const turn=createIntentTurn({route,profile:'personal',tools:['remote_pi_followup']})
+  const original='按照这个计划执行，但是使用 Markdown 文件。'
+  await turn.prepare(original);turn.complete(original,'PRIVATE assistant answer')
+  await turn.prepare('按键。');turn.complete('按键。','PRIVATE second answer')
+  choice='session_continue'
+  const prepared=await turn.prepare('SDLC 插件优化的项目。')
+  assert.equal(prepared.answer,undefined)
+  assert.equal(requests.at(-1).state.unresolvedRequests[0].text,original)
+  assert(!JSON.stringify(requests).includes('PRIVATE'))
+  assert.equal(turn.getRequestText(),original+'\n\nSDLC 插件优化的项目。')
+  assert(prepared.context.includes(original))
+  turn.complete('SDLC 插件优化的项目。','Received')
+  await turn.prepare('接着核对 Markdown 文件。')
+  assert.equal(turn.getRequestText(),'接着核对 Markdown 文件。','completed requests never enter a later dispatch')
+  assert.equal(requests.at(-1).questions.continuation,undefined)
+})
+
+test('clarification choices reject uncertainty and unknown identities without replaying an attempted handler', async () => {
+  const unresolvedRequests=[{id:'request_1',text:'请让原任务读取配置。'}]
+  for(const selected of [undefined,{type:'choice',choice:'invented',confidence:0.99,probabilities:{current:0,request_1:1}}]) {
+    const route=createJevIntentRouter({env:{},request:async()=>({...response('session_continue'),answers:{...response('session_continue').answers,continuation:selected}})})
+    await assert.rejects(route({text:'SDLC',profile:'personal',unresolvedRequests}),/continuation/)
+  }
+  const uncertain=createJevIntentRouter({env:{},request:async()=>({...response('session_continue'),answers:{...response('session_continue').answers,continuation:{type:'choice',choice:'request_1',confidence:0.6,probabilities:{current:0.4,request_1:0.6}}}})})
+  assert.equal((await uncertain({text:'SDLC',profile:'personal',unresolvedRequests})).intent,'clarify')
+  const seen=[]
+  let decision={intent:'clarify'}
+  const turn=createIntentTurn({route:async input=>{seen.push(structuredClone(input.unresolvedRequests));return decision},profile:'personal',tools:[]})
+  await turn.prepare('读取配置');turn.complete('读取配置','Clarify')
+  decision={intent:'session_continue',requestId:'request_1'}
+  await turn.prepare('SDLC')
+  turn.clear() // A cancelled or failed handler never calls complete.
+  decision={intent:'session_continue'}
+  await turn.prepare('继续')
+  assert.deepEqual(seen.at(-1),[],'requests are consumed before a handler can have an unknown outcome')
+  assert.equal(turn.getRequestText(),'继续')
+})
+
+test('a clarification bound to session A cannot become an unbound instruction to session B', async () => {
+  const seen=[]
+  let intent='clarify'
+  const turn=createIntentTurn({route:async input=>{seen.push(input);return {intent}},profile:'personal',tools:[]})
+  const reply={replyTo:{messageId:'a',sourceKey:'a',sourceRevision:'a'.repeat(64)},source:{key:'a',revision:'a'.repeat(64),machine:'mac',project:'/a',sessionId:'a'}}
+  await turn.prepare('继续 A 的未明确操作',undefined,reply)
+  turn.complete('继续 A 的未明确操作','Clarify')
+  intent='session_continue'
+  await turn.prepare('这是 B 项目')
+  assert.deepEqual(seen.at(-1).unresolvedRequests,[])
+  assert.equal(turn.getRequestText(),'这是 B 项目')
+})
+
 test('invalid provider answers and failures cannot supply an intent', async () => {
   for (const result of [response('invented'), response('task_query', { type: 'noul' }), response('task_query', { confidence: NaN }), response('task_query', { probabilities: { task_query: 1 } }), { ...response(), model: 'other-model' }]) {
     await assert.rejects(routerFixture(result).route({ text: '查询任务', profile: 'coding' }), /Jev/)
