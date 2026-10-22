@@ -10,6 +10,7 @@ Feature: Optional Liquid Glass theme
     When a control is focused, pressed, disabled, selected, busy, invalid, or recording
     Then its state remains visible without removing its glass edge
     And hover highlights appear only with a fine pointer that supports hover
+    And a visible App return button retains the shared hover and pressed feedback
     And a coarse touch pointer keeps the resting glass edge during forced hover
     And reduced transparency, increased contrast, and forced colors retain readable controls
 

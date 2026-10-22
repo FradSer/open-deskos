@@ -78,6 +78,17 @@ async function glassControls() {
   await win.webContents.debugger.sendCommand('DOM.enable')
   await win.webContents.debugger.sendCommand('CSS.enable')
   const {root:dom}=await win.webContents.debugger.sendCommand('DOM.getDocument')
+  await js(`odkAppPlatform.openApp({appId:'weather'})`)
+  const {nodeId:backId}=await win.webContents.debugger.sendCommand('DOM.querySelector',{nodeId:dom.nodeId,selector:'#app-back'})
+  for(const state of ['hover','active']) {
+    await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId:backId,forcedPseudoClasses:[state]})
+    await js(`(()=>{const n=document.querySelector('#app-back');getComputedStyle(n).backgroundColor;n.getAnimations().forEach(animation=>animation.finish())})()`)
+    const back=await js(`(()=>{const n=document.querySelector('#app-back'),s=getComputedStyle(n),r=n.getBoundingClientRect(),probe=document.createElement('i');probe.style.color=s.getPropertyValue('${state==='active'?'--odk-button':'--odk-stroke-focus'}');document.body.append(probe);const expected=getComputedStyle(probe).color;probe.style.color=s.getPropertyValue('--odk-stroke-focus');const focusedEdge=getComputedStyle(probe).color;probe.remove();return {visible:r.width>0&&r.height>0&&n.offsetWidth>=44&&n.offsetHeight>=44,edge:s.borderTopColor,fill:s.backgroundColor,material:s.backgroundImage,expected,focusedEdge,fine:matchMedia('(hover: hover) and (pointer: fine)').matches}})()`)
+    report.push({appReturnState:state,...back})
+    check('App return '+state+' retains shared glass feedback',back.visible&&back.material!=='none'&&(state==='active'?back.fill===back.expected&&back.edge===back.focusedEdge:!back.fine||back.edge===back.expected))
+  }
+  await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId:backId,forcedPseudoClasses:[]})
+  await js(`odkAppPlatform.closeApp()`)
   const {nodeId}=await win.webContents.debugger.sendCommand('DOM.querySelector',{nodeId:dom.nodeId,selector:'.agent-mic'})
   await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:[]})
   await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',x:0,y:0})

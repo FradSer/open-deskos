@@ -38,6 +38,8 @@ Feature: Personal Agent home briefing
     Given the Agent uses its default name and is idle
     When the capsule renders at desktop or compact widths
     Then the complete default name stays on one line
+    And the name stays on the horizontal center of the capsule
+    And the visible name and status group stays on the vertical center
     And the capsule keeps a touch target of at least 44 pixels
     When a long name or status is displayed
     Then the name truncates inside the capsule without wrapping
