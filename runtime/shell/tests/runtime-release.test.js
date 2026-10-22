@@ -407,6 +407,14 @@ test('a plugin manifest that declares more than the schema version is still supp
     fs.writeFileSync(plugin, "id: 'odk.tile.test', manifest: { minCell: 186 }", 'utf8')
     assert.deepEqual(validateRuntimeComposition(release), { ok: false, reason: 'renderer plugin manifest is missing or unsupported' },
       'a manifest without the schema version is still refused')
+
+    fs.writeFileSync(plugin, "id: 'odk.tile.test', manifest: { schemaVersion: 1, minCell: 186 }", 'utf8')
+    const builtIns = path.join(__dirname, '../src/renderer/plugins')
+    for (const name of fs.readdirSync(builtIns).filter(name => name.endsWith('.js'))) {
+      fs.copyFileSync(path.join(builtIns, name), path.join(path.dirname(plugin), name))
+    }
+    assert.deepEqual(validateRuntimeComposition(release), { ok: true },
+      'all current built-in plugin entry modules must pass the release gate')
   } finally {
     fs.rmSync(runtime.root, { recursive: true, force: true })
   }

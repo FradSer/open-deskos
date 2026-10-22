@@ -13,7 +13,7 @@ test('Pi summary scales with the tile and compact numerals have no competing shr
 })
 
 test('WeRead allows a readable widescreen excerpt before fitting to available height', () => {
-  const source = fs.readFileSync(path.join(renderer, 'plugins/weread-typography.js'), 'utf8')
+  const source = fs.readFileSync(path.join(renderer, 'plugins/weread/typography.js'), 'utf8')
   assert.match(source, /frame.clientWidth >= 800 && frame.clientHeight >= 800 \? 96 : 72/)
   assert.match(source, /size > 14 && text.scrollHeight > height/)
 })

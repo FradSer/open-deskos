@@ -89,11 +89,22 @@ async function glassControls() {
   await win.webContents.debugger.sendCommand('CSS.enable')
   const {root:dom}=await win.webContents.debugger.sendCommand('DOM.getDocument')
   const {nodeId}=await win.webContents.debugger.sendCommand('DOM.querySelector',{nodeId:dom.nodeId,selector:'.agent-mic'})
-  const normal=await js("getComputedStyle(document.querySelector('.agent-mic')).borderTopColor")
+  await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:[]})
+  await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',x:0,y:0})
+  await js(`polishUntil(()=>!document.querySelector('.agent-mic').matches(':hover'))`)
+  const pointer=await js(`(()=>{
+    const n=document.querySelector('.agent-mic'),s=getComputedStyle(n),probe=document.createElement('i');
+    probe.style.color=s.getPropertyValue('--odk-stroke-focus');document.body.append(probe);
+    const result={hover:matchMedia('(hover: hover)').matches,fine:matchMedia('(pointer: fine)').matches,coarse:matchMedia('(pointer: coarse)').matches,hovered:n.matches(':hover'),edge:s.borderTopColor,focus:getComputedStyle(probe).color};
+    probe.remove();return result;
+  })()`)
+  const normal=pointer.edge
+  report.push({pointer})
   for (const state of ['hover','active','focus-visible']) {
     await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:[state]})
     const result=await js(`(()=>{const s=getComputedStyle(document.querySelector('.agent-mic'));return {edge:s.borderTopColor,outline:s.outlineStyle}})()`)
-    check('voice '+state+' stays visible',state==='focus-visible'?result.outline==='solid':result.edge!==normal)
+    const expectedEdge=state==='hover'&&!(pointer.hover&&pointer.fine)?normal:pointer.focus
+    check('voice '+state+' matches pointer capabilities',state==='focus-visible'?result.outline==='solid':result.edge===expectedEdge)
   }
   await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:['hover']})
   win.webContents.send('odk-personal-bot-status',{state:'recording'})

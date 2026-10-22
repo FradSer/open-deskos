@@ -53,7 +53,7 @@ async function mountWith(highlightResult, width = 900, layout = {}) {
   vm.runInContext(registrySource, vm.createContext(sandbox))
   root.odkPlatform = { getWeReadHighlight: layout.read || (() => Promise.resolve(highlightResult)) }
   const contextVM = vm.createContext(sandbox)
-  vm.runInContext(fs.readFileSync('src/renderer/plugins/weread-typography.js', 'utf8'), contextVM)
+  vm.runInContext(fs.readFileSync('src/renderer/plugins/weread/typography.js', 'utf8'), contextVM)
   vm.runInContext(wereadSource, contextVM)
   if (independent) {
     let selected
