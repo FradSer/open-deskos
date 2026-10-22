@@ -278,12 +278,15 @@ html[data-theme='pixel'] #home-summary .dash {
 .agent-thread-nav > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agent-panel :is(.agent-thread-nav,.agent-message-session,.agent-reply-context) button { min-height: 44px; min-width: 44px; padding: 8px 12px; font: inherit; font-size: 14px; color: var(--odk-control-foreground, var(--odk-primary)); background: transparent; border: 1px solid var(--odk-control-stroke, var(--odk-stroke)); border-radius: var(--odk-radius-pill); cursor: pointer; }
 .agent-message-session { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; color: var(--odk-secondary-strong); font-size: 14px; }
-.agent-panel .agent-message-session .agent-session-open { --odk-control-foreground: color-mix(in srgb, var(--odk-secondary-strong) 85%, var(--odk-surface)); --odk-control-stroke: color-mix(in srgb, var(--odk-stroke) 45%, transparent); justify-self: start; width: fit-content; max-width: 100%; min-width: 0; color: var(--odk-control-foreground); font-weight: 400; overflow-wrap: anywhere; text-align: start; }
+.agent-panel .agent-message-session .agent-session-open { --odk-control-foreground: color-mix(in srgb, var(--odk-secondary-strong) 85%, var(--odk-surface)); display: inline-flex; align-items: center; gap: 6px; justify-self: start; width: fit-content; max-width: 100%; min-width: 0; padding: 0; border: 0; border-radius: 4px; background: transparent; box-shadow: none; backdrop-filter: none; color: var(--odk-control-foreground); font-weight: 400; overflow-wrap: anywhere; text-align: start; }
 .agent-panel .agent-message-session button.agent-session-open { min-width: 44px; }
-.agent-panel .agent-message-session button { padding: 10px 14px; line-height: 1.4; }
+.agent-panel .agent-message-session .agent-session-open svg { width: 18px; height: 18px; flex: none; }
+.agent-session-name { min-width: 0; }
+.agent-panel .agent-message-session button { line-height: 1.4; }
+.agent-panel .agent-message-session .agent-session-reply { padding: 10px 14px; }
 .agent-reply-unavailable { grid-column: 1 / -1; }
 @media (prefers-contrast: more), (forced-colors: active) {
-  .agent-panel .agent-message-session .agent-session-open { --odk-control-foreground: var(--odk-primary); --odk-control-stroke: var(--odk-stroke-focus); }
+  .agent-panel .agent-message-session .agent-session-open { --odk-control-foreground: var(--odk-primary); }
 }
 .agent-reply-context { grid-column: 1; display: flex; align-items: center; gap: 8px; flex: none; min-width: 0; border-inline-start: 2px solid var(--odk-stroke-focus); padding-inline-start: 12px; color: var(--odk-secondary-strong); font-size: 14px; line-height: 1.4; }
 .agent-reply-context > div { display: grid; min-width: 0; gap: 2px; flex: 1; }
