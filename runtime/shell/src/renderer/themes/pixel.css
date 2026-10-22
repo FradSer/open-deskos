@@ -18,7 +18,6 @@
   --odk-radius-card: 0px !important;
   --odk-radius-pill: 0px !important;
   --odk-page-marker-active: var(--odk-accent-green);
-  --odk-page-control-stroke: var(--odk-stroke);
 
   image-rendering: pixelated;
 }

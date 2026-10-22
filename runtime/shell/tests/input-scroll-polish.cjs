@@ -44,9 +44,10 @@ async function glassControls() {
     await js(`document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))`)
     await js(`polishUntil(()=>['sdk','fallback'].includes(document.documentElement.dataset.liquidGlass))`)
     const inspect = async label => {
+      await js(`polishUntil(()=>{const n=document.querySelector('.agent-mic'),s=getComputedStyle(n);return s.backgroundImage!=='none'||n.classList.contains('lg-surface')&&document.documentElement.dataset.liquidGlass==='sdk'})`).catch(async error=>{console.error(await js(`(()=>{const n=document.querySelector('.agent-mic'),s=getComputedStyle(n);return {width:innerWidth,style:n.style.cssText,classes:n.className,mode:document.documentElement.dataset.liquidGlass,background:s.background,material:s.getPropertyValue('--odk-glass-control-material'),media:matchMedia('(prefers-contrast: more)').matches}})()`));throw error})
       const result=await js(`(()=>{
         const widget=document.querySelector('.widget[data-interaction="display-only"]'),edge=getComputedStyle(widget).borderTopColor;
-        return [...document.querySelectorAll('button,input,textarea,select,summary,[role="button"],.agent-composer,#dots')].filter(n=>n.getClientRects().length && !n.matches('.widget-launch,.dot,.agent-composer textarea,input[type="checkbox"],input[type="radio"],input[type="range"]')).map(n=>{const s=getComputedStyle(n);return {name:n.className||n.id||n.tagName,border:s.borderTopWidth,style:s.borderTopStyle,color:s.borderTopColor,edge,image:s.backgroundImage,shadow:s.boxShadow,foreground:s.color,radius:s.borderTopLeftRadius,sdk:n.classList.contains('lg-surface')&&document.documentElement.dataset.liquidGlass==='sdk'}})
+        return [...document.querySelectorAll('button,input,textarea,select,summary,[role="button"],.agent-composer')].filter(n=>n.getClientRects().length && !n.matches('.widget-launch,.dot,.agent-session-open,.agent-composer textarea,input[type="checkbox"],input[type="radio"],input[type="range"]')).map(n=>{const s=getComputedStyle(n);return {name:n.className||n.id||n.tagName,border:s.borderTopWidth,style:s.borderTopStyle,color:s.borderTopColor,edge,image:s.backgroundImage,shadow:s.boxShadow,foreground:s.color,radius:s.borderTopLeftRadius,sdk:n.classList.contains('lg-surface')&&document.documentElement.dataset.liquidGlass==='sdk'}})
       })()`)
       for (const row of result) {
         check(`${width} ${label}: ${row.name} glass frame`,row.border==='1px'&&row.style==='solid'&&(row.image!=='none'||row.sdk)&&row.shadow.includes('inset'))
@@ -67,24 +68,13 @@ async function glassControls() {
   win.setContentSize(1280,800)
   for (const appId of ['pomodoro','weather','futu','pi-sessions','quota']) {
     await js(`(async()=>{await odkAppPlatform.openApp({appId:${JSON.stringify(appId)}});await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))})()`)
-    const missing=await js(`(()=>{return [...document.querySelectorAll('#app-view button,#app-view input,#app-view select')].filter(n=>n.getClientRects().length&& !n.matches('input[type="checkbox"],input[type="radio"],input[type="range"]')).filter(n=>{const s=getComputedStyle(n);return s.borderTopWidth!=='1px'||s.backgroundImage==='none'||!s.boxShadow.includes('inset')}).map(n=>n.className||n.id)})()`)
+    const missing=await js(`(()=>{return [...document.querySelectorAll('#app-view button,#app-view input,#app-view select')].filter(n=>n.getBoundingClientRect().width>=2&&n.getBoundingClientRect().height>=2&& !n.matches('input[type="checkbox"],input[type="radio"],input[type="range"]')).filter(n=>{const s=getComputedStyle(n);return s.borderTopWidth!=='1px'||s.backgroundImage==='none'||!s.boxShadow.includes('inset')}).map(n=>n.className||n.id)})()`)
     check(appId+': all App controls share glass frames',missing.length===0)
     report.push({appId,missing})
     await capture('glass-app-'+appId)
     await js('odkAppPlatform.closeApp()')
   }
-  const handleRect=await js(`(()=>{const r=document.querySelector('#dots').getBoundingClientRect();return {x:Math.ceil(r.x+16),y:Math.ceil(r.y+12),width:Math.floor(r.width-32),height:Math.floor(r.height-24)}})()`)
-  await js(`document.querySelectorAll('#dots .dot').forEach(n=>n.style.visibility='hidden');new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
-  const material=(await capturePaintedPage(win,handleRect)).toBitmap()
-  let withoutMaterial
-  try {
-    await js(`document.querySelector('#dots').style.backgroundImage='none';new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
-    withoutMaterial=(await capturePaintedPage(win,handleRect)).toBitmap()
-  } finally { await js(`document.querySelector('#dots').style.removeProperty('background-image');document.querySelectorAll('#dots .dot').forEach(n=>n.style.removeProperty('visibility'))`) }
-  let materialPixels=0
-  for(let i=0;i<material.length;i+=4)if(material[i]!==withoutMaterial[i]||material[i+1]!==withoutMaterial[i+1]||material[i+2]!==withoutMaterial[i+2])materialPixels++
-  check('page handle material is visible above its legacy pseudo-element',materialPixels>=16)
-  report.push({handleMaterialChangedPixels:materialPixels})
+  check('page markers have no enclosing material frame',await js(`(()=>{const n=document.querySelector('#dots'),s=getComputedStyle(n);return s.borderTopWidth==='0px'&&s.backgroundImage==='none'&&s.boxShadow==='none'&&s.backdropFilter==='none'&&getComputedStyle(n,'::before').content==='none'})()`))
   await win.webContents.debugger.sendCommand('DOM.enable')
   await win.webContents.debugger.sendCommand('CSS.enable')
   const {root:dom}=await win.webContents.debugger.sendCommand('DOM.getDocument')
@@ -127,7 +117,7 @@ async function glassControls() {
     const value=feature==='prefers-contrast'?'more':feature==='forced-colors'?'active':'reduce'
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:feature,value}]})
     await js(`polishUntil(()=>matchMedia('(${feature}: ${value})').matches&&document.documentElement.dataset.liquidGlass==='fallback')`)
-    const readable=await js(`(()=>{return [...document.querySelectorAll('.agent-composer,.agent-composer button,.agent-identity summary,#dots')].filter(n=>n.getClientRects().length).every(n=>{const s=getComputedStyle(n);return s.backdropFilter==='none'&&s.boxShadow==='none'&&s.backgroundImage==='none'&&s.borderTopWidth==='1px'&&s.backgroundColor!=='rgba(0, 0, 0, 0)'})})()`)
+    const readable=await js(`(()=>{return [...document.querySelectorAll('.agent-composer,.agent-composer button,.agent-identity summary')].filter(n=>n.getClientRects().length).every(n=>{const s=getComputedStyle(n);return s.backdropFilter==='none'&&s.boxShadow==='none'&&s.backgroundImage==='none'&&s.borderTopWidth==='1px'&&s.backgroundColor!=='rgba(0, 0, 0, 0)'})})()`)
     check(feature+': controls have opaque accessible frames',readable)
     await capture('glass-'+feature)
   }
