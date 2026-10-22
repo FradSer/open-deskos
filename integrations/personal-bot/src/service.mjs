@@ -179,6 +179,7 @@ export class PersonalBotService {
   async start() {
     this.replyFrame={}
     this.status = { ...this.status, message: '', notifications: [], transcript: '' }
+    delete this.status.voiceFailure
     try {
       const captureId = ++this.captureId
       this.recording = await this.dependencies.record(level => {

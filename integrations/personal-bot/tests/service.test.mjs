@@ -284,6 +284,14 @@ test('busy toggle ignored; provider failure safely retryable', async () => {
   await failed.service.toggle()
   assert.equal(failed.service.status.state, 'recording')
   await failed.service.close()
+  let acquired
+  const retry=fixture({record:()=>new Promise(resolve=>{acquired=resolve})}).service
+  retry.setState('error','Microphone unavailable','','microphone')
+  const attempt=retry.toggle()
+  const published=[];retry.subscribe(status=>published.push(status));retry.publishAgents([])
+  assert.equal(published.at(-1).voiceFailure,undefined,'new capture clears the old cause before microphone acquisition')
+  acquired({done:new Promise(()=>{}),stop:async()=>'',cleanup:async()=>{}})
+  await attempt;assert.equal(retry.status.state,'recording');await retry.close()
 })
 
 test('cleanup failure is contained and produces safe error', async () => {
