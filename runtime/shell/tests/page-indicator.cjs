@@ -107,7 +107,7 @@ async function inspect(win) {
       points:points.every(p=>parseFloat(p.point.width)===8&&parseFloat(p.point.height)===8&&p.point.opacity==='1'&&p.bar.opacity==='0'),
       hits:r.height===44&&r.width>=28&&[r.top+4,r.top+r.height/2,r.bottom-4].every(y=>document.elementFromPoint(r.x+r.width/2,y)===active),
       contained:r.left>=v.left&&r.right<=v.right&&Math.abs((nav.left+nav.right)/2-(v.left+v.right)/2)<1&&nav.bottom<=innerHeight+1&&nav.top>=v.bottom-1,
-      capsule:control.dataset.mode==='pages'&&((card.content!=='none'&&card.backgroundColor!=='rgba(0, 0, 0, 0)')||(getComputedStyle(control).borderTopWidth==='1px'&&(getComputedStyle(control).backgroundImage!=='none'||getComputedStyle(control).backgroundColor!=='rgba(0, 0, 0, 0)'))),
+      unframed:control.dataset.mode==='pages'&&getComputedStyle(control).borderTopWidth==='0px'&&getComputedStyle(control).backgroundColor==='rgba(0, 0, 0, 0)'&&getComputedStyle(control).backgroundImage==='none'&&getComputedStyle(control).boxShadow==='none'&&getComputedStyle(control).backdropFilter==='none'&&card.content==='none',
       stationary:marker.animationName==='none'&&!/all|width|height/.test(marker.transitionProperty),footprint:[nav.x,nav.y,nav.width,nav.height]};
   })()`)
 }
@@ -131,7 +131,7 @@ async function main() {
         await pointerSelect(win,index)
         const value=await inspect(win), label=`${theme} ${width}x${height} page ${index+1}`
         check(`${label}: one named neutral page control`,value.mode==='pages'&&value.label==='Page controller'&&value.count===value.total&&value.named&&value.quiet&&value.selected&&value.shape&&value.points,value)
-        check(`${label}: centered reachable 44px markers in a capsule`,value.hits&&value.contained&&value.capsule,value)
+        check(`${label}: centered reachable 44px markers without an outer capsule`,value.hits&&value.contained&&value.unframed,value)
         check(`${label}: stable footprint and restrained feedback`,value.stationary&&(!footprint||value.footprint.every((n,i)=>Math.abs(n-footprint[i])<1)),value)
         footprint=value.footprint
       }
@@ -144,6 +144,16 @@ async function main() {
     check(`${theme}: End and previous page retain focus`,await js(win,`document.activeElement===document.querySelectorAll('.dot')[${count-2}]`))
     await key(win,'Enter');await key(win,'Space')
     check(`${theme}: page control activation does not change page`,await js(win,`document.querySelectorAll('.dot')[${count-2}].classList.contains('active')`))
+    const point=await js(win,'(()=>{const r=document.querySelector(".dot.active").getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})()')
+    await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',...point})
+    check(`${theme}: hover does not add an enclosing capsule`,(await inspect(win)).unframed)
+    await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',clickCount:1})
+    check(`${theme}: pressed feedback stays on the marker`,(await inspect(win)).unframed)
+    await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'left',clickCount:1})
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'forced-colors',value:'active'},{name:'prefers-contrast',value:'more'}]})
+    const contrast=await inspect(win)
+    check(`${theme}: increased contrast retains named reachable markers`,contrast.named&&contrast.hits&&contrast.selected,contrast)
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]})
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
     await pointerSelect(win,0)
     check(`${theme}: reduced motion retains static feedback`,(await inspect(win)).stationary)

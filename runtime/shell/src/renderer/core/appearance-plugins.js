@@ -56,7 +56,6 @@
         '--odk-radius-card': '0px',
         '--odk-radius-pill': '0px',
         '--odk-page-marker-active': 'var(--odk-accent-green)',
-        '--odk-page-control-stroke': 'var(--odk-stroke)',
         '--odk-font': '"Zpix", monospace',
       },
       faces: ['zpix'],

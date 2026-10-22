@@ -49,9 +49,9 @@ html[data-theme='liquid-glass'] #liquid-glass-backdrop {
   background-attachment: fixed;
 }
 
-/* The visible control owns its frame. Hit layers and integrated text fields
-   retain the frame supplied by their Widget, page handle, or composer. */
-html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summary, [role='button'], .agent-composer, #dots):not(:where(.widget-launch, .dot, .agent-session-open, .agent-composer textarea, input[type='checkbox'], input[type='radio'], input[type='range'])) {
+/* Controls and the read-only Agent capsule share the frame material.
+   Integrated fields inherit the composer frame. Widget hit targets and page marks stay transparent. */
+html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summary, [role='button'], .agent-composer, .agent-capsule):not(:where(.widget-launch, .dot, .agent-session-open, .agent-composer textarea, input[type='checkbox'], input[type='radio'], input[type='range'])) {
   border: 1px solid var(--odk-control-stroke, var(--odk-stroke));
   background-color: var(--odk-glass-control-fill);
   background-image: var(--odk-glass-control-material);
@@ -69,7 +69,6 @@ html[data-theme='liquid-glass'] #personal-agent :is(button, input, select, summa
 
 
 
-html[data-theme='liquid-glass'] #dots::before { content: none; }
 
 html[data-theme='liquid-glass'] #home-desk .button-primary,
 html[data-theme='liquid-glass'] #personal-agent .agent-send {
@@ -83,35 +82,40 @@ html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summar
 }
 
 @media (hover: hover) and (pointer: fine) {
-  html[data-theme='liquid-glass'] body :is(button, summary, [role='button'], #dots):not(:where(.widget-launch, .dot)):hover:not(:disabled) {
+  html[data-theme='liquid-glass'] body :is(button, summary, [role='button']):not(:where(.widget-launch, .dot)):hover:not(:disabled) {
     border-color: var(--odk-stroke-focus);
   }
 }
 
-html[data-theme='liquid-glass'] body :is(button, summary, [role='button'], #dots):not(:where(.widget-launch, .dot, .agent-session-open)):active:not(:disabled),
-html[data-theme='liquid-glass'] body :is(button, [role='button'], #dots)[aria-pressed='true'],
-html[data-theme='liquid-glass'] body :is(button, [role='button'], #dots)[aria-selected='true'] {
+html[data-theme='liquid-glass'] body :is(button, summary, [role='button']):not(:where(.widget-launch, .dot, .agent-session-open)):active:not(:disabled),
+html[data-theme='liquid-glass'] body :is(button, [role='button'])[aria-pressed='true'],
+html[data-theme='liquid-glass'] body :is(button, [role='button'])[aria-selected='true'] {
   border-color: var(--odk-stroke-focus);
   background-color: var(--odk-button);
 }
 
-html[data-theme='liquid-glass'] body :is(button, input, textarea, select, #dots):disabled {
+html[data-theme='liquid-glass'] body :is(button, input, textarea, select):disabled {
   opacity: var(--odk-glass-control-disabled-opacity);
   color: var(--odk-secondary-strong);
   cursor: not-allowed;
 }
 
-html[data-theme='liquid-glass'] body :is(.agent-mic, #dots)[data-recording='true']:not(:disabled) {
+html[data-theme='liquid-glass'] body :is(.agent-mic)[data-recording='true']:not(:disabled) {
   border-color: var(--odk-accent-red);
   color: var(--odk-accent-red);
 }
 
-html[data-theme='liquid-glass'] body :is(input, textarea, select, #dots)[aria-invalid='true'] {
+html[data-theme='liquid-glass'] body :is(input, textarea, select)[aria-invalid='true'] {
   border-color: var(--odk-accent-red);
 }
 
 html[data-theme='liquid-glass'] input:is([type='checkbox'], [type='radio'], [type='range']) {
   accent-color: var(--odk-primary);
+}
+
+html[data-theme='liquid-glass'] .agent-composer[data-mode='voice'] .agent-mic {
+  background-color: var(--odk-glass-control-fill);
+  background-image: var(--odk-glass-control-material);
 }
 
 html[data-theme='liquid-glass'] #personal-agent .agent-mic.lg-surface {

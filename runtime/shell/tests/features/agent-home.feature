@@ -38,6 +38,8 @@ Feature: Personal Agent home briefing
     Given the Agent uses its default name and is idle
     When the capsule renders at desktop or compact widths
     Then the complete default name stays on one line
+    And the name stays on the horizontal center of the capsule
+    And the visible name and status group stays on the vertical center
     And the capsule keeps a touch target of at least 44 pixels
     When a long name or status is displayed
     Then the name truncates inside the capsule without wrapping
@@ -59,11 +61,12 @@ Feature: Personal Agent home briefing
     And copy fits within the remaining area above its readable floor
     And longer content remains reachable at that floor
 
-  Scenario: Home hides the identity editing entry
-    Given the Agent has a saved name and icon
+  Scenario: Home preserves the saved name in a read-only capsule
+    Given the Agent has a previously saved name
     When the Agent panel renders
-    Then the title has no visible or focusable pencil entry
-    And saved identity data and editing logic remain intact
+    Then the title displays the saved name without changing the stored identity
+    And the capsule has no arrow or identity editor
+    And the capsule has no pointer or keyboard editing interaction
 
   Scenario: Conversation uses separate spaced message bubbles
     Given the Agent has a name and a conversation with replies
@@ -388,7 +391,7 @@ Feature: Personal Agent home briefing
     And the scroll fixture extends beyond the near-latest threshold
     When the left pane renders in a supported theme
     Then one avatar is centered above a compact name and status capsule
-    And the capsule opens the existing identity form with keyboard or pointer input
+    And the capsule is a read-only group with no arrow or identity editor
     And assistant replies use rounded bubbles without repeated avatars
     And the composer stays below the single conversation scroll region
     And scrolling earlier messages preserves the composer position
@@ -396,12 +399,11 @@ Feature: Personal Agent home briefing
     And Jump to latest overlays the conversation without moving messages or the composer
     And scroll controls are checked after the native scroll event settles
     And messages and the scroll track fade into the top edge of the conversation
-    And the fade leaves the avatar, capsule and composer fully visible and interactive
+    And the fade leaves the avatar and capsule visible and the composer interactive
     And forced colors keep the conversation unmasked
     And the native scrollbar is transparent until scrolling and fades after scrolling stops
     And reduced motion hides the idle scrollbar without a fade
     And narrow windows and long names retain usable input and recovery text
-    And the open identity editor and Save button remain inside the Agent pane
     And the interface does not add the reference image sample questions
 
   Scenario: Long service errors keep the Agent capsule compact
@@ -409,9 +411,7 @@ Feature: Personal Agent home briefing
     When the Agent shows its status
     Then the capsule shows a short unavailable caption
     And its accessible name contains the visible Agent name and status
-    When the user opens the capsule
-    Then the complete status is readable in the contained editor
-    And keyboard navigation reveals Save without scrolling the desk
+    And the capsule has no disclosure, edit form, or keyboard stop
 
   Scenario: Hidden Agent layout comparisons use settled viewport dimensions
     Given the Agent fixture uses a private offscreen window
@@ -560,6 +560,9 @@ Scenario: Hidden previews capture the current native viewport
     And refused input cannot celebrate an earlier answer
     And completion follows observed work for the same service turn
     And new task reports get one reaction without replaying retained reports
+    And the thinking phase uses its own thinking animation before public output arrives
+    And a streaming reply uses the replying animation and Replying caption together
+    And a running child uses the working animation and Working caption together
     And repeated status frames do not restart an unchanged animation
     And input never waits for an animation to finish
     And the composer does not duplicate the animated avatar
@@ -577,9 +580,9 @@ Scenario: Hidden previews capture the current native viewport
     And the header has no opaque background or backdrop blur
     And messages scroll behind the header and receive input outside the capsule
     And selected task navigation passes message input outside its readable return button
-    And the capsule and composer retain keyboard and pointer access
-    And the identity form remains inside the panel
-    And the open form paints above the avatar when they overlap on a short panel
+    And the name and visible status group stay centered in the capsule
+    And the capsule has no arrow, editing action, or keyboard stop
+    And the composer retains keyboard and pointer access
 
   Scenario: The capsule acknowledges a status change once
     Given the Agent name and status share one capsule

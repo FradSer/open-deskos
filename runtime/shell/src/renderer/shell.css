@@ -266,18 +266,8 @@ body.kiosk {
   height: var(--odk-status-control-h);
   gap: 0;
   padding-inline: 4px;
-  border-radius: var(--odk-radius-pill);
 }
 
-#dots::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border: 1px solid var(--odk-page-control-stroke, transparent);
-  border-radius: inherit;
-  background: var(--odk-surface);
-  pointer-events: none;
-}
 
 .dot {
   appearance: none;
@@ -1536,14 +1526,17 @@ body.kiosk {
   border-bottom: 1px solid var(--odk-stroke);
 }
 
+:where(#app-back) {
+  background: var(--odk-button);
+  border: none;
+}
+
 #app-back {
   width: max(44px, calc(var(--bar-icon) * 1.4));
   height: max(44px, calc(var(--bar-icon) * 1.4));
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--odk-button);
-  border: none;
   border-radius: 999px;
   color: var(--odk-primary);
   cursor: pointer;
@@ -1553,8 +1546,11 @@ body.kiosk {
   transition: background 140ms ease, transform 140ms var(--odk-ease-out);
 }
 
-#app-back:active {
+:where(#app-back):active {
   background: var(--odk-elevated);
+}
+
+#app-back:active {
   transform: scale(0.96);
 }
 

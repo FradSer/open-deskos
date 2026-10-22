@@ -12,9 +12,7 @@
     mount(el, ctx) {
       el.innerHTML = `<div class="agent-panel">
         <header class="agent-head"><span class="agent-avatar" data-avatar="onee" aria-hidden="true"><img class="agent-avatar-fallback" src="avatars/onee.svg" alt="" /></span>
-          <details class="agent-identity"><summary aria-label="Edit Agent identity"><h1 class="agent-name"></h1><span class="agent-state" role="status">Checking Personal Bot…</span><svg data-tabler="chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M6 9l6 6l6 -6" /></svg></summary><form class="agent-identity-form"><p class="agent-status-detail">Checking Personal Bot…</p>
-            <label>Name<input name="name" maxlength="40" required /></label>
-            <button type="submit">Save</button></form></details></header>
+          <div class="agent-identity"><div class="agent-capsule" role="group" aria-label="Personal Agent"><h1 class="agent-name"></h1><span class="agent-state" role="status">Checking Personal Bot…</span></div></div></header>
         <nav class="agent-thread-nav" aria-label="Session thread" hidden><button class="agent-thread-all" type="button">All messages</button><span></span></nav>
         <div class="agent-history"><div class="agent-conversation" tabindex="0" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"><p class="agent-empty">Ask about your desk or continue a task.</p></div>
         <button class="agent-latest" type="button" hidden>Jump to latest <svg data-tabler="arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 13l-6 6" /><path d="M6 13l6 6" /></svg></button>
@@ -31,7 +29,7 @@
       const voiceLabel = $('.agent-mic-label')
       const sendControl = $('.agent-send')
       const state = $('.agent-state')
-      const capsule = $('.agent-identity summary')
+      const capsule = $('.agent-capsule')
       const reducedMotion = root.matchMedia?.('(prefers-reduced-motion: reduce)')
       let capsuleMotion
       function stopCapsuleMotion() { capsuleMotion?.cancel();capsuleMotion = undefined }
@@ -46,8 +44,14 @@
       ctx.trackCleanup?.(() => { stopCapsuleMotion();root.document.removeEventListener('visibilitychange', pauseCapsule);reducedMotion?.removeEventListener('change', stopCapsuleMotion) })
       const avatar = root.odkPersonalAgentAvatar.mount($('.agent-avatar'))
       const busyStates = ['starting', 'sending', 'recording', 'transcribing', 'thinking']
-      const stateLabels = { idle: 'Ready', thinking: 'Working…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
+      const stateLabels = { idle: 'Ready', thinking: 'Thinking…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
       const voiceFailures = {microphone:'Microphone unavailable',timeout:'Recording timed out. Try again.',unavailable:'Recording connection lost. Try again.',protocol:'Recording transfer failed. Try again.',invalid_audio:'Recording audio is invalid. Try again.',cleanup:'Recording cleanup failed'}
+      function captionFor(status) {
+        if (root.odkPersonalAgentAvatar.phaseFor(status) === 'working') return 'Working…'
+        if (status.state === 'thinking') return root.odkPersonalAgentAvatar.phaseFor(status) === 'replying' ? 'Replying…' : 'Thinking…'
+        if (status.state === 'error' && Object.hasOwn(voiceFailures,status.voiceFailure)) return voiceFailures[status.voiceFailure]
+        return stateLabels[status.state] || 'Personal Bot status unknown'
+      }
       let composerMode = 'keyboard'
       let voiceStarted = false
       function voiceAvailable() { return root.odkPersonalBot?.supportsVoiceInput !== false }
@@ -64,7 +68,7 @@
                 : 'Start voice request')
         voiceLabel.textContent = !ready ? 'Voice unavailable'
           : composerMode === 'keyboard' ? 'Voice'
-            : busy ? stateLabels[lastStatus] || 'Tap to talk'
+            : busy ? captionFor(lastSnapshot || {state:lastStatus})
               : voiceStarted ? 'Type instead'
                 : 'Tap to talk'
         micControl.dataset.recording = String(lastStatus === 'recording')
@@ -108,22 +112,20 @@
       let lastStatus = 'unknown'
       setComposerMode(voiceAvailable() ? 'voice' : 'keyboard')
       let pending = false
-      function setState(message, caption = message) {
+      function setState(caption) {
         const changed = state.textContent !== caption
         if (changed) state.textContent = caption
-        if ($('.agent-status-detail').textContent !== message) $('.agent-status-detail').textContent = message
         state.hidden = !caption
         if (changed) animateCapsule()
-        $('.agent-identity summary').setAttribute('aria-label', `${identity.name}${caption ? ', ' + caption : ''}. View status and edit identity`)
+        capsule.setAttribute('aria-label', `${identity.name}${caption ? ', ' + caption : ''}`)
       }
       function applyIdentity() {
         $('.agent-name').textContent = identity.name
-        $('.agent-identity summary').setAttribute('aria-label', `${identity.name}${state.textContent ? ', ' + state.textContent : ''}. View status and edit identity`)
+        capsule.setAttribute('aria-label', `${identity.name}${state.textContent ? ', ' + state.textContent : ''}`)
         for (const node of el.querySelectorAll('.agent-message-assistant')) node.setAttribute('aria-label', identity.name)
         root.odkIcons?.apply?.(el)
         input.placeholder = 'Message…'
         input.setAttribute('aria-label', `Message ${identity.name}`)
-        $('.agent-identity-form [name="name"]').value = identity.name
       }
       applyIdentity()
       function remoteKey(item) { return JSON.stringify([item.id,item.at??null,item.text,(item.sources || []).map(source => [source.key,source.revision])]) }
@@ -525,8 +527,8 @@
           turn.response.setAttribute('aria-busy', String(status.state === 'thinking'))
           if (['idle', 'error'].includes(status.state)) turn.completed = true
         }
-        const caption = status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '')) : status.state === 'thinking' ? 'Thinking…' : status.state === 'error' && Object.hasOwn(voiceFailures,status.voiceFailure) ? voiceFailures[status.voiceFailure] : stateLabels[status.state] || 'Personal Bot status unknown'
-        setState(status.proposalError || caption || 'Ready', status.proposalError ? 'Suggestions unavailable' : caption)
+        const caption = status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '') || (root.odkPersonalAgentAvatar.phaseFor(status) === 'working' ? captionFor(status) : '')) : captionFor(status)
+        setState(status.proposalError ? 'Suggestions unavailable' : caption)
         sendControl.disabled = busy || status.state === 'unavailable' || pending
 
         lastStatus = status.state
@@ -547,17 +549,6 @@
       })
       const initialRevision = revision
       root.odkPersonalBot?.getStatus().then(status => { if (revision === initialRevision) render(status) }).catch(() => { if (revision === initialRevision) render({ state: 'unavailable' }) })
-      $('.agent-identity-form').addEventListener('submit', event => {
-        event.preventDefault()
-        const form = new FormData(event.currentTarget)
-        const name = String(form.get('name')).trim()
-        if (!name) return
-        identity = { name: name.slice(0, 40) }
-        try { localStorage.setItem('odk.agent.identity', JSON.stringify(identity)) } catch { setState('Identity changed for this window. Storage unavailable.', 'Identity changed for this window') }
-        applyIdentity()
-        $('.agent-identity').open = false
-        fieldControl().focus({ preventScroll: true })
-      })
       $('.agent-composer').addEventListener('submit', async event => {
         event.preventDefault()
         const text = input.value.trim()
@@ -577,10 +568,10 @@
           if (!receipt?.accepted) throw Error('refused')
           if (input.value.trim() === text) input.value = ''
           if (selectedReply === submittedReply || (submittedReply && selectedReply?.reference === submittedReply.reference)) { selectedReply = null;replyContext() }
-          if (revision === submittedRevision) setState('Submitted. Waiting for the resident session…', 'Waiting for response…')
+          if (revision === submittedRevision) setState('Waiting for response…')
         } catch {
           if (!released && revision === submittedRevision) {
-            setState('Message delivery was not confirmed. Draft kept; check the service before sending again.', 'Delivery not confirmed')
+            setState('Delivery not confirmed')
             avatar.fail(avatarIntent)
           }
         } finally {
@@ -611,7 +602,7 @@
           if (receipt?.accepted === false) throw Error('Recording control refused')
         } catch {
           if (!released && revision === requestRevision) {
-            setState('Unable to control recording. You can use keyboard input.', 'Microphone unavailable')
+            setState('Microphone unavailable')
             avatar.fail(avatarIntent)
           }
         }

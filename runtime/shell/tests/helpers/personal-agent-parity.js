@@ -44,7 +44,7 @@ function parityScript() {
     const panel = document.querySelector('.agent-panel')
     const conversation = document.querySelector('.agent-conversation')
     const composer = document.querySelector('.agent-composer')
-    const identity = document.querySelector('.agent-identity summary')
+    const identity = document.querySelector('.agent-identity .agent-capsule')
     const mic = document.querySelector('.agent-mic')
     const send = document.querySelector('.agent-send')
     const status = document.getElementById('personal-bot-status')
