@@ -72,11 +72,11 @@ html[data-theme='liquid-glass'] #personal-agent :is(button, input, select, summa
   border-radius: var(--odk-radius-pill);
 }
 
-html[data-theme='liquid-glass'] #personal-agent .agent-message summary {
-  width: fit-content;
-  max-width: 100%;
-  padding: 8px 12px;
-}
+
+
+
+
+html[data-theme='liquid-glass'] #dots::before { content: none; }
 
 html[data-theme='liquid-glass'] #home-desk .button-primary,
 html[data-theme='liquid-glass'] #personal-agent .agent-send {

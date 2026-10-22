@@ -73,6 +73,18 @@ async function glassControls() {
     await capture('glass-app-'+appId)
     await js('odkAppPlatform.closeApp()')
   }
+  const handleRect=await js(`(()=>{const r=document.querySelector('#dots').getBoundingClientRect();return {x:Math.ceil(r.x+16),y:Math.ceil(r.y+12),width:Math.floor(r.width-32),height:Math.floor(r.height-24)}})()`)
+  await js(`document.querySelectorAll('#dots .dot').forEach(n=>n.style.visibility='hidden');new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  const material=(await capturePaintedPage(win,handleRect)).toBitmap()
+  let withoutMaterial
+  try {
+    await js(`document.querySelector('#dots').style.backgroundImage='none';new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+    withoutMaterial=(await capturePaintedPage(win,handleRect)).toBitmap()
+  } finally { await js(`document.querySelector('#dots').style.removeProperty('background-image');document.querySelectorAll('#dots .dot').forEach(n=>n.style.removeProperty('visibility'))`) }
+  let materialPixels=0
+  for(let i=0;i<material.length;i+=4)if(material[i]!==withoutMaterial[i]||material[i+1]!==withoutMaterial[i+1]||material[i+2]!==withoutMaterial[i+2])materialPixels++
+  check('page handle material is visible above its legacy pseudo-element',materialPixels>=16)
+  report.push({handleMaterialChangedPixels:materialPixels})
   await win.webContents.debugger.sendCommand('DOM.enable')
   await win.webContents.debugger.sendCommand('CSS.enable')
   const {root:dom}=await win.webContents.debugger.sendCommand('DOM.getDocument')
@@ -109,7 +121,7 @@ async function glassControls() {
     await capture('glass-'+feature)
   }
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]})
-  fs.writeFileSync(path.join(evidence,'glass-controls.json'),JSON.stringify({report,failures},null,2))
+  fs.writeFileSync(path.join(evidence,'glass-controls.json'),JSON.stringify({report,failures,webGpuFixture:process.argv.includes('--static-glass-fixture')?'unavailable':'native'},null,2))
   console.log('GLASS_CONTROLS_EVIDENCE '+evidence)
   assert.deepEqual(failures,[])
   console.log('GLASS_CONTROLS_PASS')
@@ -133,6 +145,7 @@ app.whenReady().then(async () => {
   win.webContents.debugger.attach('1.3')
   await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true })
   if (process.argv.includes('--glass-controls-only')) {
+    if(process.argv.includes('--static-glass-fixture')) await js(`Object.defineProperty(navigator,'gpu',{configurable:true,value:undefined});void 0`)
     await glassControls()
     await js("odkTheme.set('instrument')")
     finish(0)
@@ -148,7 +161,7 @@ app.whenReady().then(async () => {
       await js(`(async()=>{const box=document.querySelector('.agent-composer');if(box.dataset.mode==='voice')document.querySelector('.agent-keys').click();await polishUntil(()=>box.dataset.mode==='keyboard');document.querySelector('.agent-composer textarea').focus()})()`)
       const identity = await js(`(()=>{const name=document.querySelector('.agent-name'),pill=document.querySelector('.agent-identity summary');return {height:pill.getBoundingClientRect().height,nameHeight:name.getBoundingClientRect().height,nameLine:parseFloat(getComputedStyle(name).lineHeight),nameWhole:name.scrollWidth<=name.clientWidth+1}})()`)
       check(where + ': default name is whole on one line', identity.nameHeight <= identity.nameLine + 1 && identity.nameWhole)
-      check(where + ': identity capsule keeps control height', identity.height <= 46)
+      check(where + ': identity capsule keeps control height', identity.height >= 44 && identity.height <= 84)
       const focus = await js(`(()=>{const input=document.querySelector('.agent-composer textarea'),box=input.closest('form'),s=getComputedStyle(box),t=getComputedStyle(input);return {focused:input.matches(':focus-visible'),outline:s.outlineStyle,width:s.outlineWidth,color:s.outlineColor,radius:s.borderTopLeftRadius,inputOutline:t.outlineStyle}})()`)
       check(where + ': outer composer focus follows theme shape', focus.focused && focus.outline === 'solid' && focus.width === '2px' && (theme === 'pixel' ? focus.radius === '0px' : parseFloat(focus.radius) >= 32))
       check(where + ': no rectangular input outline', focus.inputOutline === 'none')
@@ -182,8 +195,8 @@ app.whenReady().then(async () => {
       await js(`(()=>{const form=document.querySelector('.agent-identity-form');form.elements.name.value=${JSON.stringify(longName)};form.requestSubmit()})()`)
       win.webContents.send('odk-personal-bot-status', { state: 'idle', proposalError: 'Provider response unavailable. '.repeat(30) })
       await js(`polishUntil(()=>document.querySelector('.agent-state').textContent==='Suggestions unavailable')`)
-      const longIdentity = await js(`(()=>{const pill=document.querySelector('.agent-identity summary'),panel=document.querySelector('.agent-panel'),r=pill.getBoundingClientRect(),p=panel.getBoundingClientRect();return {height:r.height,contained:r.left>=p.left&&r.right<=p.right,oneLine:[...pill.querySelectorAll('.agent-name,.agent-state')].every(n=>n.getBoundingClientRect().height<=parseFloat(getComputedStyle(n).lineHeight)+1),accessible:pill.getAttribute('aria-label').includes(${JSON.stringify(longName)})&&pill.getAttribute('aria-label').includes('Suggestions unavailable')}})()`)
-      check(where + ': long identity stays compact and accessible', longIdentity.height <= 46 && longIdentity.contained && longIdentity.oneLine && longIdentity.accessible)
+      const longIdentity = await js(`(()=>{const pill=document.querySelector('.agent-identity summary'),panel=document.querySelector('.agent-panel'),r=pill.getBoundingClientRect(),p=panel.getBoundingClientRect();return {height:r.height,contained:r.left>=p.left&&r.right<=p.right,below:pill.querySelector('.agent-state').getBoundingClientRect().top>=pill.querySelector('.agent-name').getBoundingClientRect().bottom,oneLine:[...pill.querySelectorAll('.agent-name,.agent-state')].every(n=>n.getBoundingClientRect().height<=parseFloat(getComputedStyle(n).lineHeight)+1),accessible:pill.getAttribute('aria-label').includes(${JSON.stringify(longName)})&&pill.getAttribute('aria-label').includes('Suggestions unavailable')}})()`)
+      check(where + ': long identity stays compact and accessible', longIdentity.height >= 44 && longIdentity.height <= 84 && longIdentity.contained && longIdentity.below && longIdentity.oneLine && longIdentity.accessible)
       await js(`(()=>{const form=document.querySelector('.agent-identity-form');form.elements.name.value='Personal Agent';form.requestSubmit()})()`)
       win.webContents.send('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'} })
       await js(`polishUntil(()=>document.querySelector('.agent-state').hidden&&document.querySelector('.agent-state').textContent==='')`)
