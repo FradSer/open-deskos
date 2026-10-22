@@ -43,7 +43,7 @@ function homeGenerationModels(source) {
     const selected = modelStudio && model.api === 'openai-completions' && model.reasoning
       ? { ...model, compat: { ...model.compat, thinkingFormat: 'qwen', supportsReasoningEffort: false } } : model
     return source.streamSimple(selected, context, { ...options,
-      maxTokens: Math.min(2048, model.maxTokens ?? 2048, options?.maxTokens ?? 2048) })
+      maxTokens: Math.min(2048, model.maxTokens > 0 ? model.maxTokens : 2048, options?.maxTokens > 0 ? options.maxTokens : 2048) })
   }
   return new Proxy(source, { get(target, key) {
     if (key === 'streamSimple') return stream

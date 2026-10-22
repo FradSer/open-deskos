@@ -28,6 +28,7 @@ Feature: Personal Agent home briefing
     Given the configured Model Studio model enables thinking by default
     When Overview starts an isolated selection
     Then its provider request disables thinking and bounds output tokens
+    And virtual model defaults retain a positive output bound
     And the resident Agent keeps its original model configuration
 
   Scenario: Busy Pi activity does not starve Overview
