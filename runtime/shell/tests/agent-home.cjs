@@ -248,6 +248,13 @@ async function assertSimpleConversation() {
     assert.ok(named.overflow<=1&&named.height>=44,JSON.stringify(named))
     await assertSessionActionGeometry(item.id, theme+' long-name', width)
   }
+  for(const theme of ['instrument','pixel','border-beam','liquid-glass']) for(const features of [[{name:'prefers-contrast',value:'more'}],[{name:'forced-colors',value:'active'}]]) {
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features})
+    await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
+    const accessible=await evaluate(`(()=>{const task=document.querySelector('[data-remote-id="${item.id}"] .agent-session-open'),reply=task.parentElement.querySelector('.agent-session-reply'),t=getComputedStyle(task),r=getComputedStyle(reply);return t.color===r.color&&t.borderTopWidth==='1px'&&task.getBoundingClientRect().height>=44})()`)
+    assert.equal(accessible,true,theme+': high-contrast task labels retain full readable emphasis')
+  }
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]})
   publishStatus({...frame,remote:{...frame.remote,state:'unavailable'}});await evaluate('new Promise(r=>setTimeout(r,20))')
   assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Task updates unavailable','actual connection failure remains visible in the header')
 }
@@ -256,10 +263,17 @@ async function assertSessionActionGeometry(id, theme, width) {
   const geometry = await evaluate(`(()=>{
     const article=document.querySelector('[data-remote-id="${id}"]'),task=article.querySelector('.agent-session-open'),reply=article.querySelector('.agent-session-reply');
     const t=task.getBoundingClientRect(),r=reply.getBoundingClientRect(),s=getComputedStyle(task),range=document.createRange();range.selectNodeContents(task);const text=range.getBoundingClientRect();
-    return {padding:[parseFloat(s.paddingInlineStart),parseFloat(s.paddingInlineEnd)],textInset:[text.left-t.left,t.right-text.right],center:Math.abs(t.y+t.height/2-r.y-r.height/2),taskHeight:t.height,replyHeight:r.height};
+    const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');canvas.width=canvas.height=1;
+    const rgba=color=>{ctx.clearRect(0,0,1,1);ctx.fillStyle=color;ctx.fillRect(0,0,1,1);return [...ctx.getImageData(0,0,1,1).data]};
+    const rs=getComputedStyle(reply),probe=document.createElement('i');probe.style.color='var(--odk-surface)';document.body.append(probe);const surface=rgba(getComputedStyle(probe).color);probe.remove();
+    return {padding:[parseFloat(s.paddingInlineStart),parseFloat(s.paddingInlineEnd)],textInset:[text.left-t.left,t.right-text.right],center:Math.abs(t.y+t.height/2-r.y-r.height/2),taskHeight:t.height,replyHeight:r.height,taskWidth:t.width,textWidth:text.width,lines:range.getClientRects().length,borders:parseFloat(s.borderInlineStartWidth)+parseFloat(s.borderInlineEndWidth),fontSize:parseFloat(s.fontSize),foreground:rgba(s.color),replyForeground:rgba(rs.color),surface,edgeAlpha:rgba(s.borderTopColor)[3],replyEdgeAlpha:rgba(rs.borderTopColor)[3]};
   })()`)
   assert.ok(geometry.padding.every(value=>value>=12)&&geometry.textInset.every(value=>value>=12), 'Task text needs capsule padding: '+JSON.stringify({theme,width,...geometry}))
   assert.ok(geometry.center<=1&&geometry.taskHeight>=44&&geometry.replyHeight>=44, 'Task and Reply must align: '+JSON.stringify({theme,width,...geometry}))
+  assert.ok(geometry.lines>1||geometry.taskWidth<=geometry.textWidth+geometry.padding.reduce((a,b)=>a+b,0)+geometry.borders+1,'Task capsule must fit its label: '+JSON.stringify({theme,width,...geometry}))
+  const luminance=rgba=>rgba.slice(0,3).map(n=>n/255).map(n=>n<=0.04045?n/12.92:((n+0.055)/1.055)**2.4).reduce((sum,n,i)=>sum+n*[0.2126,0.7152,0.0722][i],0)
+  const ink=luminance(geometry.foreground),surface=luminance(geometry.surface),contrast=(Math.max(ink,surface)+0.05)/(Math.min(ink,surface)+0.05)
+  assert.ok(geometry.fontSize>=14&&contrast>=4.5&&ink<luminance(geometry.replyForeground)&&geometry.edgeAlpha<geometry.replyEdgeAlpha*0.6,'Task label must stay readable and secondary to Reply: '+JSON.stringify({theme,width,contrast,...geometry}))
 }
 
 async function assertCapsuleStack() {
