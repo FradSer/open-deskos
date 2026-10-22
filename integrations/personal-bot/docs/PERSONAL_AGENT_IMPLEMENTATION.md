@@ -25,13 +25,13 @@ This section tracks current work; the evidence sections below retain their origi
 | Cross-host capabilities | Public projections and explicit supported operations | Implemented; Android projection remains read-only |
 | Quality and cost | Offline behavior evaluation, semantic reuse, bounded generation | Implemented; eight offline replay scenarios pass |
 
-Independent reviews found and verified repairs for ownership, cancellation, capacity, batch isolation, feedback identity, recurrence, and learning evidence.
+Independent reviews verified ownership, cancellation, capacity, batch isolation, feedback identity, recurrence, learning evidence, provider withdrawal, and stale acknowledgement repairs.
 Checks use isolated state and controlled provider responses.
-The full Personal suite passed 1291 tests, skipped eight gated cases, and had no failures.
-This run includes the final legacy capacity compatibility checks.
+The full Personal suite passed 1292 tests, skipped eight gated cases, and had no failures.
+This run includes final capacity and stale acknowledgement regressions.
 Type checking passes.
-The broad Shell run passed 2479 tests and skipped three cases.
-It found 15 configuration and fixture failures; their repairs pass all 67 affected checks.
+The affected Shell run passes all 74 checks.
+Earlier full-suite fixture failures were repaired and verified at their affected boundaries.
 Hydra's fixture now uses the actual Shell display-only frame.
 All 168 matrix cases and four-theme capture checks pass with unchanged size, font, and density thresholds.
 The complete Electron E2E run passes; all driver, motion, geometry, composition, density, and theme gates return zero.
@@ -47,7 +47,7 @@ The branch is prepared for pull-request review.
 Live models, physical input, target-device acceptance, and deployment remain unverified.
 
 Personal Bot commands: `node --test --test-timeout=120000 --test-concurrency=4 tests/*.test.mjs`, `pnpm typecheck`, and `pnpm test:proactive:evaluate`.
-Shell commands: `pnpm e2e` and `electron tests/hydra-style.cjs --capture-dir=/tmp/odk-hydra-shared-frame-preview`.
+Shell commands: `pnpm e2e` and `pnpm exec electron tests/hydra-style.cjs --capture-dir=/tmp/odk-hydra-shared-frame-preview`.
 Android command: `./gradlew testDebugUnitTest --tests com.odk.shell.link.PersonalAgentFrameTest`.
 
 ## Implemented scope

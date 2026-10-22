@@ -17,6 +17,45 @@ function fixture(options = {}) {
   return { watch, frames, requests, actions, saved: () => saved, clock: value => { now = value }, count: value => { count = value }, raw: value => { raw = value } }
 }
 
+test('presentation receipts recheck freshness before acknowledging routine recommendations', async () => {
+  for (const { ages, elapsed } of [
+    { ages: [0], elapsed: 1001 },
+    { ages: [500, 0], elapsed: 501 },
+    { ages: [0], elapsed: 1000 }
+  ]) {
+    let now = start, saved
+    const writes = []
+    const rules = ages.map((_, i) => ({ id: `routine-${i}`, delivery: 'routine', at: '09:00', urgent: false, advice: 'Check the pending reading.',
+      conditions: [{ readingId: `source-${i}`, field: 'count', measuredAtField: 'measuredAt', op: 'gte', value: 1 }] }))
+    const watch = new ProactiveWatch({
+      config: { version: 1, pollMs: 60000, maxAgeMs: 1000, cooldownMs: 60000, suppressed: [], snoozed: {}, rules },
+      now: () => now,
+      read: async id => ({ id, state: 'live', value: { count: 1, measuredAt: new Date(start - ages[Number(id.split('-')[1])]).toISOString() } }),
+      judge: async ({ candidates }) => answer(candidates), phrase: async ({ advice }) => advice,
+      publish: () => {}, save: async config => { writes.push(structuredClone(config)) },
+      saveState: state => { saved = structuredClone(state) }, execute: async () => { throw Error('Presentation must not execute an action') }
+    })
+    await watch.tick()
+    const offered = structuredClone(watch.proposals)
+    assert.equal(offered.length, ages.length)
+    assert.ok(offered.every(p => p.status === 'pending' && p.offered && !p.presented))
+    now += elapsed
+    await watch.presented(offered.map(p => p.id))
+    const freshRuleIds = []
+    for (const [i, original] of offered.entries()) {
+      const fresh = ages[i] + elapsed <= 1000
+      const proposal = watch.proposals.find(p => p.id === original.id)
+      assert.equal(proposal.status, fresh ? 'pending' : 'expired')
+      assert.equal(proposal.presented, fresh)
+      assert.equal(saved.proposals.find(p => p.id === original.id).presented, fresh)
+      if (fresh) freshRuleIds.push(original.ruleId)
+    }
+    assert.deepEqual(Object.keys(watch.config.routineDays).sort(), freshRuleIds.sort())
+    assert.equal(writes.length, freshRuleIds.length ? 1 : 0)
+    if (writes.length) assert.deepEqual(Object.keys(writes[0].routineDays).sort(), freshRuleIds)
+  }
+})
+
 test('presentation budget retains all needs and offers only its visible subset', async () => {
   const f = fixture(); await f.watch.tick()
   const pending = f.watch.list().filter(p => p.status === 'pending')

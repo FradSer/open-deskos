@@ -248,6 +248,7 @@ export class ProactiveWatch {
     return structuredClone(this.proposals)
   }
   async presented(ids) {
+    this.list()
     const displayed = this.proposals.filter(p => ids.includes(p.id) && pending(p) && p.offered && !p.presented && (p.snoozedUntil ?? 0) <= this.now())
     const routine = displayed.filter(p => this.rules().find(r => r.id === p.ruleId)?.delivery === 'routine')
     for (const p of displayed) {

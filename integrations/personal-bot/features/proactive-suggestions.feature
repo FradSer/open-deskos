@@ -1,6 +1,13 @@
 Feature: Owner controlled proactive Personal Bot proposals
   Proposals are read-only agent state, never plugin instructions or authorization.
 
+  Scenario: Presentation receipts recheck observation freshness
+    Given offered routine recommendations have timestamped observations
+    When a presentation receipt arrives after some observations expire
+    Then expired recommendations remain unacknowledged
+    And only fresh recommendations consume their routine presentation day
+    And observations at the freshness limit still allow acknowledgement
+
   Scenario: Recommendation selection does not erase an unresolved need
     Given several fresh recommendations exceed the automatic presentation budget
     When the watch selects the next recommendations to present

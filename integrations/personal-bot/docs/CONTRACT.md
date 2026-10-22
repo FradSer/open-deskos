@@ -797,6 +797,8 @@ Saved action state must match the current owner rule and cannot grant new author
 Rule changes expire pending records.
 Completed timestamps preserve cooldown even when owner suppression writes fail.
 Checkpoint routine offers before sending, preventing repeated daily popups after lost acknowledgement.
+Presentation acknowledgements recheck observation freshness before they consume a routine day.
+Expired proposals remain unacknowledged.
 Checkpoint presentation acknowledgements before owner `routineDays` writes.
 Owner-write failure preserves acknowledgement and confirmation.
 Explicit queries may reopen acknowledged pending proposals without bypassing confirmation.
@@ -804,6 +806,8 @@ Unacknowledged immediate offers can retry presentation after restart.
 Unacknowledged routine offers remain queryable without repeating the scheduled popup.
 
 The panel is nonmodal and preserves focus and direct Shell input.
+Provider withdrawal or loss of read access clears suggestion content, controls, and visibility observers.
+A late failure from a withdrawn view cannot change replacement feedback.
 Use one scrollable surface and `textContent` for untrusted strings.
 Back/Close dismisses presentation.
 Generated suggestions support Done, Later, Useful, Not relevant, Incorrect, Ignore, and category suppression.
