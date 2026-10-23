@@ -284,6 +284,7 @@ test('selected Agent preserves Home binding, cached updates, and runtime restart
       assert.doesNotMatch(JSON.stringify(service.status.briefing), /private generation detail/)
       const stale = structuredClone(service.status.briefing)
       runtime.mode = 'normal'
+      now += 5 * 60 * 1000
       await home.refresh()
       assert.equal(service.status.briefing.state, 'live')
       const recovered = structuredClone(service.status.briefing)
