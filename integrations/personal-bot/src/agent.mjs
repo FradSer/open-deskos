@@ -473,9 +473,11 @@ export async function createPersonalBot(config, { createSession = createDurableA
         try {
           current()
           const result = await tool.execute(randomUUID(), params, executionSignal, undefined, undefined)
+          if (context === undefined) return result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
           const memoryReadback = name === 'memory_update' ? JSON.parse(await memory.read()) : undefined
           return proposalExecutionResult(name, params, result, memoryReadback)
         } catch (error) {
+          if (context === undefined) throw error
           const receipt = taskFailureReceipt(error)
           if (name === 'coding_task_start' && receipt?.command === 'start' && receipt.target === params.target && receipt.project === params.project) {
             return { outcome: 'unknown', text: '任务投递结果未确认；请通过原任务核实，不要重复执行。',

@@ -791,6 +791,8 @@ New executable proposals retain `actionId` and their host-bound `nextStep`. Hist
 Execution reserves durable state before the tool runs. A restarted reservation becomes `unknown` and cannot replay.
 Structured execution receipts use `completed`, `accepted`, `unknown`, or `failed` outcomes.
 Only `completed` proves completion. Other outcomes retain `unknown` proposal state and their bounded execution receipt.
+The default Agent preserves text results for three-argument `executeProposal` calls. Tool failures still reject these calls.
+A fourth execution context selects structured receipts and current-action guards. New Watch implementations supply this context.
 Legacy string execution results remain compatible with existing providers.
 Existing reasons remain compatible with private storage, but current answers and cards do not show them.
 Evidence contains `{readingId, field, value, state, measuredAt, ruleId}`.

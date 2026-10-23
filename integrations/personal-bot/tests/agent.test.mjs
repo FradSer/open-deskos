@@ -14,7 +14,7 @@ import { PersonalBotService } from '../src/service.mjs'
 import { loadCapabilities } from '../src/capabilities.mjs'
 import { agentOptions, validateWorkspace, createPersonalBot, createResourceLoader, sessionAdapter } from '../src/agent.mjs'
 
-async function proposalExecutionFixture(t, { route, helperSource } = {}) {
+async function proposalExecutionFixture(t, { route, helperSource, capabilitySource } = {}) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'odk-proposal-execution-')))
   t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   const targets = join(dir, 'targets.json')
@@ -29,8 +29,11 @@ async function proposalExecutionFixture(t, { route, helperSource } = {}) {
   t.after(() => { if (previous === undefined) delete process.env.ODK_TASK_TARGETS_FILE; else process.env.ODK_TASK_TARGETS_FILE = previous })
   let routes = 0, prompts = 0
   const memoryFile = join(dir, 'memory.json')
+  const capability = join(dir, 'reviewed-capability.mjs')
+  if (capabilitySource) await writeFile(capability, capabilitySource)
   const bot = await createPersonalBot({ stateDir: join(dir, 'state'), env: {},
-    personal: { profile: 'personal', memoryFile, skillPaths: [] } }, {
+    ...(capabilitySource ? { workspace: fileURLToPath(new URL('../../../', import.meta.url)), capabilityPaths: [capability] }
+      : { personal: { profile: 'personal', memoryFile, skillPaths: [] } }) }, {
     createIntentRouter: () => async input => { routes++; return route ? route(input) : { intent: 'proposal_response' } },
     createRuntime: async () => ({ getAvailable: async () => [{ provider: 'fixture', id: 'model' }] }),
     createSession: async () => ({ session: { isStreaming: false, bindExtensions: async () => {}, setActiveToolsByName() {},
@@ -71,12 +74,46 @@ test('a card cannot install through a missing destination or classify that attem
 
 test('confirmed proposal memory execution returns a completed receipt after actual readback', async t => {
   const f = await proposalExecutionFixture(t)
-  const result = await f.bot.executeProposal('memory_update', { category: 'watering', value: 'Inspect soil.' }, '记住 watering：Inspect soil.')
+  const result = await f.bot.executeProposal('memory_update', { category: 'watering', value: 'Inspect soil.' }, '记住 watering：Inspect soil.', {})
   assert.equal(result.outcome, 'completed')
   assert.deepEqual(result.receipt, { tool: 'memory_update', category: 'watering' })
   assert.deepEqual(JSON.parse(await readFile(f.memoryFile, 'utf8')), { watering: 'Inspect soil.' })
   assert.deepEqual(f.activity(), { routes: 1, prompts: 0 })
   await assert.rejects(f.bot.executeProposal('memory_update', { category: 'other', value: 'No authorization.' }, '好的'))
+})
+
+test('an existing three-argument Watch receives default Agent memory results as durable text', async t => {
+  const f = await proposalExecutionFixture(t)
+  // This separately selected consumer uses the public pre-context contract.
+  const watch = { proposal: { status: 'pending', result: '' }, async respond() {
+    this.proposal.result = await f.bot.executeProposal('memory_update', { category: 'watering', value: 'Inspect soil.' }, '记住 watering：Inspect soil.')
+    assert.equal(typeof this.proposal.result, 'string')
+    this.proposal.status = 'completed'
+    return JSON.stringify(this.proposal)
+  } }
+  const checkpoint = JSON.parse(await watch.respond())
+  assert.equal(checkpoint.result, 'Memory updated.')
+  assert.equal(checkpoint.status, 'completed')
+  assert.deepEqual(JSON.parse(await readFile(f.memoryFile, 'utf8')), { watering: 'Inspect soil.' })
+  assert.deepEqual(f.activity(), { routes: 1, prompts: 0 })
+})
+
+test('an existing three-argument reviewed custom action keeps joined text without new card authority', async t => {
+  const f = await proposalExecutionFixture(t, { capabilitySource: `export default async () => [{ name: 'reviewed_text', label: 'Reviewed text',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    execute: async () => ({ content: [{type:'text',text:'First line'}, {type:'image',data:'ignored',mimeType:'image/png'}, {type:'text',text:'Second line'}] }) }];` })
+  assert.equal(f.bot.canExecuteProposal({ tool: 'reviewed_text', params: {} }), false)
+  assert.equal(await f.bot.executeProposal('reviewed_text', {}, '确认执行 fixture'), 'First line\nSecond line')
+  await assert.rejects(f.bot.executeProposal('reviewed_text', {}, '确认执行 fixture', {}), /unavailable/)
+  assert.deepEqual(f.activity(), { routes: 1, prompts: 0 })
+})
+
+test('an existing three-argument task failure still rejects without retrying', async t => {
+  const f = await proposalExecutionFixture(t, { helperSource: directory => `const fs=require('node:fs');let input='';process.stdin.on('data',chunk=>input+=chunk);process.stdin.on('end',()=>{fs.appendFileSync(${JSON.stringify(join(directory, 'wire.ndjson'))},input);process.exit(1)})` })
+  await assert.rejects(f.bot.executeProposal('coding_task_start', { target: 'cm5', project: f.dir, prompt: 'Inspect source.' }, '确认执行 fixture'), /taskId|mutationId/)
+  const wire = (await readFile(join(f.dir, 'wire.ndjson'), 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+  assert.equal(wire.length, 1)
+  assert.deepEqual(f.activity(), { routes: 1, prompts: 0 })
 })
 
 test('proposal result classification never promotes error text or task admission to completion', async () => {

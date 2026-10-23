@@ -6,8 +6,17 @@ Feature: Pi v1.2 codemode is the voice orchestration entry point
     And discovery does not call a tool, classifier, or model
     And installation without a fixed destination has no executable card action
 
+  Scenario: Existing Watch plugins retain their proposal result contract
+    Given an existing Watch calls the default Agent with three execution arguments
+    When a reviewed tool returns text content
+    Then the Watch receives the original joined text as a string
+    And a tool failure still rejects the call
+    And reviewed custom capabilities retain their existing execution contract
+    When a new Watch supplies the fourth execution context
+    Then the Agent returns structured execution receipts with current-action guards
+
   Scenario: Proposal receipts distinguish admission from completion
-    Given the owner confirms an available proposal action
+    Given the owner confirms an available proposal action with an execution context
     When the existing tool returns its result
     Then only a verified completed operation returns a completed receipt
     And task admission returns its identity without claiming task completion
