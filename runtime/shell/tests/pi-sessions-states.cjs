@@ -19,6 +19,7 @@
  * own 480x854 and 320x480 cases) instead of the 1920x1280 panel.
  */
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-personal-bot-consumer-ready', () => ({ accepted: false }))
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const fs = require('node:fs')
 const os = require('node:os')

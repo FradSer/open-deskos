@@ -1,6 +1,7 @@
 'use strict'
 
 const { app, BrowserWindow, ipcMain, protocol } = require('electron')
+ipcMain.handle('odk-personal-bot-consumer-ready', () => ({ accepted: false }))
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')

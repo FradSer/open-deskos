@@ -12,6 +12,7 @@
 'use strict'
 
 const { app, BrowserWindow, ipcMain, protocol } = require('electron')
+ipcMain.handle('odk-personal-bot-consumer-ready', () => ({ accepted: false }))
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const assert = require('node:assert/strict')
 const fs = require('node:fs')

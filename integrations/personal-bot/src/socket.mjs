@@ -147,6 +147,7 @@ export async function listen(path, service, options = {}) {
   /** An admitted client joins the broadcast list and starts reading commands. */
   function open(client, remainder) {
     clients.add(client)
+    let consumerReadyId
     client.on('close', () => { clients.delete(client); void options.remoteVoice?.close(client).catch(() => {}) })
     readFrames(client, async command => {
       if (client.destroyed) return
@@ -156,6 +157,14 @@ export async function listen(path, service, options = {}) {
       }
         if (command?.v !== 1 || !['runtime_diagnose', 'text', 'toggle', 'status', 'proactive_event', 'proposal_presented', 'proposal_list', 'proposal_respond'].includes(command.type)) return client.destroy()
         if (command.type === 'status' && command.runtimeDiagnosis === 1) diagnosisClients.add(client)
+        if (command.type === 'status' && command.proposalConsumerReady !== undefined) {
+          const id = command.proposalConsumerReady
+          if (typeof id !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(id)) return client.destroy()
+          if (id !== consumerReadyId) {
+            consumerReadyId = id
+            await service.consumerReady?.()
+          }
+        }
         if (command.type === 'runtime_diagnose') {
           if (Object.keys(command).some(key => !['v', 'type', 'requestId'].includes(key))
             || typeof command.requestId !== 'string' || !/^[a-f0-9-]{36}$/.test(command.requestId)) return client.destroy()

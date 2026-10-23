@@ -247,3 +247,25 @@ test('judgment status projects fixed safe readiness independently from optional 
   for(const value of [{status:'ready',provider:'other'},{status:'ready',provider:'model',model:'https://user:secret@host'},{status:'ready',provider:'jev',model:'synthetic/model-v1'},{status:'ready',provider:'model',model:'jev-test'},null])assert.deepEqual(parseJudgmentStatus(value),{status:'unavailable',provider:'model'})
   assert.equal(parseJudgmentStatus(undefined),undefined)
 })
+
+test('a ready renderer survives socket reconnect while diagnostics alone remain read-only', { timeout: 5000 }, async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-ready-client-')), endpoint = path.join(dir, 'a.sock')
+  const server = net.createServer(), peers = []
+  server.on('connection', peer => { peers.push(peer); peer.on('error', () => {}) })
+  await new Promise(resolve => server.listen(endpoint, resolve))
+  const client = createPersonalBotClient({ socketPath: endpoint, reconnectDelayMs: 1 })
+  t.after(async () => { await client.stop(); peers.forEach(peer => peer.destroy()); await new Promise(resolve => server.close(resolve)); await fs.rm(dir, { recursive: true, force: true }) })
+  let connection = once(server, 'connection'); client.start(); let [peer] = await connection
+  let [bytes] = await once(peer, 'data')
+  assert.equal(JSON.parse(bytes.toString().trim()).proposalConsumerReady, undefined)
+  assert.equal(client.consumerReady('invalid'), false)
+  const id = '11111111-1111-4111-8111-111111111111', ready = once(peer, 'data')
+  assert.equal(client.consumerReady(id), true)
+  assert.equal(JSON.parse((await ready)[0].toString()).proposalConsumerReady, id)
+  connection = once(server, 'connection'); peer.destroy(); [peer] = await connection
+  ;[bytes] = await once(peer, 'data')
+  assert.equal(JSON.parse(bytes.toString()).proposalConsumerReady, id)
+  const update = new Promise(resolve => { const off = client.subscribe(frame => { if (frame.proposalRecovery) { off(); resolve(frame) } }) })
+  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', proposals: [], proposalPopup: true, proposalRecovery: true }) + '\n')
+  assert.equal((await update).proposalRecovery, true)
+})

@@ -144,3 +144,11 @@ Feature: Android Shell Host renders the shared Personal Agent
     Then the phone reports that refusal as its dropped-link reason
     And control characters and oversized reason text cannot enter the reason
     And signed owner command text is never truncated
+
+  Scenario: Android preserves reminder recovery without response authority
+    Given the owner closed a reminder panel on the phone
+    When a readable recovery frame arrives from the desk
+    Then Android retains the recovery marker and the panel stays closed
+    And ordinary new reminders can open the panel
+    And withdrawn read access clears the recovery marker
+    And recovery grants no response or presentation authority

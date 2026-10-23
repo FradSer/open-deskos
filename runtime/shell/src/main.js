@@ -327,7 +327,7 @@ async function main() {
       'desk.link': { listen: listenOdkData, smokeMode, enabled: shellHost.provisionsOdkData, report: message => console.error(message), options: {
         endpoint: shellHost.odkDataEndpoint, stateDir: shellHost.stateDir, platform: shellHost.platform,
       } },
-      'system.personal-bot': { create: createPersonalBotClient, smokeMode, options: {
+      'system.personal-bot': { create: createPersonalBotClient, smokeMode, isConsumerFrame: event => diagnosisFrames.has(event.sender) && event.senderFrame === event.sender.mainFrame, options: {
         socketPath: smokeMode ? null : resolvePersonalBotSocketPath(process.env, shellHost), host: shellHost,
       } },
       'system.remote-link': { create: createRemoteBridgeClient, smokeMode, options: { socketPath: remoteSocketPath } },

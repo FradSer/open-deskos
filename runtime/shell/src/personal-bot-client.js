@@ -37,6 +37,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
   let tokenPromise = null
   let socket = null
   let connected = false
+  let proposalConsumerReady
   let completionPending = false
   let completionEnabled = false
   let diagnosisReady = false
@@ -119,7 +120,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
         if (socket !== active || !connected || active.destroyed) return
         if (value) writeHandshake(active, value)
         diagnosisReady = true
-        write('status', { runtimeDiagnosis: 1 })
+        write('status', { runtimeDiagnosis: 1, ...(proposalConsumerReady ? { proposalConsumerReady } : {}) })
         if (completionPending) servicePush(['odk.app.pi-sessions.completed'])
       }, () => active.destroy())
     })
@@ -182,7 +183,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
           ...((conversation || status.conversation) ? { conversation: conversation || status.conversation } : {}),
           ...(record.remote ? {remote:parseRemoteConversation(record.remote)} : status.remote ? {remote:status.remote} : {}),
           ...(record.briefing ? { briefing: parseHomeBriefing(record.briefing) } : status.briefing ? { briefing: status.briefing } : {}),
-          ...(Array.isArray(record.proposals) && record.proposals.length <= 64 ? { proposals: record.proposals, proposalPopup: record.proposalPopup === true, proposalInteraction: record.proposalInteraction === true, proposalHiddenCount: Number.isSafeInteger(record.proposalHiddenCount) ? record.proposalHiddenCount : 0 } : {}),
+          ...(Array.isArray(record.proposals) && record.proposals.length <= 64 ? { proposals: record.proposals, proposalPopup: record.proposalPopup === true, proposalInteraction: record.proposalInteraction === true, proposalRecovery: record.proposalRecovery === true, proposalHiddenCount: Number.isSafeInteger(record.proposalHiddenCount) ? record.proposalHiddenCount : 0 } : {}),
           ...(record.proposalCapabilities !== undefined ? { proposalCapabilities: { read: record.proposalCapabilities?.read === true, respond: record.proposalCapabilities?.respond === true, acknowledge: record.proposalCapabilities?.acknowledge === true } } : {}),
           ...(typeof record.proposalError === 'string' ? { proposalError: record.proposalError.slice(0, 256) } : {}),
         })
@@ -239,6 +240,12 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
           if (!write('runtime_diagnose', { requestId })) finishDiagnosis(requestId, unavailable('disconnected'))
         } catch { finishDiagnosis(requestId, unavailable('send-failed')) }
       })
+    },
+    consumerReady(id) {
+      if (id === null) { proposalConsumerReady = undefined; return true }
+      if (typeof id !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(id)) return false
+      proposalConsumerReady = id
+      return diagnosisReady && write('status', { proposalConsumerReady: id })
     },
     toggle: () => write('toggle'),
     sendText(text, replyTo) {

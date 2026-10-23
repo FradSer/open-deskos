@@ -6,7 +6,7 @@ const { createPluginHost } = require('../src/plugin-host')
 const { selectIndependentCoordinators } = require('./fixtures/service-coordinator-replacements')
 const { createSystemChannelPlugins, SYSTEM_PORTS } = require('../src/plugins/system-channels')
 
-function fixture({ smokeMode = false, independent = false } = {}) {
+function fixture({ smokeMode = false, independent = false, isConsumerFrame } = {}) {
   const handlers = new Map()
   const broadcasts = []
   const callbacks = new Map()
@@ -38,7 +38,7 @@ function fixture({ smokeMode = false, independent = false } = {}) {
     ipc: { handle: (name, handler) => handlers.set(name, handler), removeHandler: name => handlers.delete(name) },
     'shell.frames': { subscribe: callback => { frames.add(callback); return () => frames.delete(callback) } },
     broadcast: (name, value) => broadcasts.push([name, value]),
-    'system.personal-bot': { create: () => { instances.bot.push(currentBot); return currentBot }, options: { socketPath: null }, smokeMode },
+    'system.personal-bot': { isConsumerFrame, create: () => { instances.bot.push(currentBot); return currentBot }, options: { socketPath: null }, smokeMode },
     'system.remote-link': { create: options => { callbacks.set('mic', options.onRemoteMic); instances.remote.push(currentRemote); return currentRemote }, options: { socketPath: null }, smokeMode },
     'system.app-manager': { create: () => apps },
   } })
@@ -285,4 +285,24 @@ test('session replies retain exact references across the system channel and refu
   assert.deepEqual(await send(null,'Ordinary'),{accepted:true})
   assert.deepEqual(sent.at(-1),['Ordinary'])
  } finally {await f.host.stop()}
+})
+
+test('consumer recovery requires the configured Shell main frame and optional client method', async t => {
+  const trusted = {}, f = fixture({ isConsumerFrame: event => event === trusted })
+  t.after(() => f.host.stop())
+  f.bot.consumerReady = id => { f.calls.push(id); return true }
+  await f.host.start()
+  const ready = f.handlers.get('odk-personal-bot-consumer-ready'), id = '11111111-1111-4111-8111-111111111111'
+  assert.deepEqual(ready({}, id), { accepted: false })
+  assert.deepEqual(ready(trusted, id), { accepted: true })
+  assert.equal(f.calls.filter(call => call === id).length, 1)
+  delete f.bot.consumerReady
+  assert.deepEqual(ready(trusted, id), { accepted: false }, 'legacy replacement clients remain supported')
+  await f.host.setEnabled('odk.system.personal-bot', false)
+  assert.equal(f.handlers.has('odk-personal-bot-consumer-ready'), false)
+})
+test('legacy composition cannot admit a consumer readiness request without a frame check', async t => {
+  const f = fixture(); t.after(() => f.host.stop()); f.bot.consumerReady = () => { throw Error('Must not dispatch') }
+  await f.host.start()
+  assert.deepEqual(f.handlers.get('odk-personal-bot-consumer-ready')({}, '11111111-1111-4111-8111-111111111111'), { accepted: false })
 })

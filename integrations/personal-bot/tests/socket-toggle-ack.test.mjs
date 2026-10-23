@@ -86,3 +86,25 @@ test('toggle acknowledgement waits for the accepted retry instead of echoing sta
   await acknowledged
   assert.equal(records.at(-1).state, 'recording')
 })
+
+test('only explicit consumer-ready status recovers offers and retries are connection scoped', { timeout: 5000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'odk-ready-channel-')), recovered = []
+  const service = { status: { v: 1, type: 'status', state: 'idle' }, subscribe: () => () => {}, consumerReady() { recovered.push(true) } }
+  const server = await listen(endpoint(directory, 'agent'), service, { token: fixtureToken }), clients = []
+  t.after(async () => { clients.forEach(c => c.destroy()); await server.close(); await rm(directory, { recursive: true, force: true }) })
+  async function peer() {
+    const client = connect(endpoint(directory, 'agent')); clients.push(client); await once(client, 'connect'); client.setEncoding('utf8')
+    if (process.platform === 'win32') client.write(JSON.stringify({ v: 1, token: fixtureToken }) + '\n')
+    return client
+  }
+  async function status(client, fields = {}) {
+    const data = once(client, 'data'); client.write(JSON.stringify({ v: 1, type: 'status', ...fields }) + '\n'); await data
+  }
+  const client = await peer(), id = randomUUID()
+  await status(client, { runtimeDiagnosis: 1 }); assert.equal(recovered.length, 0)
+  await status(client, { proposalConsumerReady: id }); assert.equal(recovered.length, 1)
+  await status(client, { proposalConsumerReady: id }); assert.equal(recovered.length, 1)
+  const next = await peer(); await status(next, { proposalConsumerReady: id }); assert.equal(recovered.length, 2)
+  delete service.consumerReady
+  await status(next, { proposalConsumerReady: randomUUID() }); assert.equal(next.destroyed, false, 'custom legacy services need no recovery port')
+})
