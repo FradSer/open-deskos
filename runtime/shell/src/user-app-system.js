@@ -99,16 +99,21 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
     ipcMain.handle(channel, (...args) => execute(() => handler(...args)))
     releases.add(() => ipcMain.removeHandler(channel))
   }
-  bind('odk-user-apps-geometry', (event, pages) => {
-    const win = BrowserWindow.getAllWindows().find(win => win.webContents === event.sender)
-    if (!win || event.senderFrame !== win.webContents.mainFrame || !desktopGeometry) return { ok: false }
-    try {
-      if (require('node:url').fileURLToPath(new URL(event.senderFrame.url)) !== path.join(__dirname, 'renderer', 'index.html')) return { ok: false }
-    } catch { return { ok: false } }
-    const changed = desktopGeometry.update(pages)
-    if (changed) for (const target of BrowserWindow.getAllWindows()) target.webContents.send('odk-user-apps-changed')
-    return { ok: true }
-  })
+  if (desktopGeometry) {
+    const geometryReport = (event, pages) => {
+      if (stopping()) return { ok: false }
+      const win = BrowserWindow.getAllWindows().find(win => win.webContents === event.sender)
+      if (!win || event.senderFrame !== win.webContents.mainFrame) return { ok: false }
+      try {
+        if (require('node:url').fileURLToPath(new URL(event.senderFrame.url)) !== path.join(__dirname, 'renderer', 'index.html')) return { ok: false }
+      } catch { return { ok: false } }
+      const changed = desktopGeometry.update(pages)
+      if (changed) for (const target of BrowserWindow.getAllWindows()) target.webContents.send('odk-user-apps-changed')
+      return { ok: true }
+    }
+    ipcMain.on('odk-user-apps-geometry', geometryReport)
+    releases.add(() => ipcMain.removeListener('odk-user-apps-geometry', geometryReport))
+  }
   bind('odk-user-apps-api', (_event, request) => packageApi.read(request?.appId, request?.revision, request?.sourceId))
   bind('odk-user-apps-list', () => control.dispatch({ command: 'list' }))
   bind('odk-user-apps-dispatch', (_event, request) => control.dispatch(request))

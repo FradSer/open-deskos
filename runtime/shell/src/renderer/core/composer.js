@@ -218,7 +218,7 @@
       }
       return { id: page.id, index: index + 1, columns, rows, occupied }
     })
-    void root.odkUserApps.reportGeometry(pages).catch(() => {})
+    root.odkUserApps.reportGeometry(pages)
   }
 
   // A resized panel changes the cell, and so changes which spans fit. The

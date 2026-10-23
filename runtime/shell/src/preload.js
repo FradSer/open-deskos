@@ -28,7 +28,7 @@ contextBridge.exposeInMainWorld('odkPlatform', {
 })
 
 contextBridge.exposeInMainWorld('odkUserApps', {
-  reportGeometry: pages => ipcRenderer.invoke('odk-user-apps-geometry', pages),
+  reportGeometry: pages => ipcRenderer.send('odk-user-apps-geometry', pages),
   list: () => ipcRenderer.invoke('odk-user-apps-list'),
   readApi: (appId, revision, sourceId) => ipcRenderer.invoke('odk-user-apps-api', { appId, revision, sourceId }),
   dispatch: (request) => ipcRenderer.invoke('odk-user-apps-dispatch', request),

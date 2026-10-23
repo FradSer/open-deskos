@@ -270,7 +270,7 @@ test('measured geometry accepts only the Shell main frame and deduplicates notif
     const frame = { url: pathToFileURL(path.resolve(__dirname, '../src/renderer/index.html')).href }
     const notices = []
     const contents = { mainFrame: frame, send: name => notices.push(name) }
-    const f = await runtime(t, [], { ui: { desktopGeometry, ipcMain: { handle() {}, removeHandler() {} }, protocol: { handle() {}, unhandle() {} }, BrowserWindow: { getAllWindows: () => [{ webContents: contents }] } } })
+    const f = await runtime(t, [], { ui: { desktopGeometry, ipcMain: { handle() {}, removeHandler() {}, on() {}, removeListener() {} }, protocol: { handle() {}, unhandle() {} }, BrowserWindow: { getAllWindows: () => [{ webContents: contents }] } } })
     const report = f.handlers.get('odk-user-apps-geometry')
     const pages = [{ id: 'desk', columns: 3, rows: 3, occupied: [] }]
     assert.equal((await report({ sender: contents, senderFrame: {} }, pages)).ok, false)

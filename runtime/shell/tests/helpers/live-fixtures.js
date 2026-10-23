@@ -50,7 +50,7 @@ function installGeometryFixtures(ipcMain, { state = 'unavailable', wide = false,
   ipcMain.handle('odk-remote-navigation', () => true)
   ipcMain.handle('odk-remote-input', () => true)
   ipcMain.handle('odk-remote-link-state', () => ({ state: 'unavailable' }))
-  ipcMain.handle('odk-user-apps-geometry', (event, pages) => { onDesktopGeometry?.(pages, event); return { ok: true } })
+  ipcMain.on('odk-user-apps-geometry', (event, pages) => { onDesktopGeometry?.(pages, event) })
   ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
   ipcMain.handle('odk-user-apps-changed', () => ({ ok: true }))
   ipcMain.handle('odk-app-manager-list', () => ({ ok: true, apps: [] }))

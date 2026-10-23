@@ -182,7 +182,7 @@ test('runtime release waits for verifier ownership after installation requests s
   gate.resolve()
   await stopping
   assert.equal(releasedBeforeVerifier, false)
-  assert.equal(handlersBeforeVerifier, 5)
+  assert.equal(handlersBeforeVerifier, 4)
   assert.equal(f.handlers.size, 0)
   assert.equal(f.counts().closes, 1)
 })
@@ -195,7 +195,7 @@ test('failed catalog verification drain retains the production Host provider for
   await f.stop()
   assert.equal(f.host.list().find(record => record.manifest.id === 'odk.system.user-apps').state, 'cleanup-failed')
   assert.equal(f.providerReleases(), 0)
-  assert.equal(f.handlers.size, 5)
+  assert.equal(f.handlers.size, 4)
   await f.stop()
   assert.equal(attempts, 2)
   assert.equal(f.providerReleases(), 1)
