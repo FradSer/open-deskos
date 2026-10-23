@@ -1,6 +1,15 @@
 Feature: Owner controlled proactive Personal Bot proposals
   Proposals are read-only agent state, never plugin instructions or authorization.
 
+  Scenario: Generated recommendations have a concrete next step
+    Given fresh observations support a current need
+    When the generator proposes a recommendation
+    Then the recommendation contains concise advice and a concrete next step
+    And the generator does not return a reason field
+    And source hashes remain in the cited observations
+    And advice without a next step cannot reach judgment or presentation
+    And a next step does not grant tool execution permission
+
   Scenario: Presentation receipts recheck observation freshness
     Given offered routine recommendations have timestamped observations
     When a presentation receipt arrives after some observations expire

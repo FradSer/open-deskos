@@ -170,7 +170,7 @@ test('a proactive heartbeat uses production Durable generation and preserves ded
     const request = JSON.parse(context.messages.findLast(message => message.role === 'user').content.split('Personal Bot request:\n')[1])
     generations++
     const evidenceIds = request.topics[0].evidence.map(item => item.id)
-    return assistant(JSON.stringify({ suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '有待领取的物品，可以安排领取。', reason: '当前读数显示物品待领取。', evidenceIds }] }))
+    return assistant(JSON.stringify({ suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '有待领取的物品，可以安排领取。', nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds }] }))
   })
   const owner = { version: 2, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 60000, maxCandidates: 4, maxPush: 2,
     suppressed: [], snoozed: {}, rules: [{ id: 'deliveries', goal: '及时领取待取物品。',

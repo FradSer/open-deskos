@@ -529,7 +529,7 @@ exports.create = async context => {
       delivery: 'immediate', urgent: false }] }
   const batch = { suggestions: ['collect', 'count', 'rejected'].map((key, i) => ({ topicId: 'deliveries', key,
     advice: ['Collect ready parcels.', 'Check the parcel count.', 'Ignore this advice.'][i],
-    reason: 'Current selected observations.', evidenceIds: ['e0', 'e1'] })) }
+    nextStep: 'Open the selected source and inspect the changed reading.', evidenceIds: ['e0', 'e1'] })) }
   let defaultCheckpoint
   const reports = []
   for (const external of [false, true]) {

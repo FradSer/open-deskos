@@ -12,7 +12,7 @@ function fixture(options = {}) {
     generationIntervalMs: 0, attentionCooldownMs: 0, suppressed: [], snoozed: {}, rules: [{ id: 'parcels', goal: 'Handle pending parcels', delivery: 'immediate', urgent: false, observations: [{ readingId: 'parcels', fields: ['count'] }] }], ...options.config }
   const watch = new ProactiveWatch({ config, now: () => now,
     read: async id => ({ id, state: 'live', value: { count, measured_at: new Date(now).toISOString() } }),
-    generate: async input => { requests.push(input); return raw ?? { suggestions: input.topics.flatMap(topic => ['collect', 'check'].map(key => ({ topicId: topic.id, key, advice: `${key} ${topic.id}`, reason: 'Pending parcels need attention.', evidenceIds: [topic.evidence[0].id] }))) } },
+    generate: async input => { requests.push(input); return raw ?? { suggestions: input.topics.flatMap(topic => ['collect', 'check'].map(key => ({ topicId: topic.id, key, advice: `${key} ${topic.id}`, nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: [topic.evidence[0].id] }))) } },
     judge: async ({ candidates }) => answer(candidates), publish: frame => frames.push(frame), save: async () => {}, saveState: state => { saved = structuredClone(state) },
     execute: async (...args) => { actions.push(args); return 'executed' }, phrase: async ({ advice }) => advice, ...options.dependencies })
   return { watch, frames, requests, actions, saved: () => saved, clock: value => { now = value }, count: value => { count = value }, raw: value => { raw = value } }
@@ -63,7 +63,7 @@ test('presentation budget retains all needs and offers only its visible subset',
   assert.equal(pending.length, 2)
   assert.equal(pending.filter(p => p.offered).length, 1)
   assert.equal(f.frames.at(-1).proposals.filter(p => p.offered).length, 1)
-  assert.ok(pending.every(p => p.reason && p.needKey && p.observationKey && p.occurrenceKey))
+  assert.ok(pending.every(p => p.nextStep && !Object.hasOwn(p, 'reason') && p.needKey && p.observationKey && p.occurrenceKey))
 })
 
 test('ordinary busy release retains quiet hours and attention cooldown', async () => {
@@ -72,7 +72,7 @@ test('ordinary busy release retains quiet hours and attention cooldown', async (
   assert.equal(quiet.frames.at(-1).popup, false)
   quiet.watch.interact(true)
   assert.equal(quiet.frames.at(-1).popup, true, 'explicit inspection can reveal current suggestions')
-  const cooled = fixture({ config: { attentionCooldownMs: 60000 }, dependencies: { generate: async ({ topics }) => ({ suggestions: topics.map(topic => ({ topicId: topic.id, key: 'collect', advice: 'Check parcels.', reason: 'Observed count.', evidenceIds: [topic.evidence[0].id] })) }) } })
+  const cooled = fixture({ config: { attentionCooldownMs: 60000 }, dependencies: { generate: async ({ topics }) => ({ suggestions: topics.map(topic => ({ topicId: topic.id, key: 'collect', advice: 'Check parcels.', nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: [topic.evidence[0].id] })) }) } })
   await cooled.watch.tick(); const first = cooled.watch.list().find(p => p.offered)
   await cooled.watch.presented([first.id])
   cooled.watch.setBusy(true); cooled.clock(start + 1000); cooled.count(3); await cooled.watch.tick()
@@ -191,7 +191,7 @@ test('a malformed topic is isolated and healthy proposals remain readable and di
   const f = fixture({ config: { rules: [base, { ...base, id: 'bad' }] }, dependencies: {
     generate: async ({ topics }) => {
       if (topics.some(t => t.id === 'bad')) throw Error('bad source model failure')
-      return { suggestions: [{ topicId: topics[0].id, key: 'collect', advice: 'Collect parcels', reason: 'Pending count.', evidenceIds: [topics[0].evidence[0].id] }] }
+      return { suggestions: [{ topicId: topics[0].id, key: 'collect', advice: 'Collect parcels', nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: [topics[0].evidence[0].id] }] }
     },
   } })
   await f.watch.tick()
@@ -239,10 +239,12 @@ test('checkpoint migration preserves old acknowledged receipts and validates new
   const store = proposalStateStore(join(directory, 'state.json'))
   const f = fixture(); await f.watch.tick()
   const legacy = f.watch.list().filter(p => p.offered).map(p => {
-    const { needKey, observationKey, occurrenceKey, reason, ...old } = p
-    return { ...old, presented: true }
+    const { needKey, observationKey, occurrenceKey, nextStep, ...old } = p
+    return { ...old, reason: 'A stored legacy explanation.', presented: true }
   })
   store.save({ version: 1, proposals: legacy })
+  assert.equal(store.load().proposals[0].reason, 'A stored legacy explanation.')
+  assert.equal(Object.hasOwn(store.load().proposals[0], 'nextStep'), false)
   const next = fixture({ dependencies: { loadState: store.load, saveState: store.save } })
   await next.watch.tick()
   assert.equal(next.watch.list().find(p => p.id === legacy[0].id).presented, true)
@@ -250,7 +252,8 @@ test('checkpoint migration preserves old acknowledged receipts and validates new
   const persisted = store.load()
   assert.equal(persisted.proposals.find(p => p.id === legacy[0].id).snoozedUntil, start + 60000)
   assert.ok(persisted.generationCache.parcels)
-  for (const invalid of [{ snoozedUntil: -1 }, { snoozedUntil: Number.POSITIVE_INFINITY }, { feedback: 'approve' }, { occurrenceKey: 'forged' }, { reason: '\u0000' }]) {
+  for (const invalid of [{ snoozedUntil: -1 }, { snoozedUntil: Number.POSITIVE_INFINITY }, { feedback: 'approve' }, { occurrenceKey: 'forged' }, { reason: '\u0000' }, { nextStep: '' }, { nextStep: 'a'.repeat(241) },
+    ...['\u0000', '\n', '\t', '\r', '\u007f'].map(control => ({ nextStep: `Read${control}the source.` }))]) {
     assert.throws(() => store.save({ ...persisted, proposals: [{ ...persisted.proposals[0], ...invalid }] }), /occurrence or feedback/)
   }
   store.save(persisted)
@@ -297,7 +300,7 @@ test('feedback audit excludes private contents and cannot overturn committed fee
 })
 
 test('handled identity archive admits the sixty-fifth changed need and survives restart', async () => {
-  const f = fixture({ dependencies: { generate: async ({ topics }) => ({ suggestions: [{ topicId: topics[0].id, key: 'collect', advice: 'Collect parcels', reason: 'Pending count.', evidenceIds: [topics[0].evidence[0].id] }] }) } })
+  const f = fixture({ dependencies: { generate: async ({ topics }) => ({ suggestions: [{ topicId: topics[0].id, key: 'collect', advice: 'Collect parcels', nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: [topics[0].evidence[0].id] }] }) } })
   for (let count = 1; count <= 65; count++) {
     f.count(count); await f.watch.tick()
     const current = f.watch.list().find(p => p.status === 'pending')
@@ -323,7 +326,7 @@ test('legacy processed history releases capacity without evicting unknown execut
   })
   const unknown = structuredClone(proposals[63])
   const f = fixture({ dependencies: { loadState: () => ({ version: 1, proposals }),
-    generate: async ({ topics }) => ({ suggestions: [{ topicId: topics[0].id, key: 'current-need', advice: 'A new current need.', reason: 'Current observed count.', evidenceIds: [topics[0].evidence[0].id] }] }) } })
+    generate: async ({ topics }) => ({ suggestions: [{ topicId: topics[0].id, key: 'current-need', advice: 'A new current need.', nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: [topics[0].evidence[0].id] }] }) } })
   await f.watch.tick()
   assert.equal(f.watch.list().length, 64)
   assert.equal(f.watch.list().filter(p => p.status === 'pending').length, 1)
@@ -336,7 +339,7 @@ test('one generation call per round eventually isolates a permanently broken top
     generate: async ({ topics }) => {
       requests.push(topics.map(t => t.id))
       if (topics.some(t => t.id === 'bad')) throw Error('Broken topic')
-      return { suggestions: [{ topicId: topics[0].id, key: 'collect', advice: 'Collect parcels', reason: 'Pending count.', evidenceIds: [topics[0].evidence[0].id] }] }
+      return { suggestions: [{ topicId: topics[0].id, key: 'collect', advice: 'Collect parcels', nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: [topics[0].evidence[0].id] }] }
     },
   } })
   await f.watch.tick(); await f.watch.tick(); await f.watch.tick()
@@ -360,7 +363,7 @@ test('an explicit ignore or mute UUID cannot target a different proposal', async
 test('full unresolved capacity reports its boundary and recovers after owner feedback', async () => {
   let batch = 0
   const f = fixture({ config: { maxCandidates: 16 }, dependencies: { generate: async ({ topics }) => ({ suggestions: Array.from({ length: batch < 4 ? 16 : 1 }, (_, i) => ({
-    topicId: topics[0].id, key: `need-${batch}-${i}`, advice: `Check parcel item ${batch}-${i}`, reason: 'Pending count.', evidenceIds: [topics[0].evidence[0].id],
+    topicId: topics[0].id, key: `need-${batch}-${i}`, advice: `Check parcel item ${batch}-${i}`, nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: [topics[0].evidence[0].id],
   })) }) } })
   for (; batch < 4; batch++) await f.watch.tick()
   assert.equal(f.watch.list().filter(p => p.status === 'pending').length, 64)
@@ -376,7 +379,7 @@ test('full unresolved capacity reports its boundary and recovers after owner fee
 
 test('a cleared need can recur with the same values across a restart', async () => {
   const dependencies = { generate: async ({ topics }) => ({ suggestions: topics[0].evidence[0].value === 0 ? [] : [{
-    topicId: topics[0].id, key: 'collect', advice: 'Collect parcels', reason: 'Pending count.', evidenceIds: [topics[0].evidence[0].id],
+    topicId: topics[0].id, key: 'collect', advice: 'Collect parcels', nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: [topics[0].evidence[0].id],
   }] }) }
   const f = fixture({ dependencies }); f.count(1); await f.watch.tick()
   const original = f.watch.list().find(p => p.status === 'pending'); await f.watch.respond(original.id, 'done')
@@ -472,7 +475,7 @@ test('consumer recovery defers to busy and quiet policy without spending attenti
 
 test('consumer recovery preserves routine receipts, snooze, silence, suppression and expiration', async () => {
   for (const policy of ['routine', 'snooze', 'silent', 'suppressed', 'expired']) {
-    const f = fixture({ dependencies: { generate: async ({ topics }) => ({ suggestions: topics.map(topic => ({ topicId: topic.id, key: 'collect', advice: 'Check parcels.', reason: 'Pending parcels.', evidenceIds: [topic.evidence[0].id] })) }) } }); await f.watch.tick()
+    const f = fixture({ dependencies: { generate: async ({ topics }) => ({ suggestions: topics.map(topic => ({ topicId: topic.id, key: 'collect', advice: 'Check parcels.', nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: [topic.evidence[0].id] })) }) } }); await f.watch.tick()
     const p = f.watch.proposals.find(p => p.offered)
     if (policy === 'routine') {
       Object.assign(f.watch.config.rules[0], { delivery: 'routine', at: '09:00' }); p.routineDay = '2026-10-23'

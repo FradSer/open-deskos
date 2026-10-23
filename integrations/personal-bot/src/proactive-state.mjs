@@ -28,6 +28,7 @@ function validate(state) {
   for (const p of state.proposals) {
     if (['needKey', 'observationKey', 'occurrenceKey'].some(key => p[key] !== undefined && !/^[0-9a-f]{64}$/.test(p[key]))
       || (p.reason !== undefined && (typeof p.reason !== 'string' || p.reason.length > 600 || /[\x00-\x08]/.test(p.reason)))
+      || (p.nextStep !== undefined && (typeof p.nextStep !== 'string' || !p.nextStep.trim() || p.nextStep.length > 240 || /[\x00-\x1f\x7f]/.test(p.nextStep)))
       || (p.feedback !== undefined && !['done', 'snooze', 'useful', 'irrelevant', 'incorrect', 'ignore'].includes(p.feedback))
       || (p.snoozedUntil !== undefined && (!Number.isSafeInteger(p.snoozedUntil) || p.snoozedUntil < 0 || p.snoozedUntil > 8640000000000000))) throw Error('Invalid proposal occurrence or feedback')
     if (p.ridePreview !== undefined && (p.action !== null || !isIntentRuleId(p.ruleId) || !validRidePreview(p.ridePreview))) throw Error('Invalid read-only ride preview')

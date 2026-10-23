@@ -26,7 +26,7 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-selected-proactive-')))
   t.after(() => rm(root, { recursive: true, force: true }))
   await isolateAgentDirectory(t, root)
-  const generated = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', reason: '当前有待取物品。', evidenceIds: ['e0'] }] }
+  const generated = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: ['e0'] }] }
   for (const version of [1, 2]) {
     const reports = []
     for (const external of [false, true]) {
@@ -176,7 +176,7 @@ test('default and selected Agent disable cancel pending proactive consumers and 
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-proactive-cancel-')))
   t.after(() => rm(root, { recursive: true, force: true }))
   await isolateAgentDirectory(t, root)
-  const batch = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', reason: '当前有待取物品。', evidenceIds: ['e0'] }] }
+  const batch = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: ['e0'] }] }
   for (const stage of ['phrasing', 'generation']) {
     const reports = []
     for (const external of [false, true]) {
@@ -295,7 +295,7 @@ test('real SDK generator has no tools, skills or durable memory and can return s
   await isolateAgentDirectory(t, dir)
   const optionsSeen = [], requests = []
   await writeFile(join(dir, 'memory.json'), JSON.stringify({ private: 'MUST_NOT_ENTER_GENERATION' }))
-  const suggestions = [1, 2].map(i => ({ topicId: 'packages', key: `item-${i}`, advice: `检查物品 ${i}。`, reason: '状态有变化。', evidenceIds: ['e0'] }))
+  const suggestions = [1, 2].map(i => ({ topicId: 'packages', key: `item-${i}`, advice: `检查物品 ${i}。`, nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: ['e0'] }))
   const agent = await createPersonalBot({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') } }, {
     createIntentRouter: fixtureIntentRouter,
     createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getModel: () => fixtureModel }),

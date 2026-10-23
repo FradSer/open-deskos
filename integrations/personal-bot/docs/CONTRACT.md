@@ -671,6 +671,13 @@ Provider errors are not retried.
 Timeout/cancellation ends waiting even if the provider ignores abort; late-created sessions are disposed.
 Agent and watch validate topic IDs, stable semantic keys, bounded text, and host-issued citation IDs.
 Invalid or invented evidence leaves generation unavailable.
+Each generated candidate contains `advice`, a required `nextStep`, and cited evidence IDs.
+Advice has at most 400 characters. The next step has at most 240 characters and names a concrete user action.
+Next-step validation rejects control characters, including line breaks, tabs, and DEL, across generation, storage, and display hosts.
+Generation does not request or accept a `reason` field.
+Keep hashes, technical identifiers, tool parameters, and diagnostic values in evidence, outside advice and the next step.
+Advice and next-step validation reject SHA256 labels and hexadecimal values with 32 or more characters.
+The generation format version invalidates old generation caches without changing occurrence identity or handled receipts.
 
 Each candidate receives independent usefulness, factual-support, and unsupported-assertion judgments through the shared typed judgment service.
 Judgment receipts retain the actual `jev-*` or `provider/model` identity across checkpoint reloads.
@@ -683,7 +690,7 @@ Retain supported candidates independently of the presentation limit.
 Prioritize owner urgency and scheduled delivery, then deadlines, usefulness, creation time, and stable identity.
 Offer at most `maxPush` candidates during one presentation round.
 Selecting none is valid.
-Generated proposals are read-only: `action: null`.
+Generated proposals retain `action: null`. Their next step describes a user action, without granting execution permission.
 No inference failure substitutes fixed advice or automatic action.
 
 | Configuration | Bounds/behavior |
@@ -769,6 +776,8 @@ These flags follow the selected Watch and grant no action authority.
 Unsupported displays must retain their own unavailable response controls.
 
 Each proposal retains durable ID, owner rule/subject, state, creation time, advice, action/confirmation, and evidence.
+New generated proposals also retain their required next step. Historical records can omit it.
+Existing reasons remain compatible with private storage, but current answers and cards do not show them.
 Evidence contains `{readingId, field, value, state, measuredAt, ruleId}`.
 `pi-tasks:<target>:<taskId>` marks Hosted Pi evidence.
 Heartbeat/push rechecks freshness and relevance; action predicates are rechecked before execution.
@@ -823,6 +832,11 @@ The panel is nonmodal and preserves focus and direct Shell input.
 Provider withdrawal or loss of read access clears suggestion content, controls, and visibility observers.
 A late failure from a withdrawn view cannot change replacement feedback.
 Use one scrollable surface and `textContent` for untrusted strings.
+The card puts advice and the next step before its operation controls.
+Sources and details are collapsed by default and retain complete technical evidence.
+Historical advice with hashes or technical labels moves into this disclosure without changing its stored text.
+Its visible fallback offers source inspection without inventing a new recommendation.
+Feedback is separate from the next step and does not establish execution or provider success.
 Back/Close dismisses presentation.
 Generated suggestions support Done, Later, Useful, Not relevant, Incorrect, Ignore, and category suppression.
 Done records owner feedback without tool execution or a provider-success claim.

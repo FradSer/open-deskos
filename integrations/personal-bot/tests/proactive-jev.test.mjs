@@ -184,7 +184,7 @@ test('startup Jev request honors its real deadline and caller cancellation witho
 test('an injected ordinary typed judgment preserves real model identity and all grounding gates', async () => {
   let calls=0
   const judge=createJevJudge({env:{},request:async ({questions})=>{calls++;return {model:'synthetic/model-v1',answers:Object.fromEntries(Object.keys(questions).map(key=>[key,{type:'noul',noul:key.endsWith('_unsupported')?0.01:0.99}]))}}})
-  const result=await judge({candidates:[{id:'c0',generated:true,evidence:[],advice:'Synthetic advice',reason:'Synthetic reason'}],signal:new AbortController().signal})
+  const result=await judge({candidates:[{id:'c0',generated:true,evidence:[],advice:'Synthetic advice',nextStep:'Open the synthetic item.'}],signal:new AbortController().signal})
   assert.equal(calls,1);assert.equal(result.model,'synthetic/model-v1');assert.equal(result.answers.c0.groundingProbability,0.99)
   const f=fixture(()=>result);await f.watch.tick();assert.equal(f.watch.list().length,1);assert.equal(f.watch.list()[0].judgment.model,'synthetic/model-v1');await f.watch.close()
 })

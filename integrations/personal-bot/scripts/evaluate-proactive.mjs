@@ -22,7 +22,7 @@ export async function evaluateProactiveReplay({ createWatch = options => new Pro
         generate: async ({ topics }) => {
           calls.generation++
           return { suggestions: topics.filter(topic => topic.evidence[0].value > 0).map(topic => ({ topicId: topic.id, key: 'collect',
-            advice: 'Check pending parcels.', reason: 'The observed pending count is positive.', evidenceIds: [topic.evidence[0].id] })) }
+            advice: 'Check pending parcels.', nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: [topic.evidence[0].id] })) }
         },
         judge: async ({ candidates }) => {
           calls.judgment++
