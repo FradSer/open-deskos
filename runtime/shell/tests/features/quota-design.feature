@@ -1,4 +1,24 @@
 Feature: Read AI quotas with clear provenance and recovery
+  # Source: shared subscription snapshot; percentages mean remaining quota.
+  # Keep quota plugin identities, App entry, spans, themes, and cleanup ownership.
+  # Use provider headings without new icons; retain existing App provider icons.
+  # Verify 186px and 348px Cells, account identity, rotation, and App containment.
+  Scenario: Show quota windows for the account plan
+    Given Codex Pro, other Codex plans, and Antigravity accounts
+    When the Widget or App displays their quotas
+    Then Codex Pro hides the 5h window and retains Weekly
+    And other Codex plans display 5h and Weekly
+    And Antigravity displays 5h and Weekly for each model group
+    And missing Antigravity windows remain explicitly unavailable
+
+  Scenario: Read each connected account in the Home Widget
+    Given several accounts with known quota windows
+    When six visible seconds pass without hover or keyboard focus
+    Then the Widget advances to the next account and wraps after the last
+    And provider, account, quota, and position change together
+    And reduced motion keeps the current account visible
+    And the App lists all accounts with provider and email before authentication filenames
+
   Scenario: Hidden consumer acceptance uses its private profile on every host
     Given the parent supplies a private Electron profile
     When Electron includes command-line flags in its argument list

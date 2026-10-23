@@ -36,6 +36,34 @@ test('subscription cards communicate actionable states without merging percentag
   }
 })
 
+test('Widget cycles account identity together with its quota every six seconds', () => {
+  const status = windows([['Weekly limit', 58], ['Weekly limit', 80]])
+  status.snapshot.accounts[0].account = 'fradser@gmail.com'
+  status.snapshot.accounts[1].account = 'work@example.com'
+  const tile = mountTile(status)
+  assert.equal(tile.text('.quota-tile-account'), 'fradser@gmail.com')
+  tile.tick(Date.now() + 6100)
+  assert.equal(tile.text('.quota-tile-account'), 'work@example.com')
+  assert.equal(tile.text('.quota-tile-value'), '80%')
+  assert.equal(tile.text('.quota-tile-position'), '2 / 2')
+  tile.tick(Date.now() + 12200)
+  assert.equal(tile.text('.quota-tile-account'), 'fradser@gmail.com')
+})
+
+test('Codex Pro hides 5h while Plus and Antigravity retain both windows', async () => {
+  for (const [provider, plan, shortVisible] of [['codex', 'Pro', false], ['codex', 'Plus', true], ['antigravity', 'Pro', true]]) {
+    const item = { ...account(58), provider, plan, account: 'fradser@gmail.com' }
+    item.groups[0].quotas.push({ label: '5 hour limit', horizon: 'short', remainingPct: 86 })
+    const status = { state: 'available', snapshot: { accounts: [item] } }
+    const page = mount(status); await page.settle()
+    const html = page.nodes.get('#quota-metrics').innerHTML
+    assert.equal(html.includes('5 hour limit'), shortVisible)
+    assert.match(html, /Weekly limit/)
+    const tile = mountTile(status)
+    assert.equal(tile.text('.quota-tile-secondary').includes('5h'), shortVisible)
+  }
+})
+
 test('subscription count includes failed accounts and does not invent zero before retrieval', async () => {
   const page = mount({ state: 'unconfigured' }); await page.settle()
   assert.equal(page.el.querySelector('#quota-count').textContent, 'Subscriptions unavailable')
@@ -46,7 +74,7 @@ test('subscription count includes failed accounts and does not invent zero befor
 test('provider hierarchy and remaining semantics preserve account provenance', async () => {
   const page = mount(live(58)); await page.settle()
   const html = page.nodes.get('#quota-metrics').innerHTML
-  assert.match(html, /<strong>work-account.json<\/strong>/)
+  assert.match(html, /<strong>Codex<\/strong>/)
   assert.match(html, /<p class="provider-plan">Codex · Pro<\/p>/)
   assert.match(html, /58%<\/span>\s*<span[^>]*>remaining/)
   assert.match(html, /aria-valuetext="58% remaining"/)
@@ -122,6 +150,7 @@ function mountTile(status, refresh) {
   plugin.mount(el, { trackCleanup(fn) { cleanups.push(fn) }, subscription, onTick(fn) { tick = fn } })
   const meter = () => nodes.get('.quota-tile-meter')
   return { plugin, el, nodes, writes, cleanups,
+    tick(now) { tick(new Date(now)) },
     update(next) { status = next; tick(new Date()) },
     text: (key) => nodes.get(key)?.textContent,
     attr: (key, name) => nodes.get(key)?.getAttribute(name),
@@ -264,12 +293,12 @@ test('the usage Widget requests its initial shared reading and ignores completio
 
 
 test('the quota Widget identifies the service that owns its reported window', () => {
-  const status = windows([['Weekly', 58], ['5 hour', 12]])
+  const status = windows([['Weekly', 58], ['Weekly', 12]])
   status.snapshot.accounts[1].provider = 'antigravity'
   const tile = mountTile(status)
   assert.equal(tile.text('.widget-heading'), 'Antigravity')
   tile.update(windows([['Weekly', 58]]))
-  assert.equal(tile.text('.widget-heading'), 'ChatGPT')
+  assert.equal(tile.text('.widget-heading'), 'Codex')
   tile.update({ state: 'unconfigured' })
   assert.equal(tile.text('.widget-heading'), 'AI usage')
   assert.equal(tile.text('.quota-tile-context'), 'Connect an account')

@@ -263,7 +263,7 @@ async function pomodoroCentering(win) {
           const tile=document.querySelector('[data-widget="'+id+'"]'),frame=tile.getBoundingClientRect(),style=getComputedStyle(tile);
           const head=tile.querySelector('.widget-head').getBoundingClientRect(),body=tile.querySelector('.widget-signal').getBoundingClientRect();
           const top=frame.top+parseFloat(style.borderTopWidth)+parseFloat(style.paddingTop),left=frame.left+parseFloat(style.borderLeftWidth)+parseFloat(style.paddingLeft);
-          const nodes=[...tile.querySelector('.quota-tile-body').children].filter(node=>!node.hidden);
+          const nodes=[...tile.querySelector('.quota-tile-body').children].filter(node=>!node.hidden && node.getBoundingClientRect().height > 0);
           const bounds=nodes.map(node=>node.getBoundingClientRect()),start=Math.min(...bounds.map(r=>r.top)),end=Math.max(...bounds.map(r=>r.bottom));
           return {id,anchored:Math.abs(head.top-top)<1&&Math.abs(head.left-left)<1,above:head.bottom<=body.top+1,centered:Math.abs((start+end-body.top-body.bottom)/2)<1};
         });
