@@ -328,8 +328,8 @@ test('independent selected Home preserves service pushes, unavailable readings, 
       onHome(home, current, context) { current.attachHome(home); context.onCleanup(() => current.attachHome(undefined)) },
     })
     const snapshots = []
-    const push = async predicate => {
-      now += 15 * 60 * 1000
+    const push = async (predicate, elapsed = 15 * 60 * 1000) => {
+      now += elapsed
       const published = new Promise(resolve => {
         const off = service.subscribe(frame => { if (predicate(frame.briefing)) { off(); resolve() } })
       })
@@ -345,7 +345,7 @@ test('independent selected Home preserves service pushes, unavailable readings, 
       assert.equal(service.status.briefing.items[0].text, 'Pi 2 sessions.')
       snapshots.push(structuredClone(service.status.briefing))
       await writeFile(input, JSON.stringify([reading(5)]))
-      await push(frame => frame?.state === 'live' && frame.items[0]?.text === 'Pi 5 sessions.')
+      await push(frame => frame?.state === 'live' && frame.items[0]?.text === 'Pi 5 sessions.', 5 * 60 * 1000)
       assert.equal(generations, external ? 0 : 1)
       const pi = reading(5)
       pi.home.priority = 10
