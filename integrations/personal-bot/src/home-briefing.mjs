@@ -3,6 +3,8 @@ const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const STATES = new Set(['live', 'stale', 'unavailable', 'unconfigured', 'unauthorized', 'error'])
 const ICONS = new Set(['sessions', 'plants', 'weather', 'mail', 'calendar', 'tasks', 'reading', 'portfolio', 'quota', 'apps', 'status'])
 const MAX_AGE_MS = 15 * 60 * 1000
+const MIN_GENERATION_INTERVAL_MS = 5 * 60 * 1000
+const MAX_RETRY_INTERVAL_MS = 30 * 60 * 1000
 const MEASUREMENT_TIMES = new Set(['asOf', 'measuredAt', 'updatedAt', 'publishedAt'])
 
 function homeDeclaration(home) {
@@ -103,6 +105,9 @@ export class HomeBriefing {
     this.sourceOnly = false
     this.templateCreatedAt = 0
     this.templateLayout = ''
+    this.templateReadings = null
+    this.nextGenerationAt = 0
+    this.generationFailures = 0
     this.list = list
     this.read = read
     this.generate = generate
@@ -149,6 +154,31 @@ export class HomeBriefing {
     this.timer = setTimeout(() => { void this.refresh() }, 1000)
   }
 
+  publishDeferred(readings, omittedSources) {
+    if (!this.requireBindings) {
+      this.emit(this.frame.items.length ? 'stale' : 'error')
+      return
+    }
+    let items, retained = false
+    if (this.template && this.templateReadings) {
+      try {
+        const rebound = rebindHomeSelection(this.template, this.templateReadings, readings)
+        items = validateHomeBriefing(resolveHomeTemplate(rebound, readings), readings, { requireSegments: true })
+        retained = items.length > 0
+      } catch { /* Changed identities cannot keep an old selected fact. */ }
+    }
+    if (!retained) {
+      try { items = boundSourceFacts(readings, this.now()) }
+      catch { items = [] }
+    }
+    this.sourceOnly = !retained
+    // Source checks remain useful, but cannot imply another successful selection.
+    const state = this.generationFailures ? 'error' : retained && this.now() - this.templateCreatedAt < MAX_AGE_MS ? 'live' : 'stale'
+    this.emit(state, {
+      items, generatedAt: retained && !this.generationFailures ? this.templateCreatedAt : 0, omittedSources,
+    })
+  }
+
   async readSource(id, signal) {
     const controller = new AbortController()
     const abort = () => controller.abort(signal.reason)
@@ -174,6 +204,7 @@ export class HomeBriefing {
     const current = () => !this.closed && !controller.signal.aborted
     this.pending = (async () => {
       let stage = 'readings'
+      let attempted = false
       let snapshot
       try {
         snapshot = async () => {
@@ -235,7 +266,11 @@ export class HomeBriefing {
         }
         let fingerprint = contentFingerprint(readings)
         const layout = layoutFingerprint(readings, this.now())
-        if (this.requireBindings && this.template && this.templateLayout === layout && this.now() - this.templateCreatedAt < MAX_AGE_MS) {
+        if (this.generationFailures && this.now() < this.nextGenerationAt) {
+          this.publishDeferred(readings, omittedSources)
+          return
+        }
+        if (!this.generationFailures && this.requireBindings && this.template && this.templateLayout === layout && this.now() - this.templateCreatedAt < MAX_AGE_MS) {
           try {
             const items = validateHomeBriefing(resolveHomeTemplate(this.template, readings), readings, { requireSegments: true })
             this.sourceOnly = false
@@ -244,8 +279,12 @@ export class HomeBriefing {
             return
           } catch { this.template = null }
         }
-        if (!this.requireBindings && fingerprint === this.fingerprint && this.frame.state !== 'stale' && this.now() - this.frame.generatedAt < MAX_AGE_MS) {
+        if (!this.generationFailures && !this.requireBindings && fingerprint === this.fingerprint && this.frame.state !== 'stale' && this.now() - this.frame.generatedAt < MAX_AGE_MS) {
           if (this.frame.omittedSources !== omittedSources) this.emit(this.frame.state, { omittedSources })
+          return
+        }
+        if (this.now() < this.nextGenerationAt) {
+          this.publishDeferred(readings, omittedSources)
           return
         }
         if (this.requireBindings && (!this.frame.items.length || this.sourceOnly)) {
@@ -259,6 +298,7 @@ export class HomeBriefing {
           }
         } else this.emit('loading')
         stage = 'generate'
+        attempted = true
         let raw = await this.generate({ readings, omittedSources, now: this.now(), previous: this.frame.items.filter(item => item.sources.every(source => readings.some(reading => reading.id === source.id))), ...(this.requireBindings ? { variables: homeTemplateVariables(readings) } : {}), signal: controller.signal })
         if (!current()) return
         let selectionChanged = false
@@ -283,7 +323,8 @@ export class HomeBriefing {
                 const items = boundSourceFacts(latest.readings, this.now())
                 this.template = null
                 this.sourceOnly = true
-                this.emit('loading', { items, generatedAt: 0, omittedSources: latest.omittedSources })
+                this.generationFailures = 0
+                this.emit('stale', { items, generatedAt: 0, omittedSources: latest.omittedSources })
                 this.schedule()
                 return
               }
@@ -299,13 +340,19 @@ export class HomeBriefing {
           this.template = structuredClone(raw)
           this.templateLayout = selectionChanged ? '' : layoutFingerprint(readings, this.now())
           this.templateCreatedAt = this.now()
+          this.templateReadings = structuredClone(readings)
         }
+        this.generationFailures = 0
         this.fingerprint = fingerprint
         this.sourceOnly = false
         this.emit(items.length ? 'live' : 'empty', { items, generatedAt: this.now(), omittedSources })
         if (selectionChanged) this.schedule()
       } catch (error) {
         if (current()) {
+          if (attempted) {
+            this.generationFailures = Math.min(4, this.generationFailures + 1)
+            this.nextGenerationAt = this.now() + Math.min(MAX_RETRY_INTERVAL_MS, MIN_GENERATION_INTERVAL_MS * 2 ** (this.generationFailures - 1))
+          }
           const name = typeof error?.name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,47}$/.test(error.name) ? error.name : 'Error'
           const code = typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]{0,31}$/.test(error.code) ? error.code : undefined
           const rawStatus = error?.status ?? error?.statusCode
@@ -326,6 +373,8 @@ export class HomeBriefing {
           }
           this.emit(this.frame.items.length ? 'stale' : 'error')
         }
+      } finally {
+        if (attempted) this.nextGenerationAt = Math.max(this.nextGenerationAt, this.now() + MIN_GENERATION_INTERVAL_MS)
       }
     })().finally(() => {
       this.pending = null

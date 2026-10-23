@@ -261,7 +261,7 @@ test('independent selected Home preserves service pushes, unavailable readings, 
             home.coverage = { totalSources: readings.length, readSources: readings.length,
               failedSources: readings.filter(source => source.state !== 'live').length, incompleteSources: readings.filter(source => partial(source.value)).length }
             const omittedSources = catalog.filter(source => source.home.mode !== 'hidden').length - readings.length
-            if (!readings.length) { home.publish('empty', { items: [], generatedAt: 2000, omittedSources }); return }
+            if (!readings.length) { home.publish('empty', { items: [], generatedAt: provider.now(), omittedSources }); return }
             home.publish('loading')
             const items = [readings.slice(0, 4), readings.slice(4)].filter(group => group.length).map(group => {
               const segments = group.flatMap((source, index) => {
@@ -274,7 +274,7 @@ test('independent selected Home preserves service pushes, unavailable readings, 
               return { text: segments.map(segment => segment.text).join(''), segments,
                 sources: group.map(source => ({ id: source.id, label: source.label, state: source.state, ...(Number.isFinite(source.updatedAt) ? { updatedAt: source.updatedAt } : {}) })) }
             })
-            home.publish('live', { items, generatedAt: 2000, omittedSources })
+            home.publish('live', { items, generatedAt: provider.now(), omittedSources })
           } catch { home.publish(home.frame.items.length ? 'stale' : 'error') }
         })().finally(() => { home.pending = null })
         return home.pending
@@ -298,7 +298,8 @@ test('independent selected Home preserves service pushes, unavailable readings, 
   const reports = []
   for (const external of [false, true]) {
     await writeFile(input, JSON.stringify([reading(2)]))
-    let generations = 0, releasePending = () => {}
+    let generations = 0, releasePending = () => {}, now = 2000
+    provider.now = () => now
     const service = new PersonalBotService({ record: async () => assert.fail('no capture'),
       transcribe: async () => assert.fail('no transcription'), prompt: async () => assert.fail('no voice request') })
     const resident = createPersonalBotComposition({
@@ -322,12 +323,13 @@ test('independent selected Home preserves service pushes, unavailable readings, 
               segments.push({ text: '.' })
               return { text: segments.map(segment => segment.text).join(''), segments, readingIds: group.map(source => source.id) }
             }) }
-          }, publish: frame => service.publishBriefing(frame), now: () => 2000 })
+          }, publish: frame => service.publishBriefing(frame), now: () => now })
       },
       onHome(home, current, context) { current.attachHome(home); context.onCleanup(() => current.attachHome(undefined)) },
     })
     const snapshots = []
     const push = async predicate => {
+      now += 5 * 60 * 1000
       const published = new Promise(resolve => {
         const off = service.subscribe(frame => { if (predicate(frame.briefing)) { off(); resolve() } })
       })

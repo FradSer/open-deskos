@@ -120,8 +120,9 @@ test('availability changes cannot reuse a live-value template', async () => {
   const home = new HomeBriefing({ requireBindings: true, list: async () => [reading()], read: async () => reading(), generate: async () => { calls++; return template('weather', 'weather', state === 'live' ? '{{weather|@label|text}} {{weather|temperatureC|celsius}}.' : '{{weather|@label|text}} is {{weather|@state|text}}.') }, publish: () => {} })
   await home.refresh()
   state = 'unavailable'; home.invalidate(); await home.refresh()
-  assert.equal(home.frame.items[0].text, 'weather is unavailable.')
-  assert.equal(calls, 2)
+  assert.equal(home.frame.items[0].text, 'weather unavailable.')
+  assert.equal(home.frame.state, 'stale')
+  assert.equal(calls, 1)
   home.close()
 })
 

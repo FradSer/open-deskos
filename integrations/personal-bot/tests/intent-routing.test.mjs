@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createJevIntentRouter, INTENTS, createIntentTurn, guardIntentTools, proposalConfirmations } from '../src/intent-routing.mjs'
+import { createJevIntentRouter, INTENTS, createIntentTurn, guardIntentTools, intentToolNames, proposalConfirmations } from '../src/intent-routing.mjs'
 import { sessionAdapter } from '../src/agent.mjs'
 
 function response(choice = 'task_query', overrides = {}) {
@@ -255,6 +255,23 @@ test('application queries can inspect inventory without granting lifecycle mutat
   assert.equal(await tools[1].execute(), 2)
   for (const tool of tools.slice(2)) await assert.rejects(tool.execute(), /selected intent/)
   assert.equal(calls, 2)
+})
+
+test('application management can read draft evidence without controlling its task', async () => {
+  const reads = ['coding_targets', 'coding_tasks_list', 'coding_task_status', 'coding_task_history']
+  const lifecycle = ['user_apps_list', 'user_apps_desktop', 'user_app_install', 'user_app_place', 'user_app_remove', 'user_app_rollback']
+  const blocked = ['coding_task_start', 'coding_task_prompt', 'coding_task_cancel', 'coding_task_end', 'coding_task_verify', 'remote_pi_followup']
+  const called = []
+  let intent = 'app_manage'
+  const source = [...reads, ...lifecycle, ...blocked].map(name => ({ name, execute: async () => { called.push(name); return name } }))
+  assert.deepEqual(intentToolNames(source, intent), [...reads, ...lifecycle])
+  const tools = guardIntentTools(source, () => intent)
+  for (const tool of tools.slice(0, reads.length + lifecycle.length)) assert.equal(await tool.execute('id', {}), tool.name)
+  for (const tool of tools.slice(reads.length + lifecycle.length)) await assert.rejects(tool.execute('id', {}), /selected intent/)
+  intent = 'app_query'
+  assert.deepEqual(intentToolNames(source, intent), ['user_apps_list', 'user_apps_desktop'])
+  for (const tool of tools.filter(tool => reads.includes(tool.name))) await assert.rejects(tool.execute('id', {}), /selected intent/)
+  assert.deepEqual(called, [...reads, ...lifecycle])
 })
 
 test('the child executes a general-work route without recursive delegation or parent lifecycle mutations', async () => {
