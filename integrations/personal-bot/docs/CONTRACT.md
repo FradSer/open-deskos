@@ -961,8 +961,11 @@ Ordinary numeric changes bind into the retained template.
 Changes to goals, activity, lifecycle states, waiting counts, and attention thresholds require selection again.
 Time-sensitive fields also participate in attention checks.
 Templates expire after 15 minutes.
-The host confirms source identity and selection context before publishing pending output.
-It binds the latest ordinary values before publication.
+The host confirms source identity before publishing pending output.
+Pending selections bind to current host fact identities and verification qualifiers.
+Changed context schedules another selection without discarding compatible current facts.
+Reordered Pi sessions retain their task identities.
+Removed or hidden sources cannot supply displayed facts.
 
 Each semantic fact retains its source identity, field references, context, units, and measurement state.
 Nested measurements retain their units and enclosing object names.
@@ -975,6 +978,11 @@ Each model request contains at most 256 fact candidates and 48,000 bytes.
 Larger inputs use separate batches, followed by selection across their candidates.
 Every fact reaches its batch before that reduction.
 Up to four independent batches run concurrently within one generation deadline.
+Each candidate includes its display cost, with separator allowance.
+Format corrections identify oversized selections and request fewer facts.
+Overview limits each response to 2,048 tokens.
+[Model Studio](https://help.aliyun.com/en/model-studio/deep-thinking) requests explicitly disable thinking.
+This policy applies only to Overview sessions.
 Long facts can supply analysis context without being selectable for display.
 Context text above 8,192 characters carries an explicit incomplete flag.
 Each request uses a temporary Pi session without tools, extensions, Skills, or memory.
@@ -982,7 +990,17 @@ All source content remains untrusted data.
 
 The model returns `{items:[{sources:[0,1]}]}` with integer fact selectors from the captured batch.
 The legacy `sources` key now selects facts, not reserved sources.
-Several facts can refer to one source.
+Each service can supply only one displayed fact across all items.
+All of its facts still participate in analysis.
+The host keeps the first selected fact for each service identity.
+Discarded duplicates cannot enter later selection rounds or invalidate displayed facts.
+Selected analysis-only facts receive the same bounded correction as other invalid output.
+Correction requests list only displayable choices and retain their original selectors.
+The same temporary conversation retains the complete initial analysis context.
+Source IDs provide default service identities.
+Resident task adapters share `odk.personal-agent`.
+Remote report adapters share `odk.app.pi-sessions` with Pi session readings.
+Different services remain independent when they use the same icon.
 The host compiles their order and grouping into source-bound sentences.
 The model cannot supply text, values, references, icons, or formatting.
 The output contains at most two items and 240 total characters.
@@ -996,8 +1014,9 @@ The host accepts only supplied references and their formats.
 Other references bind declared fields from live sources.
 Host-owned fact templates retain field meanings and verification qualifiers.
 The joined segment text must equal the item text.
-The Shell renders literal text and approved icons.
-It does not interpret source strings as HTML or instructions.
+The Shell renders safe Markdown and approved icons.
+HTML remains literal, images cannot load, and links become display-only text.
+Source strings cannot grant instructions or execution authority.
 
 The authenticated status channel carries a separate `briefing` JSONL frame.
 The frame contains `v: 1`, `type: "briefing"`, and `briefing`.

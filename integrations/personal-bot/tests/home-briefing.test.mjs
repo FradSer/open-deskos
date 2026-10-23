@@ -50,17 +50,32 @@ test('an expired generation failure shows current bound facts instead of old val
   assert.doesNotMatch(home.frame.items[0].text, /2/)
 })
 
-test('resident Agent tasks and every remote report page join the shared source inventory', async () => {
+test('resident Agent tasks and every remote report page join the shared source inventory', async t => {
   const { declaredSources } = await import('./helpers/declared-sources.mjs')
   const { createTaskReadings, createRemoteReadings } = await import('../src/producer-readings.mjs')
   const records = Array.from({ length: 10 }, (_, i) => ({ id: String(i).padStart(64, 'a'), at: 1000 + i, text: `Reported result ${i}`, verification: 'reported_unverified', sources: [{ taskName: `Remote task ${i}`, state: 'settled' }] }))
   const task = { taskId: '00000000-0000-0000-0000-000000000001', identity: { name: 'Research' }, state: 'running', updatedAt: new Date(1000).toISOString(), request: 'Check the runtime', verification: { status: 'not_run' } }
-  const access = await declaredSources({ readings: [reading()], providers: [
-    createTaskReadings({ list: () => ({ tasks: [task], total: 1 }), status: () => task }),
+  const sibling = { ...task, taskId: '00000000-0000-0000-0000-000000000002', identity: { name: 'Background Agent' } }
+  const access = await declaredSources({ readings: [reading(), { ...reading(), id: 'odk.app.pi-sessions' }], providers: [
+    createTaskReadings({ list: () => ({ tasks: [task, sibling], total: 2 }), status: id => id === task.taskId ? task : sibling }),
     createRemoteReadings({ snapshot: (offset = 0, limit = 8) => ({ state: 'live', messages: records.slice(offset, offset + limit), totalMessages: records.length, nextOffset: offset + limit < records.length ? offset + limit : null }) }),
   ] })
   const entries = await access.list()
-  assert.equal(entries.length, 12)
+  t.after(() => access.close())
+  assert.equal(entries.length, 14)
+  const { generateHomeSelection, homeFactVariables, resolveHomeTemplate } = await import('../src/home-template.mjs')
+  const readings = await Promise.all(entries.map(async entry => ({ ...entry, ...await access.read(entry.id) })))
+  const seen = []
+  const selected = await generateHomeSelection(readings, { choose: async request => {
+    seen.push(...request.variables)
+    const agent = request.variables.filter(fact => fact.id.startsWith('odk.agent.') && /:(state|goal)$/.test(fact.factId))
+    const pi = request.variables.find(fact => fact.id === 'odk.app.pi-sessions')
+    const reports = request.variables.filter(fact => fact.id.startsWith('odk.remote.') && fact.factId.endsWith(':report')).slice(0, 2)
+    return { items: [{ sources: [...agent, ...reports, pi].map(fact => fact.selector) }] }
+  } })
+  assert.equal(seen.length, homeFactVariables(readings).length)
+  assert.equal(resolveHomeTemplate(selected, readings).items.flatMap(item => item.segments).length, 2, 'Declared services cannot create repeated Overview facts')
+  assert.deepEqual([...new Set(seen.filter(fact => fact.id.startsWith('odk.remote.')).map(fact => fact.serviceId))], ['odk.app.pi-sessions'])
   const agent = await access.read(entries.find(entry => entry.id.startsWith('odk.agent.')).id)
   assert.equal(agent.value.goal, 'Check the runtime')
   assert.equal(agent.value.state, 'running')
@@ -519,4 +534,55 @@ test('a re-resolved model template clears source-only provenance before a later 
   sources=[source(true)];await home.refresh();assert.equal(home.frame.state,'error')
   sources=[source(false)];await home.refresh();assert.equal(home.frame.state,'live');assert.deepEqual(home.frame.items,modelItems)
   sources=[source(true)];await home.refresh();assert.equal(home.frame.state,'error');assert.match(home.frame.items[0].text,/2 Synthetic sessions/)
+})
+
+test('busy Pi activity publishes current bound facts and reselects with new completion qualifiers', async t => {
+  const { compileHomeSelection, homeFactVariables } = await import('../src/home-template.mjs')
+  let task = { name: 'Build', state: 'running', activity: 'Checking', verification: 'not_run' }, entered, release, calls = 0
+  const ready = new Promise(resolve => { entered = resolve })
+  const gate = new Promise(resolve => { release = resolve })
+  const source = () => ({ id: 'pi', label: 'Pi', state: 'live', value: { sessions: [structuredClone(task)] },
+    home: { mode: 'optional', priority: 0, icon: 'sessions', fields: ['sessions'] } })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [source()], read: async () => source(),
+    generate: async ({ readings }) => {
+      const facts = homeFactVariables(readings)
+      const result = compileHomeSelection({ items: [{ sources: facts.flatMap((fact, index) => /:(?:sessions.0.state|sessions.0.activity)$/.test(fact.factId) ? [index] : []) }] }, facts)
+      if (++calls === 1) { entered(); await gate }
+      return result
+    }, publish() {} })
+  t.after(() => { release(); home.close() })
+  const pending = home.refresh(); await ready
+  task = { ...task, state: 'finished', activity: 'Checks reported complete' }
+  home.invalidate(); release(); await pending
+  assert.equal(home.frame.state, 'live')
+  assert.match(home.frame.items[0].text, /Build finished/)
+  assert.equal(home.frame.items[0].segments.length, 1, 'One service supplies one selected fact')
+  assert.match(home.frame.items[0].text, /verification not_run/)
+  assert.doesNotMatch(home.frame.items[0].text, /running|Checking/)
+  await home.refresh()
+  assert.equal(calls, 2, 'Changed selection context cannot enter the normal cached-template path')
+})
+
+for (const change of ['hidden', 'unavailable', 'removed']) test(`pending selected facts cannot survive a source becoming ${change}`, async t => {
+  const { compileHomeSelection, homeFactVariables } = await import('../src/home-template.mjs')
+  let entered, release
+  const ready = new Promise(resolve => { entered = resolve }), gate = new Promise(resolve => { release = resolve })
+  const selected = { id: 'selected', label: 'Selected', state: 'live', value: { note: 'Old selected fact' }, home: { mode: 'optional', priority: 0, icon: 'tasks', fields: ['note'] } }
+  let readings = [selected, { id: 'other', label: 'Other', state: 'live', value: { count: 1 } }]
+  const home = new HomeBriefing({ requireBindings: true, list: async () => readings, read: async id => readings.find(source => source.id === id),
+    generate: async ({ readings }) => {
+      const facts = homeFactVariables(readings)
+      const raw = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.id === 'selected')] }] }, facts)
+      entered(); await gate; return raw
+    }, publish() {} })
+  t.after(() => { release(); home.close() })
+  const pending = home.refresh(); await ready
+  if (change === 'hidden') selected.home.mode = 'hidden'
+  else if (change === 'unavailable') { selected.state = 'unavailable'; selected.value = null }
+  else readings = readings.slice(1)
+  home.invalidate(); release(); await pending
+  assert.equal(home.frame.state, 'loading')
+  assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /Old selected fact/)
+  assert.equal(home.frame.generatedAt, 0)
+  if (change !== 'unavailable') assert.ok(home.frame.items.every(item => item.sources.every(source => source.id !== 'selected')))
 })

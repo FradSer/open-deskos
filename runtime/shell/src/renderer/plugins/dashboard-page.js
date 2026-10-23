@@ -86,11 +86,37 @@
     }
   }
 
+  function appendMarkdown(el, text, portfolioLive, portfolio) {
+    const body = el.ownerDocument.createElement('div')
+    root.odkPersonalBotReply.render(body, text)
+    if (!body.classList.contains('personal-bot-status-markdown')) return false
+    body.className = 'dash-markdown'
+    const walker = el.ownerDocument.createTreeWalker(body, 4)
+    const nodes = []
+    while (walker.nextNode()) nodes.push(walker.currentNode)
+    for (const node of nodes) {
+      // Keep code literal; apply measurement styling to Markdown prose only.
+      if (node.parentElement.closest('code, pre')) continue
+      const fragment = el.ownerDocument.createDocumentFragment()
+      appendText(fragment, node.textContent, portfolioLive, portfolio)
+      node.replaceWith(fragment)
+    }
+    el.append(body)
+    return true
+  }
+
   function renderBriefing(el, frame) {
     const doc = el.ownerDocument
     const narrative = el.querySelector('#dash-narrative')
     const label = LABELS[frame.state] || LABELS.unavailable
-    el.querySelector('.dash-presence').dataset.state = frame.state
+    const presence = el.querySelector('.dash-presence')
+    presence.dataset.state = frame.state
+    const statusLabel = frame.state === 'loading' ? 'Updating Overview.'
+      : frame.state === 'unavailable' ? 'Overview unavailable. Waiting to reconnect.'
+        : frame.state === 'error' ? 'Overview update failed. It will retry automatically.'
+          : frame.state === 'stale' ? 'Overview could not confirm current readings. It will retry automatically.' : label
+    presence.setAttribute('aria-label', statusLabel)
+    presence.title = statusLabel
     narrative.dataset.state = frame.state
     narrative.setAttribute('aria-busy', String(frame.state === 'loading'))
     const coverage = frame.coverage
@@ -98,48 +124,45 @@
     narrative.setAttribute('aria-description', coverageText)
     narrative.title = coverageText
     narrative.replaceChildren()
-    if (frame.items.length && frame.state !== 'live' && frame.state !== 'loading') {
-      const availability = doc.createElement('span')
-      availability.className = 'dash-availability'
-      availability.textContent = label + ' '
-      narrative.append(availability)
-    }
     for (const [index, item] of frame.items.entries()) {
       if (index) narrative.append(doc.createTextNode(' '))
-      const clause = doc.createElement('span')
+      const clause = doc.createElement('div')
       clause.className = 'dash-clause'
       clause.dataset.briefing = `agent-${index}`
       const fallbackIcon = item.sources.some(source => /mail/i.test(source.id)) ? 'mail' : 'status'
       for (const segment of item.segments || [{ text: item.text, icon: fallbackIcon }]) {
-        const span = doc.createElement('span')
+        const span = doc.createElement('div')
         const icon = ICONS[segment.icon]
         const portfolio = segment.icon === 'portfolio'
         const portfolioLive = frame.state === 'live' && item.sources.length > 0 && item.sources.every(source => source.state === 'live')
         span.className = icon ? 'dash-fact' : 'dash-context'
         if (icon) {
-          // Only repository-owned SVG paths enter HTML; agent text stays literal.
+          // SVG paths are repository-owned; source Markdown uses the safe local parser.
           const glyph = doc.createElement('span')
           glyph.className = 'dash-icon'
           glyph.dataset.kind = segment.icon
           if (frame.state === 'live' && item.sources.length && item.sources.every(source => source.state === 'live')) glyph.dataset.state = 'live'
           glyph.innerHTML = `<svg data-tabler="${icon.name}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${icon.paths}</svg>`
-          const token = doc.createElement('span')
-          token.className = 'dash-token'
-          const leading = segment.text.match(/^\s*/)[0]
-          const word = segment.text.slice(leading.length).match(/^\S+/)[0]
-          const prefix = leading + (word.length <= 8 || /^[+-]?\d+(?:\.\d+)?%$/.test(word) ? word : Array.from(word)[0])
-          token.append(glyph)
-          appendText(token, prefix, portfolioLive, portfolio)
-          span.append(token)
-          appendText(span, segment.text.slice(prefix.length), portfolioLive, portfolio)
-        } else appendText(span, segment.text)
+          if (appendMarkdown(span, segment.text, portfolioLive, portfolio)) span.prepend(glyph)
+          else {
+            const token = doc.createElement('span')
+            token.className = 'dash-token'
+            const leading = segment.text.match(/^\s*/)[0]
+            const word = segment.text.slice(leading.length).match(/^\S+/)[0]
+            const prefix = leading + (word.length <= 8 || /^[+-]?\d+(?:\.\d+)?%$/.test(word) ? word : Array.from(word)[0])
+            token.append(glyph)
+            appendText(token, prefix, portfolioLive, portfolio)
+            span.append(token)
+            appendText(span, segment.text.slice(prefix.length), portfolioLive, portfolio)
+          }
+        } else if (!appendMarkdown(span, segment.text)) appendText(span, segment.text)
         clause.append(span)
       }
       narrative.append(clause)
     }
     root.odkIcons?.apply?.(narrative)
-    if (!frame.items.length) {
-      const clause = doc.createElement('span')
+    if (!frame.items.length && !['error', 'stale', 'unavailable'].includes(frame.state)) {
+      const clause = doc.createElement('div')
       clause.className = 'dash-clause'
       clause.textContent = label
       narrative.append(clause)
@@ -156,12 +179,12 @@
         <div class="dash">
           <header class="dash-head">
             <div class="dash-wd" id="dash-wd"></div>
-            <span class="dash-presence" aria-hidden="true"></span>
+            <span class="dash-presence" role="status" aria-live="polite" aria-atomic="true"></span>
             <div class="dash-date text-right">
               <span id="dash-md"></span><span id="dash-y"></span>
             </div>
           </header>
-          <p class="dash-narrative" id="dash-narrative" role="status" aria-live="polite" aria-atomic="true"></p>
+          <div class="dash-narrative" id="dash-narrative" role="status" aria-live="polite" aria-atomic="true"></div>
         </div>`
 
       const wd = el.querySelector('#dash-wd')

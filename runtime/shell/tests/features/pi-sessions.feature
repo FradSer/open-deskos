@@ -301,3 +301,12 @@ Scenario: A macOS process snapshot resolves Pi work directories in one bounded l
     When the state capture harness opens the Pi Sessions Home Widget
     Then each Overview and Detail state is captured inside its App
     And returning to Home closes the App before Widget captures
+
+
+  Scenario: A missing external Pi Page fails through its actual consumer
+    Given an external Pi entry intentionally omits its Page definition
+    When the negative acceptance fixture loads that selected entry
+    Then it runs only the invalid selection phase
+    And the actual consumer detects packaged mount fallback
+    And positive cases retain the complete default and replacement comparison
+    And the existing rejection deadlines remain unchanged
