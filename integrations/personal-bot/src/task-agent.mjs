@@ -114,8 +114,12 @@ export function sessionEventsFromEntry(entry) {
   return events
 }
 
-function assistantOutcome(session, fromIndex, aborted) {
-  const final = session.messages.slice(fromIndex).findLast(message => message.role === 'assistant')
+function assistantOutcome(sessionManager, fromEntry, aborted) {
+  // Compaction replaces the context message array. Persistent entry identities
+  // keep this turn separate from older replies and abandoned branches.
+  const appended = new Set(sessionManager.getEntries().slice(fromEntry).map(entry => entry.id))
+  const final = sessionManager.getBranch().findLast(entry => appended.has(entry.id)
+    && entry.type === 'message' && entry.message.role === 'assistant')?.message
   const text = final?.content?.filter(part => part.type === 'text').map(part => part.text).join('\n') || ''
   return { text: boundedText(text), stopReason: aborted ? 'aborted' : final?.stopReason }
 }
@@ -224,11 +228,11 @@ export async function createHostedSession(input, { createSession = createAgentSe
     get sessionFile() { return session.sessionFile ?? sessionManager.getSessionFile() },
     async prompt(text) {
       if (disposed) throw new Error('Hosted Pi 已结束')
-      const fromIndex = session.messages.length
+      const fromEntry = sessionManager.getEntries().length
       abortRequested = false
       await session.prompt(text, { expandPromptTemplates: false })
       flushEntries()
-      return assistantOutcome(session, fromIndex, abortRequested)
+      return assistantOutcome(sessionManager, fromEntry, abortRequested)
     },
     async deliver(text, streamingBehavior) {
       if (disposed) throw new Error('Hosted Pi 已结束')

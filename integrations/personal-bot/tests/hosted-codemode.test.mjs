@@ -85,3 +85,47 @@ test('adapter refuses an unsafe or absent original directory without repairing i
  await chmod(sessionDir,0o755);await assert.rejects(createHostedSession({task:{project:dir,sessionFile:file},sessionDir,resume:true},dependencies),/原会话目录必须使用真实私有规范路径/);assert.equal((await stat(sessionDir)).mode&0o777,0o755);assert.equal(calls,0)
  await rm(sessionDir,{recursive:true});await assert.rejects(createHostedSession({task:{project:dir,sessionFile:file},sessionDir,resume:true},dependencies),/原会话目录必须使用真实私有规范路径/);await assert.rejects(stat(sessionDir),{code:'ENOENT'});assert.equal(calls,0)
 })
+
+
+test('a Hosted turn keeps its own outcome across SDK history compaction without borrowing an older reply', async t => {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'hosted-compaction-')))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  await isolateAgentDirectory(t, dir)
+  for (const reason of ['stop', 'length', 'error', 'aborted', 'no-reply', 'input-abort', 'abandoned', 'branched-stop']) {
+    let compacted = false, previousLength, currentLength
+    const hosted = await createHostedSession({ task: { project: dir }, sessionDir: join(dir, reason) }, {
+      createRuntime: async () => ({}), createSession: async options => {
+        const manager = options.sessionManager
+        for (let i = 0; i < 40; i++) {
+          manager.appendMessage({ role: 'user', content: 'old request ' + i, timestamp: i })
+          manager.appendMessage(assistant('old reply ' + i))
+        }
+        const oldLeaf = manager.getLeafId()
+        const session = { messages: manager.buildSessionContext().messages, bindExtensions: async () => {}, subscribe: () => () => {}, dispose() {}, abort: async () => {},
+          async prompt() {
+            previousLength = session.messages.length
+            manager.appendMessage({ role: 'user', content: 'current request', timestamp: 100 })
+            manager.appendCompaction('Summary of previous requests.', oldLeaf, 10000)
+            if (reason === 'input-abort') await hosted.abort()
+            if (['abandoned', 'branched-stop'].includes(reason)) {
+              const branchAt = manager.getLeafId()
+              manager.appendMessage(assistant('abandoned reply'))
+              manager.branch(branchAt)
+            }
+            if (!['no-reply', 'abandoned'].includes(reason)) manager.appendMessage(assistant('current result', ['input-abort', 'branched-stop'].includes(reason) ? 'stop' : reason))
+            session.messages = manager.buildSessionContext().messages
+            currentLength = session.messages.length
+            compacted = true
+          } }
+        return { session }
+      },
+    })
+    try {
+      const result = await hosted.prompt('current request')
+      assert.ok(compacted && currentLength < previousLength, 'The actual SDK projection must shrink its message array')
+      assert.deepEqual(result, ['no-reply', 'abandoned'].includes(reason) ? { text: '', stopReason: undefined } : { text: 'current result', stopReason: reason === 'input-abort' ? 'aborted' : reason === 'branched-stop' ? 'stop' : reason })
+      const history = readHostedHistory(hosted.sessionFile, 78, 20)
+      assert.equal(history.events.flatMap(e => e.events).filter(e => e.kind === 'assistant' && e.text === 'current result').length, ['no-reply', 'abandoned'].includes(reason) ? 0 : 1)
+    } finally { hosted.dispose() }
+  }
+})
