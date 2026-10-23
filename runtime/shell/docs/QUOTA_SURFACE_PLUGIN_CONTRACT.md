@@ -15,13 +15,20 @@ The registry owns cleanup registered through `ctx.trackCleanup()`.
 The surface does not read credentials, files, or providers directly.
 
 The Widget reads the same subscription service without owning a refresh action.
-It shows the tightest known window, or the honest unconfigured, unavailable, unauthorized, or empty state.
+It starts with the tightest known weekly window, or the tightest known window when no weekly reading exists.
+It advances between readable accounts every six visible seconds, unless hover, keyboard focus, or reduced motion pauses rotation.
+Provider, account identity, remaining quota, and account position change together.
+Each account prefers its weekly reading and retains the provider's actual short-window duration as supporting text.
+Unconfigured, unavailable, unauthorized, and empty states remain distinct.
 A Widget press opens the App, which owns the refresh action and every disclosure.
 
 Provider names, account identity, plan, quota windows, reset times, and optional credits retain their existing meaning.
 Only finite numeric percentages between zero and 100 produce numeric readings and accessible meters.
 Zero remains an exhausted reading; missing, invalid, and string percentages remain unavailable.
 Account errors precede other states.
+Codex Pro hides short windows. Other Codex plans retain their reported windows.
+Each Antigravity model group shows short and weekly windows; missing windows remain unavailable.
+Account state uses these displayed windows, including unavailable placeholders and excluding hidden windows.
 Exhausted windows precede low readings; low readings precede unknown windows.
 Unknown providers retain the default provider label and icon fallback.
 Untrusted provider strings remain inert text.
