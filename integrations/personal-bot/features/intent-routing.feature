@@ -1,4 +1,27 @@
 Feature: Every Personal Bot user turn receives a typed intent judgment
+  Scenario: Feedback routing uses displayed read-only suggestion identities
+    Given one read-only suggestion is visible and not snoozed
+    When the owner requests feedback on that suggestion
+    Then routing receives only its identity without advice or evidence
+    And the response handler still requires explicit owner intent and an exact current selection
+
+  Scenario: Continuing work uses producer-owned references without copying task state
+    Given earlier owner requests and saved child task identities
+    When a later owner turn refers to the existing work
+    Then routing receives bounded owner-request history and current task references
+    And references contain no task response, private role, Memory, or action permission
+    And the selected handler reads the exact current task before acting
+    And an unresolved request asks for the missing object and intended result
+
+  Scenario: A task name resolves a previous clarification
+    Given the owner supplied a task instruction and the Bot requested its Pi session
+    When the owner supplies the displayed task name after another unclear turn
+    Then the model receives the bounded unresolved owner requests and a distinct task name index
+    And a typed choice selects the applicable original request without rewriting its text
+    And the host forwards that request and the current clarification to the original session once
+    And a later instruction can select the same session from conversation context without a UI reply
+    And unrelated requests, ambiguous choices, and unknown deliveries cannot replay an earlier request
+
   Scenario: All routed capabilities support historical direct calls without bypassing Code Mode
     Given either profile has registered reviewed capabilities and a historical direct tool call
     When the intent classifier selects an intent and the model invokes an exact allowed capability directly or through codemode

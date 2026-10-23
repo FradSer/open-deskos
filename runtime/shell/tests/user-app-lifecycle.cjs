@@ -1,4 +1,4 @@
-const { app, BrowserWindow, protocol, session } = require('electron')
+const { app, BrowserWindow, protocol, session, ipcMain } = require('electron')
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const os = require('node:os')
@@ -7,10 +7,13 @@ const { createUserAppStore } = require('../src/user-app-store')
 const { createUserAppVerifier } = require('../src/user-app-verifier')
 const { createUserAppResponse } = require('../src/user-app-protocol')
 const { buildUserAppDocument, USER_APP_CSP } = require('../src/user-app-content')
+const { createUserAppApi } = require('../src/user-app-api')
 const { USER_APP_SCHEME_PRIVILEGES } = require('../src/user-app-system')
 protocol.registerSchemesAsPrivileged([{ scheme: 'odk-user-app', privileges: USER_APP_SCHEME_PRIVILEGES }])
 let directory
 let win
+let packageApi
+app.on('window-all-closed', () => {})
 const deadline = setTimeout(() => { console.error('USER_APP_LIFECYCLE_TIMEOUT'); app.exit(1) }, 40000)
 app.whenReady().then(async () => {
   directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-lifecycle-'))
@@ -19,8 +22,12 @@ app.whenReady().then(async () => {
   await fs.mkdir(draft, { recursive: true })
   const options = { workspace, stateDir: path.join(directory, 'state'), verify: createUserAppVerifier().verify }
   const store = createUserAppStore(options)
+  let sourceTime = 1
+  packageApi = createUserAppApi({ store, now: () => sourceTime * 10001, requestJson: async () => ({ utc: sourceTime }) })
+  ipcMain.handle('odk-user-apps-list', async () => ({ ok: true, apps: await store.list() }))
+  ipcMain.handle('odk-user-apps-api', (_event, request) => packageApi.read(request.appId, request.revision, request.sourceId))
   async function write(version, html) {
-    await fs.writeFile(path.join(draft, 'manifest.json'), JSON.stringify({ schemaVersion: 1, id: 'sample', name: 'Sample', version, kind: 'app' }))
+    await fs.writeFile(path.join(draft, 'manifest.json'), JSON.stringify({ schemaVersion: 1, id: 'sample', name: 'Sample', version, kind: 'app', api: { clock: { url: 'https://clock.example/time', refreshMs: 10000 } } }))
     await fs.writeFile(path.join(draft, 'index.html'), html)
   }
   await write('1', '<p id="value">Version one</p><script>try{parent.document.body.textContent="escaped"}catch{document.body.dataset.confined="yes"}</script>')
@@ -29,7 +36,7 @@ app.whenReady().then(async () => {
   const installed = (await store.list())[0]
   protocol.handle('odk-user-app', request => createUserAppResponse(request.url, store, buildUserAppDocument, USER_APP_CSP))
   session.defaultSession.setPermissionRequestHandler((_w, _p, callback) => callback(false))
-  win = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } })
+  win = new BrowserWindow({ show: false, webPreferences: { preload: path.join(__dirname, '../src/preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false } })
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   const host = path.join(directory, 'host.html')
   await fs.writeFile(host, `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; frame-src odk-user-app:"><div id="host"></div><script src="frame.js"></script>`)
@@ -39,8 +46,18 @@ app.whenReady().then(async () => {
   const frame = win.webContents.mainFrame.frames[0]
   const observed = await frame.executeJavaScript('({text:document.getElementById("value").textContent,confined:document.body.dataset.confined,node:typeof process})')
   assert.deepEqual(observed, { text: 'Version one', confined: 'yes', node: 'undefined' })
+  const firstReading = await frame.executeJavaScript("odkPackageApi.read('clock')")
+  assert.equal(firstReading.state, 'live')
+  assert.deepEqual(firstReading.data, { utc: 1 })
+  sourceTime = 2
+  const nextReading = await frame.executeJavaScript("odkPackageApi.read('clock')")
+  assert.deepEqual(nextReading.data, { utc: 2 })
+  assert.ok(nextReading.retrievedAt > firstReading.retrievedAt)
+  assert.equal((await frame.executeJavaScript("odkPackageApi.read('undeclared')")).error, 'source-not-declared')
+  assert.equal(await frame.executeJavaScript("fetch('https://clock.example/').then(()=>'escaped',()=>'blocked')"), 'blocked')
   await write('2', '<p>Version two</p>')
-  assert.equal((await store.install('sample')).ok, true)
+  const updated = await store.install('sample')
+  assert.equal(updated.ok, true, JSON.stringify(updated))
   const second = (await store.list())[0]
   await write('3', '<p>Broken</p><script>throw Error("broken")</script>')
   assert.equal((await store.install('sample')).ok, false)
@@ -50,7 +67,7 @@ app.whenReady().then(async () => {
   assert.equal((await store.list())[0].revision, installed.revision)
   await win.webContents.executeJavaScript('instance.dispose()')
   const desktopSource = await fs.readFile(path.join(__dirname, '../src/renderer/core/user-app-desktop.js'), 'utf8')
-  await win.webContents.executeJavaScript(`window.odkUserApps={list:async()=>({ok:true,apps:[${JSON.stringify(installed)}]}),subscribe:()=>()=>{}}; ${desktopSource}; window.desktop=odkUserAppDesktop.mount({track:document.getElementById('host'),layout:{pages:[]},status:document.createElement('p')}); true`)
+  await win.webContents.executeJavaScript(`${desktopSource}; window.desktop=odkUserAppDesktop.mount({track:document.getElementById('host'),layout:{pages:[]},status:document.createElement('p')}); true`)
   await new Promise(resolve => setTimeout(resolve, 100))
   assert.equal(await win.webContents.executeJavaScript('document.querySelectorAll(".installed-app iframe").length'), 1)
   await win.webContents.executeJavaScript('desktop.dispose()')
@@ -60,12 +77,14 @@ app.whenReady().then(async () => {
   console.log('USER_APP_LIFECYCLE_PASS')
 }).then(async () => {
   clearTimeout(deadline)
+  await packageApi?.close()
   win?.destroy()
   await fs.rm(directory, { recursive: true, force: true })
   app.exit(0)
 }).catch(async error => {
   console.error(error)
   clearTimeout(deadline)
+  await packageApi?.close()
   win?.destroy()
   if (directory) await fs.rm(directory, { recursive: true, force: true })
   app.exit(1)

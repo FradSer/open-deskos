@@ -55,6 +55,12 @@ test('the actual Durable resident admits a general child with no parent history 
   bot = await createPersonalBot(config, { createRuntime: async () => models, createIntentRouter: () => async input => {
     routed++
     assert.notEqual(input.text, 'Inspect child-only measurements', 'an admitted child must not receive a second routing judgment')
+    if (mode === 'status') {
+      assert.equal(input.workReferences[0].id, childTaskId)
+      assert.equal(input.workReferences[0].state, 'finished')
+      assert.equal(input.workReferences[0].verification, 'not_run')
+      assert(!JSON.stringify(input.workReferences).includes('Child inspected the supplied measurements.'))
+    }
     return { intent: mode === 'parent' ? 'agent_work' : mode === 'denied' ? 'conversation' : 'task_query' }
   } })
   await bot.prompt('Start a task; parent-history-marker stays in my conversation.')

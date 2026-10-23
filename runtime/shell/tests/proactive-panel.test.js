@@ -19,27 +19,70 @@ class Element {
   async click() { await this.events.click?.() }
 }
 function fixture() {
+  let now = Date.now()
+  class Clock extends Date { static now() { return now } }
   const surface = new Element(); surface.hidden = true
   const selectors = ['content', 'heading', 'input', 'transcript', 'stage', 'icon', 'title', 'detail', 'progress', 'level']
   surface.selectors = Object.fromEntries(selectors.map(name => [`.personal-bot-status-${name}`, new Element()]))
   surface.selectors['.personal-bot-status-level span'] = new Element()
   const content = surface.selectors['.personal-bot-status-content']; surface.append(content)
-  const local = new Element('button'), commands = [], events = {}
-  const document = { querySelector: () => null, getElementById: () => surface, activeElement: local, body: { children: [local, surface] }, createElement: tag => new Element(tag) }
+  const local = new Element('button'), commands = [], events = {}, observers = []
+  const document = { hidden: false, addEventListener(name, cb) { events[name] = cb }, removeEventListener() {}, querySelector: () => null, getElementById: () => surface, activeElement: local, body: { children: [local, surface] }, createElement: tag => new Element(tag) }
   let render
   const window = { odkPersonalBot: { subscribe: callback => { render = callback }, onMic() {}, proposalCommand: async command => { commands.push(command); return { accepted: true } } },
     odkPersonalBotReply: { render: (el, text) => { el.textContent = text } }, addEventListener: (name, callback) => { events[name] = callback }, dispatchEvent() {} }
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/personal-bot-status.js'), 'utf8'), { window, document, CustomEvent: class {}, console })
-  return { surface, content, local, commands, render, window, events }
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/personal-bot-status.js'), 'utf8'), { window, document, CustomEvent: class {}, console, Date: Clock, IntersectionObserver: class { constructor(callback) { this.callback = callback; this.nodes = new Set(); observers.push(this) } observe(node) { this.nodes.add(node) } disconnect() { this.nodes.clear() } unobserve(node) { this.nodes.delete(node) } } })
+  return { surface, content, local, commands, render, window, events, document, observers, advance(ms) { now += ms }, visible(node, ratio = 1, { height = 44, viewportHeight = 200 } = {}) { for (const observer of observers) if (observer.nodes.has(node)) observer.callback([{ target: node, isIntersecting: ratio > 0, intersectionRatio: ratio, boundingClientRect: { width: 100, height }, rootBounds: { width: 100, height: viewportHeight }, intersectionRect: { width: ratio > 0 ? 100 : 0, height: height * ratio } }]) } }
 }
-const proposal = () => ({ id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry', status: 'pending', confirmation: '记住 watering：检查盆土', advice: '<script>不可信文本</script>', action: { tool: 'memory_update' }, evidence: [{ readingId: 'hydra', field: 'soil', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z' }] })
+const proposal = () => ({ id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry', status: 'pending', offered: true, presented: false, confirmation: '记住 watering：检查盆土', advice: '<script>不可信文本</script>', action: { tool: 'memory_update' }, evidence: [{ readingId: 'hydra', field: 'soil', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z' }] })
 const flatten = node => [node, ...node.children.flatMap(flatten)]
+for (const revoked of [{ state: 'unavailable' }, { state: 'idle', proposalCapabilities: { read: false, respond: false, acknowledge: false } }]) {
+test(`suggestion ${revoked.state === 'unavailable' ? 'provider' : 'read capability'} withdrawal clears old content and observers`, () => {
+  const f = fixture(), p = proposal()
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const section = f.content.querySelector('.personal-bot-proposals')
+  const advice = flatten(section).find(node => node.className === 'personal-bot-proposal-advice')
+  assert.ok(advice)
+  f.render(revoked)
+  assert.equal(section.children.length, 0)
+  assert.equal(section.hidden, true)
+  assert.equal(f.surface.hidden, true)
+  assert.ok(f.observers.every(observer => observer.nodes.size === 0))
+  f.render({ state: 'starting' })
+  assert.equal(section.children.length, 0, 'legacy replacement status cannot revive the withdrawn view')
+  f.visible(advice)
+  assert.equal(f.commands.length, 0)
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  assert.equal(section.hidden, false)
+  const current = flatten(section).find(node => node.className === 'personal-bot-proposal-advice')
+  assert.notEqual(current, advice)
+  f.visible(current)
+  assert.deepEqual(f.commands.map(command => command.type), ['proposal_presented'])
+})
+}
+
+test('a withdrawn provider command cannot overwrite replacement suggestion feedback', async () => {
+  const f = fixture(), p = { ...proposal(), action: null, confirmation: '' }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  let reject
+  f.window.odkPersonalBot.proposalCommand = () => new Promise((_resolve, fail) => { reject = fail })
+  const pending = flatten(f.content).find(node => node.tagName === 'BUTTON' && node.textContent === 'Done').click()
+  f.render({ state: 'unavailable' })
+  f.render({ state: 'idle', proposals: [{ ...p, id: '11111111-1111-4111-8111-111111111111', advice: 'Current provider suggestion' }], proposalPopup: true })
+  reject(Error('Withdrawn provider failure'))
+  await pending
+  assert.equal(f.content.querySelector('.personal-bot-proposal-error'), null)
+  assert.ok(flatten(f.content).some(node => node.textContent === 'Current provider suggestion'))
+})
+
 test('proactive popup is nonmodal and preserves local focus and input authority', () => {
   const f = fixture(); f.render({ state: 'idle', proposals: [proposal()], proposalPopup: true })
   assert.equal(f.surface.hidden, false); assert.equal(f.surface.dataset.proactive, 'true')
   assert.equal(f.local.inert, undefined); assert.equal(f.content.focused, undefined)
   assert.equal(f.window.odkPersonalBotStatus.visible(), false, 'Passive proposal must not block Shell navigation')
   assert.equal(f.window.odkPersonalBotStatus.handleInput('left'), false)
+  assert.equal(f.commands.length, 0, 'Delivered content is not yet visible acknowledgement')
+  f.visible(flatten(f.content).find(n => n.className === 'personal-bot-proposal-advice'))
   assert.equal(f.commands[0].type, 'proposal_presented')
   assert.ok(flatten(f.content).some(n => n.textContent === '<script>不可信文本</script>'))
 })
@@ -108,7 +151,7 @@ test('ride details are read-only and explicit endpoint selection enters the ordi
   await quote.click(); assert.equal(turns.length, 0, 'ambiguous pickup must not default to the first place')
   selects[0].value = 'from-b'; selects[1].value = 'to-a'; await quote.click()
   assert.equal(turns[0], '查看报价 preview-handle from-b to-a'); assert.equal(quote.disabled, true)
-  f.render({ state: 'idle', proposals: [{ ...ride, ridePreview: { ...ride.ridePreview, expiresAt: Date.now() - 1 } }], proposalPopup: true })
+  f.render({ state: 'idle', proposals: [{ ...ride, ridePreview: { ...ride.ridePreview, expiresAt: 0 } }], proposalPopup: true })
   const expired = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Get current quote')
   assert.equal(expired, undefined)
   const refresh = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Refresh preview')
@@ -176,4 +219,99 @@ test('actual service, private socket and Shell client deliver restored ride refr
   assert.equal(checkpoint.load().intentClaims.length, 1); assert.equal(frame.proposalPopup, false)
   assert.equal(JSON.stringify(frame).includes('never-expose'), false)
   assert.ok(flatten(f.content).some(n => n.textContent === 'View ride details'))
+})
+
+
+test('only an offered pending suggestion visible in the current viewport is acknowledged', () => {
+  const f = fixture(), first = proposal(), second = { ...proposal(), id: 'd311a280-c0b9-4411-96cd-4e1e92385349' }
+  f.render({ state: 'idle', proposals: [first, second], proposalPopup: true })
+  assert.equal(f.commands.length, 0)
+  const advice = flatten(f.content).filter(n => n.className === 'personal-bot-proposal-advice')
+  f.visible(advice[0], 0); assert.equal(f.commands.length, 0)
+  f.document.hidden = true; f.visible(advice[0]); assert.equal(f.commands.length, 0)
+  f.document.hidden = false; f.visible(advice[0])
+  assert.deepEqual(Array.from(f.commands[0].ids), [first.id])
+  f.visible(advice[0]); assert.equal(f.commands.length, 1)
+  f.window.odkPersonalBotStatus.close(); f.visible(advice[1]); assert.equal(f.commands.length, 1)
+})
+
+test('unoffered and snoozed suggestions cannot become visible acknowledgements', () => {
+  const f = fixture()
+  f.render({ state: 'idle', proposals: [{ ...proposal(), offered: false }, { ...proposal(), id: 'd311a280-c0b9-4411-96cd-4e1e92385349', snoozedUntil: Date.now() + 60000 }], proposalPopup: true })
+  for (const node of flatten(f.content).filter(n => n.className === 'personal-bot-proposal-advice')) f.visible(node)
+  assert.equal(f.commands.length, 0)
+})
+
+test('advice and reason stay primary while evidence, feedback and history are disclosures', async () => {
+  const f = fixture(), p = { ...proposal(), action: null, reason: 'Observed soil is below the selected threshold.' }
+  f.render({ state: 'idle', proposals: [p, { ...p, id: 'd311a280-c0b9-4411-96cd-4e1e92385349', status: 'completed' }], proposalPopup: true })
+  assert.ok(flatten(f.content).some(n => n.className === 'personal-bot-proposal-reason' && n.textContent.includes(p.reason)))
+  assert.ok(flatten(f.content).some(n => n.tagName === 'DETAILS' && n.className === 'personal-bot-proposal-sources'))
+  assert.ok(flatten(f.content).some(n => n.tagName === 'DETAILS' && n.className === 'personal-bot-proposal-history'))
+  for (const [label, decision] of [['Done', 'done'], ['Later', 'snooze'], ['Useful', 'useful'], ['Not relevant', 'irrelevant'], ['Incorrect', 'incorrect']]) {
+    const button = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === label)
+    assert.ok(button, label)
+    await button.click()
+    assert.equal(f.commands.at(-1).type, 'proposal_respond'); assert.equal(f.commands.at(-1).id, p.id); assert.equal(f.commands.at(-1).decision, decision)
+  }
+})
+
+test('read-only suggestion capabilities keep evidence and hide every response control', async () => {
+  const f = fixture(), p = { ...proposal(), reason: 'Actual observation.' }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
+  for (const node of flatten(f.content).filter(n => n.className === 'personal-bot-proposal-advice')) f.visible(node)
+  assert.equal(f.commands.length, 0)
+  const labels = flatten(f.content).filter(n => n.tagName === 'BUTTON').map(n => n.textContent)
+  for (const label of ['Accept', 'Done', 'Later', 'Useful', 'Not relevant', 'Incorrect', 'Ignore', 'Never suggest this category']) assert.ok(!labels.includes(label), label)
+  assert.ok(flatten(f.content).some(n => n.textContent.includes('read-only on this device')))
+})
+
+
+test('visibility acknowledgement retries are bounded and recover after a lost connection', () => {
+  const f = fixture(), status = { state: 'idle', proposals: [proposal()], proposalPopup: true }
+  f.render(status)
+  const advice = flatten(f.content).find(n => n.className === 'personal-bot-proposal-advice')
+  f.visible(advice); assert.equal(f.commands.length, 1)
+  for (let i = 0; i < 10; i++) f.render(status)
+  assert.equal(f.commands.length, 1, 'Meter updates do not resend visibility')
+  f.advance(5001); f.render(status); assert.equal(f.commands.length, 2, 'Unconfirmed resident state can retry after the limit')
+  f.advance(5001); f.render(status); assert.equal(f.commands.length, 3)
+  f.advance(5001); f.render(status); assert.equal(f.commands.length, 3, 'Retries stop after three attempts per connection')
+  f.render({ state: 'unavailable' }); f.render(status)
+  f.visible(flatten(f.content).find(n => n.className === 'personal-bot-proposal-advice'))
+  assert.equal(f.commands.length, 4, 'Reconnection can recover an acknowledgement the resident never saved')
+  f.render({ ...status, proposals: [{ ...proposal(), presented: true }] })
+  f.advance(5001)
+  for (const node of flatten(f.content).filter(n => n.className === 'personal-bot-proposal-advice')) f.visible(node)
+  assert.equal(f.commands.length, 4, 'A resident-confirmed visible state never resends')
+})
+
+test('legacy executable suggestions retain confirmation without a misleading Done response', () => {
+  const f = fixture(); f.render({ state: 'idle', proposals: [proposal()], proposalPopup: true })
+  const labels = flatten(f.content).filter(n => n.tagName === 'BUTTON').map(n => n.textContent)
+  assert.ok(labels.includes('Accept')); assert.ok(labels.includes('Ignore')); assert.ok(labels.includes('Never suggest this category'))
+  for (const label of ['Done', 'Later', 'Useful', 'Not relevant', 'Incorrect']) assert.ok(!labels.includes(label), label)
+})
+
+
+test('an explicit resident visibility failure can recover without replaying responses', () => {
+  const f = fixture(), status = { state: 'idle', proposals: [proposal()], proposalPopup: true }
+  f.render(status); f.visible(flatten(f.content).find(n => n.className === 'personal-bot-proposal-advice'))
+  assert.equal(f.commands.length, 1)
+  f.render({ ...status, proposalError: 'Private state could not be saved' })
+  f.advance(6000); f.render({ ...status, proposalError: 'Private state could not be saved' })
+  assert.equal(f.commands.length, 1)
+  f.render(status)
+  assert.equal(f.commands.length, 2)
+  assert.ok(f.commands.every(row => row.type === 'proposal_presented'))
+})
+
+
+test('long advice uses the visible viewport while a heading-only glimpse is insufficient', () => {
+  const f = fixture(); f.render({ state: 'idle', proposals: [{ ...proposal(), advice: '测'.repeat(1000) }], proposalPopup: true })
+  const body = flatten(f.content).find(n => n.className === 'personal-bot-proposal-advice')
+  f.visible(body, 0.01, { height: 1000, viewportHeight: 200 })
+  assert.equal(f.commands.length, 0, 'Ten visible pixels below a heading do not establish a visible body')
+  f.visible(body, 0.1, { height: 1000, viewportHeight: 200 })
+  assert.equal(f.commands.length, 1, 'Half the available viewport is meaningful even for a very long paragraph')
 })

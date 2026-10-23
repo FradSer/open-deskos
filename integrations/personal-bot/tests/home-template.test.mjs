@@ -314,3 +314,21 @@ test('selection and recovery show one fact per service while every fact reaches 
   assert.equal(fallback.items.flatMap(item => item.segments).length, 2)
   assert.match(fallback.items[0].text, /failed/)
 })
+
+
+for (const count of [1, 260]) test(`ignored service duplicates cannot invalidate or enter reduction (${count} sources)`, async () => {
+  const readings = Array.from({ length: count }, (_, index) => source(`odk.remote.r${index}`, 'sessions', { state: 'running', report: 'x'.repeat(300) }))
+  const seen = new Set()
+  let calls = 0
+  const raw = await generateHomeSelection(readings, { choose: async request => {
+    calls++
+    request.variables.forEach(fact => seen.add(fact.factId))
+    const first = request.variables.find(fact => fact.displayable)
+    const duplicate = request.variables.find(fact => fact.selector !== first.selector)
+    return { items: [{ sources: duplicate ? [first.selector, duplicate.selector] : [first.selector] }] }
+  } })
+  const bound = resolveHomeTemplate(raw, readings)
+  assert.equal(bound.items.flatMap(item => item.segments).length, 1)
+  assert.equal(seen.size, homeFactVariables(readings).length)
+  if (count > 1) assert.ok(calls > 1)
+})

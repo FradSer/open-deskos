@@ -1,4 +1,11 @@
 Feature: Personal Agent delegates general tasks to DeskOS child agents
+  Scenario: Current work references come from the task owner
+    Given saved and temporary child tasks in the existing private task store
+    When routing requests current work references before and after a restart
+    Then the task owner supplies bounded identities, lifecycle, time, and verification states
+    And those references exclude responses, roles, Memory, and execution permissions
+    And referencing a task neither starts nor repeats its work
+
   Scenario: Delegation takes precedence over the child's connector
     Given an installed MCP connector and a saved child identity
     And the previous turn created that identity

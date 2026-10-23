@@ -336,6 +336,7 @@ async function main() {
       'source.pi-sessions': { create: createPiSessionsSource, configured: createConfiguredPiSessionReader },
       'source.pi-events': { create: createPiSessionEventsSource, readLocal: readSessionEvents },
       'source.camera': { create: createCameraSource, provider: createCameraCaptureProvider },
+      'source.personal-agent-readings': { endpoint: smokeMode ? null : shellHost.endpoint('personal-bot-control'), tokenFile: shellHost.localChannelTokenFile, platform: shellHost.platform },
       'source.quota': { read: options => fetchOpenCodeGo(resolveOpenCodeGoConfig(), options) },
       'source.hydra': { create: createHydraSource, connect: connectHydraMqtt, options: smokeMode ? {} : {
         url: process.env.ODK_HYDRA_MQTT_URL,

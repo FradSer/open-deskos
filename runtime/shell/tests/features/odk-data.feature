@@ -214,3 +214,15 @@ Feature: Open DeskOS Data is read through the plugin system
     And another source remains readable
     When the source recovers
     Then both read the new value without a cached substitute
+
+  Scenario: Resident producer plugins contribute through the existing Data registry
+    Given task and remote report plugins declare bounded public source projections
+    When the Shell discovers their authenticated producer declarations
+    Then each declared reading joins the existing registry
+    And listing reads no source values
+    And each reading request resolves the current owner without a second value cache
+    When a producer or its connection becomes unavailable
+    Then no previous live value replaces the failed read
+    And the next declaration refresh withdraws unavailable readings
+    When the provider stops during a request
+    Then shutdown drains that request and refuses its late declarations

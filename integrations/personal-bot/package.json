@@ -17,6 +17,7 @@
     "test:overview:live": "node scripts/test-home-briefing-live.mjs",
     "test:proactive:jev:live": "node scripts/test-proactive-jev-live.mjs",
     "test:proactive:docker:live": "node scripts/test-proactive-docker-live.mjs",
+    "test:proactive:evaluate": "node scripts/evaluate-proactive.mjs",
     "start": "node src/main.mjs",
     "agent:packages": "node src/agent-catalog/cli.mjs",
     "typecheck": "tsc -p tsconfig.json"

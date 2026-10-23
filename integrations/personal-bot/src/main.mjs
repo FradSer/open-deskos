@@ -24,7 +24,7 @@ import { loadTargets, taskRequest } from './task-client.mjs'
 import { createRideNotifier } from './ride-notification.mjs'
 import { attachRemoteConversation } from './remote-pi-reader.mjs'
 import { HomeBriefing } from './home-briefing.mjs'
-import { createHomeSourceAccess } from './home-sources.mjs'
+import { createTaskReadings, createRemoteReadings } from './producer-readings.mjs'
 
 async function initialize(env, report, onRideUpdate, platform = process.platform, getWatch = undefined, signal = undefined, onAgentUpdate = undefined, onRemoteUpdate = undefined) {
   signal?.throwIfAborted()
@@ -134,6 +134,7 @@ async function main() {
     const unavailable = () => { throw Error('inspection must not start providers') }
     const inspection = createPersonalBotComposition({ replacementPlugins, disabled, control,
       createService: unavailable, openChannel: unavailable, initialize: unavailable,
+      createTaskReadings: unavailable, createRemoteReadings: unavailable,
       createHome: unavailable, ...((env.ODK_PROACTIVE_CONFIG || intentSelected) ? { createWatch: unavailable } : {}),
     })
     inspection.validate()
@@ -208,13 +209,13 @@ async function main() {
       if (runtime) { if (service.jev) runtime.agent.setJevHealth?.(service.jev); service.setState('idle') }
       else if (!context.stopping) service.setState('error', 'Personal Bot runtime unavailable')
     },
+    createTaskReadings: runtime => createTaskReadings(runtime.agent.agentTasks),
+    createRemoteReadings: runtime => createRemoteReadings(runtime.remote),
     createHome(_runtime, _service) {
-      const sources = createHomeSourceAccess({ dataRequest: (command, options) => odkDataRequest(command, { ...options, env, platform }),
-        runtime: () => runtime, remote: () => runtime?.remote })
       home = new HomeBriefing({
         requireBindings: true,
-        list: sources.list,
-        read: sources.read,
+        list: async signal => (await odkDataRequest('list', { signal, env, platform })).readings,
+        read: async (id, signal) => (await odkDataRequest('read', { id, signal, env, platform })).reading,
         generate: runtime.agent.generateBriefing,
         publish: frame => service.publishBriefing(frame),
         onFailure: failure => console.warn(JSON.stringify({ event: 'home_briefing_failure', ...failure })),
@@ -235,6 +236,7 @@ async function main() {
         onGeneration: record => console.info(JSON.stringify({ event: 'proactive_generation', model: runtime.agent.generationModel, ...record })),
         judge: createJevJudge({ env, request: runtime.agent.judge }),
         onJudgment: record => console.info(JSON.stringify({ event: 'proactive_judgment', ...record })),
+        ...{ onFeedback: record => console.info(JSON.stringify({ event: 'proactive_feedback', ...record })) },
         read: async (id, signal) => (await odkDataRequest('read', { id, signal, env, platform })).reading,
         save: env.ODK_PROACTIVE_CONFIG ? ownerConfigWriter(env.ODK_PROACTIVE_CONFIG, config) : async () => { throw Error('No owner rule file selected') },
         phrase: runtime.agent.phraseProposal,

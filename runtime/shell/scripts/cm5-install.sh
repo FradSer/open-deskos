@@ -27,9 +27,9 @@ fi
 
 echo "== installing Electron runtime dependencies =="
 $SUDO apt-get update || echo "apt-get update failed; using cached package indexes" >&2
-if ! $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2 unclutter mesa-utils libgl1-mesa-dri libegl1 libgles2 2>/dev/null; then
+if ! $SUDO apt-get install -y rsync libgtk-3-0 libnss3 libgbm1 libxss1 libasound2 unclutter mesa-utils libgl1-mesa-dri libegl1 libgles2 2>/dev/null; then
   echo "retrying with libasound2t64 (Ubuntu 24.04 naming)"
-  $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2t64 unclutter mesa-utils libgl1-mesa-dri libegl1 libgles2
+  $SUDO apt-get install -y rsync libgtk-3-0 libnss3 libgbm1 libxss1 libasound2t64 unclutter mesa-utils libgl1-mesa-dri libegl1 libgles2
 fi
 
 echo "== installing Mali GPU userspace (firmware + libmali blob) =="
@@ -199,15 +199,15 @@ RELEASE_ID="$(date -u '+%Y%m%dT%H%M%SZ')-$$"
 RELEASE_DIR="${RELEASES_DIR}/${RELEASE_ID}"
 $SUDO install -d -o "${TARGET_UID}" -g "${TARGET_GID}" -m 0755 "${RELEASE_DIR}"
 if [ "$(CDPATH= cd -- "${DIR}" >/dev/null && pwd -P)" != "$(CDPATH= cd -- "${RELEASE_DIR}" >/dev/null && pwd -P)" ]; then
-  run_as_target_user cp -a "${DIR}/." "${RELEASE_DIR}/"
+  copy_release_input "${DIR}/." "${RELEASE_DIR}/"
   echo "== sealing staged peripheral and experiment sources into the release =="
   for tree in peripherals integrations experiments .agents; do
     if [ -d "${REPOSITORY_ROOT}/${tree}" ]; then
-      run_as_target_user cp -a "${REPOSITORY_ROOT}/${tree}" "${RELEASE_DIR}/${tree}"
+      copy_release_input "${REPOSITORY_ROOT}/${tree}/" "${RELEASE_DIR}/${tree}/"
     fi
   done
   run_as_target_user mkdir -p "${RELEASE_DIR}/android/app/src"
-  run_as_target_user cp -a "${REPOSITORY_ROOT}/runtime/android/app/src/main" "${RELEASE_DIR}/android/app/src/main"
+  copy_release_input "${REPOSITORY_ROOT}/runtime/android/app/src/main/" "${RELEASE_DIR}/android/app/src/main/"
   if [ -f "${REPOSITORY_ROOT}/DESIGN.md" ]; then
     run_as_target_user cp -a "${REPOSITORY_ROOT}/DESIGN.md" "${RELEASE_DIR}/DESIGN.md"
   fi
@@ -303,8 +303,8 @@ else
     (cd "${RELEASE_DIR}" && run_as_target_user npm run preflight)
   fi
   $SUDO node "${RELEASE_DIR}/scripts/validate-release.js" "${RELEASE_DIR}"
-  $SUDO chown -R root:root "${RELEASE_DIR}"
-  $SUDO chmod -R a-w "${RELEASE_DIR}"
+  $SUDO chown -R "root:${TARGET_GID}" "${RELEASE_DIR}"
+  $SUDO chmod -R u+rX,g+rX,o-rwx,a-w "${RELEASE_DIR}"
   $SUDO ln -sfn "${RELEASE_DIR}" "${RUNTIME_ROOT}/current"
 fi
 run_as_target_user env ODK_RUNTIME_ROOT="${RUNTIME_ROOT}" ODK_KIOSK_USER="${TARGET_USER}" \

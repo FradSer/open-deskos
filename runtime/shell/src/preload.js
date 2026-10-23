@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('odkPlatform', {
 
 contextBridge.exposeInMainWorld('odkUserApps', {
   list: () => ipcRenderer.invoke('odk-user-apps-list'),
+  readApi: (appId, revision, sourceId) => ipcRenderer.invoke('odk-user-apps-api', { appId, revision, sourceId }),
   dispatch: (request) => ipcRenderer.invoke('odk-user-apps-dispatch', request),
   // Declared Data: a package publishes what its manifest declared, and the Shell
   // decides what of that is a reading. Publishing is not an authority to change

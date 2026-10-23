@@ -1,4 +1,17 @@
 Feature: Personal Agent owns a bounded plugin runtime
+  Scenario: Conversation does not claim task verification
+    Given the selected workflow is conversation and completion is enabled
+    When the Agent answers without an execution request
+    Then completion remains not_run without a verification model request
+    And the reply contains no unfinished-task or learning warning
+
+  Scenario: A read-only query verifies evidence without automatic procedural learning
+    Given the selected workflow reads current data or retained task status
+    When completion checks the actual source receipts
+    Then its result describes the query evidence rather than an external effect
+    And automatic procedural learning remains skipped
+    And an execution request without receipts still requires review
+
   Scenario: Plugin models receive literal receipt text at the provider boundary
     Given a tool returns JSON with quotes, backslashes, Unicode, and misleading receipt headers
     When completion and learning receive that receipt through the actual SDK
@@ -371,3 +384,10 @@ Feature: Personal Agent owns a bounded plugin runtime
     And unknown delivery does not claim receipt, execution, or completion
     And identifiers and protocol fields remain internal unless the owner requests them
     And an unverified result remains visible without implementation terminology
+
+  Scenario: Host observations refine completion applicability
+    Given a coding-profile task executes a procedure or a conversation performs a calculation
+    When the host records actual execution or computation receipts
+    Then the applicable completion checks still run
+    And ordinary conversation without receipts skips execution checks
+    And read-only queries learn only from imported independent host checks

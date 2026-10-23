@@ -38,6 +38,12 @@ A Pi machine opens its Open DeskOS Link to the desk. No inbound access to the ma
 
 Widgets occupy grid cells; Apps own pages. Either may provide a Service Plugin outside the opaque HTML frame. The Futu poller is the first service instance; the existing NAS FutuOpenD remains an external source. A dead service reports unavailable and never blocks Shell startup. Account credentials and network access belong outside the renderer.
 
+Installed packages can declare fixed public HTTPS JSON sources through a main-owned broker.
+The broker validates installed revisions, pins public DNS addresses, and bounds requests, caching, and response size.
+Frames retain their network prohibition.
+[USER_APPLICATIONS](USER_APPLICATIONS.md#public-api-data) owns this limited data contract.
+It does not implement arbitrary Service Plugin execution or secret collection.
+
 The accepted service design couples manifest declarations, verification, lifecycle, named secrets and enforced egress to a package revision. Secrets must use system-owned collection/vault paths, never package bytes, releases or plugin-drawn fields. This avoids a separate integration for each account source. It is not evidence that arbitrary installed HTML packages can declare services today: [USER_APPLICATIONS](USER_APPLICATIONS.md) states their current limits. ADR-0026 extends the original Unix-only service endpoint rule.
 
 <a id="adr-0010"></a>
@@ -50,7 +56,7 @@ ADR-0029 replaces only the absent-location rule. Smoke constructs an explicit em
 <a id="adr-0011"></a>
 ### ADR-0011: Package appearance without authority
 
-The Shell lends verified package documents theme, resolved tokens, fonts and measured radius. The first frame uses `?theme=`; `odk-user-app-theme` updates appearance without reload. Font routes use `odk-user-app://app/font/<id>`, an allowlist and CORS for opaque frames. `supportFetchAPI` and `corsEnabled` support those assets. No network, Shell DOM, preload or file authority is added; `connect-src 'none'` remains. This avoids vendored palettes or forcing every package update through a Shell release. [USER_APPLICATIONS](USER_APPLICATIONS.md#appearance-theme-tokens-and-fonts) owns authoring. Context/real-renderer tests detect drift from Shell tokens and faces.
+The Shell lends verified package documents theme, resolved tokens, fonts and measured radius. The first frame uses `?theme=`; `odk-user-app-theme` updates appearance without reload. Font routes use `odk-user-app://app/font/<id>`, an allowlist and CORS for opaque frames. `supportFetchAPI` and `corsEnabled` support those assets. No direct network, Shell DOM, preload or file authority is added; `connect-src 'none'` remains. This avoids vendored palettes or forcing every package update through a Shell release. [USER_APPLICATIONS](USER_APPLICATIONS.md#appearance-theme-tokens-and-fonts) owns authoring. Context/real-renderer tests detect drift from Shell tokens and faces.
 
 <a id="adr-0012"></a>
 ### ADR-0012: Safe multiline Pi results
@@ -386,6 +392,8 @@ Such sources do not establish cancellation support without separate acceptance e
 
 The kernel publishes frame readiness through [frame-ready.js](../src/frame-ready.js).
 The frame status plugin broadcasts Personal Bot status and sends Remote Link status only to the new frame.
+It revokes previous Personal Bot state when the provider changes, then broadcasts the current snapshot to existing frames.
+Ordinary frame readiness and Remote Link replacement retain the current Personal Bot state.
 Optional providers retain the existing unavailable and disconnected fallback states.
 The notification plugin forwards changed reading identities to the current Personal Bot instance.
 Stopping either consumer cancels its retained callbacks without stopping its providers.

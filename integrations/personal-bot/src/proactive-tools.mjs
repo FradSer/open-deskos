@@ -1,5 +1,6 @@
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
+import { PROPOSAL_DECISIONS } from './proactive-lifecycle.mjs'
 
 const result = value => ({ content: [{ type: /** @type {const} */ ('text'), text: JSON.stringify(value) }], details: {}, structuredContent: value })
 
@@ -26,14 +27,30 @@ export function createProposalTools(getWatch, currentTurn, { intentPreviews = fa
     defineTool({ name: 'personal_bot_proposal_respond', label: 'Respond to Personal Bot suggestion', exposure: 'codemode', executionMode: 'sequential',
       namespace: { name: 'personal_bot', description: 'Exact current-turn confirmation and owner suppression.' },
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
-      description: 'Accept only with the exact displayed confirmation phrase in a subsequent actual user turn. Ignore or mute only when the current user explicitly requested that response. Arguments cannot supply authorization. Unknown outcomes must be reconciled through the original tool, never retried.',
-      parameters: Type.Object({ id: Type.String({ maxLength: 36 }), decision: Type.Union([Type.Literal('accept'), Type.Literal('ignore'), Type.Literal('mute')]) }, { additionalProperties: false }),
+      description: 'Accept only with the exact displayed confirmation phrase in a subsequent actual user turn. Record done, snooze, useful, irrelevant, incorrect, ignore or mute only when the current user explicitly requested that response. Done records owner feedback; it never executes an action or certifies provider success. Arguments cannot supply authorization. Unknown outcomes must be reconciled through the original tool, never retried.',
+      parameters: Type.Object({ id: Type.String({ maxLength: 36 }), decision: Type.Union(PROPOSAL_DECISIONS.map(decision => Type.Literal(decision))) }, { additionalProperties: false }),
       execute: async (_id, { id, decision }) => {
         const watch = getWatch()
         if (!watch) throw Error('Proactive suggestions are not configured')
         const turn = currentTurn()
         if (decision === 'ignore' && !/^(?:不用了|忽略|ignore)(?:\s+[0-9a-f-]{36})?$/i.test(turn)) throw Error('Explicit ignore required')
         if (decision === 'mute' && !/^(?:这类别再提|别再提|mute)(?:\s+[0-9a-f-]{36})?$/i.test(turn)) throw Error('Explicit mute required')
+        if (['ignore', 'mute'].includes(decision)) {
+          const selected = /([0-9a-f-]{36})$/i.exec(turn)?.[1]
+          if (selected && selected !== id) throw Error('Proposal response does not match the owner selected proposal')
+        }
+        const feedbackPhrases = { done: /^(?:已处理|处理好了|done)(?:\s+[0-9a-f-]{36})?$/i,
+          snooze: /^(?:稍后提醒|稍后|snooze)(?:\s+[0-9a-f-]{36})?$/i,
+          useful: /^(?:有用|这条有用|useful)(?:\s+[0-9a-f-]{36})?$/i,
+          irrelevant: /^(?:不相关|与我无关|irrelevant)(?:\s+[0-9a-f-]{36})?$/i,
+          incorrect: /^(?:不准确|事实有误|incorrect)(?:\s+[0-9a-f-]{36})?$/i }
+        const feedbackPattern = /** @type {Record<string, RegExp>} */ (feedbackPhrases)[/** @type {string} */ (decision)]
+        if (feedbackPattern && !feedbackPattern.test(turn)) throw Error('Explicit proposal feedback required')
+        if (feedbackPattern) {
+          const selected = /([0-9a-f-]{36})$/i.exec(turn)?.[1]
+          const displayed = watch.list().filter(p => p.status === 'pending' && p.offered && p.presented && (p.snoozedUntil ?? 0) <= watch.now())
+          if (selected ? selected !== id || !displayed.some(p => p.id === id) : displayed.length !== 1 || displayed[0].id !== id) throw Error('Feedback requires one explicitly selected displayed proposal')
+        }
         return result(await watch.respond(id, decision, turn, true))
       },
     }),

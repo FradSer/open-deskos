@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-renderer-development-plugins', () => [])
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
@@ -32,7 +33,30 @@ app.whenReady().then(async () => {
   }
   await viewport(480, 854)
   const send = async status => { win.webContents.send('odk-personal-bot-status', status); await delay() }
-  const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry-soil', status: 'pending', advice: '<script>untrusted reading</script> 检查盆土。', action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土' } }, confirmation: '记住 watering：检查盆土', evidence: [{ readingId: 'odk.tile.hydra', field: 'plants.0.soilPercent', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z', ruleId: 'dry-soil' }] }
+  const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry-soil', status: 'pending', offered: true, presented: false, reason: 'A current soil reading is below the selected threshold.', advice: '<script>untrusted reading</script> 检查盆土。', action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土' } }, confirmation: '记住 watering：检查盆土', evidence: [{ readingId: 'odk.tile.hydra', field: 'plants.0.soilPercent', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z', ruleId: 'dry-soil' }] }
+  async function longAdviceVisibility() {
+    await viewport(320, 480)
+    const long = { ...p, id: 'b311a280-c0b9-4411-96cd-4e1e92385349', advice: '检查当前读数并决定下一步。'.repeat(100).slice(0, 1000) }
+    commands.length = 0
+    await send({ state: 'idle', proposals: [long], proposalPopup: true, proposalCapabilities: { read: true, respond: true, acknowledge: true } })
+    await run(`document.querySelector('.personal-bot-proposal-advice').scrollIntoView({block:'center'})`)
+    await delay()
+    const geometry = await run(`(() => { const body = document.querySelector('.personal-bot-proposal-advice').getBoundingClientRect(); const viewport = document.querySelector('.personal-bot-status-content').getBoundingClientRect(); return { body: body.height, viewport: viewport.height } })()`)
+    assert.ok(geometry.body > geometry.viewport * 2, JSON.stringify(geometry))
+    assert.ok(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(long.id)), 'Visible long advice must be acknowledged even when less than half of the entire paragraph fits')
+    const before = commands.length
+    await send({ state: 'idle', proposals: [{ ...long, id: 'b311a280-c0b9-4411-96cd-4e1e92385350' }], proposalPopup: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
+    await run(`document.querySelector('.personal-bot-proposal-advice').scrollIntoView({block:'center'})`)
+    await delay(); assert.equal(commands.length, before, 'Long read-only advice cannot acknowledge itself')
+    await run(`odkPersonalBotStatus.close()`)
+    await viewport(480, 854)
+    commands.length = 0
+  }
+  if (process.argv.includes('--long-advice-only')) {
+    await longAdviceVisibility()
+    console.log('PROACTIVE_LONG_ADVICE_VISIBLE_PASS')
+    clearTimeout(timer); win.destroy(); app.exit(0); return
+  }
   await run(`document.querySelector('#dots .dot').focus()`)
   await send({ state: 'idle', proposals: [p], proposalPopup: true })
   assert.equal(await run(`document.activeElement.matches('#dots .dot')`), true)
@@ -59,13 +83,13 @@ app.whenReady().then(async () => {
   await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'Accept').click()`)
   await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === '记住 watering：检查盆土').click()`)
   await delay()
-  const commandCount = commands.length
+  const commandCount = commands.filter(c => c.type === 'proposal_respond').length
   await run(`window.__disabledConfirmation = [...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === '记住 watering：检查盆土')`)
   await send({ state: 'idle', proposals: [uncertain], proposalHiddenCount: 0, proposalPopup: false, proposalError: 'generation_unavailable' })
   await send({ state: 'idle', proposals: [uncertain], proposalHiddenCount: 0, proposalPopup: false })
   assert.match(await run(`document.querySelector('.personal-bot-proposal-error')?.textContent ?? ''`), /not delivered.*do not repeat an uncertain action/)
   assert.equal(await run(`window.__disabledConfirmation.isConnected && window.__disabledConfirmation.disabled`), true)
-  assert.equal(commands.length, commandCount)
+  assert.equal(commands.filter(c => c.type === 'proposal_respond').length, commandCount)
   rejectResponse = false
   const ride = { ...p, id: 'a2f9fed5-8a7a-458e-bfbf-d5650c5edf40', action: null, confirmation: '',
     ridePreview: { handle: '11111111-1111-4111-8111-111111111111', status: 'choose_places', sandbox: true, measuredAt: new Date().toISOString(), expiresAt: Date.now() + 120000,
@@ -85,7 +109,7 @@ app.whenReady().then(async () => {
   await delay()
   assert.deepEqual(ownerTurns, ['查看报价 11111111-1111-4111-8111-111111111111 33333333-3333-4333-8333-333333333333 44444444-4444-4444-8444-444444444444'])
   assert.equal(commands.filter(c => c.type === 'proposal_respond').length, 2, 'Ride details add no proposal action')
-  for (const theme of ['instrument', 'pixel', 'border-beam']) {
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     await run(`odkTheme.set(${JSON.stringify(theme)}); document.fonts.ready.then(() => true)`)
     for (const [width, height] of [[320, 480], [480, 854], [1920, 1280]]) {
       await viewport(width, height)
@@ -97,7 +121,7 @@ app.whenReady().then(async () => {
         await send({ state: 'idle', proposals: [{ ...p, status, advice: 'Long CJK 长句测试 '.repeat(40), result: status === 'unknown' ? 'Outcome unknown; do not retry.' : '' }], proposalPopup: true })
         const geometry = await run(`(() => {
           const node = document.querySelector('.personal-bot-status-content'); const r = node.getBoundingClientRect();
-          const controls = [...document.querySelectorAll('.personal-bot-proposals button')];
+          const controls = [...document.querySelectorAll('.personal-bot-proposals button')].filter(n => n.checkVisibility());
           return { contained: r.x >= 0 && r.y >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
             overflow: node.scrollWidth > node.clientWidth + 1,
             controls: controls.every(b => b.getBoundingClientRect().height >= 44),
@@ -109,6 +133,71 @@ app.whenReady().then(async () => {
       }
     }
   }
+  // Synthetic suggestions exercise the real scroll viewport without model or device access.
+  await run(`odkTheme.set('instrument')`)
+  await viewport(480, 854)
+  const queued = Array.from({ length: 8 }, (_, index) => ({ ...p, id: `e311a280-c0b9-4411-96cd-4e1e92385${String(350 + index).padStart(3, '0')}`, action: null, confirmation: '', advice: `Suggestion ${index + 1}: inspect the actual soil reading.`, reason: 'This plant has a fresh low soil reading.' }))
+  commands.length = 0
+  await send({ state: 'idle', proposals: queued, proposalPopup: true, proposalCapabilities: { read: true, respond: true, acknowledge: true } })
+  const seen = () => commands.filter(c => c.type === 'proposal_presented').flatMap(c => c.ids)
+  assert.ok(seen().length > 0 && seen().length < queued.length, JSON.stringify({ seen: seen() }))
+  assert.ok(!seen().includes(queued.at(-1).id), 'An offscreen suggestion must remain unread')
+  await run(`document.querySelectorAll('.personal-bot-proposal-advice')[7].scrollIntoView({block:'center'})`)
+  await delay()
+  assert.ok(seen().includes(queued.at(-1).id), 'Scrolling the actual advice into view acknowledges that suggestion')
+  const expectedFeedback = [['Done', 'done'], ['Later', 'snooze'], ['Useful', 'useful'], ['Not relevant', 'irrelevant'], ['Incorrect', 'incorrect']]
+  for (const [label, decision] of expectedFeedback) {
+    const next = { ...p, id: `d311a280-c0b9-4411-96cd-4e1e92385${String(360 + expectedFeedback.findIndex(row => row[0] === label)).padStart(3, '0')}`, action: null, confirmation: '' }
+    await send({ state: 'idle', proposals: [next], proposalPopup: true })
+    await run(`(() => { const details = document.querySelector('.personal-bot-proposal-feedback-options'); details.open = true; const control = [...document.querySelectorAll('.personal-bot-proposal button')].find(b => b.textContent === ${JSON.stringify(label)}); control.scrollIntoView({block:'center'}); control.focus(); return control.getBoundingClientRect().height })()`)
+    // Keyboard activation uses the same candidate-specific command as touch/click.
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
+    await delay()
+    assert.equal(commands.at(-1).decision, decision); assert.equal(commands.at(-1).id, next.id)
+    const updated = { ...next, feedback: decision, status: ['done'].includes(decision) ? 'completed' : ['irrelevant', 'incorrect'].includes(decision) ? 'ignored' : 'pending', ...(decision === 'snooze' ? { snoozedUntil: Date.now() + 60000 } : {}) }
+    await send({ state: 'idle', proposals: [updated], proposalPopup: false })
+    assert.equal(await run(`document.activeElement.textContent`), decision === 'useful' ? 'Useful' : 'Close', 'Feedback updates retain a meaningful keyboard focus')
+  }
+  const touched = { ...p, id: 'f311a280-c0b9-4411-96cd-4e1e92385349', action: null, confirmation: '' }
+  await send({ state: 'idle', proposals: [touched], proposalPopup: true })
+  const touch = await run(`(() => { const node = [...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'Done'); node.scrollIntoView({block:'center'}); const r = node.getBoundingClientRect(); return { x: r.x+r.width/2, y: r.y+r.height/2 } })()`)
+  await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: true })
+  await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...touch, id: 1 }] })
+  await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await delay()
+  assert.equal(commands.at(-1).decision, 'done'); assert.equal(commands.at(-1).id, touched.id)
+  await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: false })
+  const beforeReadOnly = commands.length, beforeReadOnlyTurns = ownerTurns.length
+  await send({ state: 'idle', proposals: [ride], proposalPopup: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
+  await delay()
+  assert.equal(commands.length, beforeReadOnly)
+  assert.equal(await run(`!![...document.querySelectorAll('.personal-bot-proposals button')].find(b => ['Accept','Done','Later','Useful','Not relevant','Incorrect','Ignore','Get current quote','Refresh preview'].includes(b.textContent))`), false)
+  assert.match(await run(`document.querySelector('.personal-bot-proposal-capability').textContent`), /read-only on this device/)
+  assert.equal(ownerTurns.length, beforeReadOnlyTurns)
+  await run(`document.querySelector('.personal-bot-proposal-sources summary').focus()`)
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
+  await delay(); assert.equal(await run(`document.querySelector('.personal-bot-proposal-sources').open`), true)
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
+    await run(`odkTheme.set(${JSON.stringify(theme)})`)
+    for (const revoked of [{ state: 'unavailable' }, { state: 'idle', proposalCapabilities: { read: false, respond: false, acknowledge: false } }]) {
+      await send({ state: 'idle', proposals: [{ ...p, action: null, confirmation: '' }], proposalPopup: true })
+      assert.equal(await run(`document.querySelector('.personal-bot-proposals').hidden`), false)
+      const beforeWithdrawal = commands.length
+      await send(revoked)
+      assert.deepEqual(await run(`(() => { const section = document.querySelector('.personal-bot-proposals'); return { hidden: section.hidden, children: section.children.length } })()`), { hidden: true, children: 0 })
+      await send({ state: 'idle' })
+      assert.equal(await run(`document.querySelectorAll('.personal-bot-proposal').length`), 0, `${theme} legacy status retains no withdrawn proposal`)
+      assert.equal(commands.length, beforeWithdrawal, `${theme} withdrawn content sends no acknowledgement`)
+    }
+  }
+  await longAdviceVisibility()
+  // Populated fixture preview: the capture waits for the current native compositor frame.
+  const preview = { ...p, id: 'c311a280-c0b9-4411-96cd-4e1e92385349', action: null, confirmation: '', advice: '检查书桌旁植物的盆土，再决定是否浇水。', reason: '最新土壤湿度为10%，低于你选择的提醒阈值。' }
+  await send({ state: 'idle', proposals: [preview], proposalPopup: true })
+  await run(`document.querySelector('.personal-bot-status-content').scrollTop = 0; document.fonts.ready.then(() => true)`)
+  const { capturePaintedPage } = require('./helpers/native-page-capture')
+  const output = process.env.ODK_PROACTIVE_PREVIEW_FILE
+  if (output) fs.writeFileSync(output, (await capturePaintedPage(win)).toPNG())
   await run(`odkPersonalBotStatus.close()`)
   await send({ state: 'idle', proposals: [], proposalPopup: false })
   assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), true)
@@ -119,6 +208,6 @@ app.whenReady().then(async () => {
   assert.equal(await run(`document.querySelector('.agent-state').textContent`), 'Listening…')
   assert.equal(await run(`document.querySelector('.agent-mic').getAttribute('aria-label')`), 'Stop recording')
   assert.equal(await run(`document.getElementById('pages-viewport').inert || document.getElementById('home-desk').inert`), false)
-  console.log('PROACTIVE_PANEL_CM5_ISOLATED_PASS: 3 themes, 3 sizes, 5 proposal states, focus, touch confirmation, literal untrusted text, service error recovery, uncertain delivery, read-only ride details and explicit owner quote selection')
+  console.log('PROACTIVE_PANEL_CM5_ISOLATED_PASS: 4 themes, 3 sizes, 5 proposal states, focus, touch confirmation, literal untrusted text, service error recovery, uncertain delivery, read-only ride details explicit owner quote selection, viewport visibility acknowledgements, candidate feedback, read-only capabilities, provider withdrawal and keyboard disclosures')
   clearTimeout(timer); win.destroy(); app.exit(0)
 }).catch(error => { console.error(error); app.exit(1) })

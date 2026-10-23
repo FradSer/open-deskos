@@ -32,6 +32,8 @@ function composition(replacementPlugins, events = []) {
     initialize: async () => ({ agent: { abort() { events.push('agent.abort') }, close() { events.push('agent.close') } } }),
     createHome: () => ({ start() {}, close() {} }),
     createWatch: () => ({ start() {}, close() {} }),
+    createTaskReadings: () => ({ list: () => [], read: () => null }),
+    createRemoteReadings: () => ({ list: () => [], read: () => null }),
   })
 }
 
@@ -215,7 +217,7 @@ test('default and external runtime disable settle pending voice work and fence r
 
 for (const name of Object.keys(BOT_PORTS)) {
   test(`external ${name} factory supplies the actual resident port`, async t => {
-    const selected = await selection(t, name, `exports.create = ctx => ({ selected: '${name}', close() { return '${name}' }, start() {}, agent: { abort() {}, close() {} } })`)
+    const selected = await selection(t, name, `exports.create = ctx => ({ selected: '${name}', close() { return '${name}' }, start() {}, list() { return [] }, read() { return null }, agent: { abort() {}, close() {} } })`)
     const replacements = loadPersonalBotReplacements(selected.config, { trusted: true })
     const resident = composition(replacements)
     await resident.start()
@@ -455,19 +457,20 @@ exports.create = async context => {
   const controller = new AbortController()
   const proposals = structuredClone(options.loadState().proposals)
   const watch = {
-    closed: false, proposals,
+    closed: false, proposals, lastAttentionAt: 0,
     list() { return structuredClone(proposals) },
     emit(interaction = false) {
       if (this.closed) return
-      const display = this.list()
       const q = options.config.quietHours
       const parts = q ? Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: q.timeZone,
         hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(options.now()).map(p => [p.type, p.value])) : null
       const time = parts ? parts.hour + ':' + parts.minute : ''
       const quiet = q && q.start !== q.end && (q.start < q.end ? time >= q.start && time < q.end : time >= q.start || time < q.end)
       const automatic = rule.delivery !== 'silent' && (!quiet || rule.urgent)
-      const popup = !this.error && proposals.some(p => p.status === 'pending' && (interaction || (!p.offered && automatic)))
-      if (popup) for (const p of proposals) p.offered = true
+      const eligible = proposals.filter(p => p.status === 'pending' && (interaction || (!p.offered && automatic && options.now() - this.lastAttentionAt >= 60000))).slice(0, options.config.maxPush)
+      const popup = !this.error && eligible.length > 0
+      if (popup) { for (const p of eligible) p.offered = true; if (!interaction) this.lastAttentionAt = options.now() }
+      const display = this.list()
       options.saveState({ version: 1, proposals: this.list() })
       service.propose({ proposals: display, popup, interaction, hiddenCount: 0, ...(this.error ? { error: this.error } : {}) })
     },
@@ -494,7 +497,7 @@ exports.create = async context => {
       if (this.closed) return
       const accepted = candidates.map((c, i) => ({ ...c, answer: judged.answers['c' + i] }))
         .filter(c => c.answer.probability >= c.answer.threshold && c.answer.groundingProbability >= c.answer.threshold)
-        .sort((a, b) => b.answer.probability - a.answer.probability).slice(0, options.config.maxPush)
+        .sort((a, b) => b.answer.probability - a.answer.probability)
       this.error = ''
       for (const c of accepted) {
         const subject = rule.id + ':' + c.key
@@ -623,7 +626,7 @@ exports.create = async context => {
       reports.push({ published, recovered: normalize(), acknowledged: watch.list().map(p => p.presented) })
       const deliveries = []
       for (const policy of [
-        { name: 'push limit', maxPush: 1, automatic: true, advice: ['Check the parcel count.'] },
+        { name: 'push limit', maxPush: 1, automatic: true },
         { name: 'silent', rule: { delivery: 'silent' }, automatic: false },
         { name: 'quiet', quiet: true, automatic: false },
         { name: 'urgent in quiet hours', quiet: true, rule: { urgent: true }, automatic: true },
@@ -899,6 +902,7 @@ exports.create = context => {
         provider.options.judge = stage === 'judgment' ? async input => hold(await judge(input), input.signal) : judge
         runtime.agent.phraseProposal = stage === 'phrasing' ? ({ advice, signal }) => hold(advice, signal) : phrase
         const before = frames.length
+        const previousProposals = structuredClone(service.status.proposals)
         await resident.setEnabled('odk.personal-bot.watch', true)
         await ready
         assert.ok(observedSignal instanceof AbortSignal, `${stage} must receive the Watch cancellation signal`)
@@ -909,7 +913,10 @@ exports.create = context => {
         await pending
         assert.equal(cancelled, true, stage)
         assert.equal(settled, true, stage)
-        assert.equal(frames.length, before, `${stage} must not publish after cancellation`)
+        assert.deepEqual(frames.slice(before).map(frame => frame.proposalCapabilities), [
+          { read: true, respond: true, acknowledge: true }, { read: false, respond: false, acknowledge: false },
+        ], `${stage} publishes only the declared Watch capability transitions`)
+        for (const frame of frames.slice(before)) assert.deepEqual(frame.proposals, previousProposals, `${stage} must not publish suggestions after cancellation`)
         assert.equal(pendingWatch.list().length, 0)
         provider.options.read = read
         provider.options.judge = judge
@@ -1195,7 +1202,7 @@ test('inspection is lazy and native trust is required', async t => {
   const selected = await selection(t, 'home', "throw Error('entry executed')")
   assert.throws(() => loadPersonalBotReplacements(selected.config), /trust/)
   const resident = composition(loadPersonalBotReplacements(selected.config, { trusted: true }))
-  assert.equal(resident.catalog().length, 5)
+  assert.equal(resident.catalog().length, 7)
 })
 
 test('incompatible replacement fails before any factory runs', () => {

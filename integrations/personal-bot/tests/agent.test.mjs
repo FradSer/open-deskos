@@ -14,6 +14,31 @@ import { PersonalBotService } from '../src/service.mjs'
 import { loadCapabilities } from '../src/capabilities.mjs'
 import { agentOptions, validateWorkspace, createPersonalBot, createResourceLoader, sessionAdapter } from '../src/agent.mjs'
 
+test('a routed conversation stays concise when completion and learning are enabled', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'odk-conversation-verification-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  let listener, calls = 0
+  const bot = await createPersonalBot({ stateDir: join(dir, 'state'), env: {},
+    personal: { profile: 'personal', memoryFile: join(dir, 'memory.json'), skillPaths: [], agentPlugins: { enabled: ['completion', 'learning'], autoLearn: true } },
+  }, {
+    createIntentRouter: () => async () => ({ intent: 'conversation' }),
+    createRuntime: async () => ({ getAvailable: async () => [{ provider: 'fixture', id: 'model' }] }),
+    createSession: async options => {
+      calls++
+      assert.equal(options.ephemeral, undefined, 'A conversation must not create a verification conversation')
+      return { session: { isStreaming: false, bindExtensions: async () => {}, setActiveToolsByName() {},
+        subscribe(callback) { listener = callback; return () => { listener = undefined } },
+        async prompt() { listener({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: '你好。' }], stopReason: 'stop' } }) },
+        abort: async () => {}, dispose() {},
+      } }
+    },
+  })
+  t.after(() => bot.close())
+  assert.equal(await bot.prompt('你好'), '你好。')
+  assert.equal(bot.lastTaskResult.verification.status, 'not_run')
+  assert.equal(calls, 1)
+})
+
 test('pre-cancelled Agent initialization does not create its router or state directory', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'voice-init-'))
   t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
@@ -760,4 +785,44 @@ test('oversized selections receive exact character costs and a specific retry co
   const readings = [0, 1].map(index => ({ id: `s${index}`, label: `Source ${index}`, state: 'live', value: { note: 'x'.repeat(120) } }))
   await bot.generateBriefing({ readings })
   assert.equal(attempts, 2)
+})
+
+test('a handler clarification retains owner scope until a named follow-up attempts delivery once',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'odk-owner-clarification-'));t.after(()=>rm(dir,{recursive:true,force:true}))
+ let tools,listener,turns=0;const routes=[],owners=[]
+ const bot=await createPersonalBot({stateDir:join(dir,'state'),personal:{profile:'personal',memoryFile:join(dir,'memory.json'),skillPaths:[],agentPlugins:{enabled:['completion','remote_conversation'],autoLearn:false}},env:{}},{
+  createIntentRouter:()=>async input=>{routes.push(structuredClone(input.unresolvedRequests));return {intent:'session_continue',...(input.unresolvedRequests.length?{requestId:input.unresolvedRequests[0].id}:{})}},
+  createRuntime:async()=>({getAvailable:async()=>[{provider:'fixture',id:'model'}]}),
+  createSession:async options=>{tools=options.customTools;return {session:{isStreaming:false,bindExtensions:async()=>{},setActiveToolsByName:async()=>{},subscribe:callback=>{listener=callback;return()=>{listener=undefined}},prompt:async()=>{
+   if(++turns===2)await tools.find(tool=>tool.name==='remote_pi_followup').execute('call',{sourceKey:'displayed',sourceRevision:'a'.repeat(64),prompt:'Model text is not owner scope'},undefined)
+   listener({type:'message_end',message:{role:'assistant',content:[{type:'text',text:'The instruction was sent.'}],stopReason:'stop'}})
+  },abort:async()=>{},dispose:async()=>{}}}},
+ });t.after(()=>bot.close())
+ bot.attachRemoteContext(()=>'',undefined,async(_params,_signal,_reply,owner)=>{owners.push(owner.text);throw Error('Delivery attempt failed')})
+ assert.match(await bot.prompt('只读项目 README.md，告诉我项目名称。'),/告诉我任务名称/)
+ await assert.rejects(bot.prompt('SDLC 插件优化'),/Delivery attempt failed/)
+ assert.equal(owners.length,1);assert(owners[0].includes('只读项目 README.md，告诉我项目名称。'));assert.match(owners[0],/Current owner clarification \(verbatim\):\nSDLC 插件优化/)
+ await bot.prompt('另一条新的需求')
+ assert.deepEqual(routes.at(-1),[],'an attempted delivery cannot become a deferred request after failure')
+})
+
+
+test('analysis-only selections retry inside the bounded provider validation', async t => {
+  let attempts = 0
+  const bot = await generationFixture(t, {}, async (emit, text) => {
+    const request = JSON.parse(text.slice(text.indexOf('{')))
+    if (++attempts === 1) assert.equal(request.variables[0].displayable, false)
+    else {
+      assert.match(request.formatCorrection, /displayable/)
+      assert.deepEqual(request.variables.map(fact => fact.selector), [1], 'Correction cannot renumber or repeat ineligible choices')
+      assert.ok(request.variables.every(fact => fact.displayable))
+    }
+    emit({ type: 'message_end', message: assistant(JSON.stringify({ items: [{ sources: [attempts === 1 ? 0 : 1] }] })) })
+  })
+  const result = await bot.generateBriefing({ readings: [
+    { id: 's', label: 'S', state: 'live', value: { note: 'x'.repeat(231) } },
+    { id: 'other', label: 'Other', state: 'live', value: { state: 'waiting' } },
+  ] })
+  assert.equal(attempts, 2)
+  assert.deepEqual(result.items[0].readingIds, ['other'])
 })

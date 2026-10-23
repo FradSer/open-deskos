@@ -16,6 +16,69 @@ function routerFixture(value = response()) {
   return { route, requests }
 }
 
+test('routing uses bounded current work references and owner history without private results', async () => {
+  const f = routerFixture(response('task_query'))
+  const taskId = '11111111-2222-4333-8444-555555555555'
+  const references = [{ kind: 'agent_task', id: taskId, name: 'Researcher', state: 'finished', verification: 'not_run', updatedAt: '2026-10-23T00:00:00Z', response: 'PRIVATE_TASK_RESULT', role: 'PRIVATE_ROLE' }]
+  const history = [{ text: '让 Researcher 分析报告', intent: 'agent_work', answer: 'PRIVATE_ANSWER' }]
+  await f.route({ text: '刚才那项结果呢', profile: 'personal', workReferences: references, ownerHistory: history })
+  const state = f.requests[0].body.state
+  assert.deepEqual(state.workReferences, [{ kind: 'agent_task', id: taskId, name: 'Researcher', state: 'finished', verification: 'not_run', updatedAt: '2026-10-23T00:00:00Z' }])
+  assert.deepEqual(state.ownerHistory, [{ text: '让 Researcher 分析报告', intent: 'agent_work' }])
+  assert(!JSON.stringify(state).includes('PRIVATE_'))
+})
+
+test('owner history survives intervening conversation and references are read anew each turn', async () => {
+  const routed = []
+  let current = [{ kind: 'agent_task', id: '11111111-2222-4333-8444-555555555555', name: 'Researcher', state: 'running', verification: 'not_run', updatedAt: '2026-10-23T00:00:00Z' }]
+  let intent = 'agent_work'
+  const turn = createIntentTurn({ profile: 'personal', tools: [], getWorkReferences: () => current,
+    route: async input => { routed.push(structuredClone(input)); return { intent } } })
+  await turn.prepare('分析报告'); turn.complete('分析报告', 'PRIVATE_RESULT')
+  intent = 'conversation'; await turn.prepare('谢谢'); turn.complete('谢谢', 'PRIVATE_REPLY')
+  current = current.map(item => ({ ...item, state: 'finished' }))
+  intent = 'task_query'; await turn.prepare('刚才那项进展呢')
+  assert.equal(routed.at(-1).workReferences[0].state, 'finished')
+  assert(routed.at(-1).ownerHistory.some(item => item.text === '分析报告'))
+  assert(!JSON.stringify(routed).includes('PRIVATE_'))
+  intent = 'agent_work'
+  for (let i = 0; i < 6; i++) { await turn.prepare(`work-${i}`); turn.complete(`work-${i}`, 'PRIVATE_RESULT') }
+  intent = 'conversation'; await turn.prepare('谢谢'); turn.complete('谢谢', 'PRIVATE_REPLY')
+  intent = 'task_query'; await turn.prepare('工作进度')
+  assert.deepEqual(routed.at(-1).ownerHistory.map(item => item.text), Array.from({ length: 6 }, (_, i) => `work-${i}`))
+})
+
+test('clarification covers the current object and outcome without a fixed capability menu', async () => {
+  const turn = createIntentTurn({ profile: 'personal', tools: [], route: async () => ({ intent: 'clarify' }) })
+  const result = await turn.prepare('处理一下')
+  assert.match(result.answer, /对象|结果/)
+  assert.doesNotMatch(result.answer, /Widget\/App/)
+})
+
+test('read-only displayed suggestion identities reach routing without private advice or action authority', async () => {
+  const f = routerFixture(response('proposal_response'))
+  const id = '11111111-2222-4333-8444-555555555555'
+  const proposals = [{ id, action: null, status: 'pending', offered: true, presented: true, advice: 'PRIVATE_ADVICE', evidence: ['PRIVATE_EVIDENCE'] },
+    { id: '22222222-2222-4333-8444-555555555555', action: null, status: 'pending', offered: true, presented: false },
+    { id: '33333333-2222-4333-8444-555555555555', action: null, status: 'pending', offered: true, presented: true, snoozedUntil: 2000 }]
+  const turn = createIntentTurn({ route: f.route, profile: 'personal', tools: [], getWatch: () => ({ list: () => proposals, now: () => 1000 }) })
+  await turn.prepare('这条已处理')
+  const state = f.requests[0].body.state
+  assert.deepEqual(state.displayedSuggestions, [{ id }])
+  assert.deepEqual(state.pendingConfirmations, [])
+  assert(!JSON.stringify(state).includes('PRIVATE_'))
+  assert.match(f.requests[0].body.questions.intent.instructions, /displayedSuggestions.*not.*permission/i)
+})
+
+test('continuing-work history excludes personal notes and conversational content', async () => {
+  const f = routerFixture(response('task_query'))
+  await f.route({ text: '刚才的工作呢', profile: 'personal', ownerHistory: [
+    { text: 'PRIVATE_OWNER_NOTE', intent: 'memory' }, { text: 'PRIVATE_CONVERSATION', intent: 'conversation' },
+    { text: '检查报告', intent: 'agent_work' },
+  ] })
+  assert.deepEqual(f.requests[0].body.state.ownerHistory, [{ text: '检查报告', intent: 'agent_work' }])
+})
+
 test('every route including suggestions, confirmation and conversation uses Jev Choice', async () => {
   const examples = { session_continue: '继续 pi 的 session', task_query: '查询任务', widget_create: '创建一个 widget', app_create: '创建 app', suggestions: '有什么建议', proposal_response: '确认执行 123', conversation: '你好' }
   for (const [intent, text] of Object.entries(examples)) {
@@ -65,6 +128,83 @@ test('follow-up intent state excludes previous answers and tool-derived private 
   await f.route({ text: '再查一次', profile: 'personal', previous: { text: '查看桌面当前读数', intent: 'odk_data', answer: 'PRIVATE_FIXTURE_EVIDENCE', result: { private: true } } })
   assert.deepEqual(f.requests[2].body.state.previous, { text: '查看桌面当前读数', intent: 'odk_data' })
   assert(!f.requests.some(request => JSON.stringify(request.body).includes('PRIVATE_FIXTURE_EVIDENCE')))
+})
+
+test('a task-name clarification selects an unchanged unresolved owner request across intervening unclear turns', async () => {
+  const requests=[]
+  let choice='clarify'
+  const route=createJevIntentRouter({env:{},request:async input=>{
+    requests.push(input)
+    const value=response(choice)
+    if(input.questions.continuation)value.answers.continuation={type:'choice',choice:choice==='session_continue'?'request_1':'current',confidence:0.99,probabilities:Object.fromEntries(Object.keys(input.questions.continuation.criteria).map(key=>[key,key===(choice==='session_continue'?'request_1':'current')?1:0]))}
+    return value
+  }})
+  const turn=createIntentTurn({route,profile:'personal',tools:['remote_pi_followup']})
+  const original='按照这个计划执行，但是使用 Markdown 文件。'
+  await turn.prepare(original);turn.complete(original,'PRIVATE assistant answer')
+  await turn.prepare('按键。');turn.complete('按键。','PRIVATE second answer')
+  choice='session_continue'
+  const prepared=await turn.prepare('SDLC 插件优化的项目。')
+  assert.equal(prepared.answer,undefined)
+  assert.equal(requests.at(-1).state.unresolvedRequests[0].text,original)
+  assert(!JSON.stringify(requests).includes('PRIVATE'))
+  assert(turn.getRequestText().includes(original));assert.match(turn.getRequestText(),/Current owner clarification \(verbatim\):\nSDLC 插件优化的项目。/)
+  assert(prepared.context.includes(original))
+  turn.complete('SDLC 插件优化的项目。','Received')
+  await turn.prepare('接着核对 Markdown 文件。')
+  assert.equal(turn.getRequestText(),'接着核对 Markdown 文件。','completed requests never enter a later dispatch')
+  assert.equal(requests.at(-1).questions.continuation,undefined)
+})
+
+test('clarification choices reject uncertainty and unknown identities without replaying an attempted handler', async () => {
+  const unresolvedRequests=[{id:'request_1',text:'请让原任务读取配置。'}]
+  for(const selected of [undefined,{type:'choice',choice:'invented',confidence:0.99,probabilities:{current:0,request_1:1}}]) {
+    const route=createJevIntentRouter({env:{},request:async()=>({...response('session_continue'),answers:{...response('session_continue').answers,continuation:selected}})})
+    await assert.rejects(route({text:'SDLC',profile:'personal',unresolvedRequests}),/continuation/)
+  }
+  const uncertain=createJevIntentRouter({env:{},request:async()=>({...response('session_continue'),answers:{...response('session_continue').answers,continuation:{type:'choice',choice:'request_1',confidence:0.6,probabilities:{current:0.4,request_1:0.6}}}})})
+  assert.equal((await uncertain({text:'SDLC',profile:'personal',unresolvedRequests})).intent,'clarify')
+  const seen=[]
+  let decision={intent:'clarify'}
+  const turn=createIntentTurn({route:async input=>{seen.push(structuredClone(input.unresolvedRequests));return decision},profile:'personal',tools:[]})
+  await turn.prepare('读取配置');turn.complete('读取配置','Clarify')
+  decision={intent:'session_continue',requestId:'request_1'}
+  await turn.prepare('SDLC')
+  turn.clear() // A cancelled or failed handler never calls complete.
+  decision={intent:'session_continue'}
+  await turn.prepare('继续')
+  assert.deepEqual(seen.at(-1),[],'requests are consumed before a handler can have an unknown outcome')
+  assert.equal(turn.getRequestText(),'继续')
+})
+
+test('a clarification bound to session A cannot become an unbound instruction to session B', async () => {
+  const seen=[]
+  let intent='clarify'
+  const turn=createIntentTurn({route:async input=>{seen.push(input);return {intent}},profile:'personal',tools:[]})
+  const reply={replyTo:{messageId:'a',sourceKey:'a',sourceRevision:'a'.repeat(64)},source:{key:'a',revision:'a'.repeat(64),machine:'mac',project:'/a',sessionId:'a'}}
+  await turn.prepare('继续 A 的未明确操作',undefined,reply)
+  turn.complete('继续 A 的未明确操作','Clarify')
+  intent='session_continue'
+  await turn.prepare('这是 B 项目')
+  assert.deepEqual(seen.at(-1).unresolvedRequests,[])
+  assert.equal(turn.getRequestText(),'这是 B 项目')
+})
+
+test('a session handler can defer only a never-attempted unbound owner instruction', async () => {
+  let select=false
+  const turn=createIntentTurn({route:async input=>({intent:'session_continue',...(select?{requestId:input.unresolvedRequests[0].id}:{})}),profile:'personal',tools:[]})
+  await turn.prepare('让原任务读取 README.md。')
+  turn.defer();turn.complete('让原任务读取 README.md。','Which task?')
+  select=true
+  await turn.prepare('SDLC 插件优化')
+  assert(turn.getRequestText().includes('让原任务读取 README.md。'));assert.match(turn.getRequestText(),/Current owner clarification \(verbatim\):\nSDLC 插件优化/)
+})
+
+test('unselected voice and conversation text retains the existing router input size', async () => {
+  const text='a'.repeat(3001)
+  const turn=createIntentTurn({route:async()=>({intent:'conversation'}),profile:'personal',tools:[]})
+  assert.equal((await turn.prepare(text)).answer,undefined)
+  assert.equal(turn.getRequestText(),text)
 })
 
 test('invalid provider answers and failures cannot supply an intent', async () => {

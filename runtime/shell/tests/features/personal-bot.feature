@@ -57,6 +57,31 @@ Feature: Independent resident personal bot
     Then voice status is unavailable
     And reconnecting does not replay the toggle
 
+  Scenario: Provider withdrawal removes existing suggestions
+    Given a current suggestion is visible in an existing Shell frame
+    When the Personal Bot provider is disabled
+    Then the frame receives unavailable status without waiting for another frame load
+    And the suggestion content, controls, and visibility acknowledgements are removed
+    When a replacement publishes status without suggestions
+    Then the previous provider's suggestions remain absent
+    When the replacement publishes a current readable suggestion
+    Then that suggestion can become visible and acknowledge its own identifier
+    And a late failure from the withdrawn provider does not change the replacement's feedback
+
+  Scenario: Read capability withdrawal removes existing suggestions
+    Given a current suggestion is visible
+    When the provider withdraws the suggestion read capability without a proposals array
+    Then the old suggestion content and controls are removed
+    And no old visibility acknowledgement is sent
+
+  Scenario: Atomic provider replacement revokes the previous suggestion view
+    Given a current suggestion is visible in an existing Shell frame
+    When Personal Bot is replaced without an intermediate disabled state
+    And the replacement publishes legacy status without a proposals array
+    Then the previous provider's view is revoked before the frame receives the replacement snapshot
+    And ordinary frame readiness does not revoke the current provider
+    And replacing only Remote Link does not revoke Personal Bot
+
   Scenario: Voice status is bounded and validated
     Given the personal bot service connection is active
     When malformed or oversized status records arrive
@@ -265,3 +290,38 @@ Feature: Independent resident personal bot
     Then Personal Agent is ready without claiming Jev authentication passed
     And malformed judgment status cannot become ready
     And an older Host without judgment status keeps its existing status contract
+
+
+  Scenario: Suggestions distinguish visible content from delivery
+    Given the nonmodal suggestion panel contains several offered pending suggestions
+    When one suggestion enters the visible scroll viewport
+    Then only that visible suggestion is acknowledged
+    And hidden, unopened, unoffered, and snoozed suggestions are not acknowledged
+    And unconfirmed visibility can retry with a bounded rate
+    And a restored connection or recovered resident failure permits another visibility acknowledgement
+    And local focus and Shell navigation remain available
+
+  Scenario: Feedback describes the outcome of one suggestion
+    Given a current read-only suggestion contains advice and its evidence-based reason
+    When the owner selects Done, Later, Useful, Not relevant, or Incorrect
+    Then the response identifies only that suggestion and decision
+    And Done does not execute the suggested action
+    And the main content keeps the advice and reason visible
+    And technical sources and previous suggestions use keyboard-accessible disclosures
+    And controls retain 44-pixel touch targets across themes and compact sizes
+
+  Scenario: Android reads suggestions without acquiring response authority
+    Given the desk publishes suggestions through the authenticated Personal Agent link
+    When the Android host projects the status
+    Then advice, reason, source evidence, and suggestion state remain readable
+    And the frame explicitly declares read-only suggestion capabilities
+    And the renderer shows no response, execution, or ride quote control
+    And no suggestion acknowledgement or response crosses the read-only link
+
+
+  Scenario: Maximum-length advice remains eligible for a visible receipt
+    Given a 1000-character suggestion exceeds twice the compact scroll viewport height
+    When its body fills at least half of the visible scroll viewport
+    Then the offered pending suggestion can receive a visibility acknowledgement
+    And showing only its heading does not acknowledge the suggestion
+    And hidden and read-only surfaces still send no acknowledgement

@@ -50,17 +50,32 @@ test('an expired generation failure shows current bound facts instead of old val
   assert.doesNotMatch(home.frame.items[0].text, /2/)
 })
 
-test('resident Agent tasks and every remote report page join the shared source inventory', async () => {
-  const { createHomeSourceAccess } = await import('../src/home-sources.mjs')
+test('resident Agent tasks and every remote report page join the shared source inventory', async t => {
+  const { declaredSources } = await import('./helpers/declared-sources.mjs')
+  const { createTaskReadings, createRemoteReadings } = await import('../src/producer-readings.mjs')
   const records = Array.from({ length: 10 }, (_, i) => ({ id: String(i).padStart(64, 'a'), at: 1000 + i, text: `Reported result ${i}`, verification: 'reported_unverified', sources: [{ taskName: `Remote task ${i}`, state: 'settled' }] }))
   const task = { taskId: '00000000-0000-0000-0000-000000000001', identity: { name: 'Research' }, state: 'running', updatedAt: new Date(1000).toISOString(), request: 'Check the runtime', verification: { status: 'not_run' } }
-  const access = createHomeSourceAccess({ dataRequest: async command => command === 'list' ? { readings: [reading()] } : { reading: reading() },
-    runtime: () => ({ agent: { agentTasks: { list: () => ({ tasks: [task], total: 1 }), status: () => task } } }),
-    remote: () => ({ snapshot: (offset = 0, limit = 8) => ({ state: 'live', messages: records.slice(offset, offset + limit), totalMessages: records.length, nextOffset: offset + limit < records.length ? offset + limit : null }) }) })
+  const sibling = { ...task, taskId: '00000000-0000-0000-0000-000000000002', identity: { name: 'Background Agent' } }
+  const access = await declaredSources({ readings: [reading(), { ...reading(), id: 'odk.app.pi-sessions' }], providers: [
+    createTaskReadings({ list: () => ({ tasks: [task, sibling], total: 2 }), status: id => id === task.taskId ? task : sibling }),
+    createRemoteReadings({ snapshot: (offset = 0, limit = 8) => ({ state: 'live', messages: records.slice(offset, offset + limit), totalMessages: records.length, nextOffset: offset + limit < records.length ? offset + limit : null }) }),
+  ] })
   const entries = await access.list()
-  assert.equal(entries.length, 12)
-  assert.equal(entries.find(entry => entry.id.startsWith('odk.agent.')).serviceId, 'odk.personal-agent')
-  assert.deepEqual([...new Set(entries.filter(entry => entry.id.startsWith('odk.remote.')).map(entry => entry.serviceId))], ['odk.app.pi-sessions'])
+  t.after(() => access.close())
+  assert.equal(entries.length, 14)
+  const { generateHomeSelection, homeFactVariables, resolveHomeTemplate } = await import('../src/home-template.mjs')
+  const readings = await Promise.all(entries.map(async entry => ({ ...entry, ...await access.read(entry.id) })))
+  const seen = []
+  const selected = await generateHomeSelection(readings, { choose: async request => {
+    seen.push(...request.variables)
+    const agent = request.variables.filter(fact => fact.id.startsWith('odk.agent.') && /:(state|goal)$/.test(fact.factId))
+    const pi = request.variables.find(fact => fact.id === 'odk.app.pi-sessions')
+    const reports = request.variables.filter(fact => fact.id.startsWith('odk.remote.') && fact.factId.endsWith(':report')).slice(0, 2)
+    return { items: [{ sources: [...agent, ...reports, pi].map(fact => fact.selector) }] }
+  } })
+  assert.equal(seen.length, homeFactVariables(readings).length)
+  assert.equal(resolveHomeTemplate(selected, readings).items.flatMap(item => item.segments).length, 2, 'Declared services cannot create repeated Overview facts')
+  assert.deepEqual([...new Set(seen.filter(fact => fact.id.startsWith('odk.remote.')).map(fact => fact.serviceId))], ['odk.app.pi-sessions'])
   const agent = await access.read(entries.find(entry => entry.id.startsWith('odk.agent.')).id)
   assert.equal(agent.value.goal, 'Check the runtime')
   assert.equal(agent.value.state, 'running')

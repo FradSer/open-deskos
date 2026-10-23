@@ -37,6 +37,7 @@ function define({ id, name, kind = 'system', port, permission, broadcast = false
 }
 
 function createSystemChannelPlugins() {
+  const frameProviders = new WeakMap()
   return [
     {
       manifest: {
@@ -94,9 +95,15 @@ function createSystemChannelPlugins() {
       },
       create(ctx) {
         const broadcast = ctx.capability('broadcast')
-        ctx.onCleanup(ctx.capability('shell.frames').subscribe(frame => {
+        const frames = ctx.capability('shell.frames')
+        const provider = ctx.get(SYSTEM_PORTS.personalBot)
+        if (provider && frameProviders.get(frames) !== provider) broadcast('odk-personal-bot-status', { state: 'unavailable' })
+        frameProviders.set(frames, provider)
+        const publishBotStatus = () => broadcast('odk-personal-bot-status', ctx.get(SYSTEM_PORTS.personalBot)?.snapshot() || { state: 'unavailable' })
+        publishBotStatus()
+        ctx.onCleanup(frames.subscribe(frame => {
           if (ctx.signal.aborted) return
-          broadcast('odk-personal-bot-status', ctx.get(SYSTEM_PORTS.personalBot)?.snapshot() || { state: 'unavailable' })
+          publishBotStatus()
           frame.send('odk-remote-link-state', ctx.get(SYSTEM_PORTS.remoteLink)?.status() || { state: 'disconnected', sequence: 0 })
         }))
         return {}
@@ -136,7 +143,7 @@ function createSystemChannelPlugins() {
         })
         bind(ctx, 'odk-personal-bot-proposal', (_event, command) => {
           if (!command || !['proposal_list', 'proposal_presented', 'proposal_respond'].includes(command.type) || JSON.stringify(command).length > 4096) return { accepted: false }
-          if (command.type === 'proposal_respond' && (typeof command.id !== 'string' || command.id.length !== 36 || !['accept', 'ignore', 'mute'].includes(command.decision) || (command.confirmation !== undefined && (typeof command.confirmation !== 'string' || command.confirmation.length > 2048)))) return { accepted: false }
+          if (command.type === 'proposal_respond' && (typeof command.id !== 'string' || command.id.length !== 36 || !['accept', 'ignore', 'mute', 'done', 'snooze', 'useful', 'irrelevant', 'incorrect'].includes(command.decision) || (command.confirmation !== undefined && (typeof command.confirmation !== 'string' || command.confirmation.length > 2048)))) return { accepted: false }
           if (command.type === 'proposal_presented' && (!Array.isArray(command.ids) || command.ids.length > 64 || !command.ids.every(id => typeof id === 'string' && id.length === 36))) return { accepted: false }
           return { accepted: client.proposalCommand(command) }
         })

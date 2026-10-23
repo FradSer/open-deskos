@@ -147,10 +147,15 @@ function kioskIdentity() {
   return { user, uid, home, nodeBin, binDir, display, xauthority }
 }
 
-function sealRelease(releasePath) {
-  const result = spawnSync('chown', ['-R', 'root:root', releasePath], { stdio: 'inherit' })
+function sealRelease(releasePath, kiosk) {
+  const composition = validateRuntimeComposition(releasePath)
+  if (!composition.ok) return composition
+  const identity = spawnSync('id', ['-g', kiosk.user], { encoding: 'utf8' })
+  const group = identity.stdout?.trim()
+  if (identity.status !== 0 || !/^\d+$/.test(group || '')) return { ok: false, reason: 'could not resolve kiosk group' }
+  const result = spawnSync('chown', ['-R', `root:${group}`, releasePath], { stdio: 'inherit' })
   if (result.status !== 0) return { ok: false, reason: 'could not assign release ownership to root' }
-  const sealed = spawnSync('chmod', ['-R', 'a-w', releasePath], { stdio: 'inherit' })
+  const sealed = spawnSync('chmod', ['-R', 'u+rX,g+rX,o-rwx,a-w', releasePath], { stdio: 'inherit' })
   return sealed.status === 0 ? { ok: true } : { ok: false, reason: 'could not seal release files' }
 }
 
@@ -169,7 +174,7 @@ function main() {
       const preflight = preflightRelease(releasePath, {
         run: (target) => runReleaseCommand(target, ['pnpm', 'preflight'], kiosk, PREFLIGHT_TIMEOUT_SECONDS),
       })
-      return preflight.ok ? sealRelease(releasePath) : preflight
+      return preflight.ok ? sealRelease(releasePath, kiosk) : preflight
     },
     restart: (releaseId) => restartServices(releaseId, kiosk),
     verify: (releaseId) => {

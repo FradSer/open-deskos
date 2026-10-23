@@ -56,6 +56,14 @@ test('threshold: read only evidence, deduplication and exact subsequent confirma
   assert.equal(f.calls.length, 1); assert.equal(f.calls[0][2], p.confirmation); assert.equal(f.watch.list()[0].status, 'completed')
   await assert.rejects(f.watch.respond(p.id, 'accept', p.confirmation)); assert.equal(f.calls.length, 1)
 })
+test('recommendation feedback cannot mark a legacy executable action complete', async () => {
+  const f = fixture(); await f.watch.tick(); const p = f.watch.list()[0]; await f.watch.presented([p.id])
+  for (const decision of ['done', 'useful', 'irrelevant', 'incorrect']) {
+    await assert.rejects(f.watch.respond(p.id, decision), /read-only recommendations/)
+    assert.equal(f.watch.list()[0].status, 'pending')
+    assert.equal(f.calls.length, 0)
+  }
+})
 test('stale, offline plant, missing and future measurement cannot trigger', async () => {
   for (const reading of [ { ...live(), state: 'stale' }, { ...live(), value: { plants: [{ soilPercent: 2 }] } },
     { ...live(), value: { plants: [{ soilPercent: 2, measuredAt: time, online: false }] } },

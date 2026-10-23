@@ -9,6 +9,7 @@ const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 const { once } = require('node:events')
+const { integrationURL } = require('./helpers/repo-root')
 const { createPersonalBotClient, resolvePersonalBotSocketPath } = require('../src/personal-bot-client')
 
 test('separate home frames preserve voice replies and stale content across reconnect', { timeout: 3000 }, async t => {
@@ -163,7 +164,7 @@ test('voice levels and long Markdown replies cross the socket with validated bou
   const full = await send({ state: 'idle', message, transcript: '\u0002'.repeat(4096) })
   assert.equal(full.message, message)
   assert.equal(full.transcript, '\u0002'.repeat(4096))
-  const {PersonalBotService}=await import('../../../integrations/personal-bot/src/service.mjs')
+  const {PersonalBotService}=await import(integrationURL('personal-bot/src/service.mjs', __dirname))
   for(const reason of ['microphone','timeout','unavailable','protocol','invalid_audio','cancelled']) {
     const service=new PersonalBotService({record:async()=>{throw Error('unused')},transcribe:async()=>'',prompt:async()=>''})
     const recording={done:new Promise(()=>{}),stop:async()=>'',cleanup:async()=>{}}
@@ -208,9 +209,9 @@ test('proposals cross the existing private voice link and decisions return on it
   const connection = once(server, 'connection'); client.start(); [peer] = await connection; await once(peer, 'data')
   const proposal = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry', status: 'pending', advice: '检查盆土', evidence: [], confirmation: '记住 watering：检查盆土' }
   const received = new Promise(resolve => { const off = client.subscribe(status => { if (status.proposals?.length) { off(); resolve(status) } }) })
-  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', proposals: [proposal], proposalPopup: true }) + '\n')
+  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', proposals: [proposal], proposalPopup: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } }) + '\n')
   const frame = await received
-  assert.equal(frame.proposalPopup, true); assert.deepEqual(frame.proposals, [proposal])
+  assert.equal(frame.proposalPopup, true); assert.deepEqual(frame.proposals, [proposal]); assert.deepEqual(frame.proposalCapabilities, { read: true, respond: false, acknowledge: false })
   const command = once(peer, 'data'); assert.equal(client.proposalCommand({ type: 'proposal_respond', id: proposal.id, decision: 'accept', confirmation: proposal.confirmation }), true)
   assert.deepEqual(JSON.parse((await command)[0]), { v: 1, type: 'proposal_respond', id: proposal.id, decision: 'accept', confirmation: proposal.confirmation })
 })

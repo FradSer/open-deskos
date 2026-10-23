@@ -5,6 +5,7 @@ const { DESK_PORTS } = require('../../src/plugins/desk-runtime')
 const { SYSTEM_PORTS } = require('../../src/plugins/system-channels')
 
 // Independent test implementations use only declared ports and capabilities.
+const frameProviders = new WeakMap()
 const factories = {
   'odk.system.service-notifications': ctx => ({ ports: {
     [SYSTEM_PORTS.serviceNotifications]: { publish(ids) {
@@ -14,14 +15,22 @@ const factories = {
     } },
   } }),
   'odk.system.frame-status': ctx => {
+    const frames = ctx.capability('shell.frames')
+    const provider = ctx.get(SYSTEM_PORTS.personalBot)
+    if (provider && frameProviders.get(frames) !== provider) ctx.capability('broadcast')('odk-personal-bot-status', { state: 'unavailable' })
+    frameProviders.set(frames, provider)
+    const publishBotStatus = () => {
+      const agent = ctx.get(SYSTEM_PORTS.personalBot)
+      ctx.capability('broadcast')('odk-personal-bot-status', agent ? agent.snapshot() : { state: 'unavailable' })
+    }
+    publishBotStatus()
     const send = frame => {
       if (ctx.signal.aborted) return
-      const agent = ctx.get(SYSTEM_PORTS.personalBot)
       const remote = ctx.get(SYSTEM_PORTS.remoteLink)
-      ctx.capability('broadcast')('odk-personal-bot-status', agent ? agent.snapshot() : { state: 'unavailable' })
+      publishBotStatus()
       frame.send('odk-remote-link-state', remote ? remote.status() : { state: 'disconnected', sequence: 0 })
     }
-    ctx.onCleanup(ctx.capability('shell.frames').subscribe(send))
+    ctx.onCleanup(frames.subscribe(send))
     return {}
   },
   'odk.system.service-refresh': (ctx, manifest) => {

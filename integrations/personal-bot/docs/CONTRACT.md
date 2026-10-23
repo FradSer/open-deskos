@@ -12,6 +12,27 @@ The [unified architecture](UNIFIED_ARCHITECTURE.md) defines the five layers and 
 [plugin-composition.mjs](../src/plugin-composition.mjs) owns the resident service composition.
 The voice service, channel, Agent runtime, home briefing, and optional suggestion watcher use the common Shell plugin host.
 Each component has a versioned port and a local factory.
+The default Watch manifest uses version 2 and does not require Home.
+Home and Watch can stop independently.
+Legacy Watch replacements retain their version-1 Home dependency.
+Replacement validation preserves each accepted dependency contract.
+Task and Remote Pi reading producers have separate versioned ports and runtime dependencies.
+These producers read their original owners without generation or Open DeskOS Data requests.
+
+The authenticated management transport also carries `producer_list` and `producer_read`.
+These requests require `interface: "odk:producer-projection/v1"`.
+They do not change management commands or expose data through runtime diagnosis.
+Each producer declares reading identities, labels, fields, and source states.
+The Shell adapter registers these declarations through `odk:desk-service-readings/personal-agent/v1`.
+The existing Open DeskOS Data registry remains the only data registry.
+The adapter retains declaration metadata, not source values.
+Each value request reads the current producer and refuses a released producer's late result.
+Disabled producers withdraw their declarations at the next service refresh.
+Malformed producer inventories do not block healthy producers.
+Conflicting reading identities remain unavailable, and the aggregate inventory limit still applies.
+The Shell accepts compatible declarations independently after JSON transport.
+Failed reads never substitute an earlier live value.
+Private memory, model context, owner replies, and action grants remain outside these projections.
 Agent configuration failure leaves the resident channel available with the existing configuration report.
 Briefing and suggestions require a running Agent.
 
@@ -658,7 +679,9 @@ Effective support is `min(factualSupport, 1 - unsupportedAssertion)`.
 Usefulness and effective support must both meet `ODK_JEV_THRESHOLD`, default 0.8.
 Labels/symbols cannot add attributes; uncited rankings, causes, and aggregates are forbidden.
 Owner preferences do not add facts.
-Sort qualifying candidates by usefulness and select at most `maxPush`.
+Retain supported candidates independently of the presentation limit.
+Prioritize owner urgency and scheduled delivery, then deadlines, usefulness, creation time, and stable identity.
+Offer at most `maxPush` candidates during one presentation round.
 Selecting none is valid.
 Generated proposals are read-only: `action: null`.
 No inference failure substitutes fixed advice or automatic action.
@@ -672,6 +695,9 @@ No inference failure substitutes fixed advice or automatic action.
 | `goal` | At most 1000 characters |
 | `maxCandidates` | 1–16 |
 | `maxPush` | 1–`maxCandidates` |
+| `generationIntervalMs` | 0–1 hour; default 5 minutes for unchanged semantic inputs |
+| `attentionCooldownMs` | 0–1 hour; default 1 minute between automatic presentation rounds |
+| `maxGenerationCalls` | 1–16 generation attempts per round; default 4 |
 | `observations` | 1–8 selected readings, each with 1–8 dotted fields |
 | `liveWhen` | Optional typed `{field, value}` source-availability gate |
 | `measuredAtField` | Explicit timestamp field; defaults use package `measured_at` or built-in `asOf` |
@@ -683,9 +709,24 @@ Nonurgent proposals queue during quiet hours; owner-marked urgent rules may bypa
 Silent proposals wait for interaction/query.
 Recording or working Spoken Turns defer presentation.
 Stable keys and normalized exact advice/evidence reuse pending records.
+Fresh observed value changes advance a persistent topic episode, including changes that produce no candidate.
+An unchanged episode stays handled after restart; a cleared need can recur with the same values in a later episode.
+Unavailable reads and refreshed measurement timestamps do not create episodes.
+Only owner-selected observation fields can supply event identity.
+Unchanged values reuse generation despite refreshed measurement timestamps.
+Rule changes, observation changes, local scheduling boundaries, and approaching deadlines invalidate the generation checkpoint.
+Host freshness and delivery checks still run during cached rounds.
+Ending ordinary conversation retains automatic quiet-hours and attention limits; explicit suggestions queries use the separate interaction path.
+Bounded batches cover eligible sources without a fixed first-source cutoff.
+Failed batches isolate their topics across rounds; healthy topics retain their turn within the configured budget.
 The judgment service considers overlapping and recent advice; perfect semantic deduplication is not guaranteed.
 New source revisions invalidate earlier inference results.
 Receipts expose model, trigger, counts, topic/candidate labels, and probabilities, without raw values, generated text, semantic keys, or secrets.
+Run `pnpm test:proactive:evaluate` for deterministic offline lifecycle replay.
+The report covers silence, generation reuse, checkpoint restart, changed facts, snooze, quiet hours, busy state, and stale sources.
+It uses synthetic generation and judgment responses without provider requests or actions.
+It does not measure model quality, probability calibration, user benefit, devices, or disk durability.
+Failure diagnostics expose fixed codes and scalar assertion differences without source contents or provider errors.
 
 ## Legacy proposals and triggers
 
@@ -723,6 +764,10 @@ Disabled, unavailable, and no-pending states remain distinct.
 
 ## Proposal state and interaction
 
+Status frames declare `proposalCapabilities` for reading, responding, and presentation acknowledgement.
+These flags follow the selected Watch and grant no action authority.
+Unsupported displays must retain their own unavailable response controls.
+
 Each proposal retains durable ID, owner rule/subject, state, creation time, advice, action/confirmation, and evidence.
 Evidence contains `{readingId, field, value, state, measuredAt, ruleId}`.
 `pi-tasks:<target>:<taskId>` marks Hosted Pi evidence.
@@ -731,8 +776,16 @@ Invalid evidence expires the proposal; original measurement times remain visible
 Expired proposals cannot execute.
 
 States are `pending`, `ignored`, `expired`, `executing`, `completed`, and `unknown`.
-The store keeps at most 64 records and evicts processed history first.
+The store keeps at most 64 full records and 1024 compact handled-occurrence receipts.
+Compact receipts retain identity hashes and status without advice or evidence values.
+Evict expired records or handled records with saved compact receipts before admitting another full record.
+Legacy processed records without occurrence identities retain their original eviction and owner cooldown policy.
 Preserve pending/unknown records.
+Full unresolved capacity reports its limit and remains available for owner feedback.
+Handling an existing suggestion allows generation to retry the deferred need.
+Compact receipt capacity stops suggestions without deleting receipts or replaying actions.
+Update or remove an obsolete topic and restart to recover capacity.
+Compaction removes inactive rule versions; unknown action records remain intact.
 POSIX checkpoints use mode 0600 in a 0700 private directory, with file and directory fsync.
 Unsafe state disables suggestions instead of clearing receipts.
 Windows permits ACL access only to the current user, SYSTEM, and Administrators.
@@ -747,6 +800,8 @@ Saved action state must match the current owner rule and cannot grant new author
 Rule changes expire pending records.
 Completed timestamps preserve cooldown even when owner suppression writes fail.
 Checkpoint routine offers before sending, preventing repeated daily popups after lost acknowledgement.
+Presentation acknowledgements recheck observation freshness before they consume a routine day.
+Expired proposals remain unacknowledged.
 Checkpoint presentation acknowledgements before owner `routineDays` writes.
 Owner-write failure preserves acknowledgement and confirmation.
 Explicit queries may reopen acknowledged pending proposals without bypassing confirmation.
@@ -754,13 +809,23 @@ Unacknowledged immediate offers can retry presentation after restart.
 Unacknowledged routine offers remain queryable without repeating the scheduled popup.
 
 The panel is nonmodal and preserves focus and direct Shell input.
+Provider withdrawal or loss of read access clears suggestion content, controls, and visibility observers.
+A late failure from a withdrawn view cannot change replacement feedback.
 Use one scrollable surface and `textContent` for untrusted strings.
 Back/Close dismisses presentation.
-Ignore writes cooldown; Never suggest this category writes owner suppression.
+Generated suggestions support Done, Later, Useful, Not relevant, Incorrect, Ignore, and category suppression.
+Done records owner feedback without tool execution or a provider-success claim.
+Later postpones that candidate; its due reminder retains quiet-hours and category suppression checks.
+Generated Ignore, Not relevant, and Incorrect handle one occurrence without muting its topic.
+Legacy Ignore writes cooldown; Never suggest this category writes owner suppression.
 Neither invokes action tools.
 Accept reveals the action and phrase; a separate confirmation sends the exact phrase.
-The Shell acknowledges presented IDs; unpresented proposals cannot execute.
+The Shell acknowledges suggestions only after their advice enters the visible scroll viewport.
+Disconnected, hidden, and read-only surfaces cannot acknowledge presentation.
+Unpresented proposals cannot execute.
 `personal_bot_proposal_respond` validates the actual current transcript, never model-supplied authorization.
+Feedback requires an explicit current owner response and an unambiguous displayed candidate.
+An owner-specified ID must match the tool target.
 Memory uses `记住 名称：内容` and its single-use current-turn gate.
 Other actions require `确认执行 <proposal-id>`.
 Execute sequentially; failure retains unknown state.
@@ -872,7 +937,8 @@ Futu remains a selectable signed daily percentage, with no mandatory position.
 Personal Agent selects facts from all visible sources and organizes a short Overview.
 It shares existing Widget, App, service, and package readers.
 It also reads resident Agent task metadata and retained Remote Pi reports.
-These runtime adapters do not keep a second source cache.
+Source plugins expose these projections through the existing Open DeskOS Data registry.
+Overview does not read resident runtime objects directly.
 Missing speech credentials or microphone configuration cannot block the Agent or Overview.
 Voice input reports its separate configuration failure when requested.
 
@@ -916,6 +982,10 @@ The legacy `sources` key now selects facts, not reserved sources.
 Each service can supply only one displayed fact across all items.
 All of its facts still participate in analysis.
 The host keeps the first selected fact for each service identity.
+Discarded duplicates cannot enter later selection rounds or invalidate displayed facts.
+Selected analysis-only facts receive the same bounded correction as other invalid output.
+Correction requests list only displayable choices and retain their original selectors.
+The same temporary conversation retains the complete initial analysis context.
 Source IDs provide default service identities.
 Resident task adapters share `odk.personal-agent`.
 Remote report adapters share `odk.app.pi-sessions` with Pi session readings.
@@ -1104,6 +1174,10 @@ An owner follow-up still receives a typed intent judgment before capability exec
 It carries the configured target, exact project, and task ID without accepting replacement endpoint fields.
 An owner can name a displayed task without a reply reference.
 Initial classification receives at most 8,192 characters of untrusted displayed task context.
+A bounded, distinct session-name index precedes the recent summaries.
+The router retains up to six unresolved owner requests, within 8,192 bytes, during this runtime.
+A typed choice can join one unexecuted request with its current clarification, preserving both texts.
+The host consumes unresolved requests before handler execution, including failed or cancelled attempts.
 This context supplies no control authority.
 The model selects a retained source key and revision.
 The host binds that source to the original owner text.

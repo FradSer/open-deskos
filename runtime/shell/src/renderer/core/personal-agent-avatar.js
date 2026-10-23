@@ -2,6 +2,10 @@
   'use strict'
   const animations = { connecting:'curious', idle:'idle', attentive:'curious', preparing:'waking', sending:'working', listening:'listening', transcribing:'thinking', thinking:'thinking', working:'working', replying:'working', complete:'response-complete', notification:'new-report', error:'confused', unavailable:'sleeping' }
   const busy = new Set(['starting','sending','recording','transcribing','thinking'])
+  function phaseFor(snapshot) {
+    const phase=({starting:'preparing',sending:'sending',recording:'listening',transcribing:'transcribing',thinking:typeof snapshot?.message==='string'&&snapshot.message.trim()?'replying':'thinking',error:'error',unavailable:'unavailable',idle:'idle'})[snapshot?.state] || 'unavailable'
+    return phase==='idle' && snapshot.agents?.state==='live' && Array.isArray(snapshot.agents.tasks) && snapshot.agents.tasks.some(task=>['starting','running','cancelling'].includes(task.state)) ? 'working' : phase
+  }
   function mount(host, { sdk = root.odkOneeSdk, document = root.document, motion = root.matchMedia?.('(prefers-reduced-motion: reduce)') } = {}) {
     let controller, destroyed=false, generation=0, revision=0, phase='connecting', base='connecting', engaged=false, initialized=false, previousState, reaction=false, mountedAnimation, mountedReduced
     const seen = new Set()
@@ -44,8 +48,7 @@
         activeTurn=snapshot.ownerTurnId;turnBaselineMessage=lastMessage;turnBaselineId=lastTurn
       }
       if(busy.has(state) && !activeTurn && snapshot.ownerTurnId)activeTurn=snapshot.ownerTurnId
-      base=({starting:'preparing',sending:'sending',recording:'listening',transcribing:'transcribing',thinking:snapshot.message?.trim()?'replying':'thinking',error:'error',unavailable:'unavailable',idle:'idle'})[state] || 'unavailable'
-      if(base==='idle' && snapshot.agents?.state==='live' && snapshot.agents.tasks?.some(task=>['starting','running','cancelling'].includes(task.state)))base='working'
+      base=phaseFor(snapshot)
       let incoming=false
       const entries=[...(snapshot.remote?.messages || []).map(item=>`remote:${item.id}`),...(snapshot.notifications || []).map(item=>`notification:${item.id}`),...(snapshot.remote?.replies || []).filter(item=>item.status==='answered' && item.answer).map(item=>`reply:${item.id}`)]
       for(const key of entries) { if(!seen.has(key)){seen.add(key);if(initialized)incoming=true} }
@@ -71,7 +74,7 @@
       destroy() { if(destroyed)return;destroyed=true;generation++;controller?.destroy();controller=undefined;document?.removeEventListener?.('visibilitychange',visibility);motion?.removeEventListener?.('change',preference);seen.clear();host.replaceChildren() },
     }
   }
-  const api={mount}
+  const api={mount,phaseFor}
   if(typeof module==='object' && module.exports)module.exports=api
   else root.odkPersonalAgentAvatar=api
 })(typeof window==='object'?window:globalThis)

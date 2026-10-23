@@ -5,9 +5,12 @@ const fs = require('node:fs/promises')
 const crypto = require('node:crypto')
 const { requiresToken, writeHandshake } = require('./local-channel')
 
-async function requestLocalControl({ endpoint, tokenFile, platform = process.platform, request, label, timeoutMs = 2000, maxResponseBytes = 256 * 1024 }) {
+async function requestLocalControl({ endpoint, tokenFile, platform = process.platform, request, label, timeoutMs = 2000, maxResponseBytes = 256 * 1024, signal }) {
   if (!endpoint) throw Error(`${label} unavailable: no local channel`)
+  const cancelled = () => Error(`${label} cancelled; operation outcome unknown`)
+  if (signal?.aborted) throw cancelled()
   const token = requiresToken({ endpoint, platform }) ? (await fs.readFile(tokenFile, 'utf8')).trim() : null
+  if (signal?.aborted) throw cancelled()
   const id = crypto.randomUUID()
   return new Promise((resolve, reject) => {
     const socket = net.createConnection(endpoint)
@@ -17,11 +20,15 @@ async function requestLocalControl({ endpoint, tokenFile, platform = process.pla
       if (settled) return
       settled = true
       clearTimeout(timer)
+      signal?.removeEventListener('abort', abort)
       socket.destroy()
       if (error) reject(error)
       else resolve(result)
     }
+    const abort = () => finish(cancelled())
     const timer = setTimeout(() => finish(Error(`${label} timed out; operation outcome unknown`)), timeoutMs)
+    signal?.addEventListener('abort', abort, { once: true })
+    if (signal?.aborted) abort()
     socket.setEncoding('utf8')
     socket.on('error', error => finish(Error(`${label} failed: ${error.message}; operation outcome unknown`)))
     socket.on('end', () => finish(Error(`${label} closed without a response; operation outcome unknown`)))

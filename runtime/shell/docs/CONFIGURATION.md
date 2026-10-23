@@ -56,6 +56,8 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `ODK_SHELL_HEIGHT` | Test | Smoke/acceptance | runtime/shell/src/main.js | — | Window height override. |
 | `ODK_SHELL_KIOSK` | Test | Acceptance | runtime/shell/src/main.js | — | Kiosk mode switch. |
 | `ODK_SHELL_TEST_MODE` | Test | Test process | runtime/shell/src/odk-link-client.js, runtime/shell/src/remote-bridge-client.js | — | Client test mode. |
+| `ODK_OVERVIEW_LIVE_OUTPUT` | Test | Explicit live Overview harness | integrations/personal-bot/scripts/test-home-briefing-live.mjs | Private temporary directory | Evidence destination; model requests still require `--run`. |
+| `ODK_OVERVIEW_LIVE_DEVICE_ONLY` | Test | Explicit live Overview harness | integrations/personal-bot/scripts/test-home-briefing-live.mjs | Unset | Set `1` to skip synthetic cases and read the configured device sources; requires `--run`. |
 | `ODK_SHELL_WIDTH` | Test | Smoke/acceptance | runtime/shell/src/main.js | — | Window width override. |
 | `ODK_SKIP_GPU_USERSPACE` | L2 install | Installer override | runtime/shell/scripts/cm5-install.sh | 0 | Skip the Mali userspace install. |
 | `ODK_SMOKE_RESULT_FILE` | Test | Smoke run | runtime/shell/src/main.js | — | Smoke result file. |
@@ -63,6 +65,7 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `ODK_TASK_CONFIG` | L2 install | pi-tasks unit | integrations/personal-bot/src/task-store.mjs | %h/.config/odk/pi-tasks.json | Private Hosted Pi daemon configuration. Only the daemon reads and checks ownership/mode. Clients read its published endpoint descriptor. |
 | `ODK_TASK_TARGETS_FILE` | L3 device | Bot environment or drop-in | integrations/personal-bot/src/task-client.mjs | Unset | Personal Bot target list. If absent, report that configuration is required. |
 | `ODK_PROACTIVE_CONFIG` | L3 device (sensitive) | personal-bot.env | integrations/personal-bot/src/main.mjs | Unset; no polling | Private owner rules: thresholds, combinations, quiet hours, rate limits and mute state. File mode 0600. See the Personal Bot CONTRACT.md proposal section. |
+| `ODK_PACKAGE_API_PUBLIC_DNS` | L3 device | runtime.env | runtime/shell/src/user-app-system.js | Unset | Set cloudflare to resolve package API hostnames through public HTTPS DNS. See USER_APPLICATIONS.md#public-api-data. |
 | `ODK_PERSONAL_BOT_CONFIG` | L3 device (sensitive) | personal-bot.env | integrations/personal-bot/src/personal-config.mjs | coding profile | Private profile, reviewed capability declarations, Skill paths, and fixed plugin selection. |
 | `ODK_AGENT_CATALOG_DIR` | CLI | Operator | integrations/personal-bot/src/agent-catalog/cli.mjs | Unset | CLI catalog path. The resident uses its private state directory. |
 | `ODK_AGENT_PACKAGE_CANDIDATES` | L3 device | personal-bot.env | integrations/personal-bot/src/agent.mjs | Unset | Private staged package candidates. Required only for candidate inspection and installation. |

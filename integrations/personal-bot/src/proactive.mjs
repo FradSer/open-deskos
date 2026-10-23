@@ -6,6 +6,8 @@ import { dirname, join } from 'node:path'
 import { writeFileSync, fsyncSync, closeSync } from 'node:fs'
 import { readProactiveFile, openProactiveTemporary } from './proactive-private.mjs'
 import { pollGenerated } from './proactive-generation.mjs'
+import { generationKey, handledReceipt, proposalPriority, PROPOSAL_DECISIONS } from './proactive-lifecycle.mjs'
+export { PROPOSAL_DECISIONS } from './proactive-lifecycle.mjs'
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const FIELD = /^(?:[A-Za-z][A-Za-z0-9_]*|\d+)(?:\.(?:[A-Za-z][A-Za-z0-9_]*|\d+))*$/
@@ -13,6 +15,9 @@ const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/
 const OPS = { lt: (a, b) => a < b, lte: (a, b) => a <= b, gt: (a, b) => a > b, gte: (a, b) => a >= b, eq: (a, b) => a === b }
 const ACTIONS = new Set(['memory_update', 'user_app_install', 'coding_task_start', 'coding_task_history'])
 const pending = p => p.status === 'pending'
+const storageError = error => error?.message === 'Handled recommendation receipt capacity reached'
+  ? '建议历史容量已满。请修改或移除旧的建议主题配置，再重启服务。已有私有记录和未知执行状态均已保留。'
+  : 'Suggestions unavailable: private proposal state could not be saved. No proposal action will run.'
 const codingWorking = task => task.lifecycle === undefined
   ? task.activity === 'working' || task.state === 'running'
   : task.lifecycle === 'live' && task.activity === 'working'
@@ -33,8 +38,10 @@ function field(value, path) {
 export function validateOwnerConfig(config) {
   const fail = () => { throw Error('Invalid proactive owner configuration') }
   const generated = config?.version === 2
-  if (!own(config, ['version', 'pollMs', 'maxAgeMs', 'cooldownMs', 'quietHours', 'rules', 'suppressed', 'snoozed', 'routineDays', ...(generated ? ['maxCandidates', 'maxPush'] : [])]) || ![1, 2].includes(config.version)) fail()
+  if (!own(config, ['version', 'pollMs', 'maxAgeMs', 'cooldownMs', 'quietHours', 'rules', 'suppressed', 'snoozed', 'routineDays', ...(generated ? ['maxCandidates', 'maxPush', 'generationIntervalMs', 'attentionCooldownMs', 'maxGenerationCalls'] : [])]) || ![1, 2].includes(config.version)) fail()
   if (generated && (!Number.isInteger(config.maxCandidates) || config.maxCandidates < 1 || config.maxCandidates > 16 || !Number.isInteger(config.maxPush) || config.maxPush < 1 || config.maxPush > config.maxCandidates)) fail()
+  for (const key of ['generationIntervalMs', 'attentionCooldownMs']) if (config[key] !== undefined && (!generated || !Number.isSafeInteger(config[key]) || config[key] < 0 || config[key] > 3600000)) fail()
+  if (config.maxGenerationCalls !== undefined && (!generated || !Number.isInteger(config.maxGenerationCalls) || config.maxGenerationCalls < 1 || config.maxGenerationCalls > 16)) fail()
   for (const [key, minimum, maximum] of [['pollMs', 1000, 3600000], ['maxAgeMs', 1000, 86400000], ['cooldownMs', 60000, 604800000]]) {
     if (!Number.isSafeInteger(config[key]) || config[key] < minimum || config[key] > maximum) fail()
   }
@@ -104,7 +111,7 @@ function localTime(now, zone) {
 
 /** The judgment service evaluates relevance; code owns observations, delivery and explicit actions. */
 export class ProactiveWatch {
-  constructor({ config, intents = undefined, read, publish, save, phrase, execute, generate = undefined, judge = undefined, onGeneration = (_record) => {}, onJudgment = (_record) => {}, codingStatus = undefined, codingList = undefined, loadState = () => ({ version: 1, proposals: [] }), saveState = (_state) => {}, now = Date.now }) {
+  constructor({ config, intents = undefined, read, publish, save, phrase, execute, generate = undefined, judge = undefined, onGeneration = (_record) => {}, onJudgment = (_record) => {}, onFeedback = (_record) => {}, codingStatus = undefined, codingList = undefined, loadState = () => ({ version: 1, proposals: [] }), saveState = (_state) => {}, now = Date.now }) {
     this.config = validateOwnerConfig(config)
     this.intents = intents
     this.read = read
@@ -116,11 +123,19 @@ export class ProactiveWatch {
     this.generate = generate ?? (async () => { throw Error('Suggestion generation unavailable') })
     this.onGeneration = onGeneration
     this.onJudgment = onJudgment
+    this.onFeedback = onFeedback
     this.codingStatus = codingStatus
     this.codingList = codingList
     this.now = now
     this.saveState = saveState
     const restored = loadState()
+    this.generationCache = structuredClone(restored.generationCache ?? {})
+    this.handledOccurrences = structuredClone(restored.handledOccurrences ?? {})
+    this.observationEpisodes = structuredClone(restored.observationEpisodes ?? {})
+    this.isolatedTopics = new Set(restored.isolatedTopics ?? [])
+    this.generationAttempts = new Map()
+    this.generationSequence = 0
+    this.lastAttentionAt = restored.lastAttentionAt ?? 0
     this.hasIntentState = Boolean(intents || restored.intentClaims)
     this.intentClaims = structuredClone(restored.intentClaims ?? [])
     this.intentWatermarks = structuredClone(restored.intentWatermarks ?? {})
@@ -157,7 +172,19 @@ export class ProactiveWatch {
     this.seenTurns = new Map()
   }
   rules() { return [...this.config.rules, ...(this.intents?.rules() ?? [])] }
-  persist() { this.saveState({ version: 1, proposals: structuredClone(this.proposals), ...(this.hasIntentState ? { intentClaims: structuredClone(this.intentClaims), intentWatermarks: structuredClone(this.intentWatermarks), intentArchive: structuredClone(this.intentArchive) } : {}) }) }
+  persist() {
+    const active = new Set(this.rules().map(rule => rule.id))
+    const versions = new Map(this.rules().map(rule => [rule.id, generationKey(JSON.stringify(rule))]))
+    this.generationCache = Object.fromEntries(Object.entries(this.generationCache).filter(([id]) => active.has(id)))
+    this.isolatedTopics = new Set([...this.isolatedTopics].filter(id => active.has(id)))
+    this.observationEpisodes = Object.fromEntries(Object.entries(this.observationEpisodes).filter(([id]) => active.has(id)))
+    this.handledOccurrences = Object.fromEntries(Object.entries(this.handledOccurrences).filter(([, record]) => versions.get(record.ruleId) === record.ruleVersionKey))
+    for (const p of this.proposals) if (p.action === null && p.occurrenceKey && ['ignored', 'completed'].includes(p.status) && versions.get(p.ruleId) === generationKey(p.ruleVersion)) {
+      if (!this.handledOccurrences[p.occurrenceKey] && Object.keys(this.handledOccurrences).length >= 1024) throw Error('Handled recommendation receipt capacity reached')
+      this.handledOccurrences[p.occurrenceKey] = handledReceipt(p)
+    }
+    this.saveState({ version: 1, proposals: structuredClone(this.proposals), generationCache: structuredClone(this.generationCache), handledOccurrences: structuredClone(this.handledOccurrences), observationEpisodes: structuredClone(this.observationEpisodes), isolatedTopics: [...this.isolatedTopics], lastAttentionAt: this.lastAttentionAt, ...(this.hasIntentState ? { intentClaims: structuredClone(this.intentClaims), intentWatermarks: structuredClone(this.intentWatermarks), intentArchive: structuredClone(this.intentArchive) } : {}) })
+  }
   start() {
     if (this.started || this.closed) return
     this.started = true
@@ -176,7 +203,7 @@ export class ProactiveWatch {
   }
   setBusy(busy) {
     this.busy = busy
-    if (!busy && !this.closed) this.emit(true)
+    if (!busy && !this.closed) this.emit(this.config.version !== 2)
     if (!busy && this.pushIds.size) this.schedulePush()
   }
   push(readingIds) {
@@ -221,9 +248,13 @@ export class ProactiveWatch {
     return structuredClone(this.proposals)
   }
   async presented(ids) {
-    const displayed = this.proposals.filter(p => ids.includes(p.id) && pending(p) && p.offered && !p.presented)
+    this.list()
+    const displayed = this.proposals.filter(p => ids.includes(p.id) && pending(p) && p.offered && !p.presented && (p.snoozedUntil ?? 0) <= this.now())
     const routine = displayed.filter(p => this.rules().find(r => r.id === p.ruleId)?.delivery === 'routine')
-    for (const p of displayed) p.presented = true
+    for (const p of displayed) {
+      p.presented = true
+      if (p.feedback === 'snooze' && (p.snoozedUntil ?? Infinity) <= this.now()) delete p.snoozedUntil
+    }
     try { this.persist() } catch { this.emit(); return }
     if (routine.length) {
       if (this.responding) return
@@ -241,11 +272,18 @@ export class ProactiveWatch {
   emit(interaction = false) {
     if (this.closed) return
     this.list()
-    const eligible = this.busy || this.storageFailure || this.judgmentError ? [] : this.proposals.filter(p => pending(p) && ((this.revealAll && this.recoverable(p)) || (!p.offered && this.deliverable(p, interaction)) || (interaction && p.offered && !p.presented && this.recoverable(p))))
+    const generated = this.config.version === 2
+    const available = p => !generated || !this.failedJudgments.has(p.ruleId)
+    let eligible = this.busy || this.storageFailure || (!generated && this.judgmentError) ? [] : this.proposals.filter(p => pending(p) && available(p) && (p.snoozedUntil ?? 0) <= this.now() && ((this.revealAll && this.recoverable(p)) || (!p.offered && this.deliverable(p, interaction)) || (interaction && p.offered && !p.presented && this.recoverable(p))))
+    if (generated) {
+      eligible.sort((a, b) => proposalPriority(this, a, b))
+      if (!interaction && this.now() >= this.lastAttentionAt && this.now() - this.lastAttentionAt < (this.config.attentionCooldownMs ?? 60000)) eligible = []
+      else eligible = eligible.slice(0, this.config.maxPush)
+    }
     if (interaction && this.revealAll && !this.busy && !this.storageFailure && !this.judgmentError) eligible.push(...this.proposals.filter(p => p.status === 'expired' && p.ridePreview?.handle))
     const priority = p => pending(p) ? (p.offered ? 1 : 0) : 2
     const display = []
-    for (const p of this.list().sort((a, b) => priority(a) - priority(b))) {
+    for (const p of this.list().sort((a, b) => priority(a) - priority(b) || (generated ? proposalPriority(this, a, b) : 0))) {
       if (Buffer.byteLength(JSON.stringify([...display, p])) > 48000) continue
       display.push(p)
     }
@@ -253,10 +291,12 @@ export class ProactiveWatch {
     if (popup) for (const p of eligible) if (display.some(d => d.id === p.id)) {
       p.offered = true
       if (this.rules().find(r => r.id === p.ruleId)?.delivery === 'routine') p.routineDay = localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC').date
+      Object.assign(display.find(d => d.id === p.id), { offered: p.offered, ...(p.routineDay ? { routineDay: p.routineDay } : {}) })
     }
-    try { this.persist() } catch {
+    if (popup && !interaction && generated) this.lastAttentionAt = this.now()
+    try { this.persist() } catch (error) {
       this.storageFailure = true
-      this.publish({ proposals: display, popup: false, interaction, hiddenCount: this.proposals.length - display.length, error: 'Suggestions unavailable: private proposal state could not be saved. No proposal action will run.' })
+      this.publish({ proposals: display, popup: false, interaction, hiddenCount: this.proposals.length - display.length, error: storageError(error) })
       return
     }
     if (popup) this.revealAll = false
@@ -266,7 +306,8 @@ export class ProactiveWatch {
   recoverable(p) {
     const rule = this.rules().find(r => r.id === p.ruleId)
     const clock = localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC')
-    return rule && !this.config.suppressed.includes(rule.id) && (rule.delivery !== 'routine' || (clock.time >= rule.at && this.config.routineDays[rule.id] !== clock.date))
+    const resumed = p.feedback === 'snooze' && typeof p.snoozedUntil === 'number' && p.snoozedUntil <= this.now()
+    return rule && (p.snoozedUntil ?? 0) <= this.now() && !this.config.suppressed.includes(rule.id) && (resumed || rule.delivery !== 'routine' || (clock.time >= rule.at && this.config.routineDays[rule.id] !== clock.date))
   }
   authorizedAction(p, rule) {
     if (!rule) return false
@@ -282,8 +323,9 @@ export class ProactiveWatch {
   }
   deliverable(p, interaction = false) {
     const rule = this.rules().find(r => r.id === p.ruleId)
-    if (!rule || this.config.suppressed.includes(rule.id)) return false
-    if (rule.delivery === 'routine') {
+    if (!rule || this.config.suppressed.includes(rule.id) || (p.snoozedUntil ?? 0) > this.now()) return false
+    const resumed = p.feedback === 'snooze' && typeof p.snoozedUntil === 'number' && p.snoozedUntil <= this.now()
+    if (rule.delivery === 'routine' && !resumed) {
       const clock = localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC')
       if (clock.time < rule.at || this.config.routineDays[rule.id] === clock.date || this.proposals.some(q => q.ruleId === rule.id && q.routineDay === clock.date)) return false
     }
@@ -395,7 +437,7 @@ export class ProactiveWatch {
   }
   async readProposals() {
     await this.inflight
-    if (this.closed || this.storageFailure || this.judgmentError) throw Error('Suggestions unavailable')
+    if (this.closed || this.storageFailure || (this.judgmentError && (this.config.version !== 2 || !this.list().some(p => pending(p) && !this.failedJudgments.has(p.ruleId))))) throw Error('Suggestions unavailable')
     this.interact(true)
     if (this.storageFailure) throw Error('Suggestions unavailable')
     return this.list()
@@ -499,18 +541,40 @@ export class ProactiveWatch {
     this.emit()
   }
   async respond(id, decision, confirmation = '', fromSpokenTurn = false) {
-    if (this.closed || this.storageFailure || this.judgmentError || this.responding || (this.busy && !fromSpokenTurn)) throw Error('Proposal response busy or unavailable')
+    if (!PROPOSAL_DECISIONS.includes(decision)) throw Error('Invalid proposal decision')
+    if (this.closed || this.storageFailure || (decision === 'accept' && this.judgmentError) || this.responding || (this.busy && !fromSpokenTurn)) throw Error('Proposal response busy or unavailable')
     const p = this.proposals.find(p => p.id === id)
     if (!p || !pending(p)) throw Error('Proposal no longer pending')
+    if (p.action !== null && ['done', 'useful', 'irrelevant', 'incorrect'].includes(decision)) throw Error('Feedback completion is only available for read-only recommendations')
     this.revision++
     this.interactionRevision++
     this.responding = true
+    let completed = false
     try {
-      if (['ignore', 'mute'].includes(decision)) {
+      if (['done', 'snooze', 'useful', 'irrelevant', 'incorrect'].includes(decision) || (decision === 'ignore' && this.config.version === 2)) {
+        const committed = structuredClone(p), handled = structuredClone(this.handledOccurrences)
+        p.feedback = decision
+        if (decision === 'done') { p.status = 'completed'; p.completedAt = new Date(this.now()).toISOString() }
+        else if (['ignore', 'irrelevant', 'incorrect'].includes(decision)) p.status = 'ignored'
+        else if (decision === 'snooze') {
+          p.snoozedUntil = this.now() + this.config.cooldownMs
+          p.offered = false
+          p.presented = false
+        }
+        try { this.persist() } catch (error) {
+          for (const key of Object.keys(p)) delete p[key]
+          Object.assign(p, committed)
+          this.handledOccurrences = handled
+          this.storageFailure = true
+          this.judgmentError = storageError(error)
+          throw error
+        }
+      } else if (['ignore', 'mute'].includes(decision)) {
         if (isIntentRuleId(p.ruleId)) {
           if (decision === 'mute') this.intents.mute(p.ruleId)
           for (const related of this.proposals) if (related.ruleId === p.ruleId && pending(related)) related.status = 'ignored'
           this.persist()
+          completed = true
           return structuredClone(p)
         }
         const next = structuredClone(this.config)
@@ -549,7 +613,15 @@ export class ProactiveWatch {
         next.snoozed[p.ruleId] = this.now() + next.cooldownMs
         try { await this.save(next); this.config = next } catch { p.result += '\n未能保存限频配置，请检查 owner 配置。' }
       } else throw Error('Invalid proposal decision')
-    } finally { this.responding = false; this.emit() }
+      completed = true
+    } finally {
+      this.responding = false
+      this.emit()
+      if (completed && !this.storageFailure) {
+        try { this.onFeedback({ decision, at: new Date(this.now()).toISOString(), ruleId: p.ruleId,
+          ...(isJudgmentModel(p.judgment?.model) ? { model: p.judgment.model } : {}) }) } catch { /* Diagnostics cannot change a committed response. */ }
+      }
+    }
     return structuredClone(p)
   }
 }

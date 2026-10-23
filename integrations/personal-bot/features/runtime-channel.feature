@@ -1,4 +1,10 @@
 Feature: Bounded requests over runtime channels
+  Scenario: Candidate feedback uses the authenticated proposal channel
+    Given the owner selects done, later, useful, irrelevant, or incorrect for a displayed suggestion
+    When the display sends its bounded feedback command
+    Then the channel passes the exact proposal identity and decision to its owner
+    And unknown decisions close the connection without executing a tool
+
   Scenario: Cancelling an unsubmitted recording restores input
     Given a Windows recording owns the shared CM5 voice turn
     When the owner cancels before transcription

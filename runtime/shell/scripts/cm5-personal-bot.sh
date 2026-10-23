@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Sourced by cm5-install.sh after resolving the kiosk user and release paths.
 
+RELEASE_PRIVATE_EXCLUDES=(--exclude '.env*' --exclude '*.env' --exclude 'auth.json' --exclude '.pi')
+
+copy_release_input() {
+  run_as_target_user rsync -a "${RELEASE_PRIVATE_EXCLUDES[@]}" "$@"
+}
+
 prepare_personal_bot_release() {
   local version major minor
   version="$(run_as_target_user "${NODE_BIN}/node" --version)"
@@ -18,7 +24,7 @@ prepare_personal_bot_release() {
   run_as_target_user mkdir -p "${destination}"
   # Only deploy runtime inputs, never a developer's auth, state, or node_modules.
   for entry in package.json pnpm-lock.yaml src systemd; do
-    run_as_target_user cp -a "${PERSONAL_BOT_SOURCE}/${entry}" "${destination}/"
+    copy_release_input "${PERSONAL_BOT_SOURCE}/${entry}" "${destination}/"
   done
   (cd "${destination}" && run_as_target_user pnpm install --prod --frozen-lockfile --ignore-scripts)
 }

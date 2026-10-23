@@ -9,7 +9,8 @@ import { ModelRuntime } from '@earendil-works/pi-coding-agent'
 import { createDurableAgentSession } from '../src/durable-agent-session.mjs'
 import { HomeBriefing } from '../src/home-briefing.mjs'
 import { homeFactVariables } from '../src/home-template.mjs'
-import { createHomeSourceAccess } from '../src/home-sources.mjs'
+import { createTaskReadings, createRemoteReadings } from '../src/producer-readings.mjs'
+import { declaredSources } from '../tests/helpers/declared-sources.mjs'
 import { odkDataRequest } from '../src/odk-data.mjs'
 
 if (!process.argv.includes('--run')) {
@@ -20,7 +21,9 @@ const output = process.env.ODK_OVERVIEW_LIVE_OUTPUT || await mkdtemp(join(tmpdir
 await mkdir(output, { recursive: true, mode: 0o700 })
 const stateDir = await mkdtemp(join(tmpdir(), 'odk-overview-agent-'))
 const fingerprint = async () => Object.fromEntries(await Promise.all([
-  ...['agent.mjs', 'home-briefing.mjs', 'home-template.mjs', 'home-sources.mjs'].map(name => `../src/${name}`),
+  ...['agent.mjs', 'home-briefing.mjs', 'home-template.mjs', 'producer-readings.mjs'].map(name => `../src/${name}`),
+  '../tests/helpers/declared-sources.mjs', '../../../runtime/shell/src/odk-data-registry.js',
+  '../../../runtime/shell/src/personal-agent-readings.js', '../../../runtime/shell/src/odk-data.js',
   './test-home-briefing-live.mjs',
 ].map(async name => [name, createHash('sha256').update(await readFile(new URL(name, import.meta.url))).digest('hex')])))
 const report = { realModel: true, microphoneCapture: false, ownerTaskSubmission: false, sourceHashes: await fingerprint(), scenarios: [], passed: false }
@@ -65,9 +68,11 @@ try {
         const payload = JSON.parse(text.slice(text.indexOf('Personal Bot request:\n') + 'Personal Bot request:\n'.length))
         assert.ok(Array.isArray(payload.variables))
         current.requests++
-        telemetry = { startedAt: Date.now(), facts: payload.variables.length }; current.telemetry.push(telemetry)
+        telemetry = { startedAt: Date.now(), facts: payload.variables.length,
+          candidates: payload.variables.map(({ selector, id, factId, serviceId, displayable, characters }) => ({ selector, id, factId, serviceId, displayable, characters })) }
+        current.telemetry.push(telemetry)
         console.log(JSON.stringify({ modelRequest: requests, facts: payload.variables.length }))
-        for (const fact of payload.variables) { current.seenSources.add(fact.id); current.seenFacts.add(fact.factId) }
+        for (const fact of payload.variables) { if (fact.id) current.seenSources.add(fact.id); if (fact.factId) current.seenFacts.add(fact.factId) }
         if (current.mutate) { const mutate = current.mutate; current.mutate = null; mutate() }
         return prompt(text, ...args)
       }
@@ -130,12 +135,17 @@ try {
       updatedAt: new Date().toISOString(), request: 'Verify release', verification: { status: 'not_run' }, learning: { status: 'not_run' } }
     const sibling = { ...task, taskId: 'overview-secondary-task', identity: { name: 'Background Agent' }, state: 'running', request: 'Observe background work' }
     const messages = Array.from({ length: 2 }, (_, index) => ({ id: `overview-report-${index}`, at: Date.now(), text: `Pi report ${index}`, verification: 'reported_unverified', sources: [{ sessionId: `remote-${index}`, taskName: 'Remote Pi task', state: 'settled' }] }))
-    const access = createHomeSourceAccess({ dataRequest: async (command, options) => command === 'list' ? { readings } : { reading: readings.find(reading => reading.id === options.id) },
-      runtime: () => ({ agent: { agentTasks: { list: () => ({ tasks: [task, sibling], total: 2 }), status: id => id === task.taskId ? task : sibling } } }), remote: () => ({ snapshot: () => ({ state: 'live', messages, nextOffset: null }) }) })
-    await check(`agent-${state}`, access, 'odk.agent.overview-acceptance-task', true)
-    if (state === 'failed') await check('agent-changing-during-generation', access, 'odk.agent.overview-acceptance-task', true, () => { task.state = 'finished' })
+    const access = await declaredSources({ readings, providers: [
+      createTaskReadings({ list: () => ({ tasks: [task, sibling], total: 2 }), status: id => id === task.taskId ? task : sibling }),
+      createRemoteReadings({ snapshot: () => ({ state: 'live', messages, nextOffset: null }) }),
+    ] })
+    try {
+      await check(`agent-${state}`, access, 'odk.agent.overview-acceptance-task', true)
+      if (state === 'failed') await check('agent-changing-during-generation', access, 'odk.agent.overview-acceptance-task', true, () => { task.state = 'finished' })
+    } finally { access.close() }
   }
-  const access = createHomeSourceAccess({ dataRequest: odkDataRequest, runtime: () => null, remote: () => null })
+  const access = { list: async signal => (await odkDataRequest('list', { signal })).readings,
+    read: async (id, signal) => (await odkDataRequest('read', { id, signal })).reading }
   await check('connected-device-readings', access, undefined, false)
   report.passed = true
 } catch (error) {

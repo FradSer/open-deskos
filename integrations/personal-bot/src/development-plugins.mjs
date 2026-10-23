@@ -7,7 +7,7 @@ import { validateHostedPiReplacement } from './task-composition.mjs'
 const require = createRequire(import.meta.url)
 
 export function loadPersonalBotReplacements(file, { trusted = false } = {}) {
-  return loadSelection(file, { trusted, validate: validatePersonalBotReplacement, limit: 5 })
+  return loadSelection(file, { trusted, validate: validatePersonalBotReplacement, limit: 7 })
 }
 
 export function loadHostedPiReplacements(file, { trusted = false } = {}) {

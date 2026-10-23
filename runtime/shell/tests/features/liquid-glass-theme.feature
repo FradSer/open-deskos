@@ -3,12 +3,14 @@ Feature: Optional Liquid Glass theme
   Scenario: Interactive surfaces use the Widget glass frame
     Given Liquid Glass shows the resident Agent and a built-in App
     Then Tap to talk uses the Widget glass material and rounded edge
-    And the composer, identity capsule, action buttons, fields, and page handle share the glass frame treatment
+    And the composer, identity capsule, action buttons, and fields share the glass frame treatment
     And integrated text input uses its composer frame without a second rectangular border
-    And transparent Widget launch targets and page marks use their existing container frame
+    And transparent Widget launch targets use their existing Widget frame
+    And page marks and the App return handle have no enclosing material frame
     When a control is focused, pressed, disabled, selected, busy, invalid, or recording
     Then its state remains visible without removing its glass edge
     And hover highlights appear only with a fine pointer that supports hover
+    And a visible App return button retains the shared hover and pressed feedback
     And a coarse touch pointer keeps the resting glass edge during forced hover
     And reduced transparency, increased contrast, and forced colors retain readable controls
 
