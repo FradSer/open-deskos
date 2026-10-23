@@ -140,6 +140,7 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
     './plugins/desk-runtime': require('../src/plugins/desk-runtime'),
     './platform/native-process-reader': { createNativeProcessReader: () => ({ reason: null }) },
     './user-app-api': require('../src/user-app-api'),
+    './user-app-geometry': require('../src/user-app-geometry'),
     './user-app-control': require('../src/user-app-control'),
     './user-app-protocol': require('../src/user-app-protocol'),
     './user-app-content': require('../src/user-app-content'),
