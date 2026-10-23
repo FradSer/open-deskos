@@ -44,7 +44,7 @@ app.whenReady().then(async () => {
     clearTimeout(timer); win.destroy(); app.exit(0); return
   }
   const send = async status => { win.webContents.send('odk-personal-bot-status', status); await delay() }
-  const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry-soil', status: 'pending', offered: true, presented: false, reason: 'A current soil reading is below the selected threshold.', advice: '<script>untrusted reading</script> 检查盆土。', action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土' } }, confirmation: '记住 watering：检查盆土', evidence: [{ readingId: 'odk.tile.hydra', field: 'plants.0.soilPercent', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z', ruleId: 'dry-soil' }] }
+  const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry-soil', status: 'pending', offered: true, presented: false, reason: 'A current soil reading is below the selected threshold.', nextStep: 'Touch the soil and check its moisture before watering.', advice: '<script>untrusted reading</script> 检查盆土。', action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土' } }, confirmation: '记住 watering：检查盆土', evidence: [{ readingId: 'odk.tile.hydra', field: 'plants.0.soilPercent', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z', ruleId: 'dry-soil' }] }
   async function longAdviceVisibility() {
     await viewport(320, 480)
     const long = { ...p, id: 'b311a280-c0b9-4411-96cd-4e1e92385349', advice: '检查当前读数并决定下一步。'.repeat(100).slice(0, 1000) }
@@ -144,6 +144,32 @@ app.whenReady().then(async () => {
       }
     }
   }
+  const actionCard = { ...p, action: null, confirmation: '', advice: '检查书桌旁植物的盆土，确认是否需要浇水。', nextStep: '用手指检查表层下方的土壤；如果仍然干燥，再少量浇水。', reason: 'Legacy reason must not render.', evidence: [...p.evidence, { readingId: 'fixture.export', field: 'sha256', value: 'a'.repeat(64), state: 'live', measuredAt: '2026-10-23T10:00:00Z' }] }
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
+    await run(`odkTheme.set(${JSON.stringify(theme)})`)
+    for (const [width, height] of [[320, 480], [480, 854], [1920, 1280]]) {
+      await viewport(width, height)
+      await send({ state: 'idle', proposals: [actionCard], proposalPopup: true })
+      await run(`document.querySelector('.personal-bot-status-content').scrollTop = 0; document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
+      const layout = await run(`(() => {
+        const card = document.querySelector('.personal-bot-proposal'), advice = card.querySelector('.personal-bot-proposal-advice'), next = card.querySelector('.personal-bot-proposal-next-step'), actions = card.querySelector('.personal-bot-proposal-actions'), sources = card.querySelector('.personal-bot-proposal-sources'), feedback = card.querySelector('.personal-bot-proposal-feedback-options');
+        return { advice: advice.textContent, next: next.textContent, reason: !!card.querySelector('.personal-bot-proposal-reason') || card.textContent.includes('Legacy reason must not render.'), sourcesClosed: !sources.open, feedbackClosed: !feedback.open, hashHidden: [...sources.querySelectorAll('p')].filter(p => p.textContent.includes('a'.repeat(64))).every(p => !p.checkVisibility()), hashCount: [...sources.querySelectorAll('p')].filter(p => p.textContent.includes('a'.repeat(64))).length, ordered: advice.getBoundingClientRect().top < next.getBoundingClientRect().top && next.getBoundingClientRect().bottom <= actions.getBoundingClientRect().top && actions.getBoundingClientRect().bottom <= sources.getBoundingClientRect().top, adviceSize: parseFloat(getComputedStyle(advice).fontSize), detailSize: parseFloat(getComputedStyle(sources.querySelector('p')).fontSize), nextSize: parseFloat(getComputedStyle(next).fontSize), overflow: card.scrollWidth > card.clientWidth + 1, controls: [...actions.querySelectorAll('button')].every(b => b.getBoundingClientRect().height >= 44) }
+      })()`)
+      assert.equal(layout.advice, actionCard.advice); assert.equal(layout.next, actionCard.nextStep)
+      for (const key of ['sourcesClosed', 'feedbackClosed', 'hashHidden', 'ordered', 'controls']) assert.equal(layout[key], true, JSON.stringify({ theme, width, height, key, ...layout }))
+      assert.equal(layout.hashCount, 1); assert.equal(layout.reason, false); assert.equal(layout.overflow, false)
+      assert.ok(layout.adviceSize >= layout.detailSize * 1.4); assert.ok(layout.nextSize >= 16)
+    }
+  }
+  // Only the original technical advice in the expanded source can acknowledge an older suggestion.
+  const technical = { ...p, id: 'a111a280-c0b9-4411-96cd-4e1e92385349', action: null, confirmation: '', advice: `Inspect expectedSHA256 ${'a'.repeat(64)}` }
+  commands.length = 0
+  await send({ state: 'idle', proposals: [technical], proposalPopup: true })
+  assert.equal(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(technical.id)), false)
+  await run(`document.querySelector('.personal-bot-proposals button[data-proposal-action="view-sources"]').click(); document.querySelector('.personal-bot-proposal-original-advice').scrollIntoView({block:'center'})`)
+  await delay()
+  assert.ok(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(technical.id)))
+  await run(`document.querySelector('.personal-bot-proposal-sources summary').click()`)
   // Synthetic suggestions exercise the real scroll viewport without model or device access.
   await run(`odkTheme.set('instrument')`)
   await viewport(480, 854)
@@ -209,12 +235,25 @@ app.whenReady().then(async () => {
   }
   await longAdviceVisibility()
   // Populated fixture preview: the capture waits for the current native compositor frame.
-  const preview = { ...p, id: 'c311a280-c0b9-4411-96cd-4e1e92385349', action: null, confirmation: '', advice: '检查书桌旁植物的盆土，再决定是否浇水。', reason: '最新土壤湿度为10%，低于你选择的提醒阈值。' }
+  const preview = { ...actionCard, id: 'c311a280-c0b9-4411-96cd-4e1e92385349' }
   await send({ state: 'idle', proposals: [preview], proposalPopup: true })
   await run(`document.querySelector('.personal-bot-status-content').scrollTop = 0; document.fonts.ready.then(() => true)`)
   const { capturePaintedPage } = require('./helpers/native-page-capture')
   const output = process.env.ODK_PROACTIVE_PREVIEW_FILE
   if (output) fs.writeFileSync(output, (await capturePaintedPage(win)).toPNG())
+  const previewDirectory = process.env.ODK_PROACTIVE_PREVIEW_DIR
+  if (previewDirectory) {
+    fs.mkdirSync(previewDirectory, { recursive: true, mode: 0o700 })
+    for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
+      await run(`odkTheme.set(${JSON.stringify(theme)})`)
+      for (const [width, height] of [[480, 854], [1920, 1280]]) {
+        await viewport(width, height)
+        await send({ state: 'idle', proposals: [preview], proposalPopup: true })
+        await run(`document.querySelector('.personal-bot-status-content').scrollTop = 0; document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
+        fs.writeFileSync(path.join(previewDirectory, `${theme}-${width}x${height}.png`), (await capturePaintedPage(win)).toPNG())
+      }
+    }
+  }
   await run(`odkPersonalBotStatus.close()`)
   await send({ state: 'idle', proposals: [], proposalPopup: false })
   assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), true)

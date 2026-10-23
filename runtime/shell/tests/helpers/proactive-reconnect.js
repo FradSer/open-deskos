@@ -44,7 +44,7 @@ async function createProactiveReconnectFixture(options = {}) {
     read: async () => ({ id: 'fixture.reconnect', label: 'Synthetic reconnect fixture', state: 'live', value: { status: 'Unread fixture note', measured_at: measuredAt } }),
     generate: async ({ topics }) => {
       return { suggestions: topics.map(topic => ({ topicId: topic.id, key: 'inspect-reconnect-fixture',
-        advice: 'Synthetic fixture: inspect the reconnect test note.', reason: 'This fixture tests display recovery and feedback, not model quality.', evidenceIds: [topic.evidence[0].id] })) }
+        advice: 'Synthetic fixture: inspect the reconnect test note.', nextStep: 'Read the recovered fixture note, then mark this suggestion done.', evidenceIds: [topic.evidence[0].id] })) }
     },
     judge: async ({ candidates }) => {
       return { model: 'jev-reconnect-fixture', answers: Object.fromEntries(candidates.map(candidate => [candidate.id, { probability: 1, groundingProbability: 1, threshold: 0.8 }])) }

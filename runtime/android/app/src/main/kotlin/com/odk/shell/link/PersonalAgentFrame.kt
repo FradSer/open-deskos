@@ -89,7 +89,13 @@ object PersonalAgentFrame {
                 !validText(p.opt("advice"), 1000) || p.optString("status") !in setOf("pending", "ignored", "expired", "executing", "completed", "unknown")) return null
             val row = JSONObject().put("id", id).put("status", p.getString("status")).put("advice", p.getString("advice"))
                 .put("action", JSONObject.NULL).put("confirmation", "").put("offered", p.opt("offered") == true).put("presented", p.opt("presented") == true)
-            for ((key, limit) in mapOf("ruleId" to 128, "reason" to 600, "createdAt" to 40, "completedAt" to 40)) {
+            if (p.has("nextStep")) {
+                val nextStep = p.opt("nextStep")
+                if (nextStep !is String || nextStep.isBlank() || !validText(nextStep, 240) ||
+                    Regex("[\\x00-\\x1f\\x7f]").containsMatchIn(nextStep)) return null
+                row.put("nextStep", nextStep)
+            }
+            for ((key, limit) in mapOf("ruleId" to 128, "createdAt" to 40, "completedAt" to 40)) {
                 val text = p.opt(key)
                 if (text is String && text.length <= limit) row.put(key, text)
             }

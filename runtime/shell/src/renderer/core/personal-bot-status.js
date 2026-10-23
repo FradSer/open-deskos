@@ -281,13 +281,25 @@
         state.textContent = snoozed ? 'Saved for later' : statusLabels[p.status] || 'Suggestion state unavailable'
         const advice = document.createElement('p')
         advice.className = 'personal-bot-proposal-advice'
-        advice.textContent = p.advice
+        let presentationAdvice = advice
+        const technicalText = /sha[-_\s]?256|\b[a-f0-9]{32,}\b/i
+        const technicalAdvice = technicalText.test(p.advice)
+        const technicalNext = typeof p.nextStep === 'string' && technicalText.test(p.nextStep)
+        const nextStep = typeof p.nextStep === 'string' && p.nextStep.length <= 240 && !/[\x00-\x1f\x7f]/.test(p.nextStep) && !technicalNext ? p.nextStep.trim() : ''
+        if (!nextStep || technicalAdvice) state.textContent += ' · Earlier suggestion'
+        advice.textContent = technicalAdvice ? 'Review the earlier suggestion in Sources.' : p.advice
         article.append(state, advice)
-        if (typeof p.reason === 'string' && p.reason.trim()) {
-          const reason = document.createElement('p')
-          reason.className = 'personal-bot-proposal-reason'
-          reason.textContent = `Why now: ${p.reason}`
-          article.append(reason)
+        if (nextStep && !technicalAdvice) {
+          const next = document.createElement('div')
+          next.className = 'personal-bot-proposal-next'
+          const caption = document.createElement('p')
+          caption.className = 'personal-bot-proposal-next-label'
+          caption.textContent = 'Next step'
+          const step = document.createElement('p')
+          step.className = 'personal-bot-proposal-next-step'
+          step.textContent = nextStep
+          next.append(caption, step)
+          article.append(next)
         }
         if (p.feedback && feedbackLabels[p.feedback]) {
           const feedback = document.createElement('p')
@@ -301,6 +313,19 @@
         identity.className = 'personal-bot-proposal-evidence'
         identity.textContent = `${p.ruleId} · ${p.status}`
         sources.append(identity)
+        if (technicalAdvice) {
+          const original = document.createElement('p')
+          original.className = 'personal-bot-proposal-evidence personal-bot-proposal-original-advice'
+          original.textContent = p.advice
+          sources.append(original)
+          presentationAdvice = original
+        }
+        if (technicalNext || (technicalAdvice && typeof p.nextStep === 'string')) {
+          const originalNext = document.createElement('p')
+          originalNext.className = 'personal-bot-proposal-evidence'
+          originalNext.textContent = p.nextStep
+          sources.append(originalNext)
+        }
         for (const e of p.evidence ?? []) {
           const evidence = document.createElement('p')
           evidence.className = 'personal-bot-proposal-evidence'
@@ -312,7 +337,6 @@
           next.textContent = `Next: ${p.action.tool} ${JSON.stringify(p.action.params ?? {})}. Confirmation: ${p.confirmation}`
           sources.append(next)
         }
-        article.append(sources)
         if (p.ridePreview) rideDetails(article, p, suggestionCapabilities.respond)
         if (p.result) {
           const result = document.createElement('p')
@@ -332,25 +356,39 @@
             control.dataset.proposalId = p.id; control.dataset.proposalAction = decision
             return control
           }
-          if (p.action && p.confirmation) actions.append(button('Accept', () => {
-            actions.replaceChildren(button(p.confirmation, async () => {
-              for (const control of actions.children) control.disabled = true
-              await command({ type: 'proposal_respond', id: p.id, decision: 'accept', confirmation: p.confirmation })
-            }), button('Cancel', () => { proposalSnapshot = ''; renderProposals(status) }))
-          }))
-          if (!p.action) actions.append(response('Done', 'done'), response('Later', 'snooze'))
+          if (!nextStep || technicalAdvice) {
+            const view = button('View sources', () => { sources.open = true; expandedDisclosures.add(`${p.id}:sources`); sources.children[0].focus({ preventScroll: true }) })
+            view.className = 'personal-bot-proposal-primary'
+            view.dataset.proposalId = p.id; view.dataset.proposalAction = 'view-sources'
+            actions.append(view)
+          }
+          if (p.action && p.confirmation) {
+            const accept = button('Accept', () => {
+              actions.replaceChildren(button(p.confirmation, async () => {
+                for (const control of actions.children) control.disabled = true
+                await command({ type: 'proposal_respond', id: p.id, decision: 'accept', confirmation: p.confirmation })
+              }), button('Cancel', () => { proposalSnapshot = ''; renderProposals(status) }))
+            })
+            accept.className = 'personal-bot-proposal-primary'
+            actions.append(accept)
+          }
+          if (!p.action) {
+            const done = response('Done', 'done')
+            done.className = 'personal-bot-proposal-primary'
+            actions.append(done, response('Later', 'snooze'))
+          }
           const feedback = disclosure('Feedback', 'personal-bot-proposal-feedback-options', `${p.id}:feedback`)
           const choices = document.createElement('div')
           choices.className = 'personal-bot-proposal-actions'
           if (!p.action) choices.append(response('Useful', 'useful'), response('Not relevant', 'irrelevant'), response('Incorrect', 'incorrect'))
           choices.append(response('Ignore', 'ignore'), response('Never suggest this category', 'mute'))
           feedback.append(choices)
-          article.append(actions, feedback)
-        }
+          article.append(actions, sources, feedback)
+        } else article.append(sources)
         if (current) {
           proposals.append(article)
-          observedAdvice.set(advice, p)
-          visibility?.observe(advice)
+          observedAdvice.set(presentationAdvice, p)
+          visibility?.observe(presentationAdvice)
         } else { history.append(article); historical++ }
       }
       if (historical) {

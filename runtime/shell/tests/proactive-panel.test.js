@@ -38,6 +38,20 @@ function fixture({ readiness = false, hidden = false } = {}) {
 }
 const proposal = () => ({ id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry', status: 'pending', offered: true, presented: false, confirmation: '记住 watering：检查盆土', advice: '<script>不可信文本</script>', action: { tool: 'memory_update' }, evidence: [{ readingId: 'hydra', field: 'soil', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z' }] })
 const flatten = node => [node, ...node.children.flatMap(flatten)]
+test('a technical-advice placeholder cannot acknowledge hidden original advice', async () => {
+  const f = fixture(), p = { ...proposal(), action: null, advice: `Inspect expectedSHA256 ${'a'.repeat(64)}` }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const placeholder = f.content.querySelector('.personal-bot-proposal-advice')
+  const sources = f.content.querySelector('.personal-bot-proposal-sources')
+  const original = flatten(sources).find(n => n.textContent === p.advice)
+  f.visible(placeholder)
+  assert.equal(f.commands.length, 0, 'A source-inspection placeholder is not the actual advice')
+  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'View sources').click()
+  assert.equal(sources.open, true)
+  f.visible(original)
+  assert.deepEqual(f.commands.map(c => c.type), ['proposal_presented'])
+  assert.deepEqual(Array.from(f.commands[0].ids), [p.id])
+})
 for (const revoked of [{ state: 'unavailable' }, { state: 'idle', proposalCapabilities: { read: false, respond: false, acknowledge: false } }]) {
 test(`suggestion ${revoked.state === 'unavailable' ? 'provider' : 'read capability'} withdrawal clears old content and observers`, () => {
   const f = fixture(), p = proposal()
@@ -188,7 +202,7 @@ test('actual service, private socket and Shell client deliver restored ride refr
     const intents = createIntentRuntime({ store, memory: async () => ({}), read: async () => null, judge: async () => ({ status: 'true', model: 'jev-test' }), previewRide: previews.search, now: () => now })
     return { previews, watch: new ProactiveWatch({ config: { version: 2, pollMs: 60000, maxAgeMs: 300000, cooldownMs: 60000, maxCandidates: 8, maxPush: 3, rules: [], suppressed: [], snoozed: {} }, intents, now: () => now,
       loadState: checkpoint.load, saveState: checkpoint.save, publish: frame => service.propose(frame), save: async () => {}, read: async () => null,
-      generate: async ({ topics }) => ({ suggestions: [{ topicId: topics[0].id, key: 'ride', advice: '查看行程。', reason: '按保存计划查看。', evidenceIds: topics[0].evidence.map(e => e.id) }] }),
+      generate: async ({ topics }) => ({ suggestions: [{ topicId: topics[0].id, key: 'ride', advice: '查看行程。', nextStep: '选择起点和终点后查看报价。', evidenceIds: topics[0].evidence.map(e => e.id) }] }),
       judge: async ({ candidates }) => ({ model: 'jev-test', answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.95, groundingProbability: 0.95, threshold: 0.8 }])) }) }) }
   }
   watch = make().watch; service.attachWatch(watch); service.setState('idle', 'Ready')
@@ -244,10 +258,14 @@ test('unoffered and snoozed suggestions cannot become visible acknowledgements',
   assert.equal(f.commands.length, 0)
 })
 
-test('advice and reason stay primary while evidence, feedback and history are disclosures', async () => {
-  const f = fixture(), p = { ...proposal(), action: null, reason: 'Observed soil is below the selected threshold.' }
+test('advice and next step precede controls and disclosures without exposing a reason', async () => {
+  const f = fixture(), p = { ...proposal(), action: null, nextStep: 'Touch the soil before deciding whether to water.', reason: 'Observed soil is below the selected threshold.' }
   f.render({ state: 'idle', proposals: [p, { ...p, id: 'd311a280-c0b9-4411-96cd-4e1e92385349', status: 'completed' }], proposalPopup: true })
-  assert.ok(flatten(f.content).some(n => n.className === 'personal-bot-proposal-reason' && n.textContent.includes(p.reason)))
+  assert.ok(!flatten(f.content).some(n => n.className === 'personal-bot-proposal-reason' || n.textContent.includes(p.reason)))
+  assert.ok(flatten(f.content).some(n => n.className === 'personal-bot-proposal-next-step' && n.textContent === p.nextStep))
+  const article = flatten(f.content).find(n => n.className === 'personal-bot-proposal')
+  assert.ok(article.children.findIndex(n => n.className === 'personal-bot-proposal-actions') < article.children.findIndex(n => n.className === 'personal-bot-proposal-sources'))
+  assert.ok(flatten(article).filter(n => n.tagName === 'DETAILS').every(n => !n.open))
   assert.ok(flatten(f.content).some(n => n.tagName === 'DETAILS' && n.className === 'personal-bot-proposal-sources'))
   assert.ok(flatten(f.content).some(n => n.tagName === 'DETAILS' && n.className === 'personal-bot-proposal-history'))
   for (const [label, decision] of [['Done', 'done'], ['Later', 'snooze'], ['Useful', 'useful'], ['Not relevant', 'irrelevant'], ['Incorrect', 'incorrect']]) {
@@ -354,3 +372,45 @@ test('watch capability replacement on the same resident starts a new readiness e
   f.render({ state: 'idle', proposals: [], proposalCapabilities: { read: true } })
   assert.equal(f.ready.at(-1), restored)
 })
+
+test('earlier technical advice moves intact into Sources with an explicit reading action', async () => {
+  const f = fixture(), hash = 'a'.repeat(64), p = { ...proposal(), action: null, confirmation: '', advice: `Review the file with SHA256 ${hash}.`, reason: 'Earlier reason.' }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const article = flatten(f.content).find(n => n.className === 'personal-bot-proposal')
+  const sources = flatten(article).find(n => n.className === 'personal-bot-proposal-sources')
+  assert.equal(flatten(article).find(n => n.className === 'personal-bot-proposal-advice').textContent, 'Review the earlier suggestion in Sources.')
+  assert.ok(flatten(sources).some(n => n.textContent === p.advice))
+  assert.ok(!flatten(article).some(n => n.textContent.includes(p.reason)))
+  assert.equal(sources.open, false)
+  await flatten(article).find(n => n.tagName === 'BUTTON' && n.textContent === 'View sources').click()
+  assert.equal(sources.open, true)
+  assert.equal(f.commands.length, 0)
+})
+
+test('earlier nontechnical advice remains readable without inventing a next step', async () => {
+  const f = fixture(), p = { ...proposal(), action: null, confirmation: '', advice: 'Inspect the actual soil reading.' }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  assert.equal(flatten(f.content).find(n => n.className === 'personal-bot-proposal-advice').textContent, p.advice)
+  assert.ok(flatten(f.content).some(n => n.className === 'personal-bot-proposal-state' && n.textContent.includes('Earlier suggestion')))
+  assert.ok(!flatten(f.content).some(n => n.className === 'personal-bot-proposal-next-step'))
+  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'View sources').click()
+  assert.equal(f.commands.length, 0)
+})
+
+test('technical next steps stay complete inside Sources instead of the primary action text', async () => {
+  const f = fixture(), p = { ...proposal(), action: null, confirmation: '', nextStep: `Compare SHA256 ${'b'.repeat(64)}.`, advice: 'Review the controlled export file.' }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  assert.ok(!flatten(f.content).some(n => n.className === 'personal-bot-proposal-next-step'))
+  const sources = flatten(f.content).find(n => n.className === 'personal-bot-proposal-sources')
+  assert.equal(sources.open, false)
+  assert.ok(flatten(sources).some(n => n.textContent === p.nextStep))
+  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'View sources').click()
+  assert.equal(sources.open, true); assert.equal(f.commands.length, 0)
+})
+
+for (const nextStep of ['', ' '.repeat(240) + 'Check soil.', 'Check\u0000soil.']) {
+  test(`invalid next step ${JSON.stringify(nextStep).slice(0, 40)} cannot appear as the current action`, () => {
+    const f = fixture(); f.render({ state: 'idle', proposals: [{ ...proposal(), nextStep }], proposalPopup: true })
+    assert.ok(!flatten(f.content).some(n => n.className === 'personal-bot-proposal-next-step'))
+  })
+}
