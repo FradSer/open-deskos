@@ -4,6 +4,7 @@
 set -euo pipefail
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." >/dev/null && pwd -P)"
+source "${ROOT}/runtime/shell/scripts/cm5-personal-bot.sh"
 TARGET="${ODK_CM5_TARGET:-cm5}"
 REMOTE_ROOT="${ODK_RUNTIME_ROOT:-/opt/odk}"
 STAGING_ID="${ODK_STAGING_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$-$RANDOM}"
@@ -17,17 +18,17 @@ trap cleanup EXIT
 
 ssh "${TARGET}" "mkdir -p '${STAGING_ROOT}/runtime/shell' '${STAGING_ROOT}/runtime/android/app/src/main' '${STAGING_ROOT}/integrations' '${STAGING_ROOT}/experiments' '${STAGING_ROOT}/peripherals' '${STAGING_ROOT}/.agents' '${REMOTE_ROOT}/releases' '${REMOTE_ROOT}/state'"
 
-rsync -a --delete --exclude node_modules --exclude .DS_Store --exclude 'native/odk-process/build' \
+rsync -a --delete --exclude node_modules --exclude .DS_Store --exclude 'native/odk-process/build' "${RELEASE_PRIVATE_EXCLUDES[@]}" \
   "${ROOT}/runtime/shell/" "${TARGET}:${STAGING_ROOT}/runtime/shell/"
-rsync -a --delete --exclude .DS_Store \
+rsync -a --delete --exclude .DS_Store "${RELEASE_PRIVATE_EXCLUDES[@]}" \
   "${ROOT}/runtime/android/app/src/main/" "${TARGET}:${STAGING_ROOT}/runtime/android/app/src/main/"
-rsync -a --delete --exclude .DS_Store --exclude 'node_modules' --exclude '.env*' --exclude 'auth.json' --exclude '.pi' --exclude '*.env' \
+rsync -a --delete --exclude .DS_Store --exclude 'node_modules' "${RELEASE_PRIVATE_EXCLUDES[@]}" \
   "${ROOT}/integrations/" "${TARGET}:${STAGING_ROOT}/integrations/"
-rsync -a --delete --exclude .DS_Store \
+rsync -a --delete --exclude .DS_Store "${RELEASE_PRIVATE_EXCLUDES[@]}" \
   "${ROOT}/experiments/" "${TARGET}:${STAGING_ROOT}/experiments/"
-rsync -a --delete --exclude .DS_Store --exclude 'build/' --exclude 'managed_components/' --exclude 'node_modules' \
+rsync -a --delete --exclude .DS_Store --exclude 'build/' --exclude 'managed_components/' --exclude 'node_modules' "${RELEASE_PRIVATE_EXCLUDES[@]}" \
   "${ROOT}/peripherals/" "${TARGET}:${STAGING_ROOT}/peripherals/"
-rsync -a --delete --exclude .DS_Store \
+rsync -a --delete --exclude .DS_Store "${RELEASE_PRIVATE_EXCLUDES[@]}" \
   "${ROOT}/.agents/" "${TARGET}:${STAGING_ROOT}/.agents/"
 rsync -a "${ROOT}/DESIGN.md" "${TARGET}:${STAGING_ROOT}/DESIGN.md"
 ssh "${TARGET}" "cd '${STAGING_ROOT}/runtime/shell' && bash scripts/cm5-install.sh"

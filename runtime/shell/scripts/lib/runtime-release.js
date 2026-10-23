@@ -160,7 +160,31 @@ function validateRendererScripts(releasePath) {
   return { ok: true }
 }
 
+function validateReleasePrivacy(releasePath) {
+  const directories = [releasePath]
+  while (directories.length) {
+    const directory = directories.pop()
+    let entries
+    try {
+      entries = fs.readdirSync(directory, { withFileTypes: true })
+    } catch {
+      return { ok: false, reason: 'candidate release privacy could not be verified' }
+    }
+    for (const entry of entries) {
+      if (entry.name === 'node_modules') continue
+      if (entry.name.startsWith('.env') || entry.name.endsWith('.env') || entry.name === 'auth.json' || entry.name === '.pi') {
+        return { ok: false, reason: 'private configuration is present in the candidate release' }
+      }
+      if (entry.isDirectory()) directories.push(path.join(directory, entry.name))
+    }
+  }
+  return { ok: true }
+}
+
 function validateRuntimeComposition(releasePath) {
+  const privacy = validateReleasePrivacy(releasePath)
+  if (!privacy.ok) return privacy
+
   const registryPath = path.join(releasePath, 'src', 'renderer', 'core', 'registry.js')
   const composerPath = path.join(releasePath, 'src', 'renderer', 'core', 'composer.js')
   if (!fs.existsSync(registryPath) || !fs.existsSync(composerPath)) {

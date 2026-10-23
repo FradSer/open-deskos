@@ -21,6 +21,7 @@ function fixture({ pendingListener = false, closeFailures = 0, routeFailures = 0
   const host = { stateDir: '/fixture', platform: 'linux', provisionsUserAppControl: true, endpoint: () => '/fixture/control.sock' }
   const store = { list: async () => [], getContent: async () => ({ ok: false }) }
   const modules = {
+    './user-app-api': require('../src/user-app-api'),
     './native-renderer-assets': require('../src/native-renderer-assets'),
     './user-app-store': { createUserAppStore: () => { storesCreated++; return store } },
     './user-app-verifier': { createUserAppVerifier: () => { verifiersCreated++; return { verify: () => true, close: async () => {} } } },
@@ -51,7 +52,7 @@ function fixture({ pendingListener = false, closeFailures = 0, routeFailures = 0
 test('installed package runtime releases IPC, protocol and listener through its owner', async () => {
   const f = fixture()
   await f.start()
-  assert.equal(f.handlers.size, 3)
+  assert.equal(f.handlers.size, 4)
   assert.equal(f.routes.size, 1)
   assert.equal(f.cleanups.length, 1)
   await f.cleanups[0]()

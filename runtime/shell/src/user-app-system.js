@@ -6,6 +6,7 @@ const { createUserAppResponse } = require('./user-app-protocol')
 const { buildUserAppDocument, USER_APP_CSP } = require('./user-app-content')
 const { resolveShellHost } = require('./platform')
 const { readOrCreateToken } = require('./local-channel')
+const { createUserAppApi } = require('./user-app-api')
 const { NATIVE_PLUGIN_SCHEME, NATIVE_PLUGIN_PRIVILEGES } = require('./native-renderer-assets')
 
 // supportFetchAPI + corsEnabled are what let a sandboxed frame (opaque origin) load the
@@ -39,6 +40,7 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
   let opening = null
   let releasing = null
   let verifier = null
+  let packageApi = null
   const releases = new Set()
   const pending = new Set()
   const stopping = () => stopped || isStopping() || app.isQuitting === true
@@ -60,6 +62,7 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
       try { await opening } catch { /* Failed acquisition owns no listener. */ }
       // Stop admission before draining accepted work, so replacement cannot race
       // an old catalog write or release a provider that work still consumes.
+      await packageApi?.close()
       await Promise.allSettled([...pending])
       await selectedStore?.waitForVerification?.()
       await verifier?.close()
@@ -81,6 +84,7 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
   const store = smokeMode
     ? { list: async () => [], getContent: async () => ({ ok: false, error: 'not-found' }) }
     : selectedStore || createUserAppStore({ workspace: env.ODK_WORKSPACE, stateDir: surface.stateDir, verify: bundle => verifier.verify(bundle) })
+  packageApi = createUserAppApi({ store, publicDns: env.ODK_PACKAGE_API_PUBLIC_DNS === 'cloudflare' })
   const control = createUserAppControl(store, () => {
     if (stopping()) return
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-user-apps-changed')
@@ -94,6 +98,7 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
     ipcMain.handle(channel, (...args) => execute(() => handler(...args)))
     releases.add(() => ipcMain.removeHandler(channel))
   }
+  bind('odk-user-apps-api', (_event, request) => packageApi.read(request?.appId, request?.revision, request?.sourceId))
   bind('odk-user-apps-list', () => control.dispatch({ command: 'list' }))
   bind('odk-user-apps-dispatch', (_event, request) => control.dispatch(request))
   bind('odk-user-apps-publish', (_event, request) => odkData?.registry.publish(request?.appId, request?.data) ?? { ok: false, error: 'unknown-reading' })
