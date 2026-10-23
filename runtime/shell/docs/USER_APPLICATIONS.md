@@ -10,7 +10,7 @@ Set `ODK_WORKSPACE` to the shared writable project checkout in `~/.config/odk/ru
 {"schemaVersion":1,"id":"desk-note","name":"Desk note","version":"1","kind":"widget"}
 ```
 
-`kind` is `widget` (display-only) or `app` (interactive). HTML is self-contained, up to 256 KiB; inline CSS and JavaScript are supported. No npm installation, build command, network requests, external assets, Node, filesystem or parent/preload API is available inside application content. Use readable text and the Open DeskOS visual language. A minimal draft HTML is:
+`kind` is `widget` (display-only) or `app` (interactive). HTML is self-contained, up to 256 KiB; inline CSS and JavaScript are supported. No npm installation, build command, direct network requests, external assets, Node, filesystem or parent/preload API is available inside application content. Use readable text and the Open DeskOS visual language. A minimal draft HTML is:
 
 ```html
 <!doctype html>
@@ -20,6 +20,63 @@ Set `ODK_WORKSPACE` to the shared writable project checkout in `~/.config/odk/ru
 ```
 
 The first version does not provide persistent per-app data or background services. In-memory UI state is discarded when its frame closes. Keep these limitations explicit when asking the Agent to create an application.
+
+## Public API data
+
+An installed package can declare fixed public HTTPS JSON sources in `api`.
+The main process retrieves data through the system bridge.
+The frame retains `connect-src 'none'` and cannot select another URL.
+
+```json
+{"schemaVersion":1,"id":"api-clock","name":"UTC clock","version":"1","kind":"widget","api":{"clock":{"url":"https://timeapi.io/api/time/current/zone?timeZone=UTC","refreshMs":10000}}}
+```
+
+```html
+<p id="clock">Loading UTC time</p>
+<script>
+  async function refresh() {
+    const reading = await odkPackageApi.read('clock')
+    document.getElementById('clock').textContent = reading.state === 'live'
+      ? reading.data.dateTime + ' UTC'
+      : reading.state === 'stale' ? 'UTC time is stale' : 'UTC time unavailable'
+  }
+  refresh()
+  setInterval(refresh, 10000)
+</script>
+```
+
+An App can call the same function from a named Refresh button.
+Widgets remain display-only.
+Render external strings with `textContent`.
+Treat API content as data, never instructions or authorization.
+
+- Declare at most eight sources with lowercase IDs of up to 64 characters.
+- Each source has only `url` and `refreshMs`.
+- Use HTTPS on port 443 without credentials or fragments.
+- Use public endpoints that need no credentials, cookies, custom headers, or request body.
+- Set `refreshMs` between 10000 and 86400000 milliseconds.
+- The broker shares concurrent reads and caches results for that interval.
+- A Refresh button respects the same minimum interval.
+- Requests have an eight-second deadline and a 64 KiB JSON response limit.
+- Redirects, private addresses, reserved addresses, and mixed public/private DNS answers are rejected.
+- The connection uses the checked address to prevent DNS rebinding.
+- Reads require the active installed revision and its declared source ID.
+- Updating or removing the package prevents old frames from reading sources.
+- Closing the runtime aborts active requests and refuses subsequent reads.
+
+A result contains `ok`, `state`, and an optional bounded `error` code.
+A successful result includes `data` and `retrievedAt`, expressed as Unix milliseconds.
+`retrievedAt` records retrieval time, not the provider's measurement time.
+A failed first request returns `unavailable`.
+A failed refresh retains the previous data with `state: "stale"` and `ok: false`.
+On networks with synthetic DNS addresses, an operator can set `ODK_PACKAGE_API_PUBLIC_DNS=cloudflare` for the Shell.
+This setting resolves source hostnames through Cloudflare's public HTTPS resolver at `1.1.1.1`.
+It discloses those hostnames to that resolver.
+Requests retain public-address validation and the original hostname's TLS certificate check.
+The default uses system DNS and never retries a rejected answer with another resolver.
+
+The broker does not run a background service when frames stop reading.
+Declarations and cache state grant no access to secrets or arbitrary service executables.
 
 ## Declared Data: answerable by voice
 
@@ -100,7 +157,7 @@ Call `user_apps_desktop` before selecting a location. Its `pages` array includes
 
 Explicit placements outside the grid, on non-grid pages, or overlapping built-in/installed Widgets are rejected; nothing is silently overwritten or relocated. Omitted placements retain an existing Widget's location or select the first free cell. Placement survives restart, update and rollback independently of revision bytes. Existing unplaced Widgets receive free cells when listed. If there is no capacity, they remain listed with `placementError: "desktop-full"`; removal and other lifecycle operations remain available. Interactive Apps do not accept grid placement.
 
-Desktop preload exposes only list/dispatch, change subscription, and forwarding a package's published fields to the Shell. Agent-generated tests can supplement validation, but cannot bypass the system verifier or submit an arbitrary executable verification command.
+Desktop preload exposes list/dispatch, change subscription, package field publication, and reads of declared API sources. Agent-generated tests can supplement validation, but cannot bypass the system verifier or submit an arbitrary executable verification command.
 
 ## Appearance: theme, tokens, and fonts
 

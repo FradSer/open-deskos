@@ -89,6 +89,14 @@
         if (settled && !disposed && typeof onReturnHome === 'function' && Object.keys(data).length === 2) onReturnHome()
         return
       }
+      if (data.type === 'odk-user-app-api-read') {
+        if (disposed || !Number.isSafeInteger(data.requestId) || typeof data.sourceId !== 'string' || data.sourceId.length > 64) return
+        void Promise.resolve().then(() => root.odkUserApps?.readApi?.(id, revision, data.sourceId)).then(
+          result => { if (!disposed) frame.contentWindow?.postMessage({ type: 'odk-user-app-api-result', token, requestId: data.requestId, result: result || { ok: false, state: 'unavailable', error: 'api-unavailable' } }, '*') },
+          () => { if (!disposed) frame.contentWindow?.postMessage({ type: 'odk-user-app-api-result', token, requestId: data.requestId, result: { ok: false, state: 'unavailable', error: 'api-unavailable' } }, '*') },
+        ).catch(() => {})
+        return
+      }
       if (data.type === 'odk-user-app-data') { publishData(data.data); return }
       if (data.type === 'odk-user-app-error') { fail(data.error || 'user app failed during startup'); return }
       if (data.type !== 'odk-user-app-ready') return

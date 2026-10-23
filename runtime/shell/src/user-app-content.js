@@ -40,11 +40,39 @@ const {
   tileRadius,
 } = require('./user-app-context')
 
+// This API carries only a declared source name. The parent binds package identity
+// and revision; package code cannot choose a URL, headers, or credentials.
+function bindPackageApi(scope, token) {
+  let sequence = 0
+  const pending = new Map()
+  const failure = error => ({ ok: false, state: 'unavailable', error })
+  scope.addEventListener('message', event => {
+    const data = event.data
+    if (event.source !== scope.parent || data?.token !== token || data.type !== 'odk-user-app-api-result') return
+    const request = pending.get(data.requestId)
+    if (!request) return
+    pending.delete(data.requestId); clearTimeout(request.timer); request.resolve(data.result)
+  })
+  scope.addEventListener('pagehide', () => {
+    for (const request of pending.values()) { clearTimeout(request.timer); request.resolve(failure('frame-closed')) }
+    pending.clear()
+  }, { once: true })
+  scope.odkPackageApi = Object.freeze({ read(sourceId) {
+    if (typeof sourceId !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(sourceId) || pending.size >= 8) return Promise.resolve(failure('invalid-api-request'))
+    return new Promise(resolve => {
+      const requestId = ++sequence
+      const timer = setTimeout(() => { pending.delete(requestId); resolve(failure('api-timeout')) }, 12000)
+      pending.set(requestId, { timer, resolve })
+      scope.parent.postMessage({ type: 'odk-user-app-api-read', token, requestId, sourceId }, '*')
+    })
+  } })
+}
+
 // The handshake also keeps the package's appearance attribute current: the frame
 // posts the theme it is rendering under, and nothing else in the package has to
 // know how the Shell switches appearances.
 function buildHandshake(token, theme, radius) {
-  return `<script>/* Open DeskOS user-app readiness handshake */\n(()=>{const token=${escapeScriptValue(token)},theme0=${escapeScriptValue(theme)},radius0=${escapeScriptValue(tileRadius(radius) || '')},scope=typeof window!=='undefined'?window:globalThis;document.documentElement.dataset.theme=theme0;let returnHome=false;const events=new AbortController();(${bindPinch.toString()})({root:scope,owns:target=>document.documentElement.contains(target),enabled:()=>returnHome,onReturn:()=>parent.postMessage({type:'odk-user-app-return-home',token},'*'),signal:events.signal});scope.addEventListener('pagehide',()=>events.abort(),{once:true});let sent=false;const fail=(error)=>{if(sent)return;sent=true;try{parent.postMessage({type:'odk-user-app-error',token,error:String(error||'script error')},'*')}catch{}};scope.addEventListener('error',event=>fail(event.message||'script error'),{once:true});scope.addEventListener('unhandledrejection',event=>fail(event.reason||'unhandled rejection'),{once:true});scope.addEventListener('message',event=>{const data=event.data;if(event.source!==parent||!data||data.token!==token||data.type!=='odk-user-app-theme')return;returnHome=data.returnHome===true;if(returnHome)document.documentElement.style.touchAction='pan-x pan-y';document.documentElement.dataset.theme=typeof data.theme==='string'?data.theme:theme0;const measured=typeof data.radius==='string'&&/^\\d{1,3}(\\.\\d{1,2})?px$/.test(data.radius)?data.radius:radius0;if(measured)document.documentElement.style.setProperty('--odk-radius-tile',measured)});/* Declared Data: a package publishes what its manifest declared, and the Shell decides what of that is a reading. The document only carries it, so publishing grants no capability the package did not already have. */scope.odkPackageData=Object.freeze({publish:(data)=>{if(!data||typeof data!=='object'||Array.isArray(data))return false;try{parent.postMessage({type:'odk-user-app-data',token,data},'*');return true}catch{return false}}});const ready=()=>{if(sent)return;sent=true;try{parent.postMessage({type:'odk-user-app-ready',token},'*')}catch{}};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready,{once:true});else ready()})()\n</script>`
+  return `<script>/* Open DeskOS user-app readiness handshake */\n(()=>{const token=${escapeScriptValue(token)},theme0=${escapeScriptValue(theme)},radius0=${escapeScriptValue(tileRadius(radius) || '')},scope=typeof window!=='undefined'?window:globalThis;document.documentElement.dataset.theme=theme0;let returnHome=false;const events=new AbortController();(${bindPinch.toString()})({root:scope,owns:target=>document.documentElement.contains(target),enabled:()=>returnHome,onReturn:()=>parent.postMessage({type:'odk-user-app-return-home',token},'*'),signal:events.signal});scope.addEventListener('pagehide',()=>events.abort(),{once:true});let sent=false;const fail=(error)=>{if(sent)return;sent=true;try{parent.postMessage({type:'odk-user-app-error',token,error:String(error||'script error')},'*')}catch{}};scope.addEventListener('error',event=>fail(event.message||'script error'),{once:true});scope.addEventListener('unhandledrejection',event=>fail(event.reason||'unhandled rejection'),{once:true});scope.addEventListener('message',event=>{const data=event.data;if(event.source!==parent||!data||data.token!==token||data.type!=='odk-user-app-theme')return;returnHome=data.returnHome===true;if(returnHome)document.documentElement.style.touchAction='pan-x pan-y';document.documentElement.dataset.theme=typeof data.theme==='string'?data.theme:theme0;const measured=typeof data.radius==='string'&&/^\\d{1,3}(\\.\\d{1,2})?px$/.test(data.radius)?data.radius:radius0;if(measured)document.documentElement.style.setProperty('--odk-radius-tile',measured)});/* Declared Data: a package publishes what its manifest declared, and the Shell decides what of that is a reading. The document only carries it, so publishing grants no capability the package did not already have. */(${bindPackageApi.toString()})(scope,token);scope.odkPackageData=Object.freeze({publish:(data)=>{if(!data||typeof data!=='object'||Array.isArray(data))return false;try{parent.postMessage({type:'odk-user-app-data',token,data},'*');return true}catch{return false}}});const ready=()=>{if(sent)return;sent=true;try{parent.postMessage({type:'odk-user-app-ready',token},'*')}catch{}};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready,{once:true});else ready()})()\n</script>`
 }
 
 function buildUserAppDocument(bundle, { token = '', theme = DEFAULT_THEME, radius, appearancePlugins } = {}) {

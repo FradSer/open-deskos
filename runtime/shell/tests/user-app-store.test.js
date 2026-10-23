@@ -111,6 +111,7 @@ test('catalog service and data declarations must match the verified snapshot', a
     ['removed data', entries => { delete entries[0].data }],
     ['added service', entries => { entries[1].service = entries[0].service }],
     ['added data', entries => { entries[1].data = entries[0].data }],
+    ['added API source', entries => { entries[0].api = { clock: { url: 'https://clock.example/', refreshMs: 10000 } } }],
   ]
   for (const [label, alter] of alterations) {
     const entries = structuredClone(original)
