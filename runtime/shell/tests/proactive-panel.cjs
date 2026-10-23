@@ -44,7 +44,7 @@ app.whenReady().then(async () => {
     clearTimeout(timer); win.destroy(); app.exit(0); return
   }
   const send = async status => { win.webContents.send('odk-personal-bot-status', status); await delay() }
-  const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry-soil', status: 'pending', offered: true, presented: false, reason: 'A current soil reading is below the selected threshold.', nextStep: 'Touch the soil and check its moisture before watering.', advice: '<script>untrusted reading</script> 检查盆土。', action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土' } }, confirmation: '记住 watering：检查盆土', evidence: [{ readingId: 'odk.tile.hydra', field: 'plants.0.soilPercent', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z', ruleId: 'dry-soil' }] }
+  const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry-soil', status: 'pending', offered: true, presented: false, reason: 'A current soil reading is below the selected threshold.', nextStep: '保存检查盆土备忘', advice: '<script>untrusted reading</script> 检查盆土。', action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土' } }, confirmation: '记住 watering：检查盆土', evidence: [{ readingId: 'odk.tile.hydra', field: 'plants.0.soilPercent', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z', ruleId: 'dry-soil' }] }
   async function longAdviceVisibility() {
     await viewport(320, 480)
     const long = { ...p, id: 'b311a280-c0b9-4411-96cd-4e1e92385349', advice: '检查当前读数并决定下一步。'.repeat(100).slice(0, 1000) }
@@ -76,7 +76,7 @@ app.whenReady().then(async () => {
   assert.equal(await run(`document.getElementById('personal-bot-status').getAttribute('aria-modal')`), 'false')
   assert.equal(await run(`!!document.querySelector('.personal-bot-proposals script')`), false)
   assert.equal(commands[0].type, 'proposal_presented')
-  await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'Accept').click()`)
+  await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === '保存检查盆土备忘').click()`)
   await delay(); assert.equal(commands.some(c => c.type === 'proposal_respond'), false)
   await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === '记住 watering：检查盆土').click()`)
   await delay(); assert.equal(commands.at(-1).confirmation, p.confirmation)
@@ -91,7 +91,7 @@ app.whenReady().then(async () => {
   const uncertain = { ...p, id: 'a91cb070-410b-42a8-b15e-f0508d2f9dbf' }
   await send({ state: 'idle', proposals: [uncertain], proposalHiddenCount: 0, proposalPopup: true })
   rejectResponse = true
-  await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'Accept').click()`)
+  await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === '保存检查盆土备忘').click()`)
   await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === '记住 watering：检查盆土').click()`)
   await delay()
   const commandCount = commands.filter(c => c.type === 'proposal_respond').length
@@ -137,14 +137,14 @@ app.whenReady().then(async () => {
             overflow: node.scrollWidth > node.clientWidth + 1,
             controls: controls.every(b => b.getBoundingClientRect().height >= 44),
             font: parseFloat(getComputedStyle(document.querySelector('.personal-bot-proposal-evidence')).fontSize),
-            accept: controls.some(b => b.textContent === 'Accept') }
+            accept: controls.some(b => b.textContent === '保存检查盆土备忘') }
         })()`)
         assert.equal(geometry.contained, true); assert.equal(geometry.overflow, false); assert.equal(geometry.controls, true); assert.ok(geometry.font >= 14)
         assert.equal(geometry.accept, status === 'pending')
       }
     }
   }
-  const actionCard = { ...p, action: null, confirmation: '', advice: '检查书桌旁植物的盆土，确认是否需要浇水。', nextStep: '用手指检查表层下方的土壤；如果仍然干燥，再少量浇水。', reason: 'Legacy reason must not render.', evidence: [...p.evidence, { readingId: 'fixture.export', field: 'sha256', value: 'a'.repeat(64), state: 'live', measuredAt: '2026-10-23T10:00:00Z' }] }
+  const actionCard = { ...p, actionId: 'save-watering-note', advice: '保存一条检查盆土备忘，方便下次查看。', nextStep: '保存检查盆土备忘', reason: 'Legacy reason must not render.', evidence: [...p.evidence, { readingId: 'fixture.export', field: 'sha256', value: 'a'.repeat(64), state: 'live', measuredAt: '2026-10-23T10:00:00Z' }] }
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     await run(`odkTheme.set(${JSON.stringify(theme)})`)
     for (const [width, height] of [[320, 480], [480, 854], [1920, 1280]]) {
@@ -197,7 +197,7 @@ app.whenReady().then(async () => {
   }
   const touched = { ...p, id: 'f311a280-c0b9-4411-96cd-4e1e92385349', action: null, confirmation: '' }
   await send({ state: 'idle', proposals: [touched], proposalPopup: true })
-  const touch = await run(`(() => { const node = [...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'Done'); node.scrollIntoView({block:'center'}); const r = node.getBoundingClientRect(); return { x: r.x+r.width/2, y: r.y+r.height/2 } })()`)
+  const touch = await run(`(() => { document.querySelector('.personal-bot-proposal-feedback-options').open = true; const node = [...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'Done'); node.scrollIntoView({block:'center'}); const r = node.getBoundingClientRect(); return { x: r.x+r.width/2, y: r.y+r.height/2 } })()`)
   await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: true })
   await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...touch, id: 1 }] })
   await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
@@ -208,7 +208,7 @@ app.whenReady().then(async () => {
   await send({ state: 'idle', proposals: [ride], proposalPopup: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
   await delay()
   assert.equal(commands.length, beforeReadOnly)
-  assert.equal(await run(`!![...document.querySelectorAll('.personal-bot-proposals button')].find(b => ['Accept','Done','Later','Useful','Not relevant','Incorrect','Ignore','Get current quote','Refresh preview'].includes(b.textContent))`), false)
+  assert.equal(await run(`!![...document.querySelectorAll('.personal-bot-proposals button')].find(b => ['Accept','Run action','保存检查盆土备忘','Done','Later','Useful','Not relevant','Incorrect','Ignore','Get current quote','Refresh preview'].includes(b.textContent))`), false)
   assert.match(await run(`document.querySelector('.personal-bot-proposal-capability').textContent`), /read-only on this device/)
   assert.equal(ownerTurns.length, beforeReadOnlyTurns)
   await run(`odkPersonalBotStatus.close()`)

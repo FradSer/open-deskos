@@ -310,11 +310,12 @@ Feature: Independent resident personal bot
     And local focus and Shell navigation remain available
 
   Scenario: Feedback describes the outcome of one suggestion
-    Given a current suggestion contains concise advice and a concrete next step
-    When the owner selects Done, Later, Useful, Not relevant, or Incorrect
+    Given an earlier actionless suggestion contains concise advice and stored next-step text
+    When the owner opens Feedback and selects Done, Later, Useful, Not relevant, or Incorrect
     Then the response identifies only that suggestion and decision
     And Done does not execute the suggested action
-    And the main content keeps advice, the next step, and completion controls before disclosures
+    And the main content states that no executable action is available
+    And Sources retains the earlier next-step text
     And no reason or Why now explanation appears
     And technical sources and previous suggestions use keyboard-accessible disclosures
     And controls retain 44-pixel touch targets across themes and compact sizes
@@ -323,6 +324,8 @@ Feature: Independent resident personal bot
     Given the desk publishes suggestions through the authenticated Personal Agent link
     When the Android host projects the status
     Then advice, the next step, source evidence, and suggestion state remain readable
+    And the desk projection preserves bounded next-step text and excludes the retired reason
+    And a current next step is labelled as a read-only preview instead of an earlier suggestion
     And the frame explicitly declares read-only suggestion capabilities
     And the renderer shows no response, execution, or ride quote control
     And no suggestion acknowledgement or response crosses the read-only link
@@ -336,11 +339,11 @@ Feature: Independent resident personal bot
     And hidden and read-only surfaces still send no acknowledgement
 
   Scenario: Recommendation cards emphasize the next action
-    Given a suggestion contains concise advice and a concrete next step
+    Given a suggestion contains concise advice and an authorized plugin action
     And its source evidence contains complete SHA256 values
     When the nonmodal card opens
     Then advice has visual priority over metadata
-    And the next step and completion controls precede source and feedback disclosures
+    And the concrete execution button precedes source and feedback disclosures
     And source and feedback disclosures are closed by default
     And no Why now explanation appears
     And source values remain complete when the owner opens Sources
@@ -351,3 +354,43 @@ Feature: Independent resident personal bot
     When the card opens
     Then the main content asks the owner to review the earlier suggestion in Sources
     And View sources opens the complete original advice without executing an action
+
+  Scenario: The next step starts an authorized plugin operation
+    Given a pending suggestion has an owner-authorized action and exact confirmation
+    When the owner selects its concrete next-step button
+    Then the card requests a separate exact confirmation without executing yet
+    When the owner confirms twice before the host replies
+    Then only one proposal acceptance reaches the plugin
+    And completion appears only after the host reports completion
+    And executing and uncertain outcomes offer no repeat execution
+
+  Scenario: Earlier suggestions cannot imply executable authority
+    Given an earlier suggestion has text for a next step but no authorized action
+    When the card opens
+    Then it states that no executable action is available
+    And the earlier text remains available in Sources
+    And Done is available only as historical feedback
+
+  Scenario: An incomplete action remains non-executable
+    Given an earlier suggestion has an action but no exact confirmation
+    When the card opens
+    Then no executable next-step control appears
+    And Sources retains the earlier action details
+
+  Scenario: Execution receipts remain inspectable in Sources
+    Given an accepted operation has a structured execution receipt
+    When the suggestion card opens
+    Then Sources keeps the receipt closed by default
+    And the main card does not expose technical receipt fields
+    When the owner opens Sources
+    Then the complete bounded receipt is readable as text
+    And receipt presence does not change the authoritative suggestion state
+
+  Scenario: An uncertain action stays reserved across card redraw and reconnect
+    Given a confirmed action has no authoritative execution outcome
+    When another suggestion changes and the panel redraws
+    Then the first suggestion cannot execute again
+    And its uncertain-action warning remains visible
+    When the service reconnects with the same pending suggestion
+    Then the execution reservation and warning remain
+    And no automatic response replay occurs

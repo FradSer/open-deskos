@@ -38,6 +38,21 @@ function fixture({ readiness = false, hidden = false } = {}) {
 }
 const proposal = () => ({ id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry', status: 'pending', offered: true, presented: false, confirmation: '记住 watering：检查盆土', advice: '<script>不可信文本</script>', action: { tool: 'memory_update' }, evidence: [{ readingId: 'hydra', field: 'soil', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z' }] })
 const flatten = node => [node, ...node.children.flatMap(flatten)]
+test('a desk-projected next step stays readable on the read-only Android surface', () => {
+  const { projectPersonalAgentFrame } = require('../src/personal-agent-frame')
+  const p = { ...proposal(), advice: 'Keep a soil inspection note.', nextStep: 'Save a soil inspection note' }
+  const frame = projectPersonalAgentFrame({ state: 'idle', proposals: [p], proposalPopup: true, proposalCapabilities: { read: true, respond: true, acknowledge: true } })
+  const f = fixture()
+  f.render(frame)
+  assert.ok(flatten(f.content).some(n => n.className === 'personal-bot-proposal-next-step' && n.textContent === p.nextStep))
+  const state = f.content.querySelector('.personal-bot-proposal-state').textContent
+  assert.ok(state.includes('Read-only preview'))
+  assert.ok(!state.includes('Earlier suggestion'))
+  assert.equal(flatten(f.content).filter(n => n.tagName === 'BUTTON' && n.dataset.proposalAction).length, 0)
+  assert.ok(!flatten(f.content).some(n => n.className === 'personal-bot-proposal-confirm'))
+  f.visible(f.content.querySelector('.personal-bot-proposal-advice'))
+  assert.equal(f.commands.length, 0)
+})
 test('a technical-advice placeholder cannot acknowledge hidden original advice', async () => {
   const f = fixture(), p = { ...proposal(), action: null, advice: `Inspect expectedSHA256 ${'a'.repeat(64)}` }
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
@@ -105,7 +120,7 @@ test('proactive popup is nonmodal and preserves local focus and input authority'
 test('touch acceptance shows the exact phrase before a separate confirmation', async () => {
   const f = fixture(); const p = proposal(); f.render({ state: 'idle', proposals: [p], proposalPopup: true })
   const buttons = flatten(f.content).filter(n => n.tagName === 'BUTTON')
-  await buttons.find(n => n.textContent === 'Accept').click()
+  await buttons.find(n => n.textContent === 'Run action').click()
   assert.equal(f.commands.filter(c => c.type === 'proposal_respond').length, 0)
   await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation).click()
   assert.equal(f.commands.at(-1).confirmation, p.confirmation)
@@ -114,7 +129,7 @@ test('silent data does not open, expiry removes execution and a voice turn takes
   const f = fixture(); f.render({ state: 'idle', proposals: [proposal()], proposalPopup: false })
   assert.equal(f.surface.hidden, true)
   f.render({ state: 'idle', proposals: [{ ...proposal(), status: 'expired' }], proposalPopup: true })
-  assert.ok(!flatten(f.content).some(n => n.tagName === 'BUTTON' && n.textContent === 'Accept'))
+  assert.ok(!flatten(f.content).some(n => n.tagName === 'BUTTON' && n.textContent === 'Run action'))
   f.render({ state: 'recording' }); assert.equal(f.surface.dataset.proactive, 'false')
   assert.equal(f.local.inert, true); assert.equal(f.content.focused, true)
 })
@@ -137,7 +152,7 @@ test('unchanged service status preserves an uncertain command warning and disabl
   const f = fixture(), p = proposal(), status = { state: 'idle', proposals: [p], proposalHiddenCount: 0, proposalPopup: true }
   f.render(status)
   f.window.odkPersonalBot.proposalCommand = async command => { f.commands.push(command); throw Error('Controlled offline delivery failure') }
-  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Accept').click()
+  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Run action').click()
   const confirmation = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation)
   await confirmation.click()
   const warning = f.content.querySelector('.personal-bot-proposal-error')
@@ -258,11 +273,14 @@ test('unoffered and snoozed suggestions cannot become visible acknowledgements',
   assert.equal(f.commands.length, 0)
 })
 
-test('advice and next step precede controls and disclosures without exposing a reason', async () => {
+test('earlier actionless advice preserves feedback and sources without implying an executable step', async () => {
   const f = fixture(), p = { ...proposal(), action: null, nextStep: 'Touch the soil before deciding whether to water.', reason: 'Observed soil is below the selected threshold.' }
   f.render({ state: 'idle', proposals: [p, { ...p, id: 'd311a280-c0b9-4411-96cd-4e1e92385349', status: 'completed' }], proposalPopup: true })
   assert.ok(!flatten(f.content).some(n => n.className === 'personal-bot-proposal-reason' || n.textContent.includes(p.reason)))
-  assert.ok(flatten(f.content).some(n => n.className === 'personal-bot-proposal-next-step' && n.textContent === p.nextStep))
+  assert.ok(!flatten(f.content).some(n => n.className === 'personal-bot-proposal-next-step'))
+  assert.ok(flatten(f.content).some(n => n.textContent.includes('No executable action')))
+  const sources = flatten(f.content).find(n => n.className === 'personal-bot-proposal-sources')
+  assert.ok(flatten(sources).some(n => n.textContent === p.nextStep))
   const article = flatten(f.content).find(n => n.className === 'personal-bot-proposal')
   assert.ok(article.children.findIndex(n => n.className === 'personal-bot-proposal-actions') < article.children.findIndex(n => n.className === 'personal-bot-proposal-sources'))
   assert.ok(flatten(article).filter(n => n.tagName === 'DETAILS').every(n => !n.open))
@@ -277,12 +295,12 @@ test('advice and next step precede controls and disclosures without exposing a r
 })
 
 test('read-only suggestion capabilities keep evidence and hide every response control', async () => {
-  const f = fixture(), p = { ...proposal(), reason: 'Actual observation.' }
+  const f = fixture(), p = { ...proposal(), nextStep: 'Save the watering note', reason: 'Actual observation.' }
   f.render({ state: 'idle', proposals: [p], proposalPopup: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
   for (const node of flatten(f.content).filter(n => n.className === 'personal-bot-proposal-advice')) f.visible(node)
   assert.equal(f.commands.length, 0)
   const labels = flatten(f.content).filter(n => n.tagName === 'BUTTON').map(n => n.textContent)
-  for (const label of ['Accept', 'Done', 'Later', 'Useful', 'Not relevant', 'Incorrect', 'Ignore', 'Never suggest this category']) assert.ok(!labels.includes(label), label)
+  for (const label of ['Accept', 'Run action', p.nextStep, 'Done', 'Later', 'Useful', 'Not relevant', 'Incorrect', 'Ignore', 'Never suggest this category']) assert.ok(!labels.includes(label), label)
   assert.ok(flatten(f.content).some(n => n.textContent.includes('read-only on this device')))
 })
 
@@ -309,8 +327,9 @@ test('visibility acknowledgement retries are bounded and recover after a lost co
 test('legacy executable suggestions retain confirmation without a misleading Done response', () => {
   const f = fixture(); f.render({ state: 'idle', proposals: [proposal()], proposalPopup: true })
   const labels = flatten(f.content).filter(n => n.tagName === 'BUTTON').map(n => n.textContent)
-  assert.ok(labels.includes('Accept')); assert.ok(labels.includes('Ignore')); assert.ok(labels.includes('Never suggest this category'))
-  for (const label of ['Done', 'Later', 'Useful', 'Not relevant', 'Incorrect']) assert.ok(!labels.includes(label), label)
+  assert.ok(labels.includes('Run action')); assert.ok(labels.includes('Ignore')); assert.ok(labels.includes('Never suggest this category'))
+  assert.ok(labels.includes('Later'))
+  for (const label of ['Done', 'Useful', 'Not relevant', 'Incorrect']) assert.ok(!labels.includes(label), label)
 })
 
 
@@ -414,3 +433,121 @@ for (const nextStep of ['', ' '.repeat(240) + 'Check soil.', 'Check\u0000soil.']
     assert.ok(!flatten(f.content).some(n => n.className === 'personal-bot-proposal-next-step'))
   })
 }
+
+test('concrete execution requires exact confirmation and dispatches only once until authoritative settlement', async () => {
+  const f = fixture(), p = { ...proposal(), actionId: 'save-note', nextStep: 'Save the watering note' }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const execute = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep)
+  assert.ok(execute, 'The concrete next step must be the execution control')
+  await execute.click()
+  assert.equal(f.commands.length, 0)
+  let settle
+  f.window.odkPersonalBot.proposalCommand = cmd => { f.commands.push(cmd); return new Promise(resolve => { settle = resolve }) }
+  const confirm = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation)
+  const pending = confirm.click()
+  await confirm.click()
+  assert.equal(f.commands.length, 1)
+  assert.equal(f.commands[0].decision, 'accept')
+  assert.equal(f.commands[0].confirmation, p.confirmation)
+  settle({ accepted: true }); await pending
+  assert.ok(confirm.disabled)
+  assert.ok(!flatten(f.content).some(n => n.textContent === 'Completed'))
+  for (const status of ['executing', 'unknown', 'completed']) {
+    f.render({ state: 'idle', proposals: [{ ...p, status }], proposalPopup: true })
+    assert.ok(!flatten(f.content).some(n => n.tagName === 'BUTTON' && [p.nextStep, p.confirmation, 'Run action'].includes(n.textContent)), status)
+  }
+})
+
+test('cancel returns to the concrete action without sending a plugin command', async () => {
+  const f = fixture(), p = { ...proposal(), nextStep: 'Save the watering note' }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep).click()
+  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Cancel').click()
+  assert.equal(f.commands.length, 0)
+  assert.ok(flatten(f.content).some(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep))
+})
+
+test('an action without exact confirmation cannot masquerade as an executable next step', () => {
+  const f = fixture(), p = { ...proposal(), confirmation: '', nextStep: 'Save the watering note' }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  assert.ok(!flatten(f.content).some(n => n.className === 'personal-bot-proposal-next-step'))
+  assert.ok(!flatten(f.content).some(n => n.tagName === 'BUTTON' && [p.nextStep, 'Run action'].includes(n.textContent)))
+  assert.ok(flatten(f.content).some(n => n.textContent.includes('No executable action')))
+})
+
+test('execution receipts remain collapsed source text without asserting completion', async () => {
+  const f = fixture(), p = { ...proposal(), status: 'unknown', result: 'The plugin accepted the operation.', execution: { outcome: 'accepted', receipt: { taskId: 'fixture-task', target: '<script>untrusted target</script>', sha256: 'a'.repeat(64) } } }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const article = flatten(f.content).find(n => n.className === 'personal-bot-proposal')
+  const sources = flatten(article).find(n => n.className === 'personal-bot-proposal-sources')
+  const receipt = flatten(sources).find(n => n.className === 'personal-bot-proposal-evidence personal-bot-proposal-execution')
+  assert.ok(receipt, 'The host receipt must remain inspectable')
+  assert.equal(sources.open, false)
+  assert.ok(receipt.textContent.includes(JSON.stringify(p.execution)))
+  assert.ok(!article.children.filter(n => n !== sources).some(n => n.textContent.includes(p.execution.receipt.taskId) || n.textContent.includes(p.execution.receipt.sha256)))
+  assert.equal(flatten(article).some(n => n.tagName === 'SCRIPT'), false)
+  assert.ok(flatten(article).some(n => n.textContent.startsWith('Outcome not confirmed')))
+  assert.ok(!flatten(article).some(n => n.textContent === 'Completed'))
+  sources.open = true
+  assert.ok(receipt.textContent.includes(p.execution.receipt.target))
+})
+
+test('uncertain accept remains reserved across other-card redraw and service reconnect', async () => {
+  const f = fixture(), p = { ...proposal(), nextStep: 'Save the watering note' }
+  f.window.odkPersonalBot.proposalCommand = async cmd => { f.commands.push(cmd); throw Error('Controlled transport failure') }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep).click()
+  const confirm = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation)
+  await confirm.click()
+  const other = { ...p, id: '11111111-1111-4111-8111-111111111111', advice: 'Another suggestion changed.' }
+  for (const reconnect of [false, true]) {
+    if (reconnect) f.render({ state: 'unavailable' })
+    f.render({ state: 'idle', proposals: [p, { ...other, advice: other.advice + reconnect }], proposalPopup: true })
+    const first = flatten(f.content).find(n => n.className === 'personal-bot-proposal' && n.dataset.proposalId === p.id)
+    const execute = flatten(first).find(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep)
+    assert.ok(!execute || execute.disabled, 'A redraw cannot make an uncertain action repeatable')
+    if (execute) await execute.click()
+    await confirm.click()
+    assert.equal(f.commands.length, 1)
+    assert.match(f.content.querySelector('.personal-bot-proposal-error')?.textContent ?? '', /do not repeat an uncertain action/)
+  }
+  for (const status of ['completed', 'unknown']) {
+    f.render({ state: 'idle', proposals: [{ ...p, status }], proposalPopup: true })
+    assert.ok(!flatten(f.content).some(n => n.tagName === 'BUTTON' && [p.nextStep, p.confirmation].includes(n.textContent)))
+  }
+})
+
+test('a pending execution reservation survives redraw before its transport receipt settles', async () => {
+  const f = fixture(), p = { ...proposal(), nextStep: 'Save the watering note' }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep).click()
+  let reject
+  f.window.odkPersonalBot.proposalCommand = cmd => { f.commands.push(cmd); return new Promise((_resolve, fail) => { reject = fail }) }
+  const pending = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation).click()
+  f.render({ state: 'idle', proposals: [p], proposalHiddenCount: 1, proposalPopup: true })
+  const execute = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep)
+  assert.ok(execute.disabled)
+  await execute.click()
+  assert.equal(f.commands.length, 1)
+  assert.ok(flatten(f.content).some(n => n.textContent.includes('waiting for its confirmed outcome')))
+  f.render({ state: 'idle', proposals: [{ ...p, status: 'completed' }], proposalPopup: true })
+  reject(Error('Late lost transport receipt'))
+  await pending
+  assert.equal(f.content.querySelector('.personal-bot-proposal-error'), null, 'A late transport failure cannot override an authoritative terminal outcome')
+})
+
+test('a late uncertain receipt after reconnect warns the same reserved suggestion', async () => {
+  const f = fixture(), p = { ...proposal(), nextStep: 'Save the watering note' }
+  const status = { state: 'idle', proposals: [p], proposalPopup: true }
+  f.render(status)
+  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep).click()
+  let reject
+  f.window.odkPersonalBot.proposalCommand = cmd => { f.commands.push(cmd); return new Promise((_resolve, fail) => { reject = fail }) }
+  const pending = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation).click()
+  f.render({ state: 'unavailable' }); f.render(status)
+  reject(Error('Lost receipt from the previous connection'))
+  await pending
+  assert.match(f.content.querySelector('.personal-bot-proposal-error')?.textContent ?? '', /do not repeat an uncertain action/)
+  assert.equal(f.commands.length, 1)
+  assert.ok(flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep).disabled)
+})
