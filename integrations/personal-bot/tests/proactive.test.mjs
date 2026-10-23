@@ -358,3 +358,19 @@ test('legacy completed turns survive daemon restart only after working was obser
   if(evidence){f.watch.consumeCoding(c.rules[0],identity,evidence);assert.equal(await f.watch.codingEvidence(c.rules[0],identity),null)}
  }
 })
+
+test('consumer readiness recovers multiple legacy coding offers without executing their actions', async () => {
+  const c = config(); c.rules = [{ id: 'coding-complete', delivery: 'immediate', urgent: false, advice: 'View task results.', coding: { target: 'mac', project: '/project' } }]
+  const ids = ['e311a280-c0b9-4411-96cd-4e1e92385349', 'e311a280-c0b9-4411-96cd-4e1e92385350']
+  let working = true
+  const tasks = () => ids.map(taskId => ({ taskId, project: '/project', state: working ? 'running' : 'settled', activity: working ? 'working' : 'idle', turnOutcome: working ? undefined : 'finished', updatedAt: time }))
+  const f = fixture({ config: c, codingList: async () => tasks(), codingStatus: async identity => tasks().find(t => t.taskId === identity.taskId) })
+  await f.watch.tick(); working = false; await f.watch.tick()
+  assert.equal(f.watch.list().filter(p => p.offered).length, 2)
+  f.watch.consumerReady()
+  assert.equal(f.frames.at(-1).popup, true)
+  assert.equal(f.frames.at(-1).recovery, true)
+  assert.ok(f.frames.at(-1).proposals.every(p => p.offered && !p.presented))
+  assert.equal(f.calls.length, 0)
+  await f.watch.close()
+})

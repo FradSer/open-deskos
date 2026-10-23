@@ -92,6 +92,7 @@ function projectPersonalAgentFrame(status) {
     frame.proposals = readable ? proposals : []
     frame.proposalPopup = readable && status.proposalPopup === true
     frame.proposalInteraction = readable && status.proposalInteraction === true
+    frame.proposalRecovery = readable && status.proposalRecovery === true
     frame.proposalHiddenCount = Number.isSafeInteger(status.proposalHiddenCount) && status.proposalHiddenCount >= 0 ? status.proposalHiddenCount : 0
   }
   if (Buffer.byteLength(JSON.stringify(frame), 'utf8') > MAX_PERSONAL_AGENT_FRAME_BYTES) {

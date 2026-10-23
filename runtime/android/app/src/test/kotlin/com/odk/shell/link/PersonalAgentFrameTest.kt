@@ -99,4 +99,24 @@ class PersonalAgentFrameTest {
         assertTrue(frame.getBoolean("proposalPopup"))
     }
 
+    @Test fun recoveryMarkerPreservesReadOnlyDismissalSemantics() {
+        val proposal = JSONObject().put("id", "e311a280-c0b9-4411-96cd-4e1e92385349")
+            .put("status", "pending").put("advice", "Inspect the soil.").put("evidence", org.json.JSONArray())
+        for (marker in listOf<Any>(true, false, "true", JSONObject.NULL)) {
+            for (read in listOf(true, false)) {
+                val status = JSONObject().put("state", "idle")
+                    .put("proposals", org.json.JSONArray().put(proposal))
+                    .put("proposalPopup", true).put("proposalRecovery", marker)
+                    .put("proposalCapabilities", JSONObject().put("read", read).put("respond", true).put("acknowledge", true))
+                val frame = PersonalAgentFrame.project(status)
+                assertEquals(read && marker == true, frame.getBoolean("proposalRecovery"))
+                assertFalse(frame.getJSONObject("proposalCapabilities").getBoolean("respond"))
+                assertFalse(frame.getJSONObject("proposalCapabilities").getBoolean("acknowledge"))
+            }
+        }
+        val legacy = PersonalAgentFrame.project(JSONObject().put("state", "idle")
+            .put("proposals", org.json.JSONArray().put(proposal)))
+        assertFalse(legacy.getBoolean("proposalRecovery"))
+    }
+
 }

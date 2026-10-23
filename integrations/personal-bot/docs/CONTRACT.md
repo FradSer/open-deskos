@@ -805,8 +805,19 @@ Expired proposals remain unacknowledged.
 Checkpoint presentation acknowledgements before owner `routineDays` writes.
 Owner-write failure preserves acknowledgement and confirmation.
 Explicit queries may reopen acknowledged pending proposals without bypassing confirmation.
-Unacknowledged immediate offers can retry presentation after restart.
-Unacknowledged routine offers remain queryable without repeating the scheduled popup.
+Unacknowledged offers can retry presentation when the display consumer reconnects.
+Recovery retains freshness, quiet hours, suppression, snooze deadlines, and acknowledged routine days.
+Recovery does not consume another offer reservation or repeat generation, judgment, or actions.
+
+The trusted Shell renderer identifies each subscription episode with a UUID.
+The client sends this UUID through the optional `proposalConsumerReady` field in its v1 status request.
+The connection ignores duplicate requests for its current UUID.
+Ordinary status requests and runtime diagnosis do not request recovery.
+The service delegates recovery to the selected Watch through optional `consumerReady()`.
+Older Watch and client replacements retain their existing contracts without this method.
+Hidden views and withdrawn read access clear the renderer episode.
+Recovery frames set optional `proposalRecovery: true` and preserve the renderer's Close dismissal.
+Readiness requests recovery; only actual viewport visibility establishes presentation.
 
 The panel is nonmodal and preserves focus and direct Shell input.
 Provider withdrawal or loss of read access clears suggestion content, controls, and visibility observers.

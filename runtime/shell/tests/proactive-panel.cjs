@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
+if (!process.argv.includes('--reconnect-only')) ipcMain.handle('odk-personal-bot-consumer-ready', () => ({ accepted: false }))
 ipcMain.handle('odk-renderer-development-plugins', () => [])
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const assert = require('node:assert/strict')
@@ -10,9 +11,11 @@ app.disableHardwareAcceleration()
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-proactive-ui-'))
 app.setPath('userData', profile)
 app.on('will-quit', () => { try { fs.rmSync(profile, { recursive: true, force: true }) } catch {} })
-const timer = setTimeout(() => app.exit(1), 60000)
+const reconnectOnly = process.argv.includes('--reconnect-only')
+const timer = setTimeout(() => app.exit(1), reconnectOnly ? 120000 : 60000)
 const delay = () => new Promise(resolve => setTimeout(resolve, 100))
 app.whenReady().then(async () => {
+  const reconnect = reconnectOnly ? await require('./helpers/proactive-reconnect').createProactiveReconnectFixture() : undefined
   const commands = []
   const ownerTurns = []
   let rejectResponse = false
@@ -20,6 +23,10 @@ app.whenReady().then(async () => {
   ipcMain.handle('odk-personal-bot-text', (_event, text) => { ownerTurns.push(text); return { accepted: true } })
   ipcMain.handle('odk-personal-bot-proposal', (_event, command) => { commands.push(command); if (rejectResponse && command.type === 'proposal_respond') throw Error('Controlled offline delivery failure'); return { accepted: true } })
   const win = new BrowserWindow({ show: false, width: 480, height: 854, useContentSize: true, webPreferences: { preload: path.resolve(__dirname, '../src/preload.js'), contextIsolation: true, sandbox: true, backgroundThrottling: false, offscreen: true } })
+  if (reconnect) {
+    for (const name of ['odk-personal-bot-status', 'odk-personal-bot-text', 'odk-personal-bot-proposal']) ipcMain.removeHandler(name)
+    reconnect.bindMain(ipcMain, win)
+  }
   win.webContents.session.webRequest.onBeforeRequest((details, callback) => callback({ cancel: /^https?:/.test(details.url) }))
   await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'))
   const run = script => win.webContents.executeJavaScript(script)
@@ -32,6 +39,10 @@ app.whenReady().then(async () => {
     assert.deepEqual(await run(`({ width: innerWidth, height: innerHeight, scale: devicePixelRatio })`), { width, height, scale: 1 })
   }
   await viewport(480, 854)
+  if (reconnect) {
+    try { await reconnect.verify(win, run) } finally { await reconnect.close() }
+    clearTimeout(timer); win.destroy(); app.exit(0); return
+  }
   const send = async status => { win.webContents.send('odk-personal-bot-status', status); await delay() }
   const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry-soil', status: 'pending', offered: true, presented: false, reason: 'A current soil reading is below the selected threshold.', advice: '<script>untrusted reading</script> 检查盆土。', action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土' } }, confirmation: '记住 watering：检查盆土', evidence: [{ readingId: 'odk.tile.hydra', field: 'plants.0.soilPercent', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z', ruleId: 'dry-soil' }] }
   async function longAdviceVisibility() {
@@ -174,6 +185,12 @@ app.whenReady().then(async () => {
   assert.equal(await run(`!![...document.querySelectorAll('.personal-bot-proposals button')].find(b => ['Accept','Done','Later','Useful','Not relevant','Incorrect','Ignore','Get current quote','Refresh preview'].includes(b.textContent))`), false)
   assert.match(await run(`document.querySelector('.personal-bot-proposal-capability').textContent`), /read-only on this device/)
   assert.equal(ownerTurns.length, beforeReadOnlyTurns)
+  await run(`odkPersonalBotStatus.close()`)
+  await send({ state: 'idle', proposals: [ride], proposalPopup: true, proposalRecovery: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
+  assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), true, 'Read-only recovery preserves Close dismissal')
+  await send({ state: 'idle', proposals: [{ ...ride, id: '11111111-1111-4111-8111-111111111111' }], proposalPopup: true, proposalRecovery: false, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
+  assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), false, 'An ordinary new read-only reminder can open')
+  assert.equal(commands.length, beforeReadOnly, 'Read-only recovery grants no acknowledgement or response authority')
   await run(`document.querySelector('.personal-bot-proposal-sources summary').focus()`)
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
   await delay(); assert.equal(await run(`document.querySelector('.personal-bot-proposal-sources').open`), true)
