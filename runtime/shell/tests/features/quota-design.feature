@@ -16,6 +16,8 @@ Feature: Read AI quotas with clear provenance and recovery
     When the App hides its 5h window
     Then its account state remains Available
     And an Antigravity account with a missing Weekly window states Quota unknown
+    And default, development, signed, and restored surfaces retain these states
+    And each surface exposes only the numeric meters for displayed windows
 
   Scenario: Retain a provider's actual short-window duration
     Given an account with a 2 hour short window and a Weekly window

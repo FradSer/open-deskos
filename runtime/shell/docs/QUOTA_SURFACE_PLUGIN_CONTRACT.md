@@ -75,7 +75,7 @@ No independent entry replaces `odk.app.quota` or `odk.tile.quota`, so their inde
 The App-view acceptance in [the Electron consumer check](../tests/quota-electron.test.js) opens the App through the shared App manager and reads the same surface.
 Subscription observation starts before initial mounting and checks the first actual consumer before adding a comparison consumer.
 Three themes and two viewport sizes compare actual and comparison consumers across default, independent, and restored phases.
-Nineteen state cases include mixed priorities, partial errors, unknown providers, malformed percentages, and inert markup text.
+Twenty state cases include plan-filtered windows, mixed priorities, partial errors, unknown providers, malformed percentages, and inert markup text.
 Held and rejected refreshes use a controlled subscription facade; ordinary reads still pass through actual preload and Main IPC.
 Cleanup failures remain injected until an explicit retry; late callbacks and pending completion cannot update released nodes.
 The keyboard check uses browser input dispatch with emulated focus and no foreground window request.
