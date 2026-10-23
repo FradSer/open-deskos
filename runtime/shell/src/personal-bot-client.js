@@ -183,6 +183,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
           ...(record.remote ? {remote:parseRemoteConversation(record.remote)} : status.remote ? {remote:status.remote} : {}),
           ...(record.briefing ? { briefing: parseHomeBriefing(record.briefing) } : status.briefing ? { briefing: status.briefing } : {}),
           ...(Array.isArray(record.proposals) && record.proposals.length <= 64 ? { proposals: record.proposals, proposalPopup: record.proposalPopup === true, proposalInteraction: record.proposalInteraction === true, proposalHiddenCount: Number.isSafeInteger(record.proposalHiddenCount) ? record.proposalHiddenCount : 0 } : {}),
+          ...(record.proposalCapabilities !== undefined ? { proposalCapabilities: { read: record.proposalCapabilities?.read === true, respond: record.proposalCapabilities?.respond === true, acknowledge: record.proposalCapabilities?.acknowledge === true } } : {}),
           ...(typeof record.proposalError === 'string' ? { proposalError: record.proposalError.slice(0, 256) } : {}),
         })
       }

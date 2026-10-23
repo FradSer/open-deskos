@@ -68,7 +68,7 @@ exports.create = context => {
     'odk:source/quota/v1': source,
     'odk:desk-reading/quota/v1': [{
       id: 'odk.page.quota', label: 'API quota', kind: 'page',
-      home: { mode: 'optional', priority: 40, icon: 'quota', fields: ['accounts'] },
+      home: { mode: 'optional', priority: 0, icon: 'quota', fields: ['accounts'] },
       async read() {
         const result = await source.read()
         const state = result?.state === 'available' ? 'live'

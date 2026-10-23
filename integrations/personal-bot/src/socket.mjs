@@ -1,5 +1,6 @@
 import { readFrames, writeFrame } from './channel-frames.mjs'
 import { validReplyTo } from './session-replies.mjs'
+import { PROPOSAL_DECISIONS } from './proactive-lifecycle.mjs'
 import fs from 'node:fs/promises'
 import net from 'node:net'
 import { dirname, isAbsolute, join } from 'node:path'
@@ -193,7 +194,7 @@ export async function listen(path, service, options = {}) {
         }
         if (command.type.startsWith('proposal_')) {
           if (command.type === 'proposal_presented' && (!Array.isArray(command.ids) || command.ids.length > 64 || !command.ids.every(id => typeof id === 'string' && id.length === 36))) return client.destroy()
-          if (command.type === 'proposal_respond' && (typeof command.id !== 'string' || command.id.length !== 36 || !['accept', 'ignore', 'mute'].includes(command.decision) || (command.confirmation !== undefined && (typeof command.confirmation !== 'string' || command.confirmation.length > 2048)))) return client.destroy()
+          if (command.type === 'proposal_respond' && (typeof command.id !== 'string' || command.id.length !== 36 || !PROPOSAL_DECISIONS.includes(command.decision) || (command.confirmation !== undefined && (typeof command.confirmation !== 'string' || command.confirmation.length > 2048)))) return client.destroy()
           void service.proposalCommand(command).then(() => sendStatus(client, service.status), () => {
             sendStatus(client, { ...service.status, proposalError: 'Suggestion response refused; check confirmation, source freshness and service availability.' })
           })

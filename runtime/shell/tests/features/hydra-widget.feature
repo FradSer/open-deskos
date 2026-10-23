@@ -263,9 +263,12 @@ Feature: Hydra plant and environment Widget on the Desk page
 
   Scenario: Wide Pixel panels use the larger environment reading
     Given a tall Hydra panel has at least 280 pixels of content width
+    And the panel uses the Shell display-only Widget frame under home-desk
+    And the frame contributes one pixel on each edge
     When the Pixel theme renders its environment readings
     Then the readings use the larger 40-pixel size
-    And a narrower panel retains its 32-pixel limit without clipping
+    And 338-pixel and 334-pixel Cells with 28-pixel insets have 280-pixel and 276-pixel content widths
+    And the narrower panel retains its 32-pixel limit without clipping
 
   Scenario: Runtime replacement budgets cover the restored rendering phase
     Given CM5 compares default, independent, and restored Hydra rendering

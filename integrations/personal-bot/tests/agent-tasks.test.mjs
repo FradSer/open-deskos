@@ -17,6 +17,26 @@ async function fixture(t, createWorker) {
 const identity = { id: 'researcher', name: 'Researcher', role: 'Read actual sources and cite evidence.', avatar: 'book' }
 const worker = answer => ({ prompt: async () => answer, abort: async () => {}, close: async () => {} })
 
+test('current work references survive restart without copying private task content or replaying work', async t => {
+  let starts = 0
+  const { runtime, directory } = await fixture(t, async () => { starts++; return worker('PRIVATE_TASK_RESULT') })
+  runtime.saveIdentity({ ...identity, role: 'PRIVATE_ROLE' })
+  const admitted = runtime.start({ identityId: identity.id, request: 'PRIVATE_ORIGINAL_TASK' })
+  const finished = await runtime.wait(admitted.taskId)
+  const references = runtime.workReferences()
+  assert.deepEqual(references, [{ kind: 'agent_task', id: admitted.taskId, name: identity.name, state: 'finished', verification: 'not_run', updatedAt: finished.updatedAt }])
+  assert(!JSON.stringify(references).includes('PRIVATE_'))
+  references[0].state = 'forged'
+  assert.equal(runtime.workReferences()[0].state, 'finished')
+  await runtime.close()
+  const restarted = await openAgentTasks({ directory, createWorker: async () => { starts++; throw Error('Reference lookup cannot start work') } })
+  try {
+    assert.equal(restarted.workReferences()[0].id, admitted.taskId)
+    assert.equal(restarted.workReferences()[0].state, 'finished')
+    assert.equal(starts, 1)
+  } finally { await restarted.close() }
+})
+
 test('temporary task admission is asynchronous and isolated, with verification separate from its answer', async t => {
   const started = Promise.withResolvers(), finish = Promise.withResolvers()
   let spec, closed = 0

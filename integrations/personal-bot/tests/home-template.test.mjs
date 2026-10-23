@@ -1,11 +1,28 @@
 import { test } from 'node:test'
 import { readFileSync, existsSync } from 'node:fs'
 import assert from 'node:assert/strict'
-import { resolveHomeTemplate, homeTemplateVariables, compileHomeSelection } from '../src/home-template.mjs'
+import { resolveHomeTemplate, homeTemplateVariables, compileHomeSelection, homeFactVariables, generateHomeSelection } from '../src/home-template.mjs'
 import { HomeBriefing } from '../src/home-briefing.mjs'
 
 const source = (id, icon, value) => ({ id, label: id, state: 'live', value, home: { mode: 'required', priority: 100, icon, fields: Object.keys(value) } })
 const template = (id, icon, text) => ({ items: [{ text, readingIds: [id], segments: [{ text, icon }] }] })
+
+test('semantic facts retain nested units and Agent goals, state, and verification', () => {
+  const readings = [source('hydra', 'plants', { plants: [{ name: 'Fern', soilPercent: 8 }] }),
+    source('pi', 'sessions', { sessions: [{ id: 'pi-1', project: 'Desk', goal: 'Review release', state: 'waiting', activity: 'Needs input' }] }),
+    source('agents', 'tasks', { state: 'finished', verification: 'not_run', goal: 'Check runtime' })]
+  const facts = homeFactVariables(readings)
+  const soil = facts.findIndex(fact => fact.factId === 'hydra:plants.0.soilPercent')
+  const waiting = facts.findIndex(fact => fact.factId === 'pi:sessions.0.state')
+  const finished = facts.findIndex(fact => fact.factId === 'agents:state')
+  const resolved = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [soil, waiting, finished] }] }, facts), readings)
+  assert.match(resolved.items[0].text, /Fern.*8%/)
+  assert.match(resolved.items[0].text, /Desk.*waiting/)
+  assert.match(resolved.items[0].text, /finished verification not_run/)
+  assert.ok(facts.some(fact => fact.factId === 'pi:sessions.0.goal'))
+  assert.ok(facts.some(fact => fact.factId === 'pi:sessions.0.activity'))
+  assert.deepEqual(facts[waiting].entities, [{ id: 'pi-1', project: 'Desk' }])
+})
 
 test('plugin field references resolve numbers and text without model-supplied values', () => {
   const reading = source('weather', 'weather', { temperatureC: 25, place: '<b>Taipei</b>', condition: 'overcast' })
@@ -165,11 +182,11 @@ test('finite selection grammar rejects unknown repeated literal or oversized cho
   ]) assert.throws(() => compileHomeSelection(raw, catalog))
 })
 
-test('compiled selections retain required coverage availability and the full output budget', async () => {
+test('compiled selections have no reserved coverage and retain availability and output bounds', async () => {
   const { validateHomeBriefing } = await import('../src/home-briefing.mjs')
   const readings = [source('weather', 'weather', { temperatureC: 25 }), { ...source('futu', 'portfolio', { todayChangePercent: null }), label: 'Futu' }]
   const selected = indices => compileHomeSelection({ items: [{ sources: indices }] }, homeTemplateVariables(readings))
-  assert.throws(() => validateHomeBriefing(resolveHomeTemplate(selected([0]), readings), readings, { requireSegments: true }), /Required/)
+  assert.equal(validateHomeBriefing(resolveHomeTemplate(selected([0]), readings), readings, { requireSegments: true }).length, 1)
   const result = resolveHomeTemplate(selected([0, 1]), readings)
   assert.match(result.items[0].text, /Futu unavailable/)
   assert.equal(validateHomeBriefing(result, readings, { requireSegments: true }).length, 1)
@@ -222,4 +239,31 @@ test('compiled facts preserve the actual Shell icon and first-label token groupi
   assert.equal(output.items[0].segments[0].text.endsWith(', '), true)
   assert.equal(output.items[0].text, 'futu -0.82% today, weather 25°C.')
   assert.equal(output.items[0].segments.length, 2)
+})
+
+test('compact inventories do not pay for arbitrary count-based model rounds', async () => {
+  const readings = Array.from({ length: 81 }, (_, index) => source(`s${index}`, 'tasks', { state: 'normal' }))
+  let calls = 0
+  await generateHomeSelection(readings, { choose: async request => {
+    calls++
+    assert.ok(Buffer.byteLength(JSON.stringify(request)) <= 48000)
+    return { items: [{ sources: [0] }] }
+  } })
+  assert.equal(calls, 1)
+})
+
+test('independent source batches start together before final selection', async () => {
+  const readings = Array.from({ length: 300 }, (_, index) => source(`s${index}`, 'tasks', { state: 'normal' }))
+  let release, entered = 0
+  const gate = new Promise(resolve => { release = resolve })
+  const pending = generateHomeSelection(readings, { choose: async () => {
+    entered++
+    await gate
+    return { items: [{ sources: [0] }] }
+  } })
+  try {
+    await new Promise(resolve => setImmediate(resolve))
+    assert.ok(entered > 1, 'Batches must not spend the shared deadline waiting for siblings')
+    assert.ok(entered <= 4, 'Model concurrency stays bounded')
+  } finally { release(); await pending }
 })

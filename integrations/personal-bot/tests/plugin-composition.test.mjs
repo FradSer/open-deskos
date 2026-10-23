@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createPersonalBotComposition, BOT_PORTS } from '../src/plugin-composition.mjs'
+import { createPersonalBotComposition, personalBotManifest, validatePersonalBotReplacement, BOT_PORTS } from '../src/plugin-composition.mjs'
 
 function fixture({ failInitialize = false, initialize, failClose = false } = {}) {
   const events = []
@@ -128,4 +128,41 @@ test('briefing cancellation precedes a delayed suggestion shutdown', async () =>
   finish()
   await stopping
   assert.deepEqual(beforeRelease, ['home.close'])
+})
+
+
+test('default Watch does not depend on Overview lifecycle', async () => {
+  const { composition } = fixture()
+  await composition.start()
+  try {
+    const watch = composition.port(BOT_PORTS.watch)
+    const runtime = composition.port(BOT_PORTS.runtime)
+    await composition.setEnabled('odk.personal-bot.home', false)
+    assert.equal(composition.port(BOT_PORTS.watch), watch)
+    assert.equal(composition.port(BOT_PORTS.runtime), runtime)
+    assert.equal(composition.port(BOT_PORTS.home), null)
+    await composition.setEnabled('odk.personal-bot.home', true)
+    assert.equal(composition.port(BOT_PORTS.watch), watch)
+  } finally { await composition.stop() }
+})
+
+
+test('legacy Watch replacements retain the original Home dependency contract', async () => {
+  const manifest = personalBotManifest('watch', { legacy: true })
+  assert.equal(manifest.version, '1.0.0')
+  assert.ok(manifest.requires.some(port => port.interface === BOT_PORTS.home))
+  validatePersonalBotReplacement(manifest)
+  const composition = createPersonalBotComposition({
+    createService: () => ({ close() {} }), openChannel: async () => ({ close() {} }),
+    initialize: async () => ({ agent: { abort() {}, close() {} } }),
+    createHome: () => ({ start() {}, close() {} }), createWatch: () => { throw Error('default must not execute') },
+    replacementPlugins: [{ manifest, create: () => ({ start() {}, close() {} }) }],
+  })
+  await composition.start()
+  try {
+    assert.ok(composition.port(BOT_PORTS.watch))
+    await composition.setEnabled('odk.personal-bot.home', false)
+    assert.equal(composition.port(BOT_PORTS.watch), null)
+    assert.equal(composition.catalog().find(plugin => plugin.manifest.id === manifest.id).state, 'blocked')
+  } finally { await composition.stop() }
 })

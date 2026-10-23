@@ -116,9 +116,9 @@ test('unconfigured resident stays reachable and reports configuration error', re
   assert.equal((await startupStatus(t)).state, 'error')
 })
 
-test('voice uses the system workspace and advances to transcription configuration', residentRole, async t => {
+test('the system workspace starts Agent validation without voice credentials', residentRole, async t => {
   const status = await startupStatus(t, { ODK_WORKSPACE: '/configured/desk-checkout' })
-  assert.match(status.message, /ODK_PERSONAL_BOT_STT_KEY_FILE/)
+  assert.match(status.message, /writable checkout/)
 })
 
 test('obsolete bot-specific workspace is not a fallback', residentRole, async t => {
@@ -137,13 +137,14 @@ test('the bridge port alone configures the device-local endpoint without a crede
   assert.doesNotMatch(status.message, /ODK_PERSONAL_BOT_STT_KEY_FILE/)
 })
 
-test('an unusable bridge port stops startup instead of reaching a remote endpoint', residentRole, async t => {
-  const status = await startupStatus(t, {
+test('an unusable bridge port disables voice without reaching a remote endpoint', async t => {
+  const { runtime } = await initializeFor(t, {
     ODK_WORKSPACE: '/configured/desk-checkout',
     ODK_STT_PORT: 'not-a-port',
-  })
-  assert.match(status.message, /ODK_STT_PORT/)
-  assert.doesNotMatch(status.message, /not-a-port/)
+  }, 'linux')
+  assert.equal(runtime.stt.unavailable, true)
+  assert.match(runtime.stt.message, /ODK_STT_PORT/)
+  assert.doesNotMatch(runtime.stt.message, /not-a-port/)
 })
 
 async function keyFile(t) {
@@ -174,25 +175,27 @@ test('the device-local loopback bridge needs no STT credential at all', resident
   assert.doesNotMatch(status.message, /ODK_PERSONAL_BOT_STT_KEY_FILE/)
 })
 
-test('region language tags are rejected with supported language guidance', residentRole, async t => {
-  const status = await startupStatus(t, {
+test('region language tags disable voice with supported language guidance', async t => {
+  const { runtime } = await initializeFor(t, {
     ODK_WORKSPACE: '/configured/desk-checkout',
     ODK_PERSONAL_BOT_STT_KEY_FILE: await keyFile(t),
     ODK_PERSONAL_BOT_STT_LANGUAGE: 'zh-CN',
-  })
-  assert.match(status.message, /ODK_PERSONAL_BOT_STT_LANGUAGE/)
-  assert.doesNotMatch(status.message, /zh-CN/)
+  }, 'linux')
+  assert.equal(runtime.stt.unavailable, true)
+  assert.match(runtime.stt.message, /ODK_PERSONAL_BOT_STT_LANGUAGE/)
+  assert.doesNotMatch(runtime.stt.message, /zh-CN/)
 })
 
-test('oversize transcription prompts fail startup with safe guidance', residentRole, async t => {
-  const status = await startupStatus(t, {
+test('oversize transcription prompts disable voice with safe guidance', async t => {
+  const { runtime } = await initializeFor(t, {
     ODK_WORKSPACE: '/configured/desk-checkout',
     ODK_PERSONAL_BOT_STT_KEY_FILE: await keyFile(t),
     ODK_PERSONAL_BOT_STT_PROMPT: 'private-context'.repeat(100),
-  })
-  assert.match(status.message, /ODK_PERSONAL_BOT_STT_PROMPT/)
-  assert.match(status.message, /1024/)
-  assert.doesNotMatch(status.message, /private-context/)
+  }, 'linux')
+  assert.equal(runtime.stt.unavailable, true)
+  assert.match(runtime.stt.message, /ODK_PERSONAL_BOT_STT_PROMPT/)
+  assert.match(runtime.stt.message, /1024/)
+  assert.doesNotMatch(runtime.stt.message, /private-context/)
 })
 
 test('main wires validated transcription context including empty opt-out', async t => {
@@ -243,7 +246,7 @@ test('the cloud provider declares its own endpoint, model and credential', async
   assert.equal(runtime.stt.model, 'qwen3-asr-flash', 'the cloud desk declares the model it expects, not a name only the multipart endpoint knows')
   assert.equal(runtime.stt.url, 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation')
   assert.equal(runtime.stt.keyFile, undefined, 'the cloud credential is its own environment value, not a key file')
-  assert.ok(reports.some(message => message.includes('ALIYUNCS_TOKEN')))
+  assert.ok(reports.every(message => !message.includes('ALIYUNCS_TOKEN')), 'optional voice checks do not set the Agent error state')
   // The multipart provider keeps its own credential, model and endpoint.
   const openai = await initializeFor(t, {
     ODK_WORKSPACE: '/configured/desk-checkout',
@@ -255,20 +258,31 @@ test('the cloud provider declares its own endpoint, model and credential', async
   assert.ok(openai.reports.every(message => !message.includes('ALIYUNCS_TOKEN')))
 })
 
+test('missing voice credentials do not block the Agent used by Overview', async t => {
+  const { runtime } = await initializeFor(t, { ODK_WORKSPACE: '/configured/desk-checkout', ODK_PERSONAL_BOT_STT_PROVIDER: 'aliyun' }, 'linux')
+  assert.ok(runtime.agent)
+  assert.equal(runtime.stt.unavailable, true)
+  assert.match(runtime.stt.message, /ALIYUNCS_TOKEN/)
+})
+
 test('an undeclared transcription provider is rejected with safe guidance', async t => {
-  await assert.rejects(initializeFor(t, {
+  const { runtime } = await initializeFor(t, {
     ODK_WORKSPACE: '/configured/desk-checkout',
     ODK_PERSONAL_BOT_STT_PROVIDER: 'dashscope',
-  }, 'linux').then(result => result.runtime), /Invalid transcription provider/)
+  }, 'linux')
+  assert.equal(runtime.stt.unavailable, true)
+  assert.match(runtime.stt.message, /ODK_PERSONAL_BOT_STT_PROVIDER/)
   const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
   assert.ok(source.includes('transcriptionProvider'), 'the provider is validated before it is used')
 })
 
 test('the cloud provider without its credential never reaches the endpoint', async t => {
-  await assert.rejects(initializeFor(t, {
+  const { runtime } = await initializeFor(t, {
     ODK_WORKSPACE: '/configured/desk-checkout',
     ODK_PERSONAL_BOT_STT_PROVIDER: 'aliyun',
-  }, 'linux').then(result => result.runtime), { message: 'Credential missing' })
+  }, 'linux')
+  assert.equal(runtime.stt.unavailable, true)
+  assert.equal(runtime.stt.url, undefined)
 })
 
 test('a Windows host declares its DirectShow microphone or says what is missing', async t => {
@@ -278,24 +292,27 @@ test('a Windows host declares its DirectShow microphone or says what is missing'
     ODK_PERSONAL_BOT_STT_KEY_FILE: credentialFile,
     ODK_PERSONAL_BOT_AUDIO_DEVICE: 'Microphone (2- USB Audio Device)',
   }, 'win32')
-  assert.ok(reports.some(message => message.includes('DirectShow')))
+  assert.ok(reports.every(message => !message.includes('DirectShow')))
   assert.ok(runtime.stt.url, 'a declared Windows microphone still reaches the transcription configuration')
   for (const device of [undefined, '', 'default']) {
-    await assert.rejects(initializeFor(t, {
+    const missing = await initializeFor(t, {
       ODK_WORKSPACE: '/configured/desk-checkout',
       ODK_PERSONAL_BOT_STT_KEY_FILE: credentialFile,
       ODK_PERSONAL_BOT_AUDIO_DEVICE: device,
-    }, 'win32').then(result => result.runtime), { message: 'Microphone device missing' })
+    }, 'win32')
+    assert.equal(missing.runtime.stt.unavailable, true)
+    assert.match(missing.runtime.stt.message, /DirectShow/)
   }
 })
 
-test('plain HTTP STT URL outside loopback is rejected', residentRole, async t => {
-  const status = await startupStatus(t, {
+test('plain HTTP STT URL outside loopback disables voice', async t => {
+  const { runtime } = await initializeFor(t, {
     ODK_WORKSPACE: '/configured/desk-checkout',
     ODK_PERSONAL_BOT_STT_KEY_FILE: await keyFile(t),
     ODK_PERSONAL_BOT_STT_URL: 'http://192.168.1.10:17840/inference',
-  })
-  assert.match(status.message, /ODK_PERSONAL_BOT_STT_URL/)
+  }, 'linux')
+  assert.equal(runtime.stt.unavailable, true)
+  assert.match(runtime.stt.message, /ODK_PERSONAL_BOT_STT_URL/)
 })
 
 

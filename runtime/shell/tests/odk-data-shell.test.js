@@ -2,6 +2,17 @@
 
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
+
+test('Pi Overview declarations expose Agent goals and current activity without a fixed slot', async () => {
+  const { createPiSessionReadings } = require('../src/plugins/readings/pi-sessions')
+  const [source] = createPiSessionReadings({ scan: async () => ({ ok: true, sessions: [{ id: 'pi-1', status: 'waiting', latestGoal: 'Review the release', activity: 'Waiting for input' }] }) })
+  assert.equal(source.home.mode, 'optional')
+  assert.ok(source.home.fields.includes('sessions'))
+  const result = await source.read()
+  assert.equal(result.value.sessions[0].goal, 'Review the release')
+  assert.equal(result.value.sessions[0].state, 'waiting')
+  assert.equal(result.value.sessions[0].activity, 'Waiting for input')
+})
 const { createShellOdkData } = require('../src/odk-data')
 const { createOdkDataControl } = require('../src/odk-data-control')
 
@@ -38,7 +49,7 @@ test('the Shell registers what the desk holds and each reading keeps its own sta
     'odk.tile.hydra', 'odk.tile.weather', 'odk.tile.weread', 'pomodoro',
   ])
   const listed = (await control.dispatch({ command: 'list' })).readings
-  assert.deepEqual(listed.find(reading => reading.id === 'futu-poller'), { id: 'futu-poller', label: 'Futu holdings', kind: 'service', home: { mode: 'required', priority: 100, icon: 'portfolio', fields: ['todayChangePercent'] } })
+  assert.deepEqual(listed.find(reading => reading.id === 'futu-poller'), { id: 'futu-poller', label: 'Futu holdings', kind: 'service', home: { mode: 'optional', priority: 0, icon: 'portfolio', fields: ['todayChangePercent'] } })
 
   const hydra = (await control.dispatch({ command: 'read', readingId: 'odk.tile.hydra' })).reading
   assert.equal(hydra.state, 'live')
@@ -359,10 +370,11 @@ test('a ratio the tile would draw is a ratio the reading publishes, string or nu
   assert.equal(value.todayChangePercent, 0.75)
 })
 
-test('Pi home declares stable counts instead of volatile activity text', async () => {
+test('Pi home includes lifecycle counts and current Agent activity', async () => {
   const desk = shellOdkData({ piSessions: { scan: async () => ({ ok: true, sessions: [{ status: 'running', activity: 'streaming' }, { status: 'running' }, { status: 'settled' }] }) } })
   const policy = desk.registry.list().find(r => r.id === 'odk.app.pi-sessions').home
-  assert.deepEqual(policy.fields, ['total', 'counts', 'truncated'])
+  assert.deepEqual(policy.fields, ['total', 'counts', 'sessions', 'truncated'])
+  assert.equal(policy.priority, 0)
   const { reading } = await desk.registry.read('odk.app.pi-sessions')
   assert.deepEqual(reading.value.counts, { running: 2, settled: 1 })
 })

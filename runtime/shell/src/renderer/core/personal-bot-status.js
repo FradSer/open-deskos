@@ -57,12 +57,52 @@
   let proposalSnapshot = ''
   let proposalError = ''
   let proposalCommandError = ''
+  let feedbackFocus
+  let proposalEpoch = 0
+  let suggestionCapabilities = { read: true, respond: true, acknowledge: true }
+  // A transport receipt does not prove that the resident saved its visibility state.
+  const visibilityAttempts = new Map()
+  const visibleAdvice = new Set()
+  const observedAdvice = new Map()
+  let visibilityFailure = false
+  function acknowledgeVisible(node, p) {
+    if (!p || !visibleAdvice.has(node) || document.hidden || surface.hidden || visibilityFailure || !suggestionCapabilities.acknowledge ||
+        p.status !== 'pending' || p.offered !== true || p.presented || p.snoozedUntil > Date.now()) return
+    const prior = visibilityAttempts.get(p.id)
+    if (prior && (prior.count >= 3 || Date.now() - prior.at < 5000)) return
+    visibilityAttempts.set(p.id, { count: (prior?.count ?? 0) + 1, at: Date.now() })
+    if (visibilityAttempts.size > 256) visibilityAttempts.delete(visibilityAttempts.keys().next().value)
+    void command({ type: 'proposal_presented', ids: [p.id] })
+  }
+  const visibility = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      // Long advice can exceed the scroll viewport. Require meaningful visible body
+      // area relative to the space a reader can actually see, not its whole length.
+      const body = entry.boundingClientRect, viewport = entry.rootBounds
+      const width = Math.min(body?.width ?? 0, viewport?.width ?? 0)
+      const height = Math.min(body?.height ?? 0, viewport?.height ?? 0)
+      if (!entry.isIntersecting || width <= 0 || height <= 0 || entry.intersectionRect.width < width * 0.5 || entry.intersectionRect.height < height * 0.5) {
+        visibleAdvice.delete(entry.target); continue
+      }
+      visibleAdvice.add(entry.target)
+      acknowledgeVisible(entry.target, observedAdvice.get(entry.target))
+    }
+  }, { root: elements.content, threshold: Array.from({ length: 101 }, (_, index) => index / 100) }) : null
+  const recheckVisibility = () => {
+    visibleAdvice.clear()
+    if (!document.hidden) for (const node of observedAdvice.keys()) { visibility?.unobserve(node); visibility?.observe(node) }
+  }
+  document.addEventListener('visibilitychange', recheckVisibility)
+  window.addEventListener('pagehide', () => { visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear(); expandedDisclosures.clear(); document.removeEventListener('visibilitychange', recheckVisibility) })
 
   async function command(value) {
+    const epoch = proposalEpoch
     try {
       const receipt = await window.odkPersonalBot.proposalCommand(value)
       if (!receipt?.accepted) throw Error('Unavailable')
     } catch {
+      if (epoch !== proposalEpoch) return
+      if (value.type === 'proposal_presented') return
       proposalCommandError = 'Suggestion response was not delivered. Check the personal bot service; do not repeat an uncertain action.'
       showProposalError()
     }
@@ -84,7 +124,7 @@
     node.addEventListener('click', callback)
     return node
   }
-  function rideDetails(article, proposal) {
+  function rideDetails(article, proposal, canRespond = true) {
     const preview = proposal.ridePreview
     if (!preview || typeof preview !== 'object') return
     const panel = document.createElement('section')
@@ -127,7 +167,7 @@
       select.value = choices.length === 1 ? choices[0].handle : ''
       label.append(select); panel.append(label); selectors.push(select)
     }
-    if (current()) panel.append(button('Get current quote', async function () {
+    if (canRespond && current()) panel.append(button('Get current quote', async function () {
       const handles = [preview.handle, ...selectors.map(select => select.value)]
       if (!current() || !handles.every(value => typeof value === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(value)) || !selectors.every((select, index) => preview[index === 0 ? 'from' : 'to'].some(p => p.handle === select.value))) {
         note.textContent = 'Choose both actual places. If the preview expired, ask the Agent to search again.'
@@ -142,7 +182,7 @@
       }
     }))
     const quoteButton = panel.children[panel.children.length - 1]
-    if (typeof preview.handle === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(preview.handle) && ['pending', 'expired'].includes(proposal.status)) {
+    if (canRespond && typeof preview.handle === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(preview.handle) && ['pending', 'expired'].includes(proposal.status)) {
       const refresh = button('Refresh preview', async () => {
         refresh.disabled = true
         try {
@@ -154,8 +194,40 @@
     }
     article.append(opening, panel)
   }
+  const expandedDisclosures = new Set()
+  function disclosure(label, className, id = '') {
+    const details = document.createElement('details')
+    details.className = className
+    details.open = expandedDisclosures.has(id)
+    details.addEventListener('toggle', () => {
+      if (!id) return
+      if (details.open) expandedDisclosures.add(id); else expandedDisclosures.delete(id)
+      if (expandedDisclosures.size > 256) expandedDisclosures.delete(expandedDisclosures.values().next().value)
+    })
+    const summary = document.createElement('summary')
+    summary.textContent = label
+    if (id) { summary.dataset.proposalId = id; summary.dataset.proposalAction = 'disclosure' }
+    details.append(summary)
+    return details
+  }
   function renderProposals(status) {
+    if (status.state === 'unavailable' || status.proposalCapabilities?.read === false) {
+      proposalEpoch++
+      visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear(); proposalSnapshot = ''
+      suggestionCapabilities = { read: false, respond: false, acknowledge: false }
+      proposalError = ''; proposalCommandError = ''; visibilityFailure = false; feedbackFocus = undefined
+      expandedDisclosures.clear()
+      if (proposals) { proposals.replaceChildren(); proposals.hidden = true }
+      return
+    }
     if (!Array.isArray(status.proposals)) return
+    if (visibilityFailure && !status.proposalError) visibilityAttempts.clear()
+    visibilityFailure = Boolean(status.proposalError)
+    suggestionCapabilities = status.proposalCapabilities === undefined ? { read: true, respond: true, acknowledge: true } : {
+      read: status.proposalCapabilities?.read === true,
+      respond: status.proposalCapabilities?.respond === true,
+      acknowledge: status.proposalCapabilities?.acknowledge === true,
+    }
     if (!proposals) {
       if (!status.proposals.length) return
       proposals = document.createElement('section')
@@ -163,65 +235,139 @@
       proposals.setAttribute('aria-label', 'Personal Bot suggestions')
       elements.content.appendChild(proposals)
     }
-    const snapshot = JSON.stringify([status.proposals, status.proposalHiddenCount])
+    proposals.hidden = !status.proposals.length || !suggestionCapabilities.read
+    const snapshot = JSON.stringify([status.proposals, status.proposalHiddenCount, suggestionCapabilities])
     if (snapshot !== proposalSnapshot) {
       proposalSnapshot = snapshot
+      const focused = document.activeElement
+      const retainedFocus = focused === document.body ? feedbackFocus : undefined
+      const focusId = focused?.dataset?.proposalId || retainedFocus?.id, focusAction = focused?.dataset?.proposalAction || retainedFocus?.action
+      feedbackFocus = undefined
+      const previousScroll = elements.content.scrollTop
+      visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear()
       proposals.replaceChildren()
       proposalCommandError = ''
-      if (!status.proposals.length) return
+      if (!status.proposals.length || !suggestionCapabilities.read) { proposalError = status.proposalError || ''; return }
       const header = document.createElement('div')
       header.className = 'personal-bot-proposals-header'
       const heading = document.createElement('h2')
       heading.textContent = 'Personal Bot suggestions'
       header.append(heading, button('Close', close))
       proposals.append(header)
+      if (!suggestionCapabilities.respond) {
+        const note = document.createElement('p')
+        note.className = 'personal-bot-proposal-capability'
+        note.textContent = 'Suggestions are read-only on this device. Respond from the desk.'
+        proposals.append(note)
+      }
       if (status.proposalHiddenCount > 0) {
         const remaining = document.createElement('p')
         remaining.textContent = `${status.proposalHiddenCount} more suggestions in the agent store. Ask for suggestions to inspect them.`
         proposals.append(remaining)
       }
+      const history = disclosure('Previous suggestions', 'personal-bot-proposal-history', 'history')
+      const statusLabels = { pending: 'Suggested', ignored: 'Dismissed', expired: 'Expired', executing: 'In progress', completed: 'Completed', unknown: 'Outcome not confirmed' }
+      const feedbackLabels = { done: 'Marked done', snooze: 'Saved for later', useful: 'Marked useful', irrelevant: 'Marked not relevant', incorrect: 'Marked incorrect' }
+      let historical = 0
       for (const p of status.proposals) {
+        if (!p || typeof p.advice !== 'string') continue
+        const snoozed = p.status === 'pending' && p.snoozedUntil > Date.now()
+        const current = p.status === 'pending' && !snoozed
         const article = document.createElement('article')
         article.className = 'personal-bot-proposal'
+        article.dataset.proposalId = p.id
         const state = document.createElement('p')
         state.className = 'personal-bot-proposal-state'
-        state.textContent = `${p.ruleId} · ${p.status}`
+        state.textContent = snoozed ? 'Saved for later' : statusLabels[p.status] || 'Suggestion state unavailable'
         const advice = document.createElement('p')
+        advice.className = 'personal-bot-proposal-advice'
         advice.textContent = p.advice
         article.append(state, advice)
+        if (typeof p.reason === 'string' && p.reason.trim()) {
+          const reason = document.createElement('p')
+          reason.className = 'personal-bot-proposal-reason'
+          reason.textContent = `Why now: ${p.reason}`
+          article.append(reason)
+        }
+        if (p.feedback && feedbackLabels[p.feedback]) {
+          const feedback = document.createElement('p')
+          feedback.className = 'personal-bot-proposal-feedback'
+          feedback.setAttribute('role', 'status')
+          feedback.textContent = feedbackLabels[p.feedback]
+          article.append(feedback)
+        }
+        const sources = disclosure('Sources and details', 'personal-bot-proposal-sources', `${p.id}:sources`)
+        const identity = document.createElement('p')
+        identity.className = 'personal-bot-proposal-evidence'
+        identity.textContent = `${p.ruleId} · ${p.status}`
+        sources.append(identity)
         for (const e of p.evidence ?? []) {
           const evidence = document.createElement('p')
           evidence.className = 'personal-bot-proposal-evidence'
           evidence.textContent = `${e.readingId} · ${e.field}: ${JSON.stringify(e.value)} · ${p.status === 'expired' ? 'stale / expired' : e.state} · measured ${e.measuredAt}`
-          article.append(evidence)
+          sources.append(evidence)
         }
-        if (p.action) {
+        if (p.action && suggestionCapabilities.respond) {
           const next = document.createElement('p')
           next.textContent = `Next: ${p.action.tool} ${JSON.stringify(p.action.params ?? {})}. Confirmation: ${p.confirmation}`
-          article.append(next)
+          sources.append(next)
         }
-        if (p.ridePreview) rideDetails(article, p)
+        article.append(sources)
+        if (p.ridePreview) rideDetails(article, p, suggestionCapabilities.respond)
         if (p.result) {
           const result = document.createElement('p')
           result.textContent = p.result
+          result.setAttribute('role', 'status')
           article.append(result)
         }
-        if (p.status === 'pending') {
+        if (current && suggestionCapabilities.respond) {
           const actions = document.createElement('div')
           actions.className = 'personal-bot-proposal-actions'
+          const response = (label, decision) => {
+            const control = button(label, async () => {
+              if (document.activeElement === control) feedbackFocus = { id: p.id, action: decision }
+              control.disabled = true
+              await command({ type: 'proposal_respond', id: p.id, decision })
+            })
+            control.dataset.proposalId = p.id; control.dataset.proposalAction = decision
+            return control
+          }
           if (p.action && p.confirmation) actions.append(button('Accept', () => {
             actions.replaceChildren(button(p.confirmation, async () => {
               for (const control of actions.children) control.disabled = true
               await command({ type: 'proposal_respond', id: p.id, decision: 'accept', confirmation: p.confirmation })
             }), button('Cancel', () => { proposalSnapshot = ''; renderProposals(status) }))
           }))
-          actions.append(button('Ignore', () => command({ type: 'proposal_respond', id: p.id, decision: 'ignore' })),
-            button('Never suggest this category', () => command({ type: 'proposal_respond', id: p.id, decision: 'mute' })))
-          article.append(actions)
+          if (!p.action) actions.append(response('Done', 'done'), response('Later', 'snooze'))
+          const feedback = disclosure('Feedback', 'personal-bot-proposal-feedback-options', `${p.id}:feedback`)
+          const choices = document.createElement('div')
+          choices.className = 'personal-bot-proposal-actions'
+          if (!p.action) choices.append(response('Useful', 'useful'), response('Not relevant', 'irrelevant'), response('Incorrect', 'incorrect'))
+          choices.append(response('Ignore', 'ignore'), response('Never suggest this category', 'mute'))
+          feedback.append(choices)
+          article.append(actions, feedback)
         }
-        proposals.append(article)
+        if (current) {
+          proposals.append(article)
+          observedAdvice.set(advice, p)
+          visibility?.observe(advice)
+        } else { history.append(article); historical++ }
       }
+      if (historical) {
+        history.children[0].textContent = `Previous suggestions (${historical})`
+        proposals.append(history)
+      }
+      if (focusId && focusAction) {
+        let restored = false
+        for (const node of proposals.querySelectorAll?.('button, summary') || []) if (node.dataset.proposalId === focusId && node.dataset.proposalAction === focusAction) {
+          const owner = node.closest('details'); if (owner && node.tagName !== 'SUMMARY') owner.open = true
+          node.focus({ preventScroll: true }); restored = true; break
+        }
+        if (!restored) proposals.querySelector('.personal-bot-proposals-header button')?.focus({ preventScroll: true })
+      }
+      elements.content.scrollTop = previousScroll
     }
+    for (const [node, p] of observedAdvice) acknowledgeVisible(node, p)
     proposalError = status.proposalError || ''
     if (proposalError || proposalCommandError) showProposalError()
     else proposals.querySelector('.personal-bot-proposal-error')?.remove()
@@ -309,7 +455,8 @@
 
   window.addEventListener('keydown', (event) => {
     if (surface.hidden || (proactive && !surface.contains(document.activeElement))) return
-    if (proactive && event.key === 'Tab') return
+    if ((proactive || surface.dataset.suggestions === 'true') && event.key === 'Tab') return
+    if (event.key !== 'Escape' && document.activeElement?.closest?.('.personal-bot-proposals') && document.activeElement !== elements.content) { event.stopImmediatePropagation(); return }
     event.stopImmediatePropagation()
     if (event.key === 'Escape') {
       event.preventDefault()
@@ -326,22 +473,19 @@
     if (!status || !Object.hasOwn(presentation, status.state)) return
     renderProposals(status)
     const idle = ['idle', 'error'].includes(status.state)
-    const userSuggestions = status.proposalPopup && status.proposalInteraction && active && !dismissed && !proactive
+    const hasSuggestions = suggestionCapabilities.read && Boolean(proposals?.children.length)
+    const userSuggestions = hasSuggestions && status.proposalPopup && status.proposalInteraction && active && !dismissed && !proactive
     if (userSuggestions) {
       surface.dataset.suggestions = 'true'
-      void command({ type: 'proposal_presented', ids: status.proposals.filter(p => p.status === 'pending').map(p => p.id) })
     }
     if (!idle) surface.dataset.suggestions = 'false'
-    if (idle && !userSuggestions && (status.proposalPopup || (proactive && !surface.hidden))) {
+    if (idle && hasSuggestions && !userSuggestions && (status.proposalPopup || (proactive && !surface.hidden))) {
       if (!proactive) setVisible(false)
       proactive = true
       surface.dataset.proactive = 'true'
       surface.setAttribute('aria-modal', 'false')
       if (status.proposalPopup) dismissed = false
       setVisible(!dismissed)
-      if (!surface.hidden && status.proposalPopup && Array.isArray(status.proposals)) {
-        void command({ type: 'proposal_presented', ids: status.proposals.filter(p => p.status === 'pending').map(p => p.id) })
-      }
       return
     }
     if (proactive) setVisible(false)

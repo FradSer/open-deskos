@@ -107,10 +107,11 @@ test('status transport preserves maximally escaped bounded replies and transcrip
   assert.equal(status.message, reply)
   assert.equal(status.transcript, transcript)
   assert.equal(status.level, 0)
-  const { textInput, replyInput, agents, ...boundedStatus } = status
+  const { textInput, replyInput, agents, proposalCapabilities, ...boundedStatus } = status
   assert.equal(textInput, true)
   assert.equal(replyInput, true)
   assert.deepEqual(agents, { state: 'live', tasks })
+  assert.deepEqual(proposalCapabilities, { read: false, respond: false, acknowledge: false })
   assert.ok(Buffer.byteLength(`${JSON.stringify(boundedStatus)}\n`) < 123_000)
   assert.ok(Buffer.byteLength(`${JSON.stringify(status)}\n`) < 131_072)
 })

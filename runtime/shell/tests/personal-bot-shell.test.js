@@ -41,6 +41,7 @@ function feedbackHarness(toggle = async () => ({ accepted: true })) {
   let listener
   let micListener
   let toggles = 0
+  const documentListeners = new Map()
   const elements = Object.fromEntries([
     '.personal-bot-status-content',
     '.personal-bot-status-heading',
@@ -73,7 +74,10 @@ function feedbackHarness(toggle = async () => ({ accepted: true })) {
     },
   }
   vm.runInNewContext(fs.readFileSync('src/renderer/core/personal-bot-status.js', 'utf8'), {
-    document: { querySelector: () => null, getElementById: () => node, body: { children: [] } },
+    document: { querySelector: () => null, getElementById: () => node, body: { children: [] }, hidden: false,
+      addEventListener: (type, handler) => documentListeners.set(type, handler),
+      removeEventListener: (type, handler) => { if (documentListeners.get(type) === handler) documentListeners.delete(type) },
+    },
     CustomEvent: class {},
     window,
   })

@@ -93,6 +93,11 @@ test('Remote MIC requests a Shell decision and main rejects busy or duplicate ca
     module: { exports: {} }, __dirname: '/test', console, URLSearchParams, setInterval, clearInterval,
   })
   await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(sent, [
+    ['odk-personal-bot-status', { state: 'unavailable' }],
+    ['odk-personal-bot-status', { state: 'idle' }],
+  ], 'Provider startup revokes the previous view before publishing its snapshot')
+  sent.length = 0
   onRemoteMic()
   assert.equal(toggles, 0)
   assert.equal(sent[0][0], 'odk-personal-bot-mic')

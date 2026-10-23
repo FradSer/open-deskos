@@ -32,6 +32,8 @@ function composition(replacementPlugins, events = []) {
     initialize: async () => ({ agent: { abort() { events.push('agent.abort') }, close() { events.push('agent.close') } } }),
     createHome: () => ({ start() {}, close() {} }),
     createWatch: () => ({ start() {}, close() {} }),
+    createTaskReadings: () => ({ list: () => [], read: () => null }),
+    createRemoteReadings: () => ({ list: () => [], read: () => null }),
   })
 }
 
@@ -215,7 +217,7 @@ test('default and external runtime disable settle pending voice work and fence r
 
 for (const name of Object.keys(BOT_PORTS)) {
   test(`external ${name} factory supplies the actual resident port`, async t => {
-    const selected = await selection(t, name, `exports.create = ctx => ({ selected: '${name}', close() { return '${name}' }, start() {}, agent: { abort() {}, close() {} } })`)
+    const selected = await selection(t, name, `exports.create = ctx => ({ selected: '${name}', close() { return '${name}' }, start() {}, list() { return [] }, read() { return null }, agent: { abort() {}, close() {} } })`)
     const replacements = loadPersonalBotReplacements(selected.config, { trusted: true })
     const resident = composition(replacements)
     await resident.start()
@@ -237,7 +239,9 @@ test('independent selected Home preserves service pushes, unavailable readings, 
       frame: { state: 'unavailable', items: [], generatedAt: 0, omittedSources: 0 },
       publish(state, extra = {}) {
         if (home.closed) return
+        const coverage = Object.hasOwn(extra, 'items') ? home.coverage : home.frame.coverage || home.coverage
         home.frame = { ...home.frame, state, ...extra }
+        if (coverage) home.frame.coverage = { ...coverage, selectedSources: new Set(home.frame.items.flatMap(item => item.sources.map(source => source.id))).size }
         service.publishBriefing(home.frame)
       },
       refresh() {
@@ -248,27 +252,14 @@ test('independent selected Home preserves service pushes, unavailable readings, 
           try {
             const catalog = await provider.read(home.controller.signal)
             if (home.closed) return
-            let readings = catalog.filter(source => source.home.mode !== 'hidden')
-              .sort((a, b) => Number(b.home.mode === 'required') - Number(a.home.mode === 'required') || b.home.priority - a.home.priority).slice(0, 64)
-            const optionalSlots = Math.max(0, 3 - readings.filter(source => source.home.mode === 'required').length)
-            let optionalCount = 0
-            readings = readings.filter(source => source.home.mode === 'required' || optionalCount++ < optionalSlots)
-              .map(source => ({ ...source, value: source.value && Object.fromEntries(source.home.fields.filter(field => field in source.value).map(field => [field, source.value[field]])) }))
-            const fallback = source => ({ id: source.id, label: source.label, state: 'error', value: null, home: source.home })
-            const sizeOf = source => Buffer.byteLength(JSON.stringify(source))
-            let budget = 48000
-            let reserved = readings.filter(source => source.home.mode === 'required').reduce((sum, source) => sum + sizeOf(fallback(source)), 0)
-            readings = readings.flatMap(source => {
-              const required = source.home.mode === 'required'
-              if (required) reserved -= sizeOf(fallback(source))
-              if (sizeOf(source) > 8192 || sizeOf(source) + reserved > budget) {
-                if (!required) return []
-                source = fallback(source)
-              }
-              budget -= sizeOf(source)
-              if (budget < reserved) throw Error('Required metadata exceeds budget')
-              return [source]
+            const readings = catalog.filter(source => source.home.mode !== 'hidden').map(source => {
+              let next = { ...source, value: source.value && Object.fromEntries(source.home.fields.filter(field => field in source.value).map(field => [field, source.value[field]])) }
+              if (Buffer.byteLength(JSON.stringify(next)) > 65536) next = { ...next, state: 'error', value: null }
+              return next
             })
+            const partial = value => typeof value === 'string' ? value.length > 8192 : Boolean(value && typeof value === 'object' && Object.values(value).some(partial))
+            home.coverage = { totalSources: readings.length, readSources: readings.length,
+              failedSources: readings.filter(source => source.state !== 'live').length, incompleteSources: readings.filter(source => partial(source.value)).length }
             const omittedSources = catalog.filter(source => source.home.mode !== 'hidden').length - readings.length
             if (!readings.length) { home.publish('empty', { items: [], generatedAt: 2000, omittedSources }); return }
             home.publish('loading')
@@ -364,10 +355,10 @@ test('independent selected Home preserves service pushes, unavailable readings, 
         home: { mode: 'optional', priority: 90, icon: 'weather', fields: ['temperatureC'] } }
       await writeFile(input, JSON.stringify([omitted, hidden, secondary, weather, pi]))
       await push(frame => frame?.state === 'live')
-      assert.deepEqual(service.status.briefing.items.flatMap(item => item.sources.map(source => source.id)), ['pi', 'weather', 'secondary'])
-      assert.equal(service.status.briefing.items[0].text, 'Pi 5 sessions and Weather 25°C and Secondary 4 sessions.')
-      assert.equal(service.status.briefing.omittedSources, 1)
-      assert.doesNotMatch(JSON.stringify(service.status.briefing), /Hidden|Omitted|excluded private field/)
+      assert.deepEqual(service.status.briefing.items.flatMap(item => item.sources.map(source => source.id)), ['omitted', 'secondary', 'weather', 'pi'])
+      assert.equal(service.status.briefing.items[0].text, 'Omitted 8 sessions and Secondary 4 sessions and Weather 25°C and Pi 5 sessions.')
+      assert.equal(service.status.briefing.omittedSources, 0)
+      assert.doesNotMatch(JSON.stringify(service.status.briefing), /Hidden|excluded private field/)
       const sizedReading = (size, mode) => {
         const source = reading(6)
         source.home = { ...source.home, mode, fields: ['count', 'padding'] }
@@ -377,22 +368,22 @@ test('independent selected Home preserves service pushes, unavailable readings, 
         assert.equal(Buffer.byteLength(JSON.stringify(source)), size)
         return source
       }
-      await writeFile(input, JSON.stringify([sizedReading(8192, 'required')]))
+      await writeFile(input, JSON.stringify([sizedReading(65536, 'required')]))
       await push(frame => frame?.state === 'live')
       assert.equal(service.status.briefing.items[0].text, 'Pi 6 sessions.')
       assert.equal(service.status.briefing.items[0].sources[0].state, 'live')
       assert.equal(service.status.briefing.omittedSources, 0)
-      await writeFile(input, JSON.stringify([sizedReading(8193, 'required')]))
+      await writeFile(input, JSON.stringify([sizedReading(65537, 'required')]))
       await push(frame => frame?.state === 'live')
       assert.equal(service.status.briefing.items[0].text, 'Pi is error.')
-      assert.deepEqual(service.status.briefing.items[0].sources, [{ id: 'pi', label: 'Pi', state: 'error' }])
+      assert.deepEqual(service.status.briefing.items[0].sources, [{ id: 'pi', label: 'Pi', state: 'error', updatedAt: 1000 }])
       assert.equal(service.status.briefing.omittedSources, 0)
-      const oversizedOptional = { ...sizedReading(8193, 'optional'), id: 'optional' }
+      const oversizedOptional = { ...sizedReading(65537, 'optional'), id: 'optional' }
       await writeFile(input, JSON.stringify([reading(6), oversizedOptional]))
       await push(frame => frame?.state === 'live')
-      assert.equal(service.status.briefing.items[0].text, 'Pi 6 sessions.')
-      assert.deepEqual(service.status.briefing.items[0].sources.map(source => source.id), ['pi'])
-      assert.equal(service.status.briefing.omittedSources, 1)
+      assert.equal(service.status.briefing.items[0].text, 'Pi 6 sessions and Pi is error.')
+      assert.deepEqual(service.status.briefing.items[0].sources.map(source => source.id), ['pi', 'optional'])
+      assert.equal(service.status.briefing.omittedSources, 0)
       const aggregate = Array.from({ length: 7 }, (_, index) => {
         const source = sizedReading(index === 6 ? 300 : 8000, 'required')
         source.id = 'p' + index
@@ -403,7 +394,7 @@ test('independent selected Home preserves service pushes, unavailable readings, 
       await push(frame => frame?.state === 'live')
       const boundedSources = service.status.briefing.items.flatMap(item => item.sources)
       assert.deepEqual(boundedSources.map(source => source.id), aggregate.map(source => source.id))
-      assert.deepEqual(boundedSources.map(source => source.state), ['live', 'live', 'live', 'live', 'live', 'error', 'live'])
+      assert.deepEqual(boundedSources.map(source => source.state), Array(7).fill('live'))
       assert.equal(service.status.briefing.omittedSources, 0)
       await writeFile(input, JSON.stringify([reading(0, 'unavailable')]))
       await push(frame => frame?.state === 'live' && frame.items[0]?.text === 'Pi is unavailable.')
@@ -466,19 +457,20 @@ exports.create = async context => {
   const controller = new AbortController()
   const proposals = structuredClone(options.loadState().proposals)
   const watch = {
-    closed: false, proposals,
+    closed: false, proposals, lastAttentionAt: 0,
     list() { return structuredClone(proposals) },
     emit(interaction = false) {
       if (this.closed) return
-      const display = this.list()
       const q = options.config.quietHours
       const parts = q ? Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: q.timeZone,
         hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(options.now()).map(p => [p.type, p.value])) : null
       const time = parts ? parts.hour + ':' + parts.minute : ''
       const quiet = q && q.start !== q.end && (q.start < q.end ? time >= q.start && time < q.end : time >= q.start || time < q.end)
       const automatic = rule.delivery !== 'silent' && (!quiet || rule.urgent)
-      const popup = !this.error && proposals.some(p => p.status === 'pending' && (interaction || (!p.offered && automatic)))
-      if (popup) for (const p of proposals) p.offered = true
+      const eligible = proposals.filter(p => p.status === 'pending' && (interaction || (!p.offered && automatic && options.now() - this.lastAttentionAt >= 60000))).slice(0, options.config.maxPush)
+      const popup = !this.error && eligible.length > 0
+      if (popup) { for (const p of eligible) p.offered = true; if (!interaction) this.lastAttentionAt = options.now() }
+      const display = this.list()
       options.saveState({ version: 1, proposals: this.list() })
       service.propose({ proposals: display, popup, interaction, hiddenCount: 0, ...(this.error ? { error: this.error } : {}) })
     },
@@ -505,7 +497,7 @@ exports.create = async context => {
       if (this.closed) return
       const accepted = candidates.map((c, i) => ({ ...c, answer: judged.answers['c' + i] }))
         .filter(c => c.answer.probability >= c.answer.threshold && c.answer.groundingProbability >= c.answer.threshold)
-        .sort((a, b) => b.answer.probability - a.answer.probability).slice(0, options.config.maxPush)
+        .sort((a, b) => b.answer.probability - a.answer.probability)
       this.error = ''
       for (const c of accepted) {
         const subject = rule.id + ':' + c.key
@@ -634,7 +626,7 @@ exports.create = async context => {
       reports.push({ published, recovered: normalize(), acknowledged: watch.list().map(p => p.presented) })
       const deliveries = []
       for (const policy of [
-        { name: 'push limit', maxPush: 1, automatic: true, advice: ['Check the parcel count.'] },
+        { name: 'push limit', maxPush: 1, automatic: true },
         { name: 'silent', rule: { delivery: 'silent' }, automatic: false },
         { name: 'quiet', quiet: true, automatic: false },
         { name: 'urgent in quiet hours', quiet: true, rule: { urgent: true }, automatic: true },
@@ -910,6 +902,7 @@ exports.create = context => {
         provider.options.judge = stage === 'judgment' ? async input => hold(await judge(input), input.signal) : judge
         runtime.agent.phraseProposal = stage === 'phrasing' ? ({ advice, signal }) => hold(advice, signal) : phrase
         const before = frames.length
+        const previousProposals = structuredClone(service.status.proposals)
         await resident.setEnabled('odk.personal-bot.watch', true)
         await ready
         assert.ok(observedSignal instanceof AbortSignal, `${stage} must receive the Watch cancellation signal`)
@@ -920,7 +913,10 @@ exports.create = context => {
         await pending
         assert.equal(cancelled, true, stage)
         assert.equal(settled, true, stage)
-        assert.equal(frames.length, before, `${stage} must not publish after cancellation`)
+        assert.deepEqual(frames.slice(before).map(frame => frame.proposalCapabilities), [
+          { read: true, respond: true, acknowledge: true }, { read: false, respond: false, acknowledge: false },
+        ], `${stage} publishes only the declared Watch capability transitions`)
+        for (const frame of frames.slice(before)) assert.deepEqual(frame.proposals, previousProposals, `${stage} must not publish suggestions after cancellation`)
         assert.equal(pendingWatch.list().length, 0)
         provider.options.read = read
         provider.options.judge = judge
@@ -1206,7 +1202,7 @@ test('inspection is lazy and native trust is required', async t => {
   const selected = await selection(t, 'home', "throw Error('entry executed')")
   assert.throws(() => loadPersonalBotReplacements(selected.config), /trust/)
   const resident = composition(loadPersonalBotReplacements(selected.config, { trusted: true }))
-  assert.equal(resident.catalog().length, 5)
+  assert.equal(resident.catalog().length, 7)
 })
 
 test('incompatible replacement fails before any factory runs', () => {

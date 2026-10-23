@@ -714,3 +714,16 @@ test('typed and voice turns contain reply persistence failures without rejecting
   assert.deepEqual(writes.map(p=>p.status),promptFails?['failed']:['answered','failed']);if(input==='typed')assert.equal(busy.at(-1),false);await service.close()
  })
 })
+
+test('proposal capabilities follow the selected Watch without granting an action', async () => {
+  const { service } = fixture()
+  assert.deepEqual(service.status.proposalCapabilities, { read: false, respond: false, acknowledge: false })
+  let actions = 0
+  service.attachWatch({ interact() {}, respond() { actions++ } })
+  assert.deepEqual(service.status.proposalCapabilities, { read: true, respond: true, acknowledge: true })
+  service.setState('idle')
+  assert.equal(actions, 0)
+  service.attachWatch(undefined)
+  assert.deepEqual(service.status.proposalCapabilities, { read: false, respond: false, acknowledge: false })
+  await assert.rejects(service.proposalCommand({ type: 'proposal_list' }), /unavailable/)
+})

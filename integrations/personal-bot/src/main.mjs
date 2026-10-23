@@ -24,6 +24,7 @@ import { loadTargets, taskRequest } from './task-client.mjs'
 import { createRideNotifier } from './ride-notification.mjs'
 import { attachRemoteConversation } from './remote-pi-reader.mjs'
 import { HomeBriefing } from './home-briefing.mjs'
+import { createTaskReadings, createRemoteReadings } from './producer-readings.mjs'
 
 async function initialize(env, report, onRideUpdate, platform = process.platform, getWatch = undefined, signal = undefined, onAgentUpdate = undefined, onRemoteUpdate = undefined) {
   signal?.throwIfAborted()
@@ -32,54 +33,70 @@ async function initialize(env, report, onRideUpdate, platform = process.platform
   signal?.throwIfAborted()
   report('Set ODK_WORKSPACE to the shared Open DeskOS writable checkout; restart service')
   if (personal.profile === 'coding' && !env.ODK_WORKSPACE) throw Error('Workspace missing')
-  // The provider declares the request shape the endpoint expects, so a desk that
-  // sends JSON instead of a multipart upload, or the other way round, is a stated
-  // configuration rather than a guess made from a URL.
-  const provider = transcriptionProvider(env.ODK_PERSONAL_BOT_STT_PROVIDER)
-  report(provider === 'aliyun'
-    ? 'Set ODK_PERSONAL_BOT_STT_URL to a DashScope multimodal-generation endpoint, and ALIYUNCS_TOKEN to its bearer credential; restart service'
-    : 'Set ODK_PERSONAL_BOT_STT_URL to an HTTPS transcription endpoint, or ODK_STT_PORT for the device-local bridge; no URL credentials')
-  // The bridge port is declared once by the service that binds it. Deriving the endpoint from that
-  // same value is what keeps the desk from restating one port in two files, and an unreadable value
-  // stops startup instead of quietly sending audio to a remote endpoint.
-  const sttPort = env.ODK_STT_PORT ? env.ODK_STT_PORT : undefined
-  if (sttPort !== undefined && !/^\d{1,5}$/.test(sttPort)) {
-    report('Set ODK_STT_PORT to a port number such as 17840; restart service')
-    throw Error('Invalid transcription port')
-  }
-  const url = new URL(env.ODK_PERSONAL_BOT_STT_URL || (provider === 'aliyun'
-    ? 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation'
-    : sttPort ? `http://127.0.0.1:${sttPort}/inference` : 'https://api.openai.com/v1/audio/transcriptions'))
-  if (url.username || url.password) throw Error('Invalid transcription URL')
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopbackUrl(url))) throw Error('Invalid transcription URL')
-  // The device-local bridge ignores a bearer, so a desk that transcribes through it needs no
-  // credential file at all. Every other endpoint still proves its credential before starting.
-  if (!isDeviceLocalStt(url)) {
-    if (provider === 'aliyun') {
-      // The cloud provider's own bearer is one device-local environment value, so
-      // a desk carries it where its other cloud credentials already live instead
-      // of restating it in a second file only this service can read.
-      report('Set ALIYUNCS_TOKEN to the Alibaba Cloud bearer credential; restart service')
-      if (!env.ALIYUNCS_TOKEN || !env.ALIYUNCS_TOKEN.trim()) throw Error('Credential missing')
-    } else {
-      report('Set ODK_PERSONAL_BOT_STT_KEY_FILE to a readable credential file; restart service')
-      if (!env.ODK_PERSONAL_BOT_STT_KEY_FILE) throw Error('Credential missing')
-      await access(env.ODK_PERSONAL_BOT_STT_KEY_FILE)
+  let voiceGuidance = 'Voice input is unavailable. Check its configuration.'
+  const voiceReport = message => { voiceGuidance = message }
+  async function prepareVoice() {
+    voiceReport('Set ODK_PERSONAL_BOT_STT_PROVIDER to openai or aliyun; restart service')
+    // The provider declares the request shape the endpoint expects, so a desk that
+    // sends JSON instead of a multipart upload, or the other way round, is a stated
+    // configuration rather than a guess made from a URL.
+    const provider = transcriptionProvider(env.ODK_PERSONAL_BOT_STT_PROVIDER)
+    voiceReport(provider === 'aliyun'
+      ? 'Set ODK_PERSONAL_BOT_STT_URL to a DashScope multimodal-generation endpoint, and ALIYUNCS_TOKEN to its bearer credential; restart service'
+      : 'Set ODK_PERSONAL_BOT_STT_URL to an HTTPS transcription endpoint, or ODK_STT_PORT for the device-local bridge; no URL credentials')
+    // The bridge port is declared once by the service that binds it. Deriving the endpoint from that
+    // same value is what keeps the desk from restating one port in two files, and an unreadable value
+    // disables voice instead of sending audio to another endpoint.
+    const sttPort = env.ODK_STT_PORT ? env.ODK_STT_PORT : undefined
+    if (sttPort !== undefined && !/^\d{1,5}$/.test(sttPort)) {
+      voiceReport('Set ODK_STT_PORT to a port number such as 17840; restart service')
+      throw Error('Invalid transcription port')
+    }
+    const url = new URL(env.ODK_PERSONAL_BOT_STT_URL || (provider === 'aliyun'
+      ? 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation'
+      : sttPort ? `http://127.0.0.1:${sttPort}/inference` : 'https://api.openai.com/v1/audio/transcriptions'))
+    if (url.username || url.password) throw Error('Invalid transcription URL')
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopbackUrl(url))) throw Error('Invalid transcription URL')
+    // The device-local bridge ignores a bearer, so a desk that transcribes through it needs no
+    // credential file at all. Every other endpoint still proves its credential before starting.
+    if (!isDeviceLocalStt(url)) {
+      if (provider === 'aliyun') {
+        // The cloud provider's own bearer is one device-local environment value, so
+        // a desk carries it where its other cloud credentials already live instead
+        // of restating it in a second file only this service can read.
+        voiceReport('Set ALIYUNCS_TOKEN to the Alibaba Cloud bearer credential; restart service')
+        if (!env.ALIYUNCS_TOKEN || !env.ALIYUNCS_TOKEN.trim()) throw Error('Credential missing')
+      } else {
+        voiceReport('Set ODK_PERSONAL_BOT_STT_KEY_FILE to a readable credential file; restart service')
+        if (!env.ODK_PERSONAL_BOT_STT_KEY_FILE) throw Error('Credential missing')
+        await access(env.ODK_PERSONAL_BOT_STT_KEY_FILE)
+      }
+    }
+    voiceReport('Set ODK_PERSONAL_BOT_STT_LANGUAGE to a two or three lowercase letter language code such as zh or en, or auto; restart service')
+    const language = transcriptionLanguage(env.ODK_PERSONAL_BOT_STT_LANGUAGE)
+    voiceReport('Set ODK_PERSONAL_BOT_STT_PROMPT to at most 1024 characters, or empty to disable context; restart service')
+    const prompt = transcriptionPrompt(env.ODK_PERSONAL_BOT_STT_PROMPT)
+    if (platform === 'win32') {
+      // DirectShow names a microphone the way Windows reports it, and ffmpeg takes
+      // the device name itself: the value is what ffmpeg lists, without the audio=
+      // input prefix it adds. The Unix default device name means nothing to it, so an
+      // unset or default value is a configuration error rather than a capture that
+      // silently opens nothing.
+      voiceReport('Set ODK_PERSONAL_BOT_AUDIO_DEVICE to a DirectShow device name such as "Microphone (2- USB Audio Device)", without the audio= prefix; restart service')
+      if (!env.ODK_PERSONAL_BOT_AUDIO_DEVICE || env.ODK_PERSONAL_BOT_AUDIO_DEVICE === 'default') throw Error('Microphone device missing')
+    }
+    return {
+      url: url.href,
+      provider,
+      model: env.ODK_PERSONAL_BOT_STT_MODEL || (provider === 'aliyun' ? 'qwen3-asr-flash' : 'whisper-1'),
+      keyFile: env.ODK_PERSONAL_BOT_STT_KEY_FILE,
+      language,
+      prompt,
     }
   }
-  report('Set ODK_PERSONAL_BOT_STT_LANGUAGE to a two or three lowercase letter language code such as zh or en, or auto; restart service')
-  const language = transcriptionLanguage(env.ODK_PERSONAL_BOT_STT_LANGUAGE)
-  report('Set ODK_PERSONAL_BOT_STT_PROMPT to at most 1024 characters, or empty to disable context; restart service')
-  const prompt = transcriptionPrompt(env.ODK_PERSONAL_BOT_STT_PROMPT)
-  if (platform === 'win32') {
-    // DirectShow names a microphone the way Windows reports it, and ffmpeg takes
-    // the device name itself: the value is what ffmpeg lists, without the audio=
-    // input prefix it adds. The Unix default device name means nothing to it, so an
-    // unset or default value is a configuration error rather than a capture that
-    // silently opens nothing.
-    report('Set ODK_PERSONAL_BOT_AUDIO_DEVICE to a DirectShow device name such as "Microphone (2- USB Audio Device)", without the audio= prefix; restart service')
-    if (!env.ODK_PERSONAL_BOT_AUDIO_DEVICE || env.ODK_PERSONAL_BOT_AUDIO_DEVICE === 'default') throw Error('Microphone device missing')
-  }
+  let stt
+  try { stt = await prepareVoice() }
+  catch { stt = { unavailable: true, message: voiceGuidance } }
   const directories = await prepareHostDirectories(env, platform)
   signal?.throwIfAborted()
   report('Check model providers, writable checkout, Pi authentication/model and capability paths; restart service')
@@ -93,14 +110,7 @@ async function initialize(env, report, onRideUpdate, platform = process.platform
   const remote = await attachRemoteConversation({agent,env,stateDir:directories.state,publish:onRemoteUpdate})
   return {
     agent, remote,
-    stt: {
-      url: url.href,
-      provider,
-      model: env.ODK_PERSONAL_BOT_STT_MODEL || (provider === 'aliyun' ? 'qwen3-asr-flash' : 'whisper-1'),
-      keyFile: env.ODK_PERSONAL_BOT_STT_KEY_FILE,
-      language,
-      prompt,
-    },
+    stt,
   }
 }
 
@@ -124,6 +134,7 @@ async function main() {
     const unavailable = () => { throw Error('inspection must not start providers') }
     const inspection = createPersonalBotComposition({ replacementPlugins, disabled, control,
       createService: unavailable, openChannel: unavailable, initialize: unavailable,
+      createTaskReadings: unavailable, createRemoteReadings: unavailable,
       createHome: unavailable, ...((env.ODK_PROACTIVE_CONFIG || intentSelected) ? { createWatch: unavailable } : {}),
     })
     inspection.validate()
@@ -155,6 +166,7 @@ async function main() {
         failureMessage: '请求未完成。若涉及打车，请先查询订单状态，不要重复下单。',
         record: async onLevel => {
           if (!runtime) throw Error('Configuration incomplete')
+          if (runtime.stt.unavailable) throw Error('Voice configuration unavailable')
           return record(directory, env.ODK_PERSONAL_BOT_AUDIO_DEVICE || 'default', onLevel, { platform })
         },
         transcribe: (path, signal) => transcribe(path, runtime.stt, signal),
@@ -162,10 +174,14 @@ async function main() {
       })
       service.setState('error', 'Configure Open DeskOS workspace, STT credential and Pi authentication; restart service')
       const originalToggle = service.toggle.bind(service)
-      service.toggle = async () => { if (runtime) await originalToggle() }
+      service.toggle = async () => {
+        if (!runtime) return
+        if (runtime.stt.unavailable) { service.setState('error', runtime.stt.message); return }
+        await originalToggle()
+      }
       if (typeof service.reserveRemoteRecording === 'function') {
         const originalReserve = service.reserveRemoteRecording.bind(service)
-        service.reserveRemoteRecording = (recording, requestStop) => Boolean(runtime) && originalReserve(recording, requestStop)
+        service.reserveRemoteRecording = (recording, requestStop) => Boolean(runtime && !runtime.stt.unavailable) && originalReserve(recording, requestStop)
       }
       return service
     },
@@ -193,6 +209,8 @@ async function main() {
       if (runtime) { if (service.jev) runtime.agent.setJevHealth?.(service.jev); service.setState('idle') }
       else if (!context.stopping) service.setState('error', 'Personal Bot runtime unavailable')
     },
+    createTaskReadings: runtime => createTaskReadings(runtime.agent.agentTasks),
+    createRemoteReadings: runtime => createRemoteReadings(runtime.remote),
     createHome(_runtime, _service) {
       home = new HomeBriefing({
         requireBindings: true,
@@ -218,6 +236,7 @@ async function main() {
         onGeneration: record => console.info(JSON.stringify({ event: 'proactive_generation', model: runtime.agent.generationModel, ...record })),
         judge: createJevJudge({ env, request: runtime.agent.judge }),
         onJudgment: record => console.info(JSON.stringify({ event: 'proactive_judgment', ...record })),
+        ...{ onFeedback: record => console.info(JSON.stringify({ event: 'proactive_feedback', ...record })) },
         read: async (id, signal) => (await odkDataRequest('read', { id, signal, env, platform })).reading,
         save: env.ODK_PROACTIVE_CONFIG ? ownerConfigWriter(env.ODK_PROACTIVE_CONFIG, config) : async () => { throw Error('No owner rule file selected') },
         phrase: runtime.agent.phraseProposal,

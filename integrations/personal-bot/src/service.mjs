@@ -24,7 +24,7 @@ export class PersonalBotService {
   /** @param {Dependencies} dependencies */
   constructor(dependencies) {
     this.dependencies = dependencies
-    this.status = { replyInput: true, textInput: true, v: 1, type: 'status', state: 'idle', message: '', transcript: '', level: 0 }
+    this.status = { proposalCapabilities: { read: false, respond: false, acknowledge: false }, replyInput: true, textInput: true, v: 1, type: 'status', state: 'idle', message: '', transcript: '', level: 0 }
     this.listeners = new Set()
     this.closed = false
     this.terminated = false
@@ -70,7 +70,11 @@ export class PersonalBotService {
     return () => this.listeners.delete(listener)
   }
 
-  attachWatch(watch) { this.watch = watch }
+  attachWatch(watch) {
+    this.watch = watch
+    this.status = { ...this.status, proposalCapabilities: { read: Boolean(watch), respond: Boolean(watch), acknowledge: Boolean(watch) } }
+    for (const listener of this.listeners) listener(this.status)
+  }
 
   attachHome(home) { this.home = home }
 
@@ -105,6 +109,7 @@ export class PersonalBotService {
   publishRemote(remote) {
     if (this.closed) return
     this.remoteFrame = structuredClone(remote)
+    this.home?.invalidate()
     this.status = { ...this.status, ...this.replyFrame, remote: this.remoteFrame }
     for (const listener of this.listeners) listener(this.status)
   }
@@ -112,6 +117,7 @@ export class PersonalBotService {
   publishAgents(tasks) {
     if (this.closed) return
     this.agentFrame = Array.isArray(tasks) ? { state: 'live', tasks: structuredClone(tasks) } : { state: 'unavailable', tasks: [] }
+    this.home?.invalidate()
     this.status = { ...this.status, agents: this.agentFrame }
     for (const listener of this.listeners) listener(this.status)
   }
@@ -158,7 +164,7 @@ export class PersonalBotService {
     const notifications = !this.starting && ['idle', 'error'].includes(state) ? this.pendingNotifications.splice(0) : []
     const judgment = this.dependencies.getJudgmentStatus?.()
     this.status = {
-      ...(judgment ? {judgment} : {}), ...this.proposalFrame, ...this.replyFrame, ...(this.jev ? { jev: this.jev } : {}), agents: this.agentFrame, ...(this.remoteFrame ? { remote: this.remoteFrame } : {}), ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), replyInput: true, textInput: true, v: 1, type: 'status', state, level: 0,
+      ...(judgment ? {judgment} : {}), proposalCapabilities: { read: Boolean(this.watch), respond: Boolean(this.watch), acknowledge: Boolean(this.watch) }, ...this.proposalFrame, ...this.replyFrame, ...(this.jev ? { jev: this.jev } : {}), agents: this.agentFrame, ...(this.remoteFrame ? { remote: this.remoteFrame } : {}), ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), replyInput: true, textInput: true, v: 1, type: 'status', state, level: 0,
       message: reply, ...(state === 'error' && ['microphone','timeout','unavailable','protocol','invalid_audio','cleanup'].includes(voiceFailure) ? {voiceFailure} : {}), ...(notifications.length ? { notifications } : {}),
       transcript: boundedText(transcript, 4096, 'Transcript'),
     }

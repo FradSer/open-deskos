@@ -9,6 +9,7 @@ const { createRendererDevelopmentPlugin } = require('./renderer-development')
 const { createDiagnosticsPlugin } = require('../plugin-diagnostics')
 const { createPluginControlPlugin } = require('../plugin-control')
 const { createDataSourcePlugins } = require('./data-sources')
+const { createPersonalAgentReadingsPlugin } = require('./personal-agent-readings')
 const { createSystemChannelPlugins } = require('./system-channels')
 const { createDeskRuntimePlugins } = require('./desk-runtime')
 
@@ -26,7 +27,7 @@ function validateMainReplacement(raw, original) {
 }
 
 function createMainPlugins({ developmentPlugins = [], replacementPlugins = [], onDefaults = () => {}, report = error => console.error(`development composition unavailable: ${error.message}`) } = {}) {
-  const sources = createDataSourcePlugins()
+  const sources = [...createDataSourcePlugins(), createPersonalAgentReadingsPlugin()]
   const systems = [...createSystemChannelPlugins(), createPluginControlPlugin(), createRendererControlPlugin(), createRendererDiagnosticsPlugin(), createHostedPiDiagnosticsPlugin(), createFutuRuntimeDiagnosticsPlugin(), createRendererDevelopmentPlugin()]
   const build = extensions => {
     const providers = [...sources, ...extensions]

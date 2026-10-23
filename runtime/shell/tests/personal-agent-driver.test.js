@@ -233,3 +233,18 @@ test('cross-capability parity preserves busy and unavailable control boundaries'
     assert.ok(compareParity(speaking, unsupported).some(row => row.label === 'controls.mic.disabled.silentHost'), `${state}: a text-only host cannot enable its microphone`)
   }
 })
+
+
+test('the Android projection carries bounded readable suggestions without response authority', () => {
+  const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'soil', status: 'pending', advice: 'Inspect the soil.', reason: 'A current soil reading is low.', offered: true, presented: false, action: { tool: 'memory_update', params: { value: 'private action' } }, confirmation: 'private confirmation', result: 'PRIVATE_TOOL_RESULT', evidence: [{ readingId: 'hydra', field: 'soil', value: 10, state: 'live', measuredAt: '2026-10-23T00:00:00Z' }] }
+  const projected = projectPersonalAgentFrame({ state: 'idle', proposals: [p], proposalPopup: true, proposalCapabilities: { read: true, respond: true, acknowledge: true } })
+  assert.equal(projected.proposals[0].advice, p.advice)
+  assert.equal(projected.proposals[0].reason, p.reason)
+  assert.deepEqual(projected.proposals[0].evidence, p.evidence)
+  assert.deepEqual(projected.proposalCapabilities, { read: true, respond: false, acknowledge: false })
+  assert.equal(projected.proposals[0].action, null)
+  assert.equal(projected.proposals[0].confirmation, '')
+  assert.equal(projected.proposalPopup, true)
+  assert.equal(JSON.stringify(projected).includes('private action'), false)
+  assert.equal(JSON.stringify(projected).includes('PRIVATE_TOOL_RESULT'), false)
+})

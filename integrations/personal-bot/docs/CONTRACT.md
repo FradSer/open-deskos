@@ -12,6 +12,27 @@ The [unified architecture](UNIFIED_ARCHITECTURE.md) defines the five layers and 
 [plugin-composition.mjs](../src/plugin-composition.mjs) owns the resident service composition.
 The voice service, channel, Agent runtime, home briefing, and optional suggestion watcher use the common Shell plugin host.
 Each component has a versioned port and a local factory.
+The default Watch manifest uses version 2 and does not require Home.
+Home and Watch can stop independently.
+Legacy Watch replacements retain their version-1 Home dependency.
+Replacement validation preserves each accepted dependency contract.
+Task and Remote Pi reading producers have separate versioned ports and runtime dependencies.
+These producers read their original owners without generation or Open DeskOS Data requests.
+
+The authenticated management transport also carries `producer_list` and `producer_read`.
+These requests require `interface: "odk:producer-projection/v1"`.
+They do not change management commands or expose data through runtime diagnosis.
+Each producer declares reading identities, labels, fields, and source states.
+The Shell adapter registers these declarations through `odk:desk-service-readings/personal-agent/v1`.
+The existing Open DeskOS Data registry remains the only data registry.
+The adapter retains declaration metadata, not source values.
+Each value request reads the current producer and refuses a released producer's late result.
+Disabled producers withdraw their declarations at the next service refresh.
+Malformed producer inventories do not block healthy producers.
+Conflicting reading identities remain unavailable, and the aggregate inventory limit still applies.
+The Shell accepts compatible declarations independently after JSON transport.
+Failed reads never substitute an earlier live value.
+Private memory, model context, owner replies, and action grants remain outside these projections.
 Agent configuration failure leaves the resident channel available with the existing configuration report.
 Briefing and suggestions require a running Agent.
 
@@ -658,7 +679,9 @@ Effective support is `min(factualSupport, 1 - unsupportedAssertion)`.
 Usefulness and effective support must both meet `ODK_JEV_THRESHOLD`, default 0.8.
 Labels/symbols cannot add attributes; uncited rankings, causes, and aggregates are forbidden.
 Owner preferences do not add facts.
-Sort qualifying candidates by usefulness and select at most `maxPush`.
+Retain supported candidates independently of the presentation limit.
+Prioritize owner urgency and scheduled delivery, then deadlines, usefulness, creation time, and stable identity.
+Offer at most `maxPush` candidates during one presentation round.
 Selecting none is valid.
 Generated proposals are read-only: `action: null`.
 No inference failure substitutes fixed advice or automatic action.
@@ -672,6 +695,9 @@ No inference failure substitutes fixed advice or automatic action.
 | `goal` | At most 1000 characters |
 | `maxCandidates` | 1–16 |
 | `maxPush` | 1–`maxCandidates` |
+| `generationIntervalMs` | 0–1 hour; default 5 minutes for unchanged semantic inputs |
+| `attentionCooldownMs` | 0–1 hour; default 1 minute between automatic presentation rounds |
+| `maxGenerationCalls` | 1–16 generation attempts per round; default 4 |
 | `observations` | 1–8 selected readings, each with 1–8 dotted fields |
 | `liveWhen` | Optional typed `{field, value}` source-availability gate |
 | `measuredAtField` | Explicit timestamp field; defaults use package `measured_at` or built-in `asOf` |
@@ -683,9 +709,24 @@ Nonurgent proposals queue during quiet hours; owner-marked urgent rules may bypa
 Silent proposals wait for interaction/query.
 Recording or working Spoken Turns defer presentation.
 Stable keys and normalized exact advice/evidence reuse pending records.
+Fresh observed value changes advance a persistent topic episode, including changes that produce no candidate.
+An unchanged episode stays handled after restart; a cleared need can recur with the same values in a later episode.
+Unavailable reads and refreshed measurement timestamps do not create episodes.
+Only owner-selected observation fields can supply event identity.
+Unchanged values reuse generation despite refreshed measurement timestamps.
+Rule changes, observation changes, local scheduling boundaries, and approaching deadlines invalidate the generation checkpoint.
+Host freshness and delivery checks still run during cached rounds.
+Ending ordinary conversation retains automatic quiet-hours and attention limits; explicit suggestions queries use the separate interaction path.
+Bounded batches cover eligible sources without a fixed first-source cutoff.
+Failed batches isolate their topics across rounds; healthy topics retain their turn within the configured budget.
 The judgment service considers overlapping and recent advice; perfect semantic deduplication is not guaranteed.
 New source revisions invalidate earlier inference results.
 Receipts expose model, trigger, counts, topic/candidate labels, and probabilities, without raw values, generated text, semantic keys, or secrets.
+Run `pnpm test:proactive:evaluate` for deterministic offline lifecycle replay.
+The report covers silence, generation reuse, checkpoint restart, changed facts, snooze, quiet hours, busy state, and stale sources.
+It uses synthetic generation and judgment responses without provider requests or actions.
+It does not measure model quality, probability calibration, user benefit, devices, or disk durability.
+Failure diagnostics expose fixed codes and scalar assertion differences without source contents or provider errors.
 
 ## Legacy proposals and triggers
 
@@ -723,6 +764,10 @@ Disabled, unavailable, and no-pending states remain distinct.
 
 ## Proposal state and interaction
 
+Status frames declare `proposalCapabilities` for reading, responding, and presentation acknowledgement.
+These flags follow the selected Watch and grant no action authority.
+Unsupported displays must retain their own unavailable response controls.
+
 Each proposal retains durable ID, owner rule/subject, state, creation time, advice, action/confirmation, and evidence.
 Evidence contains `{readingId, field, value, state, measuredAt, ruleId}`.
 `pi-tasks:<target>:<taskId>` marks Hosted Pi evidence.
@@ -731,8 +776,16 @@ Invalid evidence expires the proposal; original measurement times remain visible
 Expired proposals cannot execute.
 
 States are `pending`, `ignored`, `expired`, `executing`, `completed`, and `unknown`.
-The store keeps at most 64 records and evicts processed history first.
+The store keeps at most 64 full records and 1024 compact handled-occurrence receipts.
+Compact receipts retain identity hashes and status without advice or evidence values.
+Evict expired records or handled records with saved compact receipts before admitting another full record.
+Legacy processed records without occurrence identities retain their original eviction and owner cooldown policy.
 Preserve pending/unknown records.
+Full unresolved capacity reports its limit and remains available for owner feedback.
+Handling an existing suggestion allows generation to retry the deferred need.
+Compact receipt capacity stops suggestions without deleting receipts or replaying actions.
+Update or remove an obsolete topic and restart to recover capacity.
+Compaction removes inactive rule versions; unknown action records remain intact.
 POSIX checkpoints use mode 0600 in a 0700 private directory, with file and directory fsync.
 Unsafe state disables suggestions instead of clearing receipts.
 Windows permits ACL access only to the current user, SYSTEM, and Administrators.
@@ -747,6 +800,8 @@ Saved action state must match the current owner rule and cannot grant new author
 Rule changes expire pending records.
 Completed timestamps preserve cooldown even when owner suppression writes fail.
 Checkpoint routine offers before sending, preventing repeated daily popups after lost acknowledgement.
+Presentation acknowledgements recheck observation freshness before they consume a routine day.
+Expired proposals remain unacknowledged.
 Checkpoint presentation acknowledgements before owner `routineDays` writes.
 Owner-write failure preserves acknowledgement and confirmation.
 Explicit queries may reopen acknowledged pending proposals without bypassing confirmation.
@@ -754,13 +809,23 @@ Unacknowledged immediate offers can retry presentation after restart.
 Unacknowledged routine offers remain queryable without repeating the scheduled popup.
 
 The panel is nonmodal and preserves focus and direct Shell input.
+Provider withdrawal or loss of read access clears suggestion content, controls, and visibility observers.
+A late failure from a withdrawn view cannot change replacement feedback.
 Use one scrollable surface and `textContent` for untrusted strings.
 Back/Close dismisses presentation.
-Ignore writes cooldown; Never suggest this category writes owner suppression.
+Generated suggestions support Done, Later, Useful, Not relevant, Incorrect, Ignore, and category suppression.
+Done records owner feedback without tool execution or a provider-success claim.
+Later postpones that candidate; its due reminder retains quiet-hours and category suppression checks.
+Generated Ignore, Not relevant, and Incorrect handle one occurrence without muting its topic.
+Legacy Ignore writes cooldown; Never suggest this category writes owner suppression.
 Neither invokes action tools.
 Accept reveals the action and phrase; a separate confirmation sends the exact phrase.
-The Shell acknowledges presented IDs; unpresented proposals cannot execute.
+The Shell acknowledges suggestions only after their advice enters the visible scroll viewport.
+Disconnected, hidden, and read-only surfaces cannot acknowledge presentation.
+Unpresented proposals cannot execute.
 `personal_bot_proposal_respond` validates the actual current transcript, never model-supplied authorization.
+Feedback requires an explicit current owner response and an unambiguous displayed candidate.
+An owner-specified ID must match the tool target.
 Memory uses `记住 名称：内容` and its single-use current-turn gate.
 Other actions require `确认执行 <proposal-id>`.
 Execute sequentially; failure retains unknown state.
@@ -836,109 +901,118 @@ A source can declare bounded `home` metadata in its Open DeskOS Data catalog ent
 Installed packages declare the same object in their verified manifest.
 
 ```json
-{"mode":"required","priority":100,"icon":"portfolio","fields":["todayChangePercent"]}
+{"mode":"optional","priority":0,"icon":"portfolio","fields":["todayChangePercent"]}
 ```
 
-`mode` is `required`, `optional`, or `hidden`.
-`priority` is an integer from 0 to 100.
+`mode` accepts `required`, `optional`, and `hidden` for existing manifest compatibility.
+Hidden sources do not enter generation.
+The other modes have equal selection rights.
+The legacy `priority` field accepts integers from 0 to 100 but grants no selection preference.
+No source has a reserved display position.
 `icon` uses the approved home icon vocabulary.
 `fields` selects at most 16 unique top-level value fields.
-The declaration accepts no prose prompts, arbitrary styles, or execution permissions.
 Package home fields must exist in `data.fields`.
-Existing sources without metadata remain optional.
+The declaration accepts no prose prompts, arbitrary styles, or execution permissions.
+Sources without metadata also participate.
+New visible sources need no category-specific Overview registration.
 
-Hidden sources do not enter generation.
-Required sources precede optional sources; optional sources follow priority and relevance.
-The input admits optional sources until it has three sources in total.
-Additional required sources still enter; optional sources cannot displace them.
-Pi home fields include lifecycle counts, not changing activity or transcript text.
-Futu holdings sources require only the signed daily percentage.
-The home excludes position counts, names, and monetary values.
-Live percentage text uses restrained green for gains and red for losses.
-Zero and retained percentages use neutral text.
-Unavailable required sources must appear with their actual state.
-The validator requires its source ID, visible label, and declared icon.
-Existing schema correction retries this output within the generation deadline.
-At most 16 sources can require coverage within the two-item output.
-Oversized required values become bounded error readings instead of disappearing.
-Too many required sources fail generation instead of publishing partial coverage.
+The Agent reads every visible entry returned by the source inventory.
+Four readers run concurrently, with a ten-second deadline for each read.
+Invalid or oversized values become bounded unavailable or error readings.
+A source value can contain at most 64 KiB.
+One failed source cannot exclude another source.
+Upstream `truncated` and `incomplete` flags identify partial readings.
+
+Pi sources include session counts, goals, current activity, and lifecycle states.
+Resident Agent tasks include their goals, running states, results, and verification states.
+Remote Pi reports enter through the existing read-only conversation projection.
+The adapter reads every retained report page.
+Historical reports do not establish current execution.
+Reported completion does not establish independently verified completion.
+Source adapters do not expose control tokens, private roles, or execution authority.
+Futu remains a selectable signed daily percentage, with no mandatory position.
 
 ## Home briefing
 
-Personal Agent generates the first Shell page from the Open DeskOS Data registry.
-It reads the same Widget, App, and package sources that answer desk questions.
-Home generation starts after Personal Agent initialization.
-It does not require an owner suggestion configuration.
+Personal Agent selects facts from all visible sources and organizes a short Overview.
+It shares existing Widget, App, service, and package readers.
+It also reads resident Agent task metadata and retained Remote Pi reports.
+Source plugins expose these projections through the existing Open DeskOS Data registry.
+Overview does not read resident runtime objects directly.
+Missing speech credentials or microphone configuration cannot block the Agent or Overview.
+Voice input reports its separate configuration failure when requested.
 
 The Agent checks readings every 60 seconds.
 An authenticated source push schedules another check after one second.
-The Agent compares source content before it replaces pending output.
-Unchanged source content does not trigger generation within 15 minutes.
-Measurement timestamps alone do not count as changed content.
-Each generation uses a separate temporary Pi session with no tools, extensions, Skills, or memory.
-The session uses the resident Agent model and the existing generation deadline.
-Source content is untrusted data and grants no execution authority.
-
-The input includes at most 64 sources, 8 KiB per source, and 48,000 bytes of source data.
-The Shell states the omitted source count.
-One unavailable source does not remove other readings.
-Future mail Apps can publish declared content through Open DeskOS Data without a separate home integration.
-This contract does not implement a mail provider.
-
-Resolved display JSON contains at most two connected sentences and 240 total characters.
-Each item has `text`, `segments`, and one to eight `readingIds`.
-The model returns `{items:[{sources:[0,1]}]}` with integer selectors from the captured source catalog.
-Each source appears at most once.
-Each item selects at most eight sources; two items can cover sixteen required sources.
-The host compiles those selections into the existing display template with field references.
-The model cannot supply text, values, references, icons, or formatting.
-Each segment contains template `text` and an optional approved `icon` name.
-References use `{{sourceId|field.path|format}}`.
-Formats are `text`, `number`, `integer`, `celsius`, and `signedPercent`.
-`@label` and `@state` bind source metadata.
-`@availability` reports unavailable when every selected field is absent or null.
-The host accepts only the exact supplied references, including their declared formats.
-Other paths bind declared fields from live plugin readings.
-The host rejects literal facts, unknown fields, uncited sources, and invalid value types.
-Literal text permits only bounded connecting words, category nouns, and referenced field names.
-Each factual segment requires a plugin field or source-state reference.
-The host resolves references before it validates and publishes display text.
-Value changes bind into the same template without another model request.
-Source availability, declaration, or field-shape changes require a new template.
+Agent task and Remote Pi updates also schedule a check.
+Measurement timestamps alone do not require another model request.
+Ordinary numeric changes bind into the retained template.
+Changes to goals, activity, lifecycle states, waiting counts, and attention thresholds require selection again.
+Time-sensitive fields also participate in attention checks.
 Templates expire after 15 minutes.
-The Shell receives resolved literal text; source strings never become HTML or instructions.
-The joined segment text must exactly match the item text.
-Context segments connect facts; fact segments have an icon.
-The Shell renders one paragraph with subdued context and bright icon-labelled facts.
-Source states and measurement times remain available in a native disclosure.
-Older frames without segments remain valid, with four items and 600 characters per item.
-The host validates these IDs against the current input.
-The host adds source labels, states, and measurement times.
-Binding establishes field identity and displayed values.
-It does not independently certify every connecting phrase generated by the Agent.
+The host confirms source identity and selection context before publishing pending output.
+It binds the latest ordinary values before publication.
+
+Each semantic fact retains its source identity, field references, context, units, and measurement state.
+Nested measurements retain their units and enclosing object names.
+The selector considers urgency, current work, changes, freshness, repetition, and useful background.
+Entity references identify shared tasks across sources without becoming displayed text or control grants.
+No source category has a fixed preference.
+Previous output supplies presentation history, never instructions.
+
+Each model request contains at most 256 fact candidates and 48,000 bytes.
+Larger inputs use separate batches, followed by selection across their candidates.
+Every fact reaches its batch before that reduction.
+Up to four independent batches run concurrently within one generation deadline.
+Long facts can supply analysis context without being selectable for display.
+Context text above 8,192 characters carries an explicit incomplete flag.
+Each request uses a temporary Pi session without tools, extensions, Skills, or memory.
+All source content remains untrusted data.
+
+The model returns `{items:[{sources:[0,1]}]}` with integer fact selectors from the captured batch.
+The legacy `sources` key now selects facts, not reserved sources.
+Several facts can refer to one source.
+The host compiles their order and grouping into source-bound sentences.
+The model cannot supply text, values, references, icons, or formatting.
+The output contains at most two items and 240 total characters.
+Each item contains at most eight selected facts and eight source IDs.
+Unknown selectors, duplicate selections, unsupported formats, and incomplete facts fail validation.
+
+References use `{{sourceId|field.path|format}}`.
+Formats are `text`, `number`, `integer`, `celsius`, `percent`, and `signedPercent`.
+`@label`, `@state`, and `@availability` bind source metadata.
+The host accepts only supplied references and their formats.
+Other references bind declared fields from live sources.
+Host-owned fact templates retain field meanings and verification qualifiers.
+The joined segment text must equal the item text.
+The Shell renders literal text and approved icons.
+It does not interpret source strings as HTML or instructions.
 
 The authenticated status channel carries a separate `briefing` JSONL frame.
-This frame contains `v: 1`, `type: "briefing"`, and the `briefing` field.
-The Shell client combines voice and briefing snapshots after it validates each frame.
-Unchanged briefing frames are not repeated with audio levels.
-Voice reply limits remain unchanged.
-It contains `state`, `items`, `generatedAt`, and `omittedSources`.
-Each displayed item contains `text` and `sources`.
-Briefing states are `loading`, `live`, `empty`, `unavailable`, `error`, and `stale`.
-`live` identifies a completed generation; each source retains its own measurement state.
+The frame contains `v: 1`, `type: "briefing"`, and `briefing`.
+A briefing contains `state`, `items`, `generatedAt`, and `omittedSources`.
+States are `loading`, `live`, `empty`, `unavailable`, `error`, and `stale`.
+`live` identifies successful generation; each source retains its own measurement state.
+Older frames remain valid.
 
-Failed generation retains previous items with a stale label.
-Without previous items, the host can display current source facts from the supplied variable examples.
-It rereads those sources and applies the original reference, required-source, and display-budget validators.
-These facts retain an `error` state and do not establish successful model generation.
-Facts that cannot satisfy those validators remain unavailable.
+The optional `coverage` object contains `totalSources`, `readSources`, `failedSources`, `incompleteSources`, and `selectedSources`.
+Failed sources include unavailable and stale readings.
+`readSources` counts read attempts, including failures.
+Retained items keep their source coverage until replacement facts are ready.
+`omittedSources` counts visible inventory entries that could not enter the reading set.
+It does not count facts excluded from the short summary.
+The paragraph exposes coverage through an accessible description and a pointer tooltip.
+It has no attribution footer, measurement timestamp, or source controls.
+
+Generation failure rereads sources and selects complete current facts within the same display budget.
+This fallback has an `error` state and a zero success timestamp.
+It does not restore a fixed portfolio, weather, and Pi combination.
+If current facts cannot be read, retained content remains explicitly stale.
 A disconnected Agent also marks retained content stale.
-The Shell renders all generated text as literal text.
-It never replaces missing output with fixed session-count sentences.
-Voice responses and owner proposals remain separate from home content.
-Home content cannot accept proposals or execute actions.
+Overview grants no action authority and cannot execute owner proposals.
+Touch and keyboard navigation remain independent of generation.
 
-Run `node --test tests/home-briefing.test.mjs` for generation and transport contracts.
+Run `node --test tests/home-briefing.test.mjs tests/home-template.test.mjs tests/agent.test.mjs` for source and generator contracts.
 Run the Shell's `tests/agent-home.cjs` for isolated renderer fixtures.
 Fixture results do not establish live-model quality or CM5 and Windows device acceptance.
 
