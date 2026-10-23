@@ -59,14 +59,54 @@ test('a technical-advice placeholder cannot acknowledge hidden original advice',
   const placeholder = f.content.querySelector('.personal-bot-proposal-advice')
   const sources = f.content.querySelector('.personal-bot-proposal-sources')
   const original = flatten(sources).find(n => n.textContent === p.advice)
+  assert.ok(f.observers.some(observer => observer.nodes.has(original)))
+  assert.ok(f.observers.every(observer => !observer.nodes.has(placeholder)))
   f.visible(placeholder)
   assert.equal(f.commands.length, 0, 'A source-inspection placeholder is not the actual advice')
   await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'View sources').click()
   assert.equal(sources.open, true)
+  assert.equal(f.commands.length, 0, 'Opening Sources alone does not prove visible advice')
+  f.visible(original, 0)
+  f.visible(original, 0.49)
+  assert.equal(f.commands.length, 0, 'Non-intersecting or insufficiently visible original advice stays unread')
   f.visible(original)
   assert.deepEqual(f.commands.map(c => c.type), ['proposal_presented'])
   assert.deepEqual(Array.from(f.commands[0].ids), [p.id])
 })
+
+function technicalPresentationWait() {
+  const source = fs.readFileSync(path.join(__dirname, 'proactive-panel.cjs'), 'utf8')
+  const start = source.indexOf('async function waitForTechnicalAdvicePresentation(')
+  const end = source.indexOf('app.whenReady().then(async () => {', start)
+  assert.ok(start >= 0 && end > start)
+  const context = { assert, performance, setTimeout }
+  vm.runInNewContext(source.slice(start, end) + '\nthis.wait = waitForTechnicalAdvicePresentation', context)
+  return context.wait
+}
+
+test('technical advice acceptance waits for a delayed same-ID visibility receipt', async () => {
+  const wait = technicalPresentationWait(), commands = [], id = 'technical-advice', calls = []
+  const unrelated = setTimeout(() => commands.push({ type: 'proposal_presented', ids: ['another-suggestion'] }), 25)
+  const receipt = setTimeout(() => commands.push({ type: 'proposal_presented', ids: [id] }), 180)
+  try {
+    await wait(async script => { calls.push(script); return {} }, commands, id, 1000)
+    assert.ok(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(id)))
+    assert.ok(calls.some(script => script.includes('document.fonts.ready') && script.includes('requestAnimationFrame')))
+  } finally { clearTimeout(unrelated); clearTimeout(receipt) }
+})
+
+test('technical advice acceptance rejects missing or late visibility receipts', async () => {
+  for (const late of [false, true]) {
+    const wait = technicalPresentationWait(), commands = [{ type: 'proposal_presented', ids: ['another-suggestion'] }]
+    const receipt = late ? setTimeout(() => commands.push({ type: 'proposal_presented', ids: ['technical-advice'] }), 180) : undefined
+    try {
+      await assert.rejects(wait(async () => ({ sourcesOpen: true, documentHidden: false }), commands, 'technical-advice', 60),
+        /Technical original advice was not acknowledged.*technical-advice.*sourcesOpen/)
+      assert.equal(commands.some(c => c.ids.includes('technical-advice')), false)
+    } finally { clearTimeout(receipt) }
+  }
+})
+
 for (const revoked of [{ state: 'unavailable' }, { state: 'idle', proposalCapabilities: { read: false, respond: false, acknowledge: false } }]) {
 test(`suggestion ${revoked.state === 'unavailable' ? 'provider' : 'read capability'} withdrawal clears old content and observers`, () => {
   const f = fixture(), p = proposal()

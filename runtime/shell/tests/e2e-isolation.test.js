@@ -448,7 +448,7 @@ for (const [name, file] of [['Weather', 'weather-plugin-electron.cjs'], ['WeRead
   }
 }
 
-for (const [name, file] of [['Weather layout', 'weather-layout.cjs'], ['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs'], ['Pi Widget', 'pi-tile-surface-electron.cjs'], ['Pi App and Page', 'pi-plugin-electron.cjs']]) {
+for (const [name, file] of [['Weather layout', 'weather-layout.cjs'], ['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs'], ['Pi Widget', 'pi-tile-surface-electron.cjs'], ['Pi App and Page', 'pi-plugin-electron.cjs'], ['Widget and App interiors', 'widget-app-styles.cjs']]) {
   for (const platform of ['linux', 'win32', 'darwin']) {
     test(`${name} comparison selects software rendering only on ${platform}`, () => {
       const source = fs.readFileSync(path.join(__dirname, file), 'utf8')

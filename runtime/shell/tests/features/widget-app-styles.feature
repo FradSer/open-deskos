@@ -1,5 +1,12 @@
 Feature: Legible Widget and App interiors
 
+  Scenario: Linux offscreen acceptance uses software rendering
+    Given the Linux acceptance window has no physical display surface
+    When the Widget and App interior checks start
+    Then software rendering is selected before readiness
+    And all theme, geometry, and input assertions remain active
+    And the original acceptance deadline remains unchanged
+
   Scenario: Frames distinguish readings from interactive Apps
     Given Home has read-only Widgets and each App opens into its own interactive view
     When the desk renders in Instrument, Pixel, or Border Beam

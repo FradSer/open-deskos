@@ -14,6 +14,30 @@ app.on('will-quit', () => { try { fs.rmSync(profile, { recursive: true, force: t
 const reconnectOnly = process.argv.includes('--reconnect-only')
 const timer = setTimeout(() => app.exit(1), reconnectOnly ? 120000 : 60000)
 const delay = () => new Promise(resolve => setTimeout(resolve, 100))
+async function waitForTechnicalAdvicePresentation(run, commands, id, timeoutMs = 5000) {
+  const deadline = performance.now() + timeoutMs
+  await run(`(async () => {
+    await document.fonts.ready
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  })()`)
+  while (performance.now() < deadline) {
+    if (commands.some(c => c.type === 'proposal_presented' && Array.isArray(c.ids) && c.ids.includes(id))) return
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
+  const geometry = await run(`(() => {
+    const original = document.querySelector('.personal-bot-proposal-original-advice')
+    const sources = document.querySelector('.personal-bot-proposal-sources')
+    const content = document.querySelector('.personal-bot-status-content')
+    const rect = node => {
+      if (!node) return null
+      const { top, left, width, height } = node.getBoundingClientRect()
+      return { top, left, width, height }
+    }
+    return { documentHidden: document.hidden, surfaceHidden: document.getElementById('personal-bot-status')?.hidden,
+      sourcesOpen: sources?.open, originalVisible: original?.checkVisibility(), original: rect(original), viewport: rect(content) }
+  })()`)
+  throw Error(`Technical original advice was not acknowledged: ${JSON.stringify({ id, geometry })}`)
+}
 app.whenReady().then(async () => {
   const reconnect = reconnectOnly ? await require('./helpers/proactive-reconnect').createProactiveReconnectFixture() : undefined
   const commands = []
@@ -167,7 +191,7 @@ app.whenReady().then(async () => {
   await send({ state: 'idle', proposals: [technical], proposalPopup: true })
   assert.equal(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(technical.id)), false)
   await run(`document.querySelector('.personal-bot-proposals button[data-proposal-action="view-sources"]').click(); document.querySelector('.personal-bot-proposal-original-advice').scrollIntoView({block:'center'})`)
-  await delay()
+  await waitForTechnicalAdvicePresentation(run, commands, technical.id)
   assert.ok(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(technical.id)))
   await run(`document.querySelector('.personal-bot-proposal-sources summary').click()`)
   // Synthetic suggestions exercise the real scroll viewport without model or device access.

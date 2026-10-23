@@ -354,6 +354,16 @@ Feature: Independent resident personal bot
     When the card opens
     Then the main content asks the owner to review the earlier suggestion in Sources
     And View sources opens the complete original advice without executing an action
+    And opening Sources alone does not acknowledge the suggestion
+    And the original advice remains the visibility observation target
+
+  Scenario: Native acceptance waits for the actual visibility receipt
+    Given an earlier technical suggestion is inside collapsed Sources
+    When its original advice becomes visible after the owner opens Sources
+    Then acceptance waits for the same suggestion visibility command after fonts and frames settle
+    And an unrelated suggestion receipt cannot satisfy the wait
+    And a missing or late receipt fails within the bounded wait
+    And the original overall acceptance deadline remains unchanged
 
   Scenario: The next step starts an authorized plugin operation
     Given a pending suggestion has an owner-authorized action and exact confirmation
