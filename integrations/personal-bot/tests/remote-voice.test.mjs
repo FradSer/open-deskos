@@ -1,4 +1,4 @@
-import { test } from 'node:test'
+import { test as nodeTest } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, realpath, rm, readFile, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -7,6 +7,9 @@ import { PersonalBotService } from '../src/service.mjs'
 import { createDisplayVoice } from '../src/display-voice.mjs'
 import { writeFile } from 'node:fs/promises'
 import { createRemoteVoice } from '../src/remote-voice.mjs'
+
+const test = (name, run) => nodeTest(name, { skip: process.platform === 'win32'
+  ? 'Remote voice server runs on CM5; Windows capture transport is checked in display-voice.test.mjs' : false }, run)
 
 const requestId='11111111-1111-4111-8111-111111111111'
 function wav(bytes=640) {

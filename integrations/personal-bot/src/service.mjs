@@ -213,19 +213,20 @@ export class PersonalBotService {
   observeRecording(recording,captureId) {
     void recording.done.then(() => {
       if(this.closed || captureId!==this.captureId || this.recording!==recording)return
+      const applications = this.remoteRecording?.applications
       if(this.remoteRecording?.recording===recording)this.remoteRecording=undefined
-      return this.finish()
+      return this.finish(applications)
     },() => {
       if(!this.closed && captureId===this.captureId && this.status.state==='recording')this.pending=this.failCapture()
     })
   }
 
   /** Reserve synchronously before a remote display receives capture permission. */
-  reserveRemoteRecording(recording,requestStop) {
+  reserveRemoteRecording(recording,requestStop,applications = undefined) {
     if(this.closed || this.starting || this.watch?.responding || !['idle','error'].includes(this.status.state))return false
     this.replyFrame={}
     this.recording=recording
-    this.remoteRecording={recording,requestStop}
+    this.remoteRecording={recording,requestStop,applications}
     this.watch?.setBusy(true)
     this.setState('recording','','')
     this.observeRecording(recording,++this.captureId)
@@ -258,18 +259,18 @@ export class PersonalBotService {
     if (!this.closed) this.setState('error', 'Microphone unavailable', this.status.transcript, 'microphone')
   }
 
-  finish() {
+  finish(applications = undefined) {
     if (this.closed || this.status.state !== 'recording') return this.pending
     if(this.remoteRecording) {
       try{this.remoteRecording.requestStop()}catch{this.pending=this.cancelRemoteRecording(this.recording,'unavailable').then(()=>{})}
       return this.pending
     }
     this.setState('transcribing')
-    this.pending = this.submit()
+    this.pending = this.submit(applications)
     return this.pending
   }
 
-  async submit() {
+  async submit(applications = undefined) {
     let failure = ''
     let response = ''
     let reply
@@ -282,7 +283,7 @@ export class PersonalBotService {
       if (!this.closed) {
         const ownerTurnId=randomUUID();this.replyFrame={ownerTurnId}
         this.setState('thinking', '', text)
-        response = await this.promptResponse(text,undefined,this.ownerContext(ownerTurnId,bound=>{reply=bound}))
+        response = await this.promptResponse(text,undefined,this.ownerContext(ownerTurnId,bound=>{reply=bound},applications))
         if(reply)this.remote?.completeReply(reply.id,{status:'answered',answer:boundedText(response,4000,'Response')})
       }
     } catch (error) {
@@ -300,7 +301,7 @@ export class PersonalBotService {
   }
 
   /** Submit a typed turn through the same resident session as voice. */
-  sendText(text, replyTo = undefined) {
+  sendText(text, replyTo = undefined, applications = undefined) {
     if (typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 3000
       || this.closed || this.starting || this.watch?.responding || !['idle', 'error'].includes(this.status.state)) return false
     let reply
@@ -309,21 +310,21 @@ export class PersonalBotService {
     this.replyFrame={ownerTurnId,...(reply?{replyTo:reply.replyTo,threadId:reply.threadId}:{})}
     this.watch?.setBusy(true)
     this.setState('thinking', '', text.trim())
-    this.pending = this.submitText(text.trim(),reply,ownerTurnId)
+    this.pending = this.submitText(text.trim(),reply,ownerTurnId,applications)
     return true
   }
 
-  ownerContext(id,onBound) {
-    return Object.freeze({id,bind:reply=>{
+  ownerContext(id,onBound,applications = undefined) {
+    return Object.freeze({id,...(applications ? { applications } : {}),bind:reply=>{
       if(this.closed || this.status.state!=='thinking' || this.replyFrame.ownerTurnId!==id || reply.id!==id)throw Error('Owner reply binding is no longer active')
       onBound(reply)
       this.replyFrame={ownerTurnId:id,replyTo:reply.replyTo,threadId:reply.threadId}
     }})
   }
 
-  async submitText(text, reply = undefined, ownerTurnId = randomUUID()) {
+  async submitText(text, reply = undefined, ownerTurnId = randomUUID(), applications = undefined) {
     try {
-      const response = await this.promptResponse(text,reply,this.ownerContext(ownerTurnId,bound=>{reply=bound}))
+      const response = await this.promptResponse(text,reply,this.ownerContext(ownerTurnId,bound=>{reply=bound},applications))
       if(reply)this.remote?.completeReply(reply.id,{status:'answered',answer:boundedText(response,4000,'Response')})
       if (!this.closed) { this.setState('idle', response); this.watch?.interact() }
     } catch {

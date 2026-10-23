@@ -84,6 +84,7 @@ test('Remote MIC requests a Shell decision and main rejects busy or duplicate ca
     },
     './odk-data-control': { listenOdkData: async () => ({ close: async () => {} }) },
     './user-app-store': { createUserAppStore: () => ({ list: async () => [] }) },
+    './user-app-geometry': require('../src/user-app-geometry'),
     './user-app-verifier': { createUserAppVerifier: () => ({ verify: async () => true, drain: async () => {}, close: async () => {} }) },
     './opencode-go': {},
     './camera-source': { createCameraSource: () => ({ refresh: async () => {}, snapshot: () => ({ status: 'unavailable' }) }) },

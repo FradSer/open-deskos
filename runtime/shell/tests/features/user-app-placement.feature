@@ -64,6 +64,7 @@ Feature: Verified widgets share desktop grids
     When the Agent lists or changes Widget placement
     Then the catalog reports three columns
     And placements outside those columns are rejected
+    And production desktop moves use spans within the reported grid
     And shrinking the grid preserves unavailable placements for recovery
     And an update rechecks placement after verification
 

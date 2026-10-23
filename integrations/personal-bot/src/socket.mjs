@@ -1,4 +1,5 @@
 import { readFrames, writeFrame } from './channel-frames.mjs'
+import { APPS_FRAME_BYTES, createDisplayAppsBroker } from './display-apps.mjs'
 import { validReplyTo } from './session-replies.mjs'
 import { PROPOSAL_DECISIONS } from './proactive-lifecycle.mjs'
 import fs from 'node:fs/promises'
@@ -147,12 +148,15 @@ export async function listen(path, service, options = {}) {
   /** An admitted client joins the broadcast list and starts reading commands. */
   function open(client, remainder) {
     clients.add(client)
+    const applications = createDisplayAppsBroker({ send: frame => writeFrame(client, frame, APPS_FRAME_BYTES) })
     let consumerReadyId
-    client.on('close', () => { clients.delete(client); void options.remoteVoice?.close(client).catch(() => {}) })
+    client.on('close', () => { applications.close(); clients.delete(client); void options.remoteVoice?.close(client).catch(() => {}) })
     readFrames(client, async command => {
       if (client.destroyed) return
+      if (await applications.handle(command)) return
+      if (Buffer.byteLength(JSON.stringify(command)) > MAX_INPUT_BYTES) return client.destroy()
       if (command.type.startsWith('voice_')) {
-        if (!options.remoteVoice || !await options.remoteVoice.handle(client, command, frame => writeFrame(client, frame))) client.destroy()
+        if (!options.remoteVoice || !await options.remoteVoice.handle(client, command, frame => writeFrame(client, frame), applications.binding)) client.destroy()
         return
       }
         if (command?.v !== 1 || !['runtime_diagnose', 'text', 'toggle', 'status', 'proactive_event', 'proposal_presented', 'proposal_list', 'proposal_respond'].includes(command.type)) return client.destroy()
@@ -192,7 +196,7 @@ export async function listen(path, service, options = {}) {
             || typeof command.requestId !== 'string' || !/^[a-f0-9-]{36}$/.test(command.requestId)
             || command.replyTo!==undefined && !validReplyTo(command.replyTo)
             || typeof command.text !== 'string' || !command.text.trim() || Buffer.byteLength(command.text, 'utf8') > 3000) return client.destroy()
-          const accepted = service.sendText(command.text,command.replyTo)
+          const accepted = service.sendText(command.text,command.replyTo,applications.binding)
           client.write(`${JSON.stringify({ v: 1, type: 'text_receipt', requestId: command.requestId, accepted })}\n`)
           return
         }
@@ -213,7 +217,7 @@ export async function listen(path, service, options = {}) {
             () => { service.setState('error', 'Personal Bot request failed'); sendStatus(client, service.status) },
           )
         } else sendStatus(client, service.status)
-    })
+    }, { maxFrame: () => applications.binding ? APPS_FRAME_BYTES : MAX_INPUT_BYTES, maxBatch: APPS_FRAME_BYTES * 4 })
     if (remainder.length > 0) client.unshift(remainder)
     process.nextTick(() => { if (!client.destroyed) client.resume() })
   }

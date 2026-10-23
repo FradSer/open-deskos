@@ -333,7 +333,12 @@ test('Windows display entry keeps text available without a microphone or inferen
         let end
         while((end=pending.indexOf('\n'))>=0) {
           const command=JSON.parse(pending.slice(0,end));pending=pending.slice(end+1)
-          assert.equal(command.v,1);assert.ok(['status','text'].includes(command.type));commands.push(command)
+          assert.equal(command.v,1);assert.ok(['host_apps_hello','status','text'].includes(command.type));commands.push(command)
+          if(command.type==='host_apps_hello') {
+            assert.equal(command.host.platform,'win32')
+            peer.write(JSON.stringify({v:1,type:'host_apps_ready'})+'\n')
+            continue
+          }
           if(command.type==='text') {
             assert.equal(command.text,'Synthetic central text request')
             peer.write(JSON.stringify({v:1,type:'text_receipt',requestId:command.requestId,accepted:true})+'\n')
@@ -417,6 +422,7 @@ test('display client and relay load the installed Shell modules in a flattened r
   await cp(new URL('package.json', shell), join(directory, 'package.json'))
   await cp(new URL('src/platform', shell), join(directory, 'src', 'platform'), { recursive: true })
   await cp(new URL('src/local-channel.js', shell), join(directory, 'src', 'local-channel.js'))
+  await cp(new URL('src/user-app-files.js', shell), join(directory, 'src', 'user-app-files.js'))
   await assert.rejects(lstat(join(directory, 'runtime')), { code: 'ENOENT' })
   // Resolve the existing VAD dependency only. All product modules load from the release copy.
   const preload = join(directory, 'dependency-hook.mjs')

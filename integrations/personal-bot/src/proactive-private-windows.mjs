@@ -59,22 +59,22 @@ export function createWindowsPrivatePaths() {
     } finally { if (token[0] !== null) close(token[0]) }
   }
 
-  function check(path, directory, user) {
+  function check(path, directory, user, container = false) {
     const owner = [null], dacl = [null], descriptor = [null]
     try {
       if (getNamed(path, 1, 5, owner, null, dacl, null, descriptor) !== 0 || descriptor[0] === null) unsafe()
-      if (textSid(owner[0]) !== user) unsafe()
+      const allowed = new Set([user, 'S-1-5-18', 'S-1-5-32-544'])
+      if (container ? !allowed.has(textSid(owner[0])) : textSid(owner[0]) !== user) unsafe()
       const present = [0], defaulted = [0]
       ok(getDacl(descriptor[0], present, dacl, defaulted))
       if (!present[0] || dacl[0] === null) unsafe() // A NULL DACL grants everyone access.
       ok(validAcl(dacl[0]))
       const flags = [0], revision = [0]
       ok(control(descriptor[0], flags, revision))
-      if (directory && !(flags[0] & 0x1000)) unsafe() // SE_DACL_PROTECTED
+      if (directory && !container && !(flags[0] & 0x1000)) unsafe() // SE_DACL_PROTECTED
       const size = Buffer.alloc(koffi.sizeof(aclSizeType))
       ok(aclInfo(dacl[0], size, size.length, 2)) // AclSizeInformation
       const { count } = koffi.decode(size, aclSizeType)
-      const allowed = new Set([user, 'S-1-5-18', 'S-1-5-32-544'])
       for (let index = 0; index < count; index++) {
         const ace = [null]
         ok(getAce(dacl[0], index, ace))
@@ -111,8 +111,8 @@ export function createWindowsPrivatePaths() {
       if (flags === 0xffffffff || (flags & 0x400) || Boolean(flags & 0x10) !== directory) unsafe()
       const user = currentUser()
       if (operation === 'Protect') protect(path, directory, user)
-      else if (operation !== 'Check') unsafe()
-      check(path, directory, user)
+      else if (operation !== 'Check' && !(operation === 'CheckContainer' && directory)) unsafe()
+      check(path, directory, user, operation === 'CheckContainer')
     } catch { unsafe() }
   }
 }

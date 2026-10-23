@@ -746,6 +746,33 @@ test('actual owner turns share one internal follow-up identity and supply displa
  const count=owners.length;await assert.rejects(tools.find(tool=>tool.name==='remote_pi_followup').execute('outside',{sourceKey:'displayed-source',sourceRevision:'a'.repeat(64),prompt:'outside'},undefined),/unavailable/);assert.equal(owners.length,count)
 })
 
+test('the resident model receives the originating desk and lifecycle tools retain that exact binding', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'odk-owner-apps-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  let listener
+  const results = [], prompts = [], calls = []
+  const bot = await createPersonalBot({ stateDir: join(dir, 'state'), env: {}, personal: { profile: 'personal', memoryFile: join(dir, 'memory.json'), skillPaths: [], agentPlugins: { enabled: [] } } }, {
+    createIntentRouter: () => async () => ({ intent: 'app_query' }),
+    createRuntime: async () => ({ getAvailable: async () => [{ provider: 'fixture', id: 'model' }] }),
+    createSession: async options => ({ session: { isStreaming: false, bindExtensions: async () => {}, setActiveToolsByName: async () => {},
+      subscribe(callback) { listener = callback; return () => { listener = undefined } },
+      async prompt(text) {
+        prompts.push(text)
+        results.push(await options.customTools.find(tool => tool.name === 'user_apps_list').execute('list', {}, undefined))
+        listener({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'Read originating catalog.' }], stopReason: 'stop' } })
+      }, abort: async () => {}, dispose: async () => {},
+    } }),
+  })
+  t.after(() => bot.close())
+  const applications = { host: { name: 'HANDHELD', platform: 'win32' }, async request(command, params) {
+    calls.push([command, params]); return { ok: true, apps: [{ id: 'win-clock' }], host: this.host }
+  } }
+  await bot.prompt('List the applications on this handheld.', undefined, undefined, { id: '11111111-1111-4111-8111-111111111111', bind() {}, applications })
+  assert.match(prompts[0], /Application destination.*HANDHELD/)
+  assert.deepEqual(calls, [['list', {}]])
+  assert.equal(results[0].structuredContent.apps[0].id, 'win-clock')
+})
+
 test('Overview disables Model Studio thinking at the SDK request boundary without changing the resident model', async t => {
   const { streamSimple } = await import('@earendil-works/pi-ai/api/openai-completions')
   const { fixtureModel } = await import('./helpers/pi-fixture.mjs')
@@ -808,7 +835,7 @@ test('a handler clarification retains owner scope until a named follow-up attemp
 
 test('confirmed Hosted continuation is admission while unknown or mismatched receipts stay unknown', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'odk-hosted-ack-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }))
   const taskId = '11111111-1111-4111-8111-111111111111'
   const project = join(dir, 'project')
   const helper = join(dir, 'helper.mjs')

@@ -28,9 +28,9 @@ const REQUEST_TIMEOUT_MS = 10_000
  * has no `process.getuid` is a Windows host, not a broken one.
  *
  * @param {string} command
- * @param {{ appId?: string, signal?: AbortSignal, placement?: unknown, env?: NodeJS.ProcessEnv, platform?: NodeJS.Platform, connect?: typeof import('node:net').createConnection }} [request]
+ * @param {{ appId?: string, sourcePath?: string, signal?: AbortSignal, placement?: unknown, env?: NodeJS.ProcessEnv, platform?: NodeJS.Platform, connect?: typeof import('node:net').createConnection }} [request]
  */
-export async function userAppsRequest(command, { appId, signal, placement, env = process.env, platform = process.platform, connect } = {}) {
+export async function userAppsRequest(command, { appId, sourcePath, signal, placement, env = process.env, platform = process.platform, connect } = {}) {
   const endpoint = appsControlEndpoint(env, platform)
   if (!endpoint) throw Error('Application lifecycle unavailable: this host has no application control endpoint to reach')
   const tokenRequired = channelRequiresToken(endpoint, platform)
@@ -38,11 +38,11 @@ export async function userAppsRequest(command, { appId, signal, placement, env =
   return await channelRequest({
     endpoint,
     label: 'Application lifecycle',
-    timeoutMs: command === 'install' ? INSTALL_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
+    timeoutMs: ['install', 'add'].includes(command) ? INSTALL_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
     token,
     tokenRequired,
     signal,
     connect,
-    payload: { v: 1, id: requestId(), command, ...(appId ? { appId } : {}), ...(placement ? { placement } : {}) },
+    payload: { v: 1, id: requestId(), command, ...(appId ? { appId } : {}), ...(command === 'add' && sourcePath ? { sourcePath } : {}), ...(placement ? { placement } : {}) },
   })
 }

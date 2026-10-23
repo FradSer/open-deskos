@@ -6,7 +6,7 @@ const { installHomePreviewFixtures } = require('./helpers/home-preview-fixtures'
 
 test('normal Home preview has complete, consistent readings without provider access', () => {
   const handlers = new Map()
-  const ipc = { handle(name, callback) { assert.equal(handlers.has(name), false); handlers.set(name, callback) },
+  const ipc = { on() {}, handle(name, callback) { assert.equal(handlers.has(name), false); handlers.set(name, callback) },
     removeHandler(name) { handlers.delete(name) } }
   const now = 1791864000000
   const preview = installHomePreviewFixtures(ipc, { now })

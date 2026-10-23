@@ -135,6 +135,11 @@ Windows captures microphone audio and relays owner input to CM5.
 The local display channel is `\\.\pipe\odk-personal-bot`.
 The host channel token authenticates the channel.
 A disconnected central service reports unavailable; Windows does not start a local agent.
+Application tools use the Shell on the desk that originated the owner turn.
+The authenticated relay binds that destination to its current connection.
+Hosted Pi authors drafts in the central configured workspace.
+Installation transfers bounded manifest and HTML bytes to the originating Windows Shell for verification.
+Updates retain the application ID. A lost connection reports an unknown outcome and never redirects or replays mutations.
 Overview uses the central agent projection. Other Widget data sources retain their existing configuration.
 
 Set the fixed operator alias and microphone in `%LOCALAPPDATA%\odk\personal-bot.env`:
