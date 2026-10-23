@@ -38,6 +38,8 @@ Feature: Independent App Manager replacement
     When an App mount fails
     Then the previous running App and target state are restored
     And a replacement that omits rollback fails the same acceptance checks
+    And rejection requires its expected error and a normal failure exit
+    And a timeout or killed process cannot establish rollback rejection
     And IPC handlers release before the window closes
 
   Scenario: Independent manager starts through real Main composition

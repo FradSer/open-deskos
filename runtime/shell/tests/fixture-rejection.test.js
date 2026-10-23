@@ -45,3 +45,28 @@ for (const [control, mode, message] of [['missing', 'built-in', 'Selected Render
       { code: 'ERR_ASSERTION' })
   })
 }
+
+
+test('App Manager omitted rollback requires its own normal failure exit', async () => {
+  const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm')
+  const source = fs.readFileSync(path.join(__dirname, 'app-manager-electron.test.js'), 'utf8')
+  const start = source.indexOf('      if (invalid) await assert.rejects(running,')
+  const end = source.indexOf('      else {', start)
+  assert.ok(start >= 0 && end > start)
+  const message = 'App Manager recovery did not restore prior running state'
+  const run = error => vm.runInNewContext(`(async()=>{${source.slice(start, end)}})()`, {
+    invalid: true, running: Promise.reject(error), assert, fixtureRejection,
+  })
+  await run(Object.assign(Error(message), { code: 1, killed: false, signal: null, stderr: message }))
+  for (const outcome of [
+    { code: null, killed: true, signal: 'SIGKILL' },
+    { code: null, killed: true, signal: 'SIGTERM' },
+    { code: 'ABORT_ERR', killed: false, signal: null },
+  ]) {
+    await assert.rejects(run(Object.assign(Error(message), { ...outcome, stderr: message })),
+      { code: 'ERR_ASSERTION' })
+  }
+  await assert.rejects(run(Object.assign(Error('Other boundary'), {
+    code: 1, killed: false, signal: null, stderr: 'Other boundary',
+  })), { code: 'ERR_ASSERTION' })
+})
