@@ -27,8 +27,19 @@ export function createRemoteVoice({service,directory,timeoutMs=90000}) {
  async function cancel(lease,reason='cancelled') {
   if(active!==lease)return
   active=undefined;clearTimeout(lease.timer);lease.interrupt()
-  await service.cancelRemoteRecording(lease.recording,reason)
+  const cleaned=await service.cancelRemoteRecording(lease.recording,reason)
   void Promise.resolve().then(()=>lease.send({v:1,type:'voice_result',requestId:lease.requestId,leaseId:lease.id,accepted:false,reason})).catch(()=>{})
+  lease.cancelResolve?.(reason==='cancelled'&&cleaned)
+  return cleaned
+ }
+
+ function requestCancel(lease) {
+  if(active!==lease||lease.phase==='finishing')return Promise.resolve(false)
+  if(lease.cancellation)return lease.cancellation
+  lease.phase='cancelling'
+  lease.cancellation=new Promise(resolve=>{lease.cancelResolve=resolve})
+  void Promise.resolve().then(()=>lease.send({v:1,type:'voice_discard',requestId:lease.requestId,leaseId:lease.id})).catch(()=>cancel(lease,'unavailable')).catch(()=>{})
+  return lease.cancellation
  }
 
  async function handle(client,command,send,applications = undefined) {
@@ -54,14 +65,14 @@ export function createRemoteVoice({service,directory,timeoutMs=90000}) {
     if(active!==lease||lease.stopRequested)return
     lease.stopRequested=true
     void send({v:1,type:'voice_stop',requestId:lease.requestId,leaseId:lease.id}).catch(()=>cancel(lease,'unavailable')).catch(()=>{})
-   },applications)) {
+   },applications,()=>requestCancel(lease))) {
     active=undefined;await recording.cleanup()
     await send({v:1,type:'voice_started',requestId:command.requestId,accepted:false});return true
    }
    lease.timer=setTimeout(()=>{void cancel(lease,'timeout').catch(()=>{})},timeoutMs);lease.timer.unref?.()
    try {
     await Promise.race([send({v:1,type:'voice_started',requestId:lease.requestId,leaseId:lease.id,accepted:true}),interrupted])
-    if(active===lease)lease.phase='receiving'
+    if(active===lease&&lease.phase==='starting')lease.phase='receiving'
    }catch{await cancel(lease,'unavailable')}
    lease.complete=bytes=>{
     temporary=mkdtempSync(join(directory,'remote-voice-'))
@@ -83,6 +94,7 @@ export function createRemoteVoice({service,directory,timeoutMs=90000}) {
    if(!exact(command,names) || command.reason!==undefined&&!['microphone','unavailable','timeout','protocol','invalid_audio'].includes(command.reason)){await cancel(lease,'protocol');return true}
    await cancel(lease,command.reason ?? 'cancelled');return true
   }
+  if(lease.phase==='cancelling')return true
   if(lease.phase!=='receiving'){await cancel(lease,'protocol');return true}
   if(command.type==='voice_chunk') {
    if(!exact(command,['v','type','requestId','leaseId','seq','data'])||command.seq!==lease.seq||lease.seq>=2048||typeof command.data!=='string'||!command.data.length||command.data.length>2048){await cancel(lease,'protocol');return true}

@@ -91,6 +91,7 @@ LF-delimited JSON (not an HTTP endpoint):
 ```json
 {"v":1,"type":"status"}
 {"v":1,"type":"toggle"}
+{"v":1,"type":"cancel_recording"}
 ```
 
 Status queries receive an immediate snapshot.
@@ -117,6 +118,19 @@ Failure replaces partial output with safe recovery text and retains the transcri
 A new recording or shutdown clears both fields; late callbacks and pending timers cannot change finished requests.
 Busy toggles are ignored, not queued.
 Toggle begins recording and a second toggle submits manually.
+`cancelInput: true` advertises explicit recording cancellation.
+Clients send `cancel_recording` only when the resident advertises this capability and reports `recording`.
+Cancellation discards capture without transcription or a new conversation turn.
+Cleanup completes before cancellation releases the recording slot.
+Central cancellation sends `voice_discard` to the display that owns the recording.
+The display sends `voice_cancel` after physical cleanup.
+The resident retains ownership until this confirmation or an explicit recording failure.
+The display relay retains its capture until local cleanup completes.
+Failed cleanup retains ownership and blocks another capture.
+Late capture completion cannot submit cancelled audio.
+The Shell distinguishes explicit text refusal from unknown delivery after a timeout or disconnect.
+Explicit refusal preserves the draft for another deliberate send.
+Unknown delivery requires status reconciliation and never triggers automatic replay.
 Recording has no duration deadline.
 WebRTC VAD (`@echogarden/fvad-wasm` 0.2.0, mode 2) processes 320-sample/20ms frames at 16kHz.
 Speech followed by 60 consecutive silent frames ends the turn after 1.2 seconds.

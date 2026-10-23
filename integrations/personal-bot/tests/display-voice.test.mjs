@@ -77,3 +77,26 @@ test('VAD and repeated stop events cannot send the same audio twice or accept an
  await until(()=>f.frames.some(x=>x.type==='voice_end'));f.voice.onFrame({v:1,type:'voice_stop',requestId:id,leaseId});await tick()
  assert.equal(f.frames.filter(x=>x.type==='voice_end').length,1);assert.equal(f.records(),1);assert.equal(f.stops(),1)
 })
+
+
+test('explicit display cancellation drops audio and a late acquisition cannot upload', async t => {
+ let acquire
+ const f = await fixture(t, { record: () => new Promise(resolve => { acquire = resolve }) })
+ await f.voice.toggle(); const requestId = f.frames[0].requestId
+ f.voice.onFrame({ v:1, type:'voice_started', requestId, leaseId, accepted:true }); await tick()
+ const cancellation=f.voice.cancel();await tick();assert.equal(await f.voice.toggle(),false)
+ acquire(f.recording);assert.equal(await cancellation,true); await tick(); f.done(); await tick()
+ assert.equal(f.cleanups(), 1); assert.equal(f.stops(), 0)
+ assert.deepEqual(f.frames.map(x => x.type), ['voice_start', 'voice_cancel'])
+ assert.equal(await f.voice.cancel(), false)
+})
+
+
+test('display cancellation retains failed cleanup and cannot admit another microphone lease', async t => {
+ const f=await fixture(t);await f.accepted();let failed=true,attempts=0
+ f.recording.cleanup=async()=>{attempts++;if(failed)throw Error('controlled cleanup failure')}
+ await assert.rejects(f.voice.cancel(),/controlled cleanup failure/)
+ assert.equal(await f.voice.toggle(),false)
+ assert.equal(f.frames.some(frame=>frame.type==='voice_cancel'),false,'central ownership is not released before physical cleanup')
+ failed=false;await f.voice.close();assert.equal(attempts,2)
+})

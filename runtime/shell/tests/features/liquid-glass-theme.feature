@@ -2,9 +2,10 @@ Feature: Optional Liquid Glass theme
 
   Scenario: Interactive surfaces use the Widget glass frame
     Given Liquid Glass shows the resident Agent and a built-in App
-    Then Tap to talk uses the Widget glass material and rounded edge
+    Then the composer uses the Widget glass material and rounded edge
     And the composer, identity capsule, action buttons, and fields share the glass frame treatment
-    And integrated text input uses its composer frame without a second rectangular border
+    And integrated text input and microphone controls share the composer frame
+    And Send retains its primary fill and readable disabled state
     And transparent Widget launch targets use their existing Widget frame
     And page marks and the App return handle have no enclosing material frame
     When a control is focused, pressed, disabled, selected, busy, invalid, or recording

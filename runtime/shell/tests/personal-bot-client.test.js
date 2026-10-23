@@ -269,3 +269,42 @@ test('a ready renderer survives socket reconnect while diagnostics alone remain 
   peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', proposals: [], proposalPopup: true, proposalRecovery: true }) + '\n')
   assert.equal((await update).proposalRecovery, true)
 })
+
+
+test('text receipts distinguish an explicit refusal from a lost connection and gate recording cancellation', {timeout:3000}, async t => {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'odk-input-receipt-')),socketPath=path.join(dir,'bot.sock')
+  const peers=new Set(),commands=[]
+  const malformed=new Map([['missing',undefined],['null',null],['zero',0],['string','false'],['object',{}]])
+  const server=net.createServer(peer=>{
+    peers.add(peer);peer.on('error',()=>{})
+    let buffer=''
+    peer.on('data',chunk=>{
+      buffer+=chunk;const lines=buffer.split('\n');buffer=lines.pop()
+      for(const line of lines){const frame=JSON.parse(line);commands.push(frame)
+        if(frame.type==='text'&&frame.text.startsWith('malformed-'))peer.write(JSON.stringify({v:1,type:'text_receipt',requestId:frame.requestId,accepted:malformed.get(frame.text.slice(10))})+'\n')
+        if(frame.type==='text'&&frame.text==='accepted')peer.write(JSON.stringify({v:1,type:'text_receipt',requestId:frame.requestId,accepted:true})+'\n')
+        if(frame.type==='text'&&frame.text==='refused')peer.write(JSON.stringify({v:1,type:'text_receipt',requestId:frame.requestId,accepted:false})+'\n')
+        if(frame.type==='text'&&frame.text==='lost')peer.destroy()
+      }
+    })
+  })
+  const client=createPersonalBotClient({socketPath,reconnectDelayMs:60000})
+  t.after(async()=>{client.stop();for(const peer of peers)peer.destroy();await new Promise(r=>server.close(r));await fs.rm(dir,{recursive:true,force:true})})
+  server.listen(socketPath);await once(server,'listening')
+  const connected=once(server,'connection');client.start();const [peer]=await connected;await once(peer,'data')
+  async function status(record){
+    const next=new Promise(resolve=>{const unsubscribe=client.subscribe(frame=>{if(frame.message===record.message){unsubscribe();resolve(frame)}})})
+    peer.write(JSON.stringify({v:1,type:'status',...record})+'\n');await next
+  }
+  await status({state:'recording',message:'legacy'})
+  assert.equal(client.cancelRecording(),false,'an older resident never receives an unsupported command')
+  await status({state:'recording',message:'supported',cancelInput:true})
+  const received=once(peer,'data');assert.equal(client.cancelRecording(),true);await received
+  assert.ok(commands.some(frame=>frame.type==='cancel_recording'))
+  await status({state:'idle',message:'ready',textInput:true})
+  for(const name of malformed.keys())assert.deepEqual(await client.sendTextReceipt('malformed-'+name),{accepted:false,delivery:'unknown'},name+' acceptance does not prove refusal')
+  assert.deepEqual(await client.sendTextReceipt('accepted'),{accepted:true,delivery:'accepted'})
+  assert.deepEqual(await client.sendTextReceipt('refused'),{accepted:false,delivery:'refused'})
+  assert.deepEqual(await client.sendTextReceipt('lost'),{accepted:false,delivery:'unknown'})
+  assert.equal(commands.filter(frame=>frame.type==='text').length,8)
+})

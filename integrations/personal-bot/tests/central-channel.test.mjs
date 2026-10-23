@@ -50,4 +50,13 @@ test('actual channels admit Windows audio and CM5 audio through one resident and
  assert.equal(localRecords,1);assert.equal(displayRecords,1);assert.equal(transcriptions,2)
  assert.equal(history.snapshot().conversation.turns.length,2)
  assert.notEqual(history.snapshot().conversation.turns[1].id,firstId)
+ // Cancelling from either display discards audio instead of creating another turn.
+ const beforeCancel=frames.filter(f=>f.state==='recording').length
+ await writeFrame(client,{v:1,type:'toggle'});await until(()=>displayRecords===2)
+ await writeFrame(client,{v:1,type:'cancel_recording'});await until(()=>service.status.state==='idle')
+ assert.equal(transcriptions,2);assert.equal(history.snapshot().conversation.turns.length,2)
+ await service.toggle();await until(()=>localRecords===2&&frames.filter(f=>f.state==='recording').length>beforeCancel)
+ await writeFrame(client,{v:1,type:'cancel_recording'});await until(()=>service.status.state==='idle')
+ assert.equal(transcriptions,2);assert.equal(history.snapshot().conversation.turns.length,2)
+
 })

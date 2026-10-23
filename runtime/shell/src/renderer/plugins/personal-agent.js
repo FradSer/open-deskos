@@ -18,7 +18,8 @@
         <button class="agent-latest" type="button" hidden>Jump to latest <svg data-tabler="arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 13l-6 6" /><path d="M6 13l6 6" /></svg></button>
         </div>
         <aside class="agent-reply-context" aria-label="Reply reference" hidden><div><span class="agent-reply-session"></span><span class="agent-reply-preview"></span></div><button class="agent-reply-cancel" type="button">Cancel reply</button></aside>
-        <form class="agent-composer" data-mode="voice"><button class="agent-mic" type="button" aria-label="Start voice request"><svg data-tabler="microphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 5a3 3 0 0 1 3 -3a3 3 0 0 1 3 3v5a3 3 0 0 1 -3 3a3 3 0 0 1 -3 -3l0 -5" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M8 21l8 0" /><path d="M12 17l0 4" /></svg><span class="agent-mic-label">Tap to talk</span></button><button class="agent-keys" type="button" aria-label="Switch to keyboard input"><svg data-tabler="keyboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8" /><path d="M6 10l0 .01" /><path d="M10 10l0 .01" /><path d="M14 10l0 .01" /><path d="M18 10l0 .01" /><path d="M6 14l0 .01" /><path d="M18 14l0 .01" /><path d="M10 14l4 .01" /></svg></button><textarea rows="1" maxlength="3000" aria-label="Message Personal Agent"></textarea><button class="agent-send" type="submit" aria-label="Send message"><svg data-tabler="arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 11l-6 -6" /><path d="M6 11l6 -6" /></svg></button></form>
+        <p class="agent-input-notice" role="status" hidden></p>
+        <form class="agent-composer" data-mode="voice"><button class="agent-keys" type="button" aria-label="Switch to keyboard input"><svg data-tabler="keyboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8" /><path d="M6 10l0 .01" /><path d="M10 10l0 .01" /><path d="M14 10l0 .01" /><path d="M18 10l0 .01" /><path d="M6 14l0 .01" /><path d="M18 14l0 .01" /><path d="M10 14l4 .01" /></svg></button><button class="agent-mic" type="button" aria-label="Start voice request"><svg data-tabler="microphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 5a3 3 0 0 1 3 -3a3 3 0 0 1 3 3v5a3 3 0 0 1 -3 3a3 3 0 0 1 -3 -3l0 -5" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M8 21l8 0" /><path d="M12 17l0 4" /></svg><span class="agent-mic-label">Tap to talk</span></button><button class="agent-cancel" type="button" aria-label="Cancel recording" title="Cancel recording · Escape" hidden><svg data-tabler="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button><div class="agent-recording-feedback" hidden><div class="agent-input-level" role="meter" aria-label="Microphone input level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div></div><textarea rows="1" maxlength="3000" aria-label="Message Personal Agent"></textarea><button class="agent-send" type="submit" aria-label="Send message"><svg data-tabler="arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 11l-6 -6" /><path d="M6 11l6 -6" /></svg></button></form>
       </div>`
       const $ = selector => el.querySelector(selector)
       const conversation = $('.agent-conversation')
@@ -28,6 +29,10 @@
       const keysControl = $('.agent-keys')
       const voiceLabel = $('.agent-mic-label')
       const sendControl = $('.agent-send')
+      const cancelControl = $('.agent-cancel')
+      const recordingFeedback = $('.agent-recording-feedback')
+      const inputLevel = $('.agent-input-level')
+      const notice = $('.agent-input-notice')
       const state = $('.agent-state')
       const capsule = $('.agent-capsule')
       const reducedMotion = root.matchMedia?.('(prefers-reduced-motion: reduce)')
@@ -44,45 +49,88 @@
       ctx.trackCleanup?.(() => { stopCapsuleMotion();root.document.removeEventListener('visibilitychange', pauseCapsule);reducedMotion?.removeEventListener('change', stopCapsuleMotion) })
       const avatar = root.odkPersonalAgentAvatar.mount($('.agent-avatar'))
       const busyStates = ['starting', 'sending', 'recording', 'transcribing', 'thinking']
-      const stateLabels = { idle: 'Ready', thinking: 'Thinking…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
-      const voiceFailures = {microphone:'Microphone unavailable',timeout:'Recording timed out. Try again.',unavailable:'Recording connection lost. Try again.',protocol:'Recording transfer failed. Try again.',invalid_audio:'Recording audio is invalid. Try again.',cleanup:'Recording cleanup failed'}
+      const voiceFailures = {microphone:'Microphone unavailable',timeout:'Recording timed out.',unavailable:'Recording connection lost.',protocol:'Recording transfer failed.',invalid_audio:'Recording audio is invalid.',cleanup:'Recording cleanup failed'}
       function captionFor(status) {
-        if (root.odkPersonalAgentAvatar.phaseFor(status) === 'working') return 'Working…'
-        if (status.state === 'thinking') return root.odkPersonalAgentAvatar.phaseFor(status) === 'replying' ? 'Replying…' : 'Thinking…'
-        if (status.state === 'error' && Object.hasOwn(voiceFailures,status.voiceFailure)) return voiceFailures[status.voiceFailure]
-        return stateLabels[status.state] || 'Personal Bot status unknown'
+        if (status.state === 'recording') return 'Listening...'
+        if (busyStates.includes(status.state) || root.odkPersonalAgentAvatar.phaseFor(status) === 'working') return 'Thinking...'
+        return ''
       }
       let composerMode = 'keyboard'
-      let voiceStarted = false
+      let voicePending = false
+      let voiceFocusRequested = false
+      let voiceSubmissionPending = false
+      let cancelling = false
+      let cancelRequested = false
+      let activeSubmission = null
+      let inputRevision = 0
       function voiceAvailable() { return root.odkPersonalBot?.supportsVoiceInput !== false }
       function fieldControl() { return composerMode === 'keyboard' ? input : micControl }
-      // The voice control states the next action of its own mode. A host that
-      // declares no voice input states that condition instead.
-      function renderVoiceControl() {
-        const ready = voiceAvailable(), busy = busyStates.includes(lastStatus)
-        micControl.disabled = !ready || (busy && lastStatus !== 'recording')
-        micControl.setAttribute('aria-label', !ready ? 'Microphone unavailable on this host'
-          : lastStatus === 'recording' ? 'Stop recording'
-            : composerMode === 'keyboard' ? 'Record voice request'
-              : voiceStarted ? 'Switch to keyboard input'
-                : 'Start voice request')
-        voiceLabel.textContent = !ready ? 'Voice unavailable'
-          : composerMode === 'keyboard' ? 'Voice'
-            : busy ? captionFor(lastSnapshot || {state:lastStatus})
-              : voiceStarted ? 'Type instead'
-                : 'Tap to talk'
-        micControl.dataset.recording = String(lastStatus === 'recording')
+      function resizeInput() {
+        if (input.hidden) return
+        input.style.height = '46px'
+        const style = getComputedStyle(input)
+        const limit = parseFloat(style.lineHeight) * 4 + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
+        input.style.height = Math.min(limit, Math.max(46, input.scrollHeight)) + 'px'
+        input.style.overflowY = input.scrollHeight > limit ? 'auto' : 'hidden'
       }
-      // Voice is the default composer. The field itself is the voice control, and
-      // the keyboard is the explicit alternative next to it.
+      let noticeAction
+      function showNotice(text = '', label, action) {
+        notice.hidden = !text
+        if (!text) {
+          if (notice.childNodes.length) notice.replaceChildren()
+          noticeAction = undefined
+          return
+        }
+        let detail = notice.querySelector('span')
+        if (!detail) { detail = document.createElement('span');notice.prepend(detail) }
+        if (detail.textContent !== text) detail.textContent = text
+        let button = notice.querySelector('button')
+        if (!label) { button?.remove();noticeAction = undefined;return }
+        if (button && noticeAction !== action) { button.remove();button = null }
+        if (!button) {
+          button = document.createElement('button')
+          button.type = 'button';button.addEventListener('click', action)
+          notice.append(button);noticeAction = action
+        }
+        if (button.textContent !== label) button.textContent = label
+      }
+      async function checkStatus() {
+        const checkedRevision = revision
+        try {
+          const status = await root.odkPersonalBot.getStatus()
+          if (!released && revision === checkedRevision) render(status)
+        } catch { if (!released) showNotice('Connection unavailable. Your draft is kept.', 'Check status', checkStatus) }
+      }
+      function renderVoiceControl() {
+        const recording = lastStatus === 'recording' && voiceAvailable(), keyboard = composerMode === 'keyboard'
+        const busy = busyStates.includes(lastStatus) || pending || voicePending || voiceSubmissionPending || cancelling || cancelRequested || Boolean(activeSubmission) || lastSnapshot?.voiceFailure === 'cleanup'
+        composer.dataset.state = recording ? 'listening' : busy ? 'thinking' : 'idle'
+        micControl.hidden = recording
+        micControl.disabled = !voiceAvailable() || busy || lastStatus === 'unavailable'
+        micControl.setAttribute('aria-label', !voiceAvailable() ? 'Microphone unavailable on this host' : 'Start voice request')
+        voiceLabel.textContent = voiceAvailable() ? 'Tap to talk' : 'Voice unavailable'
+        keysControl.hidden = recording || keyboard
+        cancelControl.hidden = !recording
+        cancelControl.disabled = !recording || cancelling || cancelRequested || lastSnapshot?.cancelInput !== true || typeof root.odkPersonalBot?.cancelRecording !== 'function'
+        recordingFeedback.hidden = !recording
+        input.hidden = recording || !keyboard
+        sendControl.hidden = false
+        sendControl.disabled = recording ? voicePending || voiceSubmissionPending || cancelling || cancelRequested : busy || lastStatus === 'unavailable' || !keyboard || !input.value.trim()
+        const label = recording ? 'Send voice request' : 'Send message'
+        sendControl.setAttribute('aria-label', label);sendControl.title = label
+        const level = recording && Number.isFinite(lastSnapshot?.level) ? Math.round(Math.max(0, Math.min(1, lastSnapshot.level)) * 100) : 0
+        inputLevel.setAttribute('aria-valuenow', String(level))
+        inputLevel.style.setProperty('--agent-input-level', level + '%')
+        resizeInput()
+        if (recording && voiceFocusRequested && root.document.getElementById('app-view')?.hidden !== false) {
+          voiceFocusRequested = false
+          ;(cancelControl.disabled ? sendControl : cancelControl).focus({ preventScroll: true })
+        }
+      }
       function setComposerMode(mode, focus = false) {
+        if (lastStatus === 'recording') return
         composerMode = mode === 'voice' ? 'voice' : 'keyboard'
-        const voice = composerMode === 'voice'
         composer.dataset.mode = composerMode
-        input.hidden = voice
-        sendControl.hidden = voice
-        keysControl.hidden = !voice
-        if (voice) voiceStarted = false
         renderVoiceControl()
         if (focus) fieldControl().focus({ preventScroll: true })
       }
@@ -110,8 +158,8 @@
       let selectedThread = null
       const children = new Map()
       let lastStatus = 'unknown'
-      setComposerMode(voiceAvailable() ? 'voice' : 'keyboard')
       let pending = false
+      setComposerMode(voiceAvailable() ? 'voice' : 'keyboard')
       function setState(caption) {
         const changed = state.textContent !== caption
         if (changed) state.textContent = caption
@@ -484,7 +532,22 @@
       }
       function render(status, authoritative = true) {
         if (released || ctx.signal?.aborted || !status?.state) return
+        const restoreVoiceFocus = lastStatus === 'recording' && status.state !== 'recording' && composer.contains(root.document.activeElement)
+        if (['error','unavailable'].includes(status.state)) voiceFocusRequested = false
         if (authoritative) avatar.update(status)
+        if (activeSubmission) {
+          const request = activeSubmission
+          const matches = status.transcript === request.text && (status.ownerTurnId !== request.previousOwner || !status.ownerTurnId)
+          const history = status.conversation?.turns?.find(item => item.transcript === request.text && !request.previousTurns.has(item.id))
+          const reply = request.reference && status.remote?.replies?.find(item=>item.text===request.text && !request.previousReplies.has(item.id) && ['messageId','sourceKey','sourceRevision'].every(key=>item.replyTo?.[key]===request.reference[key]))
+          if (reply && ['delivered','answered','failed'].includes(reply.status) && status.state==='idle') activeSubmission = null
+          if (matches && ['thinking', 'transcribing'].includes(status.state)) request.observed = true
+          if ((matches && ['idle', 'error'].includes(status.state) && (request.observed || status.ownerTurnId)) || history && ['idle', 'error'].includes(history.state)) activeSubmission = null
+          else if (status.state === 'unavailable' || history?.state === 'unconfirmed') request.uncertain = true
+        }
+        if (status.state !== 'recording') voiceSubmissionPending = false
+        const restoreRecordingFocus = cancelRequested && ['idle', 'error'].includes(status.state)
+        if (restoreRecordingFocus) cancelRequested = false
         const bottom = conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop < 40
         lastSnapshot = status
         prepareHistory(status)
@@ -527,21 +590,29 @@
           turn.response.setAttribute('aria-busy', String(status.state === 'thinking'))
           if (['idle', 'error'].includes(status.state)) turn.completed = true
         }
-        const caption = status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '') || (root.odkPersonalAgentAvatar.phaseFor(status) === 'working' ? captionFor(status) : '')) : captionFor(status)
+        const caption = activeSubmission && !activeSubmission.uncertain ? 'Thinking...'
+          : status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '') || captionFor(status)) : captionFor(status)
         setState(status.proposalError ? 'Suggestions unavailable' : caption)
-        sendControl.disabled = busy || status.state === 'unavailable' || pending
-
         lastStatus = status.state
-        // A host that declares no voice input opens the keyboard and never traps
-        // the owner in a microphone it cannot use.
+        if (activeSubmission?.uncertain) {
+          setState('')
+          showNotice('Delivery not confirmed. Check before sending again.', 'Check status', checkStatus)
+        } else if (status.state === 'unavailable') {
+          showNotice('Connection unavailable. Your draft is kept.', 'Check status', checkStatus)
+        } else if (status.state === 'error') {
+          const detail = voiceFailures[status.voiceFailure] || status.message || 'Request failed.'
+          const retry = Boolean(status.voiceFailure && status.voiceFailure !== 'cleanup' && voiceAvailable())
+          showNotice(detail, retry ? 'Record again' : 'Check status', retry ? startVoice : checkStatus)
+        } else showNotice()
         if (!voiceAvailable() && !busy && composerMode === 'voice') setComposerMode('keyboard')
         renderVoiceControl()
+        if ((restoreRecordingFocus || restoreVoiceFocus) && !cancelling && root.document.getElementById('app-view')?.hidden !== false) fieldControl().focus({ preventScroll: true })
         if (bottom) latest()
         else $('.agent-latest').hidden = false
       }
       const unsub = root.odkPersonalBot?.subscribe(render)
       ctx.trackCleanup?.(() => {
-        released = true;avatar.destroy();composer.removeEventListener('focusin', engageAvatar);composer.removeEventListener('focusout', disengageAvatar);clearTimeout(scrollIdle);delete conversation.dataset.scrolling;unsub?.()
+        released = true;avatar.destroy();inputObserver?.disconnect();root.removeEventListener('keydown', cancelKey, true);composer.removeEventListener('focusin', engageAvatar);composer.removeEventListener('focusout', disengageAvatar);clearTimeout(scrollIdle);delete conversation.dataset.scrolling;unsub?.()
         conversation.removeEventListener('scroll', handleScroll)
         conversation.removeEventListener('wheel', handleHistoryWheel)
         conversation.removeEventListener('keydown', handleHistoryKey)
@@ -549,64 +620,101 @@
       })
       const initialRevision = revision
       root.odkPersonalBot?.getStatus().then(status => { if (revision === initialRevision) render(status) }).catch(() => { if (revision === initialRevision) render({ state: 'unavailable' }) })
-      $('.agent-composer').addEventListener('submit', async event => {
+      composer.addEventListener('submit', async event => {
         event.preventDefault()
+        if (lastStatus === 'recording' && voiceAvailable()) { await submitVoice(); return }
         const text = input.value.trim()
-        if (!text || pending || $('.agent-send').disabled) return
+        if (new TextEncoder().encode(text).length > 3000) { showNotice('Message is too long. Shorten it before sending.');input.focus({preventScroll:true});return }
+        if (!text || composerMode !== 'keyboard' || pending || activeSubmission || busyStates.includes(lastStatus) || lastStatus === 'unavailable' || lastSnapshot?.voiceFailure === 'cleanup') return
         pending = true
         const avatarIntent = avatar.intent('sending')
+        const request = { text, inputRevision, previousOwner: lastSnapshot?.ownerTurnId, previousTurns: new Set((lastSnapshot?.conversation?.turns || []).map(item=>item.id)), previousReplies: new Set((lastSnapshot?.remote?.replies || []).map(item=>item.id)), reference: selectedReply?.reference, observed: false, uncertain: false }
+        activeSubmission = request
         const submittedRevision = revision
+        let refused = false
         $('.agent-reply-cancel').disabled = true
-        updateReplyChoices()
-        $('.agent-send').disabled = true
+        updateReplyChoices();renderVoiceControl();setState('Thinking...');showNotice()
         try {
           const submittedReply = selectedReply
           if (submittedReply && root.odkPersonalBot?.supportsReplyTo !== true) throw Error('unsupported')
           if (!submittedReply) openThread(null)
           const receipt = await (submittedReply ? root.odkPersonalBot.sendText(text, submittedReply.reference) : root.odkPersonalBot.sendText(text))
           if (released) return
-          if (!receipt?.accepted) throw Error('refused')
-          if (input.value.trim() === text) input.value = ''
+          if (!receipt?.accepted) { refused = receipt?.delivery === 'refused';throw Error('unconfirmed') }
+          if (inputRevision === request.inputRevision && input.value.trim() === text) input.value = ''
           if (selectedReply === submittedReply || (submittedReply && selectedReply?.reference === submittedReply.reference)) { selectedReply = null;replyContext() }
-          if (revision === submittedRevision) setState('Waiting for response…')
         } catch {
-          if (!released && revision === submittedRevision) {
-            setState('Delivery not confirmed')
-            avatar.fail(avatarIntent)
+          if (!released && activeSubmission === request) {
+            if (refused) { activeSubmission = null;setState('');showNotice('Message was not sent. You can edit and send again.') }
+            else { request.uncertain = true;setState('');showNotice('Delivery not confirmed. Check before sending again.', 'Check status', checkStatus) }
+            if (revision === submittedRevision) avatar.fail(avatarIntent)
           }
         } finally {
           pending = false
-          if (!released) { $('.agent-reply-cancel').disabled = false;updateReplyChoices() }
-          if (!released) $('.agent-send').disabled = !['idle', 'error'].includes(lastStatus)
-        }
-      })
-      input.addEventListener('keydown', event => {
-        if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('.agent-composer').requestSubmit() }
-      })
-      $('.agent-reply-cancel').addEventListener('click', () => { if (!pending) { selectedReply = null;openThread(null);replyContext();fieldControl().focus({ preventScroll: true }) } })
-      $('.agent-thread-all').addEventListener('click', () => { openThread(null);conversation.focus({ preventScroll: true }) })
-      // Voice is the default composer, so the first tap on the voice field starts
-      // the request. A later tap while the composer is idle opens the keyboard,
-      // and the microphone of the keyboard opens voice and records in one tap.
-      micControl.addEventListener('click', async () => {
-        if (composerMode === 'voice' && voiceAvailable() && voiceStarted && !busyStates.includes(lastStatus)) {
-          setComposerMode('keyboard', true)
-          return
-        }
-        if (composerMode === 'keyboard') setComposerMode('voice')
-        voiceStarted = true
-        const requestRevision = revision
-        const avatarIntent = avatar.intent(lastStatus === 'recording' ? 'transcribing' : 'preparing')
-        try {
-          const receipt = await root.odkPersonalBotStatus?.mic()
-          if (receipt?.accepted === false) throw Error('Recording control refused')
-        } catch {
-          if (!released && revision === requestRevision) {
-            setState('Microphone unavailable')
-            avatar.fail(avatarIntent)
+          if (!released) {
+            $('.agent-reply-cancel').disabled = false;updateReplyChoices();renderVoiceControl()
           }
         }
       })
+      input.addEventListener('input', () => { inputRevision++;renderVoiceControl() })
+      input.addEventListener('keydown', event => {
+        if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) { event.preventDefault();composer.requestSubmit() }
+      })
+      const inputObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(resizeInput) : null
+      inputObserver?.observe(composer)
+      $('.agent-reply-cancel').addEventListener('click', () => { if (!pending) { selectedReply = null;openThread(null);replyContext();fieldControl().focus({ preventScroll: true }) } })
+      $('.agent-thread-all').addEventListener('click', () => { openThread(null);conversation.focus({ preventScroll: true }) })
+      async function startVoice() {
+        if (released || micControl.disabled || !voiceAvailable() || voicePending) return
+        voicePending = true;voiceFocusRequested = true
+        const requestRevision = revision
+        const avatarIntent = avatar.intent('preparing')
+        showNotice();renderVoiceControl();setState('Thinking...')
+        try {
+          const receipt = await root.odkPersonalBotStatus?.mic()
+          if (!receipt || receipt.accepted === false) throw Error('Recording control refused')
+        } catch {
+          if (!released && revision === requestRevision) {
+            voiceFocusRequested = false
+            setState('');showNotice('Microphone unavailable.', 'Record again', startVoice)
+            avatar.fail(avatarIntent)
+          }
+        } finally { voicePending = false;if (!released) renderVoiceControl() }
+      }
+      async function submitVoice() {
+        if (released || lastStatus !== 'recording' || sendControl.disabled || voicePending) return
+        voicePending = true;voiceSubmissionPending = true;renderVoiceControl()
+        try {
+          const receipt = await root.odkPersonalBotStatus?.mic()
+          if (!receipt || receipt.accepted === false) throw Error('Recording submission refused')
+        } catch { if (!released) showNotice('Recording submission not confirmed.', 'Check status', checkStatus) }
+        finally { voicePending = false;if (!released) renderVoiceControl() }
+      }
+      async function cancelRecording() {
+        if (released || lastStatus !== 'recording' || cancelControl.disabled) return
+        cancelling = true;cancelRequested = true;renderVoiceControl()
+        try {
+          const receipt = await root.odkPersonalBot.cancelRecording()
+          if (receipt?.accepted === false) {
+            cancelRequested = false
+            showNotice('Recording is still active. Cancel again or send it.')
+          } else if (!receipt?.accepted) throw Error('Cancellation not confirmed')
+        } catch { if (!released) showNotice('Recording cancellation not confirmed.', 'Check status', checkStatus) }
+        finally {
+          cancelling = false
+          if (!released) {
+            renderVoiceControl()
+            if (!cancelRequested && ['idle','error'].includes(lastStatus)) fieldControl().focus({ preventScroll: true })
+          }
+        }
+      }
+      function cancelKey(event) {
+        if (event.key !== 'Escape' || lastStatus !== 'recording' || root.document.getElementById('app-view')?.hidden === false || cancelControl.disabled) return
+        event.preventDefault();event.stopImmediatePropagation();void cancelRecording()
+      }
+      root.addEventListener('keydown', cancelKey, true)
+      micControl.addEventListener('click', startVoice)
+      cancelControl.addEventListener('click', cancelRecording)
       function engageAvatar() { avatar.engage(composerMode === 'keyboard') }
       function disengageAvatar() { avatar.engage(false) }
       composer.addEventListener('focusin', engageAvatar)

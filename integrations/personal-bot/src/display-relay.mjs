@@ -109,6 +109,12 @@ export async function createDisplayRelay({ endpoint, stateDir, alias, token = un
     void writeFrame(client, registered ? status : unavailable()).catch(() => client.destroy())
     if (registered) for (const frame of cache.values()) void writeFrame(client, frame).catch(() => client.destroy())
     readFrames(client, async frame => {
+      if (frame.type === 'cancel_recording') {
+        if (Object.keys(frame).some(key => !['v','type'].includes(key))) { client.destroy(); return }
+        if (ready && registered && voice) await voice.cancel()
+        else await writeFrame(client, registered ? status : unavailable())
+        return
+      }
       if (frame.type === 'toggle') {
         if (ready && registered && voice) await voice.toggle()
         else await writeFrame(client, registered ? status : unavailable())
