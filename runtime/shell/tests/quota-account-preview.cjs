@@ -104,7 +104,37 @@ app.whenReady().then(async () => {
       fs.writeFileSync(path.join(output,`widget-${theme}-${cell}.png`),(await capturePaintedPage(win)).toPNG())
     }
   }
-  fs.writeFileSync(path.join(output,'widget-geometry.json'),JSON.stringify({synthetic:true,results:widgetResults,errors:widgetErrors},null,2))
+  const visibilityChecks = await win.webContents.executeJavaScript(`(() => {
+    const host = document.querySelector('#widgets');
+    const results = [];
+    for (const state of ['offscreen', 'hidden', 'inert', 'aria-hidden']) {
+      cleanups.splice(0).forEach(fn=>fn()); ticks.length=0; host.replaceChildren();
+      const tile = document.createElement('section');
+      tile.className='preview-tile widget widget-display-only w-quota';
+      tile.style.width='186px'; tile.style.height='186px'; host.append(tile);
+      plugins['odk.tile.quota'].mount(tile,ctx);
+      const start=Date.now();
+      const account=()=>tile.querySelector('.quota-tile-account').textContent;
+      const position=()=>tile.querySelector('.quota-tile-position').textContent;
+      ticks.at(-1)(new Date(start+3000));
+      const before=position();
+      if(state==='offscreen') tile.style.transform='translateX(3000px)';
+      else host.setAttribute(state, state==='aria-hidden' ? 'true' : '');
+      ticks.at(-1)(new Date(start+9000)); ticks.at(-1)(new Date(start+12000));
+      const paused=position();
+      tile.style.transform=''; host.removeAttribute(state);
+      ticks.at(-1)(new Date(start+15000));
+      results.push({state,before,paused,resumed:position(),account:account()});
+    }
+    return results;
+  })()`)
+  for (const check of visibilityChecks) {
+    assert.equal(check.before, '3 / 3', check.state)
+    assert.equal(check.paused, check.before, check.state + ' consumes no visible time')
+    assert.equal(check.resumed, '1 / 3', check.state + ' resumes accumulated visible time')
+    assert.equal(check.account, 'fradser@gmail.com', check.state)
+  }
+  fs.writeFileSync(path.join(output,'widget-geometry.json'),JSON.stringify({synthetic:true,results:widgetResults,visibilityChecks,errors:widgetErrors},null,2))
   assert.deepEqual(widgetErrors, [], 'All account readings must remain readable and contained')
   win.destroy()
   console.log('QUOTA_PREVIEW_PASS '+JSON.stringify({output,synthetic:true,captures:16}))

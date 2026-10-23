@@ -157,13 +157,20 @@ function mountTile(status, refresh, environment = {}) {
     nodes.set(key, created)
     return created
   }
-  const el = { innerHTML: '', querySelector(key) { return node(key) }, matches() { return Boolean(environment.paused) } }
+  const visibleRect = { left: 0, top: 0, right: 348, bottom: 348, width: 348, height: 348 }
+  const el = { innerHTML: '', querySelector(key) { return node(key) }, matches() { return Boolean(environment.paused) },
+    getBoundingClientRect() { return environment.offscreen ? { ...visibleRect, left: 2000, right: 2348 } : visibleRect },
+    closest(selector) {
+      if (selector === '#pages-viewport') return { getBoundingClientRect: () => ({ left: 0, top: 0, right: 1920, bottom: 1280, width: 1920, height: 1280 }) }
+      return (environment.hiddenAncestor || environment.inertAncestor || environment.ariaHiddenAncestor) ? {} : null
+    },
+  }
   const registered = []
   let tick
   vm.runInNewContext(source, {
     Date: class extends Date { static now() { return environment.now ?? Date.now() } },
     document: { get hidden() { return Boolean(environment.hidden) }, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent } }) },
-    window: { matchMedia: () => ({ matches: Boolean(environment.reducedMotion) }), odkPlugins: { register(value) { registered.push(value) } } },
+    window: { innerWidth: 1920, innerHeight: 1280, matchMedia: () => ({ matches: Boolean(environment.reducedMotion) }), odkPlugins: { register(value) { registered.push(value) } } },
   })
   const plugin = registered.find(value => value.id === 'odk.tile.quota')
   assert.ok(plugin, 'odk.tile.quota must be registered')
@@ -198,8 +205,8 @@ const statedWindows = (quotas, index = 0) => ({ state: 'available', snapshot: { 
   groups: [{ title: 'Codex limits', quotas: quotas.map(([label, remainingPct, horizon]) => ({ label, remainingPct, resetAt: null, horizon })) }],
 }] } })
 
-test('account rotation excludes hidden, hovered, focused, and reduced-motion ticks', () => {
-  for (const pause of ['hidden', 'paused', 'reducedMotion']) {
+test('account rotation excludes hidden, offscreen, obscured, hovered, focused, and reduced-motion ticks', () => {
+  for (const pause of ['hidden', 'paused', 'reducedMotion', 'offscreen', 'hiddenAncestor', 'inertAncestor', 'ariaHiddenAncestor']) {
     const environment = { now: 0 }
     const status = windows([['Weekly limit', 58], ['Weekly limit', 80]])
     status.snapshot.accounts.forEach((account, index) => { account.account = `account-${index}@example.test` })

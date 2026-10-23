@@ -386,7 +386,14 @@
       ctx.onTick((now) => {
         if (disposed) return
         const time = typeof now?.getTime === 'function' ? now.getTime() : Date.now()
-        const paused = document.hidden || root.matchMedia?.('(prefers-reduced-motion: reduce)').matches || el.matches?.(':hover, :focus-within')
+        const bounds = el.getBoundingClientRect()
+        const pageViewport = el.closest('#pages-viewport')?.getBoundingClientRect()
+        const viewport = pageViewport || { left: 0, top: 0, right: root.innerWidth, bottom: root.innerHeight }
+        const visible = bounds.width > 0 && bounds.height > 0
+          && bounds.right > Math.max(0, viewport.left) && bounds.left < Math.min(root.innerWidth, viewport.right)
+          && bounds.bottom > Math.max(0, viewport.top) && bounds.top < Math.min(root.innerHeight, viewport.bottom)
+        const paused = document.hidden || !visible || el.closest('[hidden], [inert], [aria-hidden="true"]')
+          || root.matchMedia?.('(prefers-reduced-motion: reduce)').matches || el.matches(':hover, :focus-within')
         if (!paused) elapsed += Math.max(0, time - previousTick)
         previousTick = time
         render()

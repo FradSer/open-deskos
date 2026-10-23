@@ -30,6 +30,12 @@ Feature: Read AI quotas with clear provenance and recovery
     And reduced motion keeps the current account visible
     And the App lists all accounts with provider and email before authentication filenames
 
+  Scenario: Pause account rotation outside the visible desk
+    Given a quota Widget on an offscreen page or behind an App
+    When the shared Tick continues while the Widget is outside its viewport or its ancestor is inert
+    Then the Widget retains its account and visible elapsed time
+    And rotation resumes after six accumulated visible seconds
+
   Scenario: Read multiple accounts in a compact Cell
     Given a 186px Cell and three connected accounts
     When each account is displayed under every theme
