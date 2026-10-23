@@ -82,6 +82,14 @@ Feature: Every Personal Bot user turn receives a typed intent judgment
     Then listing and desktop discovery are available
     And installation, movement, removal and rollback are neither active nor executable
 
+  Scenario: Application installation can read the draft task evidence
+    Given a Hosted Pi task has created an application draft
+    When the owner requests installation through the application management workflow
+    Then the coordinator can read configured targets, task lists, status and history
+    And installation uses the actual draft result and current desktop occupancy
+    And task creation, prompts, cancellation, ending and verification remain unavailable
+    And an application query cannot read task evidence or change application state
+
   Scenario: Cancelling intent inference ends that turn
     Given a typed intent judgment is pending
     When the user cancels the Personal Bot turn or closes the agent
