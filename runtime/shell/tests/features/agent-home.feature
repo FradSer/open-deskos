@@ -154,6 +154,13 @@ Feature: Personal Agent home briefing
     And conversation messages have no avatars or timestamps
     And streaming updates preserve the message containers
 
+  Scenario: Native fade snapshots observe each rendered mask state
+    Given the conversation has visible messages behind its stationary heading
+    When a native screenshot compares the top fade with an unmasked conversation
+    Then each mask state reaches two renderer frames before native capture
+    And the computed mask matches the state under test
+    And the original pixel difference threshold remains required
+
   Scenario: Normal design previews contain consistent populated readings
     Given an isolated preview uses synthetic desk data
     When the preview captures a supported theme
