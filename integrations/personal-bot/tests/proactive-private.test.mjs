@@ -22,6 +22,21 @@ test('an unavailable filesystem root preserves its error without recursive retri
   } finally { blocked.mock.restore(); syncBuiltinESMExports() }
 })
 
+test('Windows inherited state containers keep strict private child permissions', { skip: !windows }, async t => {
+  const { createWindowsPrivatePaths } = await import('../src/proactive-private-windows.mjs')
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'odk-state-container-')))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const paths = createWindowsPrivatePaths()
+  paths('CheckContainer', dir, true)
+  assert.throws(() => paths('Check', dir, true), /private/)
+  protectProactivePath(dir)
+  paths('Check', dir, true)
+  const broaden = spawnSync('icacls.exe', [dir, '/grant', '*S-1-1-0:(OI)(CI)(R)'], { encoding: 'utf8', windowsHide: true })
+  assert.equal(broaden.status, 0)
+  assert.throws(() => paths('CheckContainer', dir, true), /private/)
+  assert.throws(() => paths('CheckContainer', dir, false), /private/)
+})
+
 test('Windows repeatedly checks fresh private ACLs without a command processor', { skip: !windows }, t => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'odk-native-acl-')))
   t.after(() => rmSync(dir, { recursive: true, force: true }))

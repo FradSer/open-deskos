@@ -16,6 +16,14 @@ Feature: The voice control channel is a named pipe gated by the shared channel t
     And late and foreign responses cannot complete a different operation
     And voice turns retain the same originating display binding without recording during offline tests
 
+  Scenario: A private import uses the existing Windows state container
+    Given the existing state container permits only the owner, SYSTEM and administrators
+    And its inherited ACL or administrator ownership does not meet the private package directory contract
+    When the relay imports a package
+    Then it checks the container without changing its owner or ACL
+    And it creates a separate owner-controlled private import directory
+    And broad container permissions or directory aliases remain refused
+
   Scenario: A busy Shell does not disconnect during recording level updates
     Given an authenticated Shell has received recording state with current suggestions
     And its status channel temporarily has queued output

@@ -793,7 +793,7 @@ test('a handler clarification retains owner scope until a named follow-up attemp
 
 test('confirmed Hosted continuation is admission while unknown or mismatched receipts stay unknown', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'odk-hosted-ack-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }))
   const taskId = '11111111-1111-4111-8111-111111111111'
   const project = join(dir, 'project')
   const helper = join(dir, 'helper.mjs')

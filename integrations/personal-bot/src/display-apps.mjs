@@ -97,12 +97,12 @@ export async function originatingAppsRequest(binding, command, params, workspace
 /** The display calls only its authenticated local Shell. Its verifier owns publication. */
 export function createDisplayApplications({ stateDir, env = process.env, request = userAppsRequest }) {
   let privatePaths
-  async function secure(directory, created) {
+  async function secure(directory, created, container = false) {
     const info = await lstat(directory)
     if (!info.isDirectory() || info.isSymbolicLink() || await realpath(directory) !== directory) throw Error('Unsafe application import directory')
     if (process.platform === 'win32') {
       privatePaths ??= createWindowsPrivatePaths()
-      privatePaths(created ? 'Protect' : 'Check', directory, true)
+      privatePaths(container ? 'CheckContainer' : created ? 'Protect' : 'Check', directory, true)
     } else if (info.uid !== process.getuid() || (info.mode & 0o077) !== 0) throw Error('Unsafe application import directory')
   }
   return {
@@ -122,7 +122,7 @@ export function createDisplayApplications({ stateDir, env = process.env, request
       const manifest = decode(bundle.manifest, 8192), html = decode(bundle.html, 256 * 1024)
       if (digestOf(manifest, html) !== bundle.digest || JSON.parse(manifest.toString('utf8')).id !== params.appId) throw Error('Application bundle identity mismatch')
       const root = join(stateDir, 'application-imports')
-      await secure(stateDir, false)
+      await secure(stateDir, false, true)
       let created = false
       try { await mkdir(root, { mode: 0o700 }); created = true } catch (error) { if (error.code !== 'EEXIST') throw error }
       await secure(root, created)

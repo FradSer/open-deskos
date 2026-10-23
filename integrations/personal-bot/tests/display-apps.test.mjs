@@ -31,7 +31,7 @@ test('display text binds lifecycle to its own Shell and disconnect never redirec
     sendText(_text, _reply, applications) { binding = applications; return true } }
   const server = await listen(hub, service, { token: fixtureToken })
   const relay = await createDisplayRelay({ endpoint: local, stateDir: root, token: fixtureToken, alias: 'cm5-agent',
-    connect() { const s = net.connect(hub); sockets.push(s); if (process.platform === 'win32') s.once('connect', () => s.write(JSON.stringify({v:1,token:fixtureToken})+'\n')); return s },
+    connect() { const s = net.connect(hub); sockets.push(s); if (process.platform === 'win32') s.write(JSON.stringify({v:1,token:fixtureToken})+'\n'); return s },
     applications: { host: { name: 'HANDHELD', platform: 'win32' }, async request(command, params) { calls.push([command, params]); return { ok: true, apps: [{ id: 'win-clock' }], boundedCatalog: 'x'.repeat(140000) } } }, reconnectMs: 10000 })
   const client = net.connect(local), frames = []
   t.after(async () => { client.destroy(); await relay.close(); await server.close(); await rm(root, { recursive: true, force: true }) })

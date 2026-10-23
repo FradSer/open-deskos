@@ -1,4 +1,5 @@
 import { endpoint as privateEndpoint, fixtureToken } from './helpers/private-channel.mjs'
+import { loadShellModule } from '../src/plugin-composition.mjs'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -406,7 +407,7 @@ test('a delayed token writer cannot split the Shell and Bot credentials', async 
   const creator = readOrCreateChannelToken({ file, fsModule })
   await ready
   let contender
-  try { contender = await require('../../../runtime/shell/src/local-channel').readOrCreateToken({ stateDir: dir, fsModule }) } finally { release() }
+  try { contender = await loadShellModule('local-channel.js', import.meta.url).readOrCreateToken({ stateDir: dir, fsModule }) } finally { release() }
   assert.equal(await creator, contender)
   assert.equal((await fs.readFile(file, 'utf8')).trim(), contender)
   assert.deepEqual(await fs.readdir(dir), [TOKEN_FILENAME])
