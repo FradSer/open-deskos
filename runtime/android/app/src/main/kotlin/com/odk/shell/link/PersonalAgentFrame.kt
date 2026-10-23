@@ -70,6 +70,7 @@ object PersonalAgentFrame {
             frame.put("proposals", if (readable) proposals else JSONArray())
             frame.put("proposalPopup", readable && status.opt("proposalPopup") == true)
             frame.put("proposalInteraction", readable && status.opt("proposalInteraction") == true)
+            frame.put("proposalRecovery", readable && status.opt("proposalRecovery") == true)
             val omitted = status.opt("proposalHiddenCount")
             frame.put("proposalHiddenCount", if (omitted is Number && omitted.toDouble().isFinite() && omitted.toDouble() >= 0 && omitted.toDouble() <= 9007199254740991.0 && omitted.toDouble() % 1.0 == 0.0) omitted else 0)
         }
