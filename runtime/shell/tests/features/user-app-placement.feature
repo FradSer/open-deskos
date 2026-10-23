@@ -51,3 +51,17 @@ Feature: Verified widgets share desktop grids
     Given two widget drafts target one free cell
     When both are installed concurrently
     Then exactly one installation succeeds
+
+  Scenario: Placement follows the measured split desktop
+    Given the Shell reports three columns and three rows for Desk
+    When the Agent lists or changes Widget placement
+    Then the catalog reports three columns
+    And placements outside those columns are rejected
+    And shrinking the grid preserves unavailable placements for recovery
+    And an update rechecks placement after verification
+
+  Scenario: The catalog follows the visible page sequence
+    Given Personal Agent remains beside the paged desktop
+    When the Agent requests desktop placement
+    Then page numbers match the pager
+    And the resident pane does not consume a page number

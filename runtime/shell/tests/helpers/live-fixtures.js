@@ -42,7 +42,7 @@ const WIDE_EVENTS = [
   { kind: 'result', toolName: 'bash', toolCallId: 'call-ok', text: 'pass 12 fail 0' },
 ]
 
-function installGeometryFixtures(ipcMain, { state = 'unavailable', wide = false } = {}) {
+function installGeometryFixtures(ipcMain, { state = 'unavailable', wide = false, onDesktopGeometry } = {}) {
   ipcMain.handle('odk-renderer-development-plugins', () => [])
   const live = state === 'live'
   ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured' }))
@@ -50,6 +50,7 @@ function installGeometryFixtures(ipcMain, { state = 'unavailable', wide = false 
   ipcMain.handle('odk-remote-navigation', () => true)
   ipcMain.handle('odk-remote-input', () => true)
   ipcMain.handle('odk-remote-link-state', () => ({ state: 'unavailable' }))
+  ipcMain.handle('odk-user-apps-geometry', (event, pages) => { onDesktopGeometry?.(pages, event); return { ok: true } })
   ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
   ipcMain.handle('odk-user-apps-changed', () => ({ ok: true }))
   ipcMain.handle('odk-app-manager-list', () => ({ ok: true, apps: [] }))

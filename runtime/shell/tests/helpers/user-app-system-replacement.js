@@ -113,7 +113,7 @@ async function runtime(t, plugins = [], { ui, verify = () => true, html = '<p id
   const composition = createMainPlugins({ replacementPlugins: [...plugins, dataPlugin, catalogPlugin] })
   const keep = new Set([ID, dataPlugin.manifest.id, catalogPlugin.manifest.id])
   const host = createPluginHost({ disabled: composition.filter(plugin => !keep.has(plugin.manifest.id)).map(plugin => plugin.manifest.id), capabilities: {
-    'desk.user-apps': { smokeMode: false, isStopping: () => false, options: { env,
+    'desk.user-apps': { smokeMode: false, isStopping: () => false, options: { env, desktopGeometry: ui?.desktopGeometry,
       app: ui?.app || { once() {} }, BrowserWindow: ui?.BrowserWindow || { getAllWindows: () => [{ webContents: { send: name => changes.push(name) } }] },
       ipcMain: { handle(name, handler) { assert.equal(handlers.has(name), false); ui?.ipcMain.handle(name, handler); handlers.set(name, handler) },
         removeHandler(name) { ui?.ipcMain.removeHandler(name); handlers.delete(name) } },

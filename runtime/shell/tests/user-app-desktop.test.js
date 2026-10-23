@@ -139,3 +139,18 @@ test('only current installed App instances receive the fixed return callback', a
   env.mounted.at(-1).onReturnHome(); assert.equal(returned.length, 2)
   env.controller.dispose(); env.mounted.at(-1).onReturnHome(); assert.equal(returned.length, 2)
 })
+
+test('a geometry placement error removes its old frame and clears without changing revision', async () => {
+  let apps = [widget()]
+  const env = setup(async () => ({ ok: true, apps }))
+  await tick()
+  assert.equal(env.mounted.length, 1)
+  apps = [{ ...widget(), placementError: 'invalid-placement' }]
+  env.change(); await tick()
+  assert.equal(env.disposed.length, 1)
+  assert.equal(env.track.children[1].children[0].children.length, 1)
+  apps = [widget()]
+  env.change(); await tick()
+  assert.equal(env.mounted.length, 2)
+  env.controller.dispose()
+})

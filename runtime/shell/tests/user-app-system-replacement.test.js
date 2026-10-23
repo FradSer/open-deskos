@@ -261,3 +261,25 @@ for (const signed of [false, true]) test(`${signed ? 'signed bundled' : 'default
     assert.equal((await f.data.registry.read(app.id)).error, 'unknown-reading')
     assert.equal((await f.store.list())[0].id, 'counter', 'Selected catalog mutations must not reach the unused default store')
   })
+
+test('measured geometry accepts only the Shell main frame and deduplicates notifications',
+  { skip: posixOnlyReason('unix-socket') }, async t => {
+    const { createDesktopGeometry } = require('../src/user-app-geometry')
+    const { pathToFileURL } = require('node:url')
+    const desktopGeometry = createDesktopGeometry()
+    const frame = { url: pathToFileURL(path.resolve(__dirname, '../src/renderer/index.html')).href }
+    const notices = []
+    const contents = { mainFrame: frame, send: name => notices.push(name) }
+    const f = await runtime(t, [], { ui: { desktopGeometry, ipcMain: { handle() {}, removeHandler() {} }, protocol: { handle() {}, unhandle() {} }, BrowserWindow: { getAllWindows: () => [{ webContents: contents }] } } })
+    const report = f.handlers.get('odk-user-apps-geometry')
+    const pages = [{ id: 'desk', columns: 3, rows: 3, occupied: [] }]
+    assert.equal((await report({ sender: contents, senderFrame: {} }, pages)).ok, false)
+    assert.equal(desktopGeometry.read(), null)
+    assert.equal((await report({ sender: contents, senderFrame: frame }, pages)).ok, true)
+    assert.equal(desktopGeometry.read()[0].columns, 3)
+    assert.deepEqual(notices, ['odk-user-apps-changed'])
+    await report({ sender: contents, senderFrame: frame }, pages)
+    assert.equal(notices.length, 1)
+    frame.url = 'https://example.invalid/'
+    assert.equal((await report({ sender: contents, senderFrame: frame }, pages)).ok, false)
+  })

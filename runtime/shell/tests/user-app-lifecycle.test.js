@@ -52,7 +52,7 @@ function fixture({ pendingListener = false, closeFailures = 0, routeFailures = 0
 test('installed package runtime releases IPC, protocol and listener through its owner', async () => {
   const f = fixture()
   await f.start()
-  assert.equal(f.handlers.size, 4)
+  assert.equal(f.handlers.size, 5)
   assert.equal(f.routes.size, 1)
   assert.equal(f.cleanups.length, 1)
   await f.cleanups[0]()
