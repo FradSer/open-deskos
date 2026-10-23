@@ -745,3 +745,36 @@ test('proposal capabilities follow the selected Watch without granting an action
   assert.deepEqual(service.status.proposalCapabilities, { read: false, respond: false, acknowledge: false })
   await assert.rejects(service.proposalCommand({ type: 'proposal_list' }), /unavailable/)
 })
+
+
+test('explicit local cancellation waits for cleanup and ignores late capture completion', async () => {
+  let done, release, cleaned = 0, transcribed = 0
+  const recording = { done: new Promise(resolve => { done = resolve }), stop: async () => 'cancelled.wav',
+    cleanup: () => new Promise(resolve => { cleaned++; release = resolve }) }
+  const { service } = fixture({ record: async () => recording, transcribe: async () => { transcribed++; return 'never' } })
+  assert.equal(await service.cancelRecording(), false)
+  await service.toggle()
+  const cancellation = service.cancelRecording()
+  await new Promise(setImmediate)
+  assert.equal(cleaned, 1)
+  assert.equal(service.sendText('blocked during cleanup'), false)
+  assert.equal(await service.cancelRecording(), false)
+  done(); await new Promise(setImmediate)
+  assert.equal(transcribed, 0)
+  release(); assert.equal(await cancellation, true)
+  assert.equal(service.status.state, 'idle')
+  assert.equal(service.status.transcript, '')
+  assert.equal(service.status.cancelInput, undefined)
+  await service.close()
+})
+
+test('failed local cancellation retains capture ownership and cannot start another input', async () => {
+  let failed = true
+  const recording = { done: new Promise(() => {}), stop: async () => '', cleanup: async () => { if (failed) throw Error('private') } }
+  const { service } = fixture({ record: async () => recording })
+  await service.toggle()
+  assert.equal(await service.cancelRecording(), false)
+  assert.equal(service.status.voiceFailure, 'cleanup')
+  assert.equal(service.sendText('blocked'), false)
+  failed = false; await service.close()
+})

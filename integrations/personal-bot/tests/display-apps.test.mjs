@@ -125,3 +125,34 @@ test('correlation, cancellation and deadlines never transfer mutation authority'
   broker.close()
   await assert.rejects(broker.binding.request('list'), /unavailable/)
 })
+
+test('display cancellation remains unavailable until host registration is acknowledged', { timeout: 5000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'odk-voice-registration-'))
+  const hub = endpoint(root, 'hub'), local = endpoint(root, 'local'), peers = []
+  let upstream, relay, client, initialized = false, cancellations = 0
+  const server = net.createServer(peer => {
+    upstream = peer; peers.push(peer); peer.on('error', () => {})
+    readFrames(peer, async frame => {
+      if (frame.type === 'status') await writeFrame(peer, { v: 1, type: 'status', state: 'recording', cancelInput: true })
+    })
+  })
+  await new Promise(resolve => server.listen(hub, resolve))
+  t.after(async () => { client?.destroy(); await relay?.close(); peers.forEach(peer => peer.destroy()); await new Promise(resolve => server.close(resolve)); await rm(root, { recursive: true, force: true }) })
+  relay = await createDisplayRelay({ endpoint: local, stateDir: root, token: fixtureToken, alias: 'fixture-agent',
+    connect: () => net.connect(hub), reconnectMs: 10000,
+    applications: { host: { name: 'FIXTURE-DISPLAY', platform: 'win32' }, request: async () => ({ ok: true }) },
+    createVoice: () => ({ onFrame() { initialized = true; return false }, cancel: async () => { cancellations++ }, close: async () => {} }) })
+  client = net.connect(local); const frames = []
+  readFrames(client, frame => { frames.push(frame) }); await once(client, 'connect')
+  if (process.platform === 'win32') await writeFrame(client, { v: 1, token: fixtureToken })
+  await writeFrame(client, { v: 1, type: 'status' })
+  await until(() => initialized && frames.length)
+  await writeFrame(client, { v: 1, type: 'cancel_recording' }); await writeFrame(client, { v: 1, type: 'status' })
+  await until(() => frames.length >= 2)
+  assert.equal(cancellations, 0)
+  assert.ok(frames.every(frame => frame.state === 'unavailable'))
+  await writeFrame(upstream, { v: 1, type: 'host_apps_ready' })
+  await until(() => frames.some(frame => frame.state === 'recording'))
+  await writeFrame(client, { v: 1, type: 'cancel_recording' })
+  await until(() => cancellations === 1)
+})

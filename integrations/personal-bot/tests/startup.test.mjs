@@ -446,3 +446,16 @@ registerHooks({resolve(specifier,context,next){
     })
   }
 })
+
+test('resident voice configuration forwards application identity and the cancellation callback', async () => {
+  const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
+  const wiring = source.match(/service\.reserveRemoteRecording = ([^\n]+)/)[1]
+  const calls = [], runtime = { stt: { unavailable: false } }
+  const reserve = Function('runtime', 'originalReserve', `return (${wiring})`)(runtime, (...args) => { calls.push(args); return true })
+  const recording = {}, stop = () => {}, applications = { host: { name: 'Fixture display', platform: 'win32' } }, cancel = () => {}
+  assert.equal(reserve(recording, stop, applications, cancel), true)
+  assert.deepEqual(calls, [[recording, stop, applications, cancel]])
+  runtime.stt.unavailable = true
+  assert.equal(reserve(recording, stop, applications, cancel), false)
+  assert.equal(calls.length, 1)
+})

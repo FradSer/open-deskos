@@ -168,7 +168,7 @@ export class PersonalBotService {
     const notifications = !this.starting && ['idle', 'error'].includes(state) ? this.pendingNotifications.splice(0) : []
     const judgment = this.dependencies.getJudgmentStatus?.()
     this.status = {
-      ...(judgment ? {judgment} : {}), proposalCapabilities: { read: Boolean(this.watch), respond: Boolean(this.watch), acknowledge: Boolean(this.watch) }, ...this.proposalFrame, ...this.replyFrame, ...(this.jev ? { jev: this.jev } : {}), agents: this.agentFrame, ...(this.remoteFrame ? { remote: this.remoteFrame } : {}), ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), replyInput: true, textInput: true, v: 1, type: 'status', state, level: 0,
+      ...(judgment ? {judgment} : {}), proposalCapabilities: { read: Boolean(this.watch), respond: Boolean(this.watch), acknowledge: Boolean(this.watch) }, ...this.proposalFrame, ...this.replyFrame, ...(this.jev ? { jev: this.jev } : {}), agents: this.agentFrame, ...(this.remoteFrame ? { remote: this.remoteFrame } : {}), ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), replyInput: true, textInput: true, v: 1, type: 'status', state, level: 0, ...(state === 'recording' ? {cancelInput:true} : {}),
       message: reply, ...(state === 'error' && ['microphone','timeout','unavailable','protocol','invalid_audio','cleanup'].includes(voiceFailure) ? {voiceFailure} : {}), ...(notifications.length ? { notifications } : {}),
       transcript: boundedText(transcript, 4096, 'Transcript'),
     }
@@ -222,11 +222,11 @@ export class PersonalBotService {
   }
 
   /** Reserve synchronously before a remote display receives capture permission. */
-  reserveRemoteRecording(recording,requestStop,applications = undefined) {
+  reserveRemoteRecording(recording,requestStop,applications = undefined,requestCancel = undefined) {
     if(this.closed || this.starting || this.watch?.responding || !['idle','error'].includes(this.status.state))return false
     this.replyFrame={}
     this.recording=recording
-    this.remoteRecording={recording,requestStop,applications}
+    this.remoteRecording={recording,requestStop,applications,requestCancel}
     this.watch?.setBusy(true)
     this.setState('recording','','')
     this.observeRecording(recording,++this.captureId)
@@ -237,6 +237,16 @@ export class PersonalBotService {
     if(this.recording!==recording || this.remoteRecording?.recording!==recording)return Promise.resolve(false)
     const failures = { microphone: 'Microphone unavailable', timeout: 'Recording timed out. Try again.', unavailable: 'Recording connection lost. Try again.', protocol: 'Recording transfer failed. Try again.', invalid_audio: 'Recording audio is invalid. Try again.' }
     if(reason!=='cancelled' && !Object.hasOwn(failures,reason))return Promise.resolve(false)
+    return this.cancelCapture(recording, reason, failures[reason] || '')
+  }
+
+  cancelRecording() {
+    if (this.closed || this.starting || this.status.state !== 'recording' || !this.recording) return Promise.resolve(false)
+    if (this.remoteRecording?.requestCancel) return this.remoteRecording.requestCancel()
+    return this.cancelCapture(this.recording, 'cancelled')
+  }
+
+  cancelCapture(recording, reason, message = '') {
     this.captureId++
     this.remoteRecording=undefined
     this.starting=true
@@ -244,7 +254,7 @@ export class PersonalBotService {
       const cleaned=await this.discard()
       if(!cleaned)this.recording=recording
       this.starting=!cleaned
-      if(!this.closed)this.setState(cleaned && reason==='cancelled'?'idle':'error',cleaned?failures[reason] ?? '':'Recording cleanup failed',this.status.transcript,cleaned?reason:'cleanup')
+      if(!this.closed)this.setState(cleaned && reason==='cancelled'?'idle':'error',cleaned?message:'Recording cleanup failed',reason==='cancelled'?'':this.status.transcript,cleaned?reason:'cleanup')
       this.watch?.setBusy(!cleaned)
       return cleaned
     })()
