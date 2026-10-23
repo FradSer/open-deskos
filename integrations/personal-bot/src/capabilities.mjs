@@ -14,8 +14,8 @@ const mutationHints = { readOnlyHint: false, destructiveHint: true, idempotentHi
 function userAppTool(command, description, needsAppId = true) {
   const placement = Type.Object({
     pageId: Type.String({ minLength: 1, maxLength: 64 }),
-    col: Type.String({ pattern: '^[1-5](?: / [2-6])?$' }),
-    row: Type.String({ pattern: '^[1-3](?: / [2-4])?$' }),
+    col: Type.String({ pattern: '^(?:[1-9]|[12][0-9]|3[0-2])(?: / (?:[2-9]|[12][0-9]|3[0-3]))?$' }),
+    row: Type.String({ pattern: '^(?:[1-9]|[12][0-9]|3[0-2])(?: / (?:[2-9]|[12][0-9]|3[0-3]))?$' }),
   }, { additionalProperties: false })
   return defineTool({
     name: ['list', 'desktop'].includes(command) ? `user_apps_${command}` : `user_app_${command}`,

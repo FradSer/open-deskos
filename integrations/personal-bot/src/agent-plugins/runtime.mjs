@@ -1,7 +1,7 @@
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import { experienceDigest } from './experience.mjs'
-import { validateCompletion, validateLessons } from './completion.mjs'
+import { AgentValidationError, validateCompletion, validateLessons } from './completion.mjs'
 import { validateAgentPlugins } from './selection.mjs'
 
 export { validateAgentPlugins } from './selection.mjs'
@@ -161,6 +161,7 @@ export function createAgentPluginRuntime({ store, config, infer }) {
       if (!owner || owner.finished) throw Error('No unfinished agent plugin task')
       signal = signal ? AbortSignal.any([signal, owner.controller.signal]) : owner.controller.signal
       owner.finished = true
+      /** @type {{status: string, summary: string, checks: any[], reason?: string}} */
       let verification = { status: 'not_run', summary: 'Completion plugin is disabled.', checks: [] }
       let learning = { status: 'skipped', added: [] }
       if (!enabled('completion')) return { verification, learning }
@@ -168,15 +169,16 @@ export function createAgentPluginRuntime({ store, config, infer }) {
       if (owner.workKind === 'conversation' && !owner.receipts.length) return {
         verification: { status: 'not_run', summary: 'Conversation requested no execution verification.', checks: [] }, learning,
       }
-      if (!owner.receipts.length) return { verification: { status: 'needs_review', summary: 'No tool receipts were produced; execution was not verified.', checks: [] }, learning }
+      if (!owner.receipts.length) return { verification: { status: 'needs_review', reason: 'missing_receipts', summary: 'No tool receipts were produced; execution was not verified.', checks: [] }, learning }
       const workKind = owner.workKind === 'conversation' ? 'derivation' : owner.workKind
       const input = { request: owner.request, workKind, answer, receipts: structuredClone(owner.receipts) }
       try {
         if (owner.overflow || owner.receipts.some(receipt => receipt.status === 'running')) throw Error('Incomplete receipt inventory')
         verification = validateCompletion(await infer('completion', input, signal), owner.receipts)
-      } catch {
+      } catch (error) {
         current(owner, signal)
-        verification = { status: 'needs_review', summary: 'Completion verification is unavailable or has insufficient evidence.', checks: [] }
+        verification = { status: 'needs_review', reason: error instanceof AgentValidationError ? 'invalid_evidence' : 'unavailable',
+          summary: 'Completion verification did not establish the requested outcome.', checks: [] }
       }
       current(owner, signal)
       const checkedWork = owner.workKind === 'query' && owner.receipts.some(receipt => receipt.kind === 'host_check' && receipt.status === 'succeeded' && !receipt.truncated)

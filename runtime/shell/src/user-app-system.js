@@ -34,7 +34,7 @@ function registerUserAppScheme(protocol) {
     { scheme: NATIVE_PLUGIN_SCHEME, privileges: NATIVE_PLUGIN_PRIVILEGES }])
 }
 
-async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env = process.env, smokeMode = false, odkData = null, store: selectedStore, isStopping = () => app.isQuitting === true, onCleanup, appearancePlugins }) {
+async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env = process.env, smokeMode = false, odkData = null, store: selectedStore, isStopping = () => app.isQuitting === true, onCleanup, appearancePlugins, desktopGeometry }) {
   let stopped = false
   let server = null
   let opening = null
@@ -83,7 +83,8 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
   if (!selectedStore) verifier = createUserAppVerifier({ electronPath: process.execPath })
   const store = smokeMode
     ? { list: async () => [], getContent: async () => ({ ok: false, error: 'not-found' }) }
-    : selectedStore || createUserAppStore({ workspace: env.ODK_WORKSPACE, stateDir: surface.stateDir, verify: bundle => verifier.verify(bundle) })
+    : selectedStore || createUserAppStore({ workspace: env.ODK_WORKSPACE, stateDir: surface.stateDir, verify: bundle => verifier.verify(bundle),
+      ...(desktopGeometry ? { getDesktopGeometry: desktopGeometry.read } : {}) })
   packageApi = createUserAppApi({ store, publicDns: env.ODK_PACKAGE_API_PUBLIC_DNS === 'cloudflare' })
   const control = createUserAppControl(store, () => {
     if (stopping()) return
@@ -97,6 +98,21 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
   const bind = (channel, handler) => {
     ipcMain.handle(channel, (...args) => execute(() => handler(...args)))
     releases.add(() => ipcMain.removeHandler(channel))
+  }
+  if (desktopGeometry) {
+    const geometryReport = (event, pages) => {
+      if (stopping()) return { ok: false }
+      const win = BrowserWindow.getAllWindows().find(win => win.webContents === event.sender)
+      if (!win || event.senderFrame !== win.webContents.mainFrame) return { ok: false }
+      try {
+        if (require('node:url').fileURLToPath(new URL(event.senderFrame.url)) !== path.join(__dirname, 'renderer', 'index.html')) return { ok: false }
+      } catch { return { ok: false } }
+      const changed = desktopGeometry.update(pages)
+      if (changed) for (const target of BrowserWindow.getAllWindows()) target.webContents.send('odk-user-apps-changed')
+      return { ok: true }
+    }
+    ipcMain.on('odk-user-apps-geometry', geometryReport)
+    releases.add(() => ipcMain.removeListener('odk-user-apps-geometry', geometryReport))
   }
   bind('odk-user-apps-api', (_event, request) => packageApi.read(request?.appId, request?.revision, request?.sourceId))
   bind('odk-user-apps-list', () => control.dispatch({ command: 'list' }))

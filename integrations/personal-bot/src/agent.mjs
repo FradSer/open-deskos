@@ -1,6 +1,6 @@
 import {createJudgmentClient, judgmentInstructions, validateOrdinaryJudgmentAnswers} from './judgment-client.mjs'
 import {configureProviderRuntime} from './provider-endpoints.mjs'
-import { guardReplyTools } from './session-replies.mjs'
+import { guardReplyTools, hostedPromptAcknowledgement } from './session-replies.mjs'
 import { remoteTaskNamesInstructions, remoteTaskNamesReviewInstructions, validateRemoteTaskNames, remoteSummaryInstructions, validateRemoteSummary, remoteReviewInstructions, validateRemoteReview } from './remote-conversation.mjs'
 import { createIntentStore, createIntentRuntime } from './intents.mjs'
 import { createIntentJudge } from './intent-jev.mjs'
@@ -27,7 +27,7 @@ import { createAgentPluginRuntime, pluginWorkKind } from './agent-plugins/runtim
 import { renderPluginInput } from './agent-plugins/prompt.mjs'
 import { createExperienceStore } from './agent-plugins/experience.mjs'
 import { createHostedCompletionTool } from './agent-plugins/hosted-completion.mjs'
-import { completionInstructions, hostedCompletionInstructions, learningInstructions, validateCompletion, validateLessons, pluginFormatCorrection } from './agent-plugins/completion.mjs'
+import { completionInstructions, completionNotice, hostedCompletionInstructions, learningInstructions, validateCompletion, validateLessons, pluginFormatCorrection } from './agent-plugins/completion.mjs'
 import { openAgentCatalog } from './agent-catalog/catalog.mjs'
 import { createAgentCatalogRuntime } from './agent-catalog/tools.mjs'
 import { openAgentTasks } from './agent-tasks/runtime.mjs'
@@ -172,6 +172,8 @@ export async function createPersonalBot(config, { createSession = createDurableA
     let activeReply
     let ownerTurn
     let sessionMutationAttempted = false
+    let hostedContinuation
+    let hostedDeliveryUncertain = false
     const intentJudgment = !config.childAgent && config.personal?.agentPlugins?.enabled.includes('intent') ? createIntentJudgment({ env: config.env ?? process.env, request: judgment.request }) : undefined
     const intents = intentJudgment ? createIntentRuntime({ store: createIntentStore(join(config.stateDir, 'personal-agent', 'intent.md')),
       memory: async () => JSON.parse(await memory.read()), memoryVersion: keys => memory.version(keys),
@@ -214,7 +216,22 @@ export async function createPersonalBot(config, { createSession = createDurableA
     for(let i=0;i<customTools.length;i++) {
       const tool=customTools[i]
       if(!['remote_pi_followup','coding_task_prompt'].includes(tool.name))continue
-      customTools[i]={...tool,execute:async(...args)=>{sessionMutationAttempted=true;return tool.execute(...args)}}
+      customTools[i]={...tool,execute:async(...args)=>{
+        sessionMutationAttempted=true
+        const owner=ownerTurn
+        try {
+          const result=await tool.execute(...args)
+          if(tool.name==='coding_task_prompt' && owner && owner===ownerTurn) {
+            const acknowledgement=!result.isError && hostedPromptAcknowledgement(result.structuredContent, args[1])
+            if(acknowledgement)hostedContinuation=acknowledgement
+            else hostedDeliveryUncertain=true
+          }
+          return result
+        } catch(error) {
+          if(tool.name==='coding_task_prompt' && owner && owner===ownerTurn)hostedDeliveryUncertain=true
+          throw error
+        }
+      }}
     }
     const actionTools = [...customTools]
     if (config.getWatch) customTools.push(...createProposalTools(config.getWatch, () => currentTurn, { intentPreviews: Boolean(intents), currentTurnId: () => intentTurn.getTurn() }))
@@ -270,6 +287,8 @@ export async function createPersonalBot(config, { createSession = createDurableA
       prepareTurn: async (text, signal, reply) => {
         activeReply=reply
         sessionMutationAttempted=false
+        hostedContinuation=undefined
+        hostedDeliveryUncertain=false
         lastTaskResult = null
         const prepared = await intentTurn.prepare(text, signal,reply)
         if(reply && !intentTurn.getIntent())throw Error('Reply requires an available intent decision; no instruction was sent')
@@ -296,11 +315,12 @@ export async function createPersonalBot(config, { createSession = createDurableA
         }
         if(plugins)lastTaskResult = await plugins.finishTurn(answer, signal)
         // A model-selected continuation without a bound remote receipt cannot certify delivery.
-        if(intentTurn.getIntent()==='session_continue' && !activeReply)return '暂不能确认原会话的指令投递结果。'
+        if(intentTurn.getIntent()==='session_continue' && !activeReply)return !hostedDeliveryUncertain && hostedContinuation
+          ? hostedContinuation : '暂不能确认原会话的指令投递结果。'
         if(!plugins)return answer
         const notes = []
-        if (lastTaskResult.verification.status === 'needs_review') notes.push(pluginWorkKind(intentTurn.getIntent(), profile) === 'query'
-          ? '查询结果还缺少足够的来源证据。' : '还没有足够证据确认任务已完成。')
+        const notice = completionNotice(lastTaskResult.verification, pluginWorkKind(intentTurn.getIntent(), profile))
+        if (notice) notes.push(notice)
         if (lastTaskResult.verification.status === 'passed' && lastTaskResult.verification.checks.some(check => check.scope === 'admission')) notes.push('指令已受理，任务是否完成还需确认。')
         if (lastTaskResult.learning.status === 'needs_review') notes.push('经验学习未完成；现有经验已保留。')
         return [answer, ...notes].filter(Boolean).join('\n\n')

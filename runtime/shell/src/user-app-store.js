@@ -82,15 +82,15 @@ function gridAxis(value, limit) {
   return { start, end, text: end === start + 1 ? String(start) : `${start} / ${end}` }
 }
 
-function rectangle(placement) {
-  return { col: gridAxis(placement?.col, 5), row: gridAxis(placement?.row, 3) }
+function rectangle(placement, columns = 32, rows = 32) {
+  return { col: gridAxis(placement?.col, columns), row: gridAxis(placement?.row, rows) }
 }
 
 function overlaps(a, b) {
   return a.col.start < b.col.end && b.col.start < a.col.end && a.row.start < b.row.end && b.row.start < a.row.end
 }
 
-function createUserAppStore({ workspace, stateDir, verify, waitForVerification, layout = loadDesktopLayout() } = {}) {
+function createUserAppStore({ workspace, stateDir, verify, waitForVerification, getDesktopGeometry, layout = loadDesktopLayout() } = {}) {
   let pending = Promise.resolve()
   function serial(action) {
     const result = pending.then(action)
@@ -141,13 +141,23 @@ function createUserAppStore({ workspace, stateDir, verify, waitForVerification, 
   }
 
   function desktop(entries) {
-    return layout.pages.map((page, index) => ({
-      id: page.id, name: page.name, kind: page.kind, surface: page.surface, index: index + 1,
-      ...(page.kind === 'grid' ? { columns: 5, rows: 3, occupied: [
-        ...(page.widgets || []).map(({ id, col, row }) => ({ id, col, row })),
-        ...entries.filter(entry => entry.placement?.pageId === page.id).map(entry => ({ id: entry.id, col: entry.placement.col, row: entry.placement.row })),
-      ] } : {}),
-    }))
+    const measured = getDesktopGeometry?.()
+    const pages = getDesktopGeometry && measured ? layout.pages.filter(page => measured.some(item => item.id === page.id)) : layout.pages
+    const base = pages.map((page, index) => {
+      const grid = getDesktopGeometry ? measured?.find(item => item.id === page.id) : null
+      return {
+        id: page.id, name: page.name, kind: page.kind, surface: page.surface, index: grid?.index || index + 1,
+        ...(page.kind === 'grid' ? { columns: getDesktopGeometry ? grid?.columns || 0 : 5, rows: getDesktopGeometry ? grid?.rows || 0 : page.gridRows || 3, occupied: [
+          ...(grid?.occupied || page.widgets || []).map(({ id, col, row }) => ({ id, col, row })),
+          ...entries.filter(entry => entry.placement?.pageId === page.id).map(entry => ({ id: entry.id, col: entry.placement.col, row: entry.placement.row })),
+        ] } : {}),
+      }
+    })
+    if (getDesktopGeometry && measured) for (const entry of entries.filter(entry => entry.kind === 'app')) {
+      const page = measured.find(item => item.id === `installed:${entry.id}`)
+      if (page) base.push({ id: page.id, name: entry.name, kind: 'page', surface: 'app', index: page.index, appId: entry.id })
+    }
+    return base.sort((a, b) => a.index - b.index)
   }
 
   function choosePlacement(entries, id, target) {
@@ -155,7 +165,7 @@ function createUserAppStore({ workspace, stateDir, verify, waitForVerification, 
     if (target !== undefined) {
       const page = pages.find(page => page.id === target?.pageId && page.kind === 'grid')
       if (!page) throw Error('invalid-page')
-      const rect = rectangle(target)
+      const rect = rectangle(target, page.columns, page.rows)
       if (page.occupied.some(item => overlaps(rect, rectangle(item)))) throw Error('occupied-placement')
       return { pageId: page.id, col: rect.col.text, row: rect.row.text }
     }
@@ -189,11 +199,11 @@ function createUserAppStore({ workspace, stateDir, verify, waitForVerification, 
    * and re-placement available.
    */
   function placementIssue(entry) {
-    const page = layout.pages.find(candidate => candidate.id === entry.placement.pageId)
+    const page = desktop([]).find(candidate => candidate.id === entry.placement.pageId)
     if (!page || page.kind !== 'grid') return 'unavailable-page'
     try {
-      const rect = rectangle(entry.placement)
-      if ((page.widgets || []).some(widget => overlaps(rect, rectangle(widget)))) return 'occupied-placement'
+      const rect = rectangle(entry.placement, page.columns, page.rows)
+      if ((page.occupied || []).some(widget => overlaps(rect, rectangle(widget)))) return 'occupied-placement'
       return null
     } catch {
       return 'invalid-placement'
@@ -348,6 +358,8 @@ function createUserAppStore({ workspace, stateDir, verify, waitForVerification, 
         : choosePlacement(entries, id, placement))
       : undefined
     if (!await verifyBundle(bundle)) return failure('verification-failed')
+    // Verification may outlive a resize. Recheck explicit or newly selected placement before commit.
+    if (bundle.manifest.kind === 'widget' && (previous?.kind !== 'widget' || placement !== undefined)) choosePlacement(entries, id, target)
     const rollback = previous?.revision === bundle.revision ? previous.history[0] : previous?.revision
     return publish(entries, id, bundle, rollback, target)
   }

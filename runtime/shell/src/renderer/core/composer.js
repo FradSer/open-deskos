@@ -185,9 +185,40 @@
         placeTile(page, tile, widgetDef, root.odkPlugins.get(widgetDef.id))
       }
       for (const tile of grid.querySelectorAll('[data-user-app-id]')) {
-        placeTile(page, tile, { col: tile.dataset.col, row: tile.dataset.row }, {})
+        placeTile({ ...page, widgets: [] }, tile, { col: tile.dataset.col, row: tile.dataset.row }, {})
       }
     }
+    reportDesktopGeometry(track)
+  }
+
+  function reportDesktopGeometry(track) {
+    if (!root.odkUserApps?.reportGeometry || !root.DESKTOP_LAYOUT?.pages) return
+    const { columns, rows: defaultRows, cellWidth, cellHeight } = gridMetrics()
+    if (!columns || !cellWidth || !cellHeight) return
+    const gap = Number.parseFloat(root.getComputedStyle(document.documentElement).getPropertyValue('--widget-gap')) || 0
+    const pages = [...track.children].map((section, index) => {
+      const id = section.dataset.pageId
+      const page = root.DESKTOP_LAYOUT.pages.find(page => page.id === id)
+      if (!page || page.kind !== 'grid') return { id, index: index + 1, columns: 0, rows: 0, occupied: [] }
+      const grid = track.querySelector(`.page[data-page-id="${page.id}"] .widget-grid`)
+      const rows = page.gridRows || defaultRows
+      const occupied = []
+      if (!grid) return { id: page.id, index: index + 1, columns: 0, rows: 0, occupied }
+      const origin = grid.getBoundingClientRect()
+      for (const widget of page.widgets) {
+        const tile = grid.querySelector(`[data-widget="${widget.id}"]`)
+        // Disabled built-ins retain their reservation. Unmeasured pages fail closed.
+        if (!tile) { occupied.push(widget); continue }
+        const box = tile.getBoundingClientRect()
+        const col = Math.round((box.left - origin.left) / (cellWidth + gap)) + 1
+        const row = Math.round((box.top - origin.top) / (cellHeight + gap)) + 1
+        const width = Math.round((box.width + gap) / (cellWidth + gap))
+        const height = Math.round((box.height + gap) / (cellHeight + gap))
+        occupied.push({ id: widget.id, col: `${col} / ${col + width}`, row: `${row} / ${row + height}` })
+      }
+      return { id: page.id, index: index + 1, columns, rows, occupied }
+    })
+    root.odkUserApps.reportGeometry(pages)
   }
 
   // A resized panel changes the cell, and so changes which spans fit. The

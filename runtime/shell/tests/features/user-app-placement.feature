@@ -42,6 +42,13 @@ Feature: Verified widgets share desktop grids
     When its draft changes kind to Widget and is updated
     Then the Widget receives the first free grid cell
 
+  Scenario: An App conversion rechecks its new cell after verification
+    Given an installed App changes kind to Widget
+    And its first free cell is in the third column
+    When the grid shrinks to two columns during verification
+    Then the update fails with an invalid placement
+    And the installed App keeps its previous revision and content
+
   Scenario: Stored geometry survives a layout release
     Given a Widget's stored page or grid span is unavailable in the current layout
     When the Widget is updated or rolled back
@@ -51,3 +58,17 @@ Feature: Verified widgets share desktop grids
     Given two widget drafts target one free cell
     When both are installed concurrently
     Then exactly one installation succeeds
+
+  Scenario: Placement follows the measured split desktop
+    Given the Shell reports three columns and three rows for Desk
+    When the Agent lists or changes Widget placement
+    Then the catalog reports three columns
+    And placements outside those columns are rejected
+    And shrinking the grid preserves unavailable placements for recovery
+    And an update rechecks placement after verification
+
+  Scenario: The catalog follows the visible page sequence
+    Given Personal Agent remains beside the paged desktop
+    When the Agent requests desktop placement
+    Then page numbers match the pager
+    And the resident pane does not consume a page number

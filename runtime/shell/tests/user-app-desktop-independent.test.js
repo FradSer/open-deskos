@@ -10,6 +10,6 @@ test('independent installed desktop passes the same behavior scenarios without d
   const result = await runCommand(process.execPath, ['--test', '--test-reporter=spec', path.join(__dirname, 'user-app-desktop.test.js')], {
     env, signal: t.signal, timeout: 10000,
   })
-  assert.match(result.stdout, /pass 11\b/)
+  assert.match(result.stdout, /pass 12\b/)
   assert.match(result.stdout, /fail 0\b/)
 })

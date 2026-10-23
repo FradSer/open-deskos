@@ -391,3 +391,16 @@ Feature: Personal Agent owns a bounded plugin runtime
     Then the applicable completion checks still run
     And ordinary conversation without receipts skips execution checks
     And read-only queries learn only from imported independent host checks
+
+  Scenario: Completion notices identify unavailable checks and unmet outcomes
+    Given the task produced operation receipts
+    When completion inference fails or cites invalid evidence
+    Then the task remains unverified
+    And the notice identifies a failed check instead of claiming missing operation evidence
+    And a valid review verdict names the unmet requested outcome
+
+  Scenario: A direct Hosted Pi continuation uses its correlated admission receipt
+    Given the owner continues an existing Hosted Pi task
+    When its exact task and project return confirmed admission
+    Then the reply reports admission without claiming completion
+    And an unknown or mismatched receipt remains unknown without retry

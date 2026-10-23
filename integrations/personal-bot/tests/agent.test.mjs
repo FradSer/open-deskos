@@ -806,6 +806,45 @@ test('a handler clarification retains owner scope until a named follow-up attemp
  assert.deepEqual(routes.at(-1),[],'an attempted delivery cannot become a deferred request after failure')
 })
 
+test('confirmed Hosted continuation is admission while unknown or mismatched receipts stay unknown', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'odk-hosted-ack-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const taskId = '11111111-1111-4111-8111-111111111111'
+  const project = join(dir, 'project')
+  const helper = join(dir, 'helper.mjs')
+  const outcome = join(dir, 'outcome.json')
+  await writeFile(helper, `#!/usr/bin/env node\nimport fs from 'node:fs';let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{const r=JSON.parse(s),o=JSON.parse(fs.readFileSync(${JSON.stringify(outcome)}));console.log(JSON.stringify({version:1,requestId:r.requestId,ok:true,task:{taskId:r.taskId,project:r.project,...o.task},...o}))})`, { mode: 0o700 })
+  const executable = await nodeExecutable(t, helper)
+  const file = join(dir, 'targets.json')
+  await writeFile(file, JSON.stringify({ targets: [{ id: 'cm5', name: 'Fixture', roots: [dir], executable }] }))
+  const previous = process.env.ODK_TASK_TARGETS_FILE
+  process.env.ODK_TASK_TARGETS_FILE = file
+  t.after(() => { if (previous === undefined) delete process.env.ODK_TASK_TARGETS_FILE; else process.env.ODK_TASK_TARGETS_FILE = previous })
+  for (const [receipt, expected] of [
+    [{ accepted: true }, /原任务已受理/],
+    [{ accepted: true, delivery: 'queued' }, /已排入原任务/],
+    [{ accepted: true, delivery: 'unknown' }, /暂不能确认/],
+    [{ accepted: false }, /暂不能确认/],
+    [{ accepted: true, task: { taskId: '22222222-2222-4222-8222-222222222222', project } }, /暂不能确认/],
+  ]) {
+    await writeFile(outcome, JSON.stringify(receipt))
+    let listener
+    const bot = await createPersonalBot({ stateDir: join(dir, 'state'), env: {}, personal: { profile: 'personal', memoryFile: join(dir, 'notes.json'), skillPaths: [] } }, {
+      createIntentRouter: () => async () => ({ intent: 'session_continue' }),
+      createRuntime: async () => ({ getAvailable: async () => [{ provider: 'fixture', id: 'model' }] }),
+      createSession: async options => ({ session: { isStreaming: false, bindExtensions: async () => {}, setActiveToolsByName() {},
+        subscribe(callback) { listener = callback; return () => {} },
+        async prompt() {
+          await options.customTools.find(tool => tool.name === 'coding_task_prompt').execute('continue', { target: 'cm5', project, taskId, prompt: 'Continue the original task.' })
+          listener({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: '已完成所有工作。' }], stopReason: 'stop' } })
+        }, abort: async () => {}, dispose() {},
+      } }),
+    })
+    try { assert.match(await bot.prompt('Continue the original task.'), expected) }
+    finally { await bot.close() }
+  }
+})
+
 
 test('analysis-only selections retry inside the bounded provider validation', async t => {
   let attempts = 0

@@ -195,7 +195,7 @@ test('a failed completion check changes the final answer and never starts learni
   t.after(() => bot.close())
   const snapshots = []
   const answer = await bot.prompt('查询目标', text => snapshots.push(text))
-  assert.match(answer, /查询结果还缺少足够的来源证据。/)
+  assert.match(answer, /完成检查暂不可用，操作结果仍需核实。/)
   assert.doesNotMatch(answer, /完成后校验|Harness|needs_review/)
   assert.equal(snapshots.at(-1), answer)
   assert.equal(bot.lastTaskResult.verification.status, 'needs_review')
@@ -250,7 +250,7 @@ test('an unsupported tool-free completion claim is visibly unverified', async t 
   const bot = await createPersonalBot(config, { createRuntime: async () => offline(() => assistant('任务已完成。')),
     createIntentRouter: () => async () => ({ intent: 'coding_work' }) })
   t.after(() => bot.close())
-  assert.match(await bot.prompt('完成报告'), /还没有足够证据确认任务已完成。/)
+  assert.match(await bot.prompt('完成报告'), /本轮没有可验证的操作回执，尚不能确认完成。/)
   assert.equal(bot.lastTaskResult.verification.status, 'needs_review')
   assert.equal(bot.lastTaskResult.learning.status, 'skipped')
 })

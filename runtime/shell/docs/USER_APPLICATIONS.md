@@ -151,7 +151,9 @@ Standalone callers without a catalog retain their existing store and verifier li
 
 The resident Agent writes the same draft format, then calls `user_app_install`. Other tools are `user_apps_list`, `user_apps_desktop`, `user_app_place`, `user_app_rollback`, and `user_app_remove`. They communicate with the running Shell via `$XDG_RUNTIME_DIR/odk-apps/control.sock`; directory mode 0700, socket 0600. No network control listener is opened. A missing Shell is reported as unavailable, not successful installation.
 
-Call `user_apps_desktop` before selecting a location. Its `pages` array includes stable IDs, one-based page indices (Home is page 2, Reading page 3), kinds, and for grids `columns: 5`, `rows: 3`, and occupied built-in/user rectangles. Only grid pages accept Widgets. Built-in cells remain reserved even when a development URL disables their plugin.
+Call `user_apps_desktop` before selecting a location. Its `pages` array includes stable IDs, one-based pager indices (Home is page 1, Reading page 3), kinds, and for grids `columns`, `rows`, and occupied built-in/user rectangles from the current measured grid.
+The values follow the split desktop and change when the panel size changes.
+Before measurement, zero columns and rows indicate unavailable placement. Only grid pages accept Widgets. Built-in cells remain reserved even when a development URL disables their plugin.
 
 `user_app_install` accepts optional `placement: {pageId, col, row}`. `user_app_place` requires the same placement and moves/resizes an installed Widget without changing or reverifying its revision. The renderer may remount its frame, resetting ephemeral state. Columns and rows are CSS grid line strings: `"2"` is one cell, `"2 / 5"` spans three cells. For example, `{ "pageId": "reading", "col": "1 / 3", "row": "3" }` occupies two bottom-row cells on page 3. The private protocol uses commands `desktop`, `install`, and `place`, with `appId` rather than the tools' `id` parameter.
 

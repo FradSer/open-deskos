@@ -275,6 +275,7 @@ async function main() {
   }
   let lastFutuRejection = null
   const { createUserAppStore } = require('./user-app-store')
+  const desktopGeometry = require('./user-app-geometry').createDesktopGeometry()
   const frames = createFrameReadyEvents()
   const diagnosisFrames = new Set()
   let nativeRendererEntries = []
@@ -306,6 +307,7 @@ async function main() {
       broadcast,
       'desk.catalog': { create: createUserAppStore, createVerifier: () => createUserAppVerifier({ electronPath: process.execPath }), smokeMode, options: {
         workspace: process.env.ODK_WORKSPACE,
+        getDesktopGeometry: desktopGeometry.read,
         stateDir: resolveUserAppSurface({ env: process.env }).stateDir,
       } },
       'desk.futu': { create: createFutuSource, env: process.env, report: message => console.error(message), options: {
@@ -322,7 +324,7 @@ async function main() {
       'desk.data': { create: createShellOdkData, smokeMode, onUpdate: id => servicePush([id]) },
       'desk.refresh': { smokeMode, setInterval, clearInterval, report: message => console.error(message) },
       'desk.user-apps': { start: startUserAppSystem, smokeMode, isStopping, options: {
-        app, ipcMain, protocol: electron.protocol, BrowserWindow, smokeMode, appearancePlugins,
+        app, ipcMain, protocol: electron.protocol, BrowserWindow, smokeMode, appearancePlugins, desktopGeometry,
       } },
       'desk.link': { listen: listenOdkData, smokeMode, enabled: shellHost.provisionsOdkData, report: message => console.error(message), options: {
         endpoint: shellHost.odkDataEndpoint, stateDir: shellHost.stateDir, platform: shellHost.platform,

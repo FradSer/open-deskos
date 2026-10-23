@@ -78,7 +78,7 @@
       let pagesChanged = false
       for (const [id, entry] of entries) {
         const app = desired.get(id)
-        const key = app && JSON.stringify([app.kind, app.revision, app.name, app.placement])
+        const key = app && JSON.stringify([app.kind, app.revision, app.name, app.placement, app.placementError])
         if (key === entry.key) continue
         pagesChanged ||= entry.host.dataset.surface === 'app'
         remove(id)
@@ -87,7 +87,7 @@
         if (entries.has(app.id)) continue
         const parent = destination(app)
         if (!parent) continue
-        add(app, parent, JSON.stringify([app.kind, app.revision, app.name, app.placement]))
+        add(app, parent, JSON.stringify([app.kind, app.revision, app.name, app.placement, app.placementError]))
         pagesChanged ||= app.kind === 'app'
       }
       root.odkComposer?.placeGridTiles(track)

@@ -249,3 +249,74 @@ test('updates and rollbacks retain a stored span outside a released grid', async
   assert.deepEqual(rolledBack.app.placement, entries[0].placement)
   assert.equal((await released.list())[0].placementError, 'invalid-placement')
 })
+
+test('measured split geometry controls placement and preserves unavailable stored spans', async t => {
+  const { options, draft } = await setup(t)
+  let geometry = null
+  const store = createUserAppStore({ ...options, getDesktopGeometry: () => geometry })
+  await draft('note')
+  assert.equal((await store.desktop())[1].columns, 0, 'unmeasured live geometry cannot invent capacity')
+  geometry = [{ id: 'home', columns: 3, rows: 2, occupied: [{ id: 'clock', col: '1 / 3', row: '1' }] },
+    { id: 'reading', columns: 3, rows: 3, occupied: [] }]
+  assert.equal((await store.desktop())[1].columns, 3)
+  assert.equal((await store.install('note', { pageId: 'home', col: '4', row: '1' })).error, 'invalid-placement')
+  const target = { pageId: 'reading', col: '2 / 4', row: '2' }
+  assert.equal((await store.install('note', target)).ok, true)
+  geometry = geometry.map(page => ({ ...page, columns: 2 }))
+  assert.equal((await store.list())[0].placementError, 'invalid-placement')
+  assert.deepEqual((await store.list())[0].placement, target)
+  geometry = geometry.map(page => ({ ...page, columns: 3 }))
+  assert.equal((await store.list())[0].placementError, undefined)
+})
+
+test('geometry changes during verification cannot publish a newly invalid placement', async t => {
+  const { options, draft } = await setup(t)
+  let columns = 3
+  const store = createUserAppStore({ ...options,
+    getDesktopGeometry: () => [{ id: 'reading', columns, rows: 3, occupied: [] }],
+    verify: async () => { columns = 2; return true },
+  })
+  await draft('note')
+  assert.equal((await store.install('note', { pageId: 'reading', col: '3', row: '1' })).error, 'invalid-placement')
+  assert.deepEqual(await store.list(), [])
+})
+
+test('App to Widget conversion rechecks automatic placement after verification', async t => {
+  const { options, draft } = await setup(t)
+  let columns = 3
+  let shrink = false
+  const store = createUserAppStore({ ...options,
+    getDesktopGeometry: () => [{ id: 'home', columns, rows: 3, occupied: [{ id: 'clock', col: '1 / 3', row: '1 / 4' }] }],
+    verify: async () => { if (shrink) columns = 2; return true },
+  })
+  await draft('note', '1', 'app')
+  const original = await store.install('note')
+  assert.equal(original.ok, true)
+  await draft('note', '2', 'widget')
+  shrink = true
+  assert.deepEqual(await store.update('note'), { ok: false, error: 'invalid-placement' })
+  assert.deepEqual(await store.list(), [original.app])
+  assert.equal((await store.getContent('note')).html, '<p>1</p>')
+})
+
+test('geometry rejects malformed snapshots and retains the last valid measurement', () => {
+  const state = require('../src/user-app-geometry').createDesktopGeometry()
+  const pages = [{ id: 'reading', columns: 3, rows: 3, occupied: [{ id: 'book', col: '1 / 4', row: '1 / 4' }] }]
+  assert.equal(state.read(), null)
+  assert.equal(state.update(pages), true)
+  pages[0].columns = 4
+  assert.equal(state.read()[0].columns, 3, 'provider snapshots do not alias renderer inputs')
+  for (const columns of [0, 33, 1.5, '3']) assert.equal(state.update([{ ...pages[0], columns }]), false)
+  assert.equal(state.update([{ ...pages[0], occupied: [{ id: 'book', col: '0', row: '1' }] }]), false)
+  assert.equal(state.read()[0].columns, 3)
+})
+
+test('desktop page numbers follow the pager instead of counting the resident Agent', async t => {
+  const { options } = await setup(t)
+  const store = createUserAppStore({ ...options, getDesktopGeometry: () => [
+    { id: 'home', index: 1, columns: 3, rows: 2, occupied: [] },
+    { id: 'reading', index: 2, columns: 3, rows: 3, occupied: [] },
+  ] })
+  const pages = await store.desktop()
+  assert.deepEqual(pages.map(page => [page.id, page.index]), [['home', 1], ['reading', 2]])
+})

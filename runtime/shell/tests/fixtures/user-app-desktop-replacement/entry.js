@@ -15,7 +15,7 @@
           const page = layout.pages.find(page => page.id === app.placement?.pageId && page.kind === 'grid')
           return page && [...track.children].find(section => section.dataset.pageId === page.id)?.querySelector('.widget-grid')
         }
-        const key = app => JSON.stringify([app.kind, app.revision, app.name, app.placement])
+        const key = app => JSON.stringify([app.kind, app.revision, app.name, app.placement, app.placementError])
         function retire(record) {
           record.surface?.dispose()
           record.element.remove()

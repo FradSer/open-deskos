@@ -39,7 +39,8 @@ const reportOnly = process.argv.includes('--report-only')
 
 // The widest content each feed can carry, so the property is proven on stress
 // content rather than on thin content that would pass anyway.
-installGeometryFixtures(ipcMain, { state: 'live', wide: true })
+let measuredDesktop
+installGeometryFixtures(ipcMain, { state: 'live', wide: true, onDesktopGeometry: pages => { measuredDesktop = pages } })
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 async function settle(win, expression) {
@@ -129,6 +130,14 @@ async function main() {
         await win.webContents.executeJavaScript(`document.querySelectorAll('.dot')[${index}].click()`)
         await wait(800)
         const reading = await win.webContents.executeJavaScript(READ)
+        const model = await win.webContents.executeJavaScript('({columns:window.__odkGrid.cols,rows:window.__odkGrid.rows})')
+        assert.ok(measuredDesktop?.length, 'the renderer publishes its measured grid')
+        for (const page of measuredDesktop) {
+          if (!page.columns) continue
+          assert.equal(page.columns, model.columns, `${width}x${height}: catalog columns follow the split canvas`)
+          assert.ok(page.rows > 0)
+          for (const widget of page.occupied) assert.ok(widget.col && widget.row, 'built-ins retain measured reservations')
+        }
         const at = { size: sizeName, viewport: `${width}x${height}`, cell: reading.cell, theme, page: id }
         if (reading.error) { report.runs.push({ ...at, readError: reading.error }); violations += 1; continue }
         const findings = [
