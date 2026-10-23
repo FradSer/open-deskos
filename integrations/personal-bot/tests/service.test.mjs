@@ -27,6 +27,24 @@ test('a remote recording reserves the shared turn and stop requests do not wait 
  assert.equal(transcriptions,1);assert.equal(prompts,1);assert.equal(cleanups,1);assert.equal(service.status.state,'idle');assert.equal(service.status.message,'Central answer');await service.close()
 })
 
+test('typed and synthetic remote voice turns retain only their own originating applications', async () => {
+  const contexts = []
+  let ready
+  const applications = Object.freeze({ host: { name: 'WIN', platform: 'win32' }, request: async () => ({ ok: true }) })
+  const recording = { done: new Promise(resolve => { ready = resolve }), stop: async () => 'synthetic.wav', cleanup: async () => {} }
+  const { service } = fixture({ transcribe: async () => 'Synthetic speech', prompt: async (_text, _snapshot, _reply, owner) => { contexts.push(owner.applications); return 'Done' } })
+  service.sendText('On this desk', undefined, applications)
+  await service.pending
+  assert.equal(contexts[0], applications)
+  assert.equal(service.reserveRemoteRecording(recording, () => {}, applications), true)
+  ready(); await new Promise(resolve => setImmediate(resolve)); await service.pending
+  assert.equal(contexts[1], applications)
+  service.sendText('Central desk')
+  await service.pending
+  assert.equal(contexts[2], undefined)
+  await service.close()
+})
+
 test('remote capture cancellation rejects stale identities and prevents late transcription',async()=>{
  let ready,cleanups=0,transcriptions=0
  const recording={done:new Promise(resolve=>{ready=resolve}),stop:async()=> 'cancelled.wav',cleanup:async()=>{cleanups++}}

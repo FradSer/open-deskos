@@ -1,5 +1,21 @@
 Feature: The voice control channel is a named pipe gated by the shared channel token on a Windows host
 
+  Scenario: The originating display owns the application lifecycle destination
+    Given a Windows display connects to the central Personal Agent through its authenticated relay
+    When its owner requests a Widget or App on this desk
+    Then application inventory and desktop geometry come from that Windows Shell
+    And installation transfers only the bounded manifest and HTML draft from the configured workspace
+    And the Windows Shell verifies the transferred package before publication
+    And modifications keep the same application identity on the originating desk
+
+  Scenario: A disconnected display cannot redirect an application operation
+    Given an application operation belongs to one authenticated display connection
+    When that connection closes or its response deadline expires
+    Then the operation reports an unknown outcome without replay
+    And it never falls back to the central desk or another display
+    And late and foreign responses cannot complete a different operation
+    And voice turns retain the same originating display binding without recording during offline tests
+
   Scenario: A busy Shell does not disconnect during recording level updates
     Given an authenticated Shell has received recording state with current suggestions
     And its status channel temporarily has queued output

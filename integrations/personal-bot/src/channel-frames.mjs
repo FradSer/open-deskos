@@ -1,5 +1,7 @@
 // Bound each JSON line separately. Pause the transport while an async handler runs.
+/** @param {import('node:stream').Duplex} stream @param {(frame:any)=>any} handle @param {{maxFrame?:number|(()=>number),maxBatch?:number}} [options] */
 export function readFrames(stream, handle, { maxFrame = 4096, maxBatch = 131072 } = {}) {
+  const limit = () => typeof maxFrame === 'function' ? maxFrame() : maxFrame
   let pending = Buffer.alloc(0)
   let running = false
   let stopped = false
@@ -11,14 +13,14 @@ export function readFrames(stream, handle, { maxFrame = 4096, maxBatch = 131072 
     try {
       let newline
       while (!stopped && !stream.destroyed && (newline = pending.indexOf(10)) >= 0) {
-        if (newline > maxFrame) throw Error('Frame too large')
+        if (newline > limit()) throw Error('Frame too large')
         const line = pending.subarray(0, newline).toString('utf8')
         pending = pending.subarray(newline + 1)
         const frame = JSON.parse(line)
         if (!frame || frame.v !== 1 || typeof frame.type !== 'string') throw Error('Invalid frame')
         await handle(frame)
       }
-      if (pending.length > maxFrame) throw Error('Frame too large')
+      if (pending.length > limit()) throw Error('Frame too large')
     } catch { fail() }
     finally { running = false; if (!stopped && !stream.destroyed) stream.resume() }
   }

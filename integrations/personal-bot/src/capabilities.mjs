@@ -11,7 +11,7 @@ const OBJECT_OUTPUT = Type.Record(Type.String(), Type.Unknown())
 const readingHints = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
 const mutationHints = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false }
 
-function userAppTool(command, description, needsAppId = true) {
+function userAppTool(command, description, needsAppId = true, request = userAppsRequest) {
   const placement = Type.Object({
     pageId: Type.String({ minLength: 1, maxLength: 64 }),
     col: Type.String({ pattern: '^(?:[1-9]|[12][0-9]|3[0-2])(?: / (?:[2-9]|[12][0-9]|3[0-3]))?$' }),
@@ -31,7 +31,7 @@ function userAppTool(command, description, needsAppId = true) {
     }, { additionalProperties: false }) : Type.Object({}),
     execute: async (_id, params, signal) => {
       const id = needsAppId && 'id' in params && typeof params.id === 'string' ? params.id : undefined
-      return result(await userAppsRequest(command, { appId: id, signal, placement: 'placement' in params ? params.placement : undefined }))
+      return result(await request(command, { appId: id, signal, placement: 'placement' in params ? params.placement : undefined }))
     },
   })
 }
@@ -85,15 +85,15 @@ function codingTaskTool(command, targets) {
   })
 }
 
-function coreCapabilities(targets) {
+function coreCapabilities(targets, request) {
   return [
     createOdkDataTool(),
-    userAppTool('list', 'List installed resident user applications from the shell lifecycle backend.', false),
-    userAppTool('desktop', 'List desktop page IDs, one-based page numbers, grid dimensions and occupied cells before selecting a widget location. Only grid pages accept widgets.', false),
-    userAppTool('install', 'Verify and install a resident user application draft. Optional widget placement uses pageId and CSS grid line strings col/row (for example 2 / 4). Occupied locations are rejected, never overwritten.', true),
-    userAppTool('place', 'Move or resize an installed widget using pageId and CSS grid line strings col/row without changing its verified revision. List desktop locations first; occupied cells are rejected.', true),
-    userAppTool('rollback', 'Roll back a resident user application through the shell lifecycle backend.', true),
-    userAppTool('remove', 'Remove a resident user application through the shell lifecycle backend.', true),
+    userAppTool('list', 'List installed resident user applications from the shell lifecycle backend.', false, request),
+    userAppTool('desktop', 'List desktop page IDs, one-based page numbers, grid dimensions and occupied cells before selecting a widget location. Only grid pages accept widgets.', false, request),
+    userAppTool('install', 'Verify and install a resident user application draft. Optional widget placement uses pageId and CSS grid line strings col/row (for example 2 / 4). Occupied locations are rejected, never overwritten.', true, request),
+    userAppTool('place', 'Move or resize an installed widget using pageId and CSS grid line strings col/row without changing its verified revision. List desktop locations first; occupied cells are rejected.', true, request),
+    userAppTool('rollback', 'Roll back a resident user application through the shell lifecycle backend.', true, request),
+    userAppTool('remove', 'Remove a resident user application through the shell lifecycle backend.', true, request),
     defineTool({
       name: 'coding_targets', label: 'Coding targets', description: 'List configured target IDs, names and development roots. Configuration is not a network health or availability check.',
       exposure: 'codemode', outputSchema: OBJECT_OUTPUT, annotations: readingHints,
@@ -109,8 +109,8 @@ function result(value) {
   return { content: [{ type: /** @type {const} */ ('text'), text: JSON.stringify(value) }], details: {}, structuredContent: value }
 }
 
-export async function loadCapabilities(paths = []) {
-  const tools = coreCapabilities(await loadTargets())
+export async function loadCapabilities(paths = [], { applications = userAppsRequest } = {}) {
+  const tools = coreCapabilities(await loadTargets(), applications)
   const names = new Set(['read', 'write', 'edit', 'bash', 'powershell', 'grep', 'find', 'ls', 'codemode', 'tool_search', 'coding_task_verify', ...tools.map(tool => tool.name)])
   for (const path of paths) {
     if (!isAbsolute(path)) throw Error('Capability paths must be absolute')

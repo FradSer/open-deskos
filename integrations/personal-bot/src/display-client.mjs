@@ -6,6 +6,7 @@ import { createWindowsPrivatePaths } from './proactive-private-windows.mjs'
 import { channelTokenFile } from './channel-token.mjs'
 import { createDisplayRelay } from './display-relay.mjs'
 import { createDisplayVoice } from './display-voice.mjs'
+import { createDisplayApplications } from './display-apps.mjs'
 import { record } from './recorder.mjs'
 const { resolveShellHost } = loadShellModule('platform/index.js', import.meta.url)
 
@@ -14,6 +15,7 @@ export async function startDisplayClient(env = process.env, platform = process.p
   const directory = join(env.LOCALAPPDATA, 'odk', 'display-captures')
   return createDisplayRelay({ endpoint: resolveShellHost({ env, platform }).endpoint('personal-bot'),
     stateDir: dirname(channelTokenFile(env, platform)), alias: env.ODK_PERSONAL_AGENT_MAIN_SSH, platform,
+    applications: createDisplayApplications({ stateDir: dirname(channelTokenFile(env, platform)), env }),
     createVoice: ({ send }) => createDisplayVoice({ send,
       record: async onLevel => {
         if (!env.ODK_PERSONAL_BOT_AUDIO_DEVICE || env.ODK_PERSONAL_BOT_AUDIO_DEVICE === 'default') throw Error('Microphone device required')

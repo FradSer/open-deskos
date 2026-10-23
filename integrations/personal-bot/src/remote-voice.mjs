@@ -31,7 +31,7 @@ export function createRemoteVoice({service,directory,timeoutMs=90000}) {
   void Promise.resolve().then(()=>lease.send({v:1,type:'voice_result',requestId:lease.requestId,leaseId:lease.id,accepted:false,reason})).catch(()=>{})
  }
 
- async function handle(client,command,send) {
+ async function handle(client,command,send,applications = undefined) {
   if(!['voice_start','voice_chunk','voice_end','voice_cancel'].includes(command?.type))return false
   if(!client||typeof client!=='object'||closed)return true
   if(command.type==='voice_start') {
@@ -54,7 +54,7 @@ export function createRemoteVoice({service,directory,timeoutMs=90000}) {
     if(active!==lease||lease.stopRequested)return
     lease.stopRequested=true
     void send({v:1,type:'voice_stop',requestId:lease.requestId,leaseId:lease.id}).catch(()=>cancel(lease,'unavailable')).catch(()=>{})
-   })) {
+   },applications)) {
     active=undefined;await recording.cleanup()
     await send({v:1,type:'voice_started',requestId:command.requestId,accepted:false});return true
    }
