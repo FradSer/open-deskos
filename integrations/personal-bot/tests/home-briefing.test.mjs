@@ -557,7 +557,7 @@ test('busy Pi activity publishes current bound facts and reselects with new comp
   assert.equal(home.frame.state, 'live')
   assert.match(home.frame.items[0].text, /Build finished/)
   assert.equal(home.frame.items[0].segments.length, 1, 'One service supplies one selected fact')
-  assert.match(home.frame.items[0].text, /verification not_run/)
+  assert.match(home.frame.items[0].text, /\(reported\)/)
   assert.doesNotMatch(home.frame.items[0].text, /running|Checking/)
   await home.refresh()
   assert.equal(calls, 2, 'Changed selection context cannot enter the normal cached-template path')
