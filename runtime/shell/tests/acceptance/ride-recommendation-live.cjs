@@ -56,8 +56,9 @@ app.setPath('userData', profile)
 app.disableHardwareAcceleration()
 app.dock?.hide()
 let win, client, unsubscribe, channel
-const cleanups = [], ownerTurns = []
+const cleanups = [], ownerTurns = [], feedbackCommands = []
 let frameSequence = 0, observedReply, clickSequence = -1, expectedOwnerText, ownerThinkingObserved = false
+let selectedProposalId, feedbackAllowed = false, feedbackSequence = -1, observedFeedback
 const deadline = Date.now() + timeoutMs
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 async function until(check, name) {
@@ -125,9 +126,25 @@ app.whenReady().then(async () => {
   }
   client.toggle = () => false
   const proposalCommand = client.proposalCommand.bind(client)
-  client.proposalCommand = command => command.type === 'proposal_presented' && proposalCommand(command)
+  client.proposalCommand = command => {
+    if (command.type === 'proposal_presented') return proposalCommand(command)
+    const current = client.snapshot()
+    const selected = current.proposals?.find(proposal => proposal.id === selectedProposalId)
+    if (!feedbackAllowed || ownerTurns.length || feedbackCommands.length || command.type !== 'proposal_respond'
+      || Object.keys(command).some(key => !['type', 'id', 'decision'].includes(key))
+      || command.id !== selectedProposalId || command.decision !== 'useful' || current.state !== 'idle'
+      || current.proposalCapabilities?.respond !== true || selected?.status !== 'pending' || selected.action !== null || selected.feedback === 'useful') return false
+    feedbackSequence = frameSequence
+    feedbackCommands.push({ type: command.type, id: command.id, decision: command.decision })
+    write('feedback-command.json', { command: feedbackCommands[0], submittedAt: new Date().toISOString() })
+    return proposalCommand(command)
+  }
   unsubscribe = client.subscribe(frame => {
     frameSequence++
+    if (feedbackCommands.length === 1 && frameSequence > feedbackSequence) {
+      const actual = frame.proposals?.find(item => item.id === selectedProposalId)
+      if (actual?.status === 'pending' && actual.feedback === 'useful') observedFeedback = { id: actual.id, status: actual.status, feedback: actual.feedback, frameSequence }
+    }
     if (ownerTurns.length && frameSequence > clickSequence && frame.state === 'thinking' && frame.transcript === expectedOwnerText) ownerThinkingObserved = true
     if (ownerThinkingObserved && frameSequence > clickSequence && frame.state === 'idle' && typeof frame.message === 'string' && frame.message.trim()) observedReply = { message: frame.message, observedAt: new Date().toISOString(), state: frame.state }
   })
@@ -148,9 +165,38 @@ app.whenReady().then(async () => {
     if (!proposal) return false
     return evaluate(`(() => { const card = [...document.querySelectorAll('.personal-bot-proposal')].find(node => node.dataset.proposalId === ${JSON.stringify(proposal.id)}); const advice = card?.querySelector('.personal-bot-proposal-advice'); return !!advice?.checkVisibility() && advice.textContent === ${JSON.stringify(proposal.advice)} })()`)
   }, 'proposal_visible')
+  selectedProposalId = proposal.id
   step('proposal_visible')
   write('proposal.json', { id: proposal.id, advice: proposal.advice, nextStep: proposal.nextStep, ridePreview: proposal.ridePreview })
   await screenshot('ride-recommendation.png')
+  feedbackAllowed = true
+  await until(() => evaluate(`(() => {
+    const card = [...document.querySelectorAll('.personal-bot-proposal')].find(node => node.dataset.proposalId === ${JSON.stringify(proposal.id)})
+    const details = card?.querySelector('.personal-bot-proposal-feedback-options')
+    if (!details?.checkVisibility()) return false
+    if (!details.open) details.querySelector('summary').click()
+    return [...card.querySelectorAll('button')].some(node => node.textContent === 'Useful' && !node.disabled && node.checkVisibility())
+  })()`), 'feedback_visible')
+  phase = 'feedback_click'
+  await evaluate(`(() => {
+    const card = [...document.querySelectorAll('.personal-bot-proposal')].find(node => node.dataset.proposalId === ${JSON.stringify(proposal.id)})
+    const button = [...(card?.querySelectorAll('button') || [])].find(node => node.textContent === 'Useful' && !node.disabled && node.checkVisibility())
+    if (!button) throw Error()
+    button.scrollIntoView({ block: 'center' }); button.click(); return true
+  })()`)
+  await until(() => {
+    const actual = client.snapshot().proposals?.find(item => item.id === proposal.id)
+    return feedbackCommands.length === 1 && observedFeedback?.frameSequence > feedbackSequence && actual?.status === 'pending' && actual.feedback === 'useful'
+  }, 'feedback_observed')
+  await until(() => evaluate(`(() => {
+    const card = [...document.querySelectorAll('.personal-bot-proposal')].find(node => node.dataset.proposalId === ${JSON.stringify(proposal.id)})
+    return [...(card?.querySelectorAll('.personal-bot-proposal-feedback') || [])].some(node => node.textContent === 'Marked useful' && node.checkVisibility())
+  })()`), 'feedback_result_visible')
+  const feedbackResult = client.snapshot().proposals.find(item => item.id === proposal.id)
+  write('feedback.json', { id: feedbackResult.id, status: feedbackResult.status, feedback: feedbackResult.feedback, commandCount: feedbackCommands.length, submittedFrameSequence: feedbackSequence, observedFrameSequence: observedFeedback.frameSequence, observedAt: new Date().toISOString() })
+  await screenshot('ride-feedback.png')
+  step('feedback_observed')
+  await evaluate(`(() => { const card = [...document.querySelectorAll('.personal-bot-proposal')].find(node => node.dataset.proposalId === ${JSON.stringify(proposal.id)}); const details = card?.querySelector('.personal-bot-proposal-feedback-options'); if (details?.open) details.querySelector('summary').click(); return true })()`)
   phase = 'details_open'
   await until(() => evaluate(`(() => { const card = [...document.querySelectorAll('.personal-bot-proposal')].find(node => node.dataset.proposalId === ${JSON.stringify(proposal.id)}); const button = [...(card?.querySelectorAll('button') || [])].find(node => node.textContent === 'View ride details'); if (!button) return false; if (button.getAttribute('aria-expanded') === 'false') button.click(); return card.querySelector('.personal-bot-ride-details')?.checkVisibility() === true })()`), 'details_visible')
   await screenshot('ride-details.png')
@@ -169,11 +215,11 @@ app.whenReady().then(async () => {
   write('reply.json', observedReply)
   await until(() => evaluate('(' + replyVisibility.toString() + ')(' + JSON.stringify(observedReply.message) + ')'), 'reply_visible')
   await screenshot('ride-reply.png')
-  write('result.json', { phase: 'reply_observed', passed: true, providerReceiptVerified: false, noOrderConfirmationSent: true, ownerTurnCount: ownerTurns.length, proposalId: proposal.id, theme, screenshotFiles: ['ride-recommendation.png', 'ride-details.png', 'ride-reply.png'], note: 'UI evidence only. Verify actual MCP calls, quote receipt, phase, route and price independently in the remote helper.' })
   step('reply_observed')
+  write('result.json', { phase: 'reply_observed', passed: true, providerReceiptVerified: false, noOrderConfirmationSent: true, ownerTurnCount: ownerTurns.length, feedbackCommandCount: feedbackCommands.length, proposalId: proposal.id, theme, screenshotFiles: ['ride-recommendation.png', 'ride-feedback.png', 'ride-details.png', 'ride-reply.png'], note: 'UI evidence only. Verify actual MCP calls, quote receipt, phase, route, price and persisted useful feedback independently in the remote helper.' })
   await close(0)
 }).catch(async () => {
-  write('failure.json', { phase, ownerTurnCount: ownerTurns.length, providerReceiptVerified: false })
+  write('failure.json', { phase, ownerTurnCount: ownerTurns.length, feedbackCommandCount: feedbackCommands.length, providerReceiptVerified: false })
   process.stderr.write(`LIVE_UI phase=${/^[a-z_]+$/.test(phase) ? phase : 'failed'}\n`)
   await close(1)
 })

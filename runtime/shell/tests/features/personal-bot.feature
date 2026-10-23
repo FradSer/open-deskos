@@ -422,3 +422,11 @@ Feature: Independent resident personal bot
     And a new MCP estimate appears in the rendered response and controller readback
     And a preview price does not become order confirmation
     And no order or cancellation is sent
+
+  Scenario: A real ride recommendation records usefulness feedback before its next step
+    Given the owner can read a naturally generated ride recommendation
+    When the owner opens Feedback and activates Useful
+    Then the authenticated channel records useful feedback for that same recommendation
+    And the recommendation stays pending for its read-only next step
+    And the persisted checkpoint retains the feedback after a fresh quote
+    And feedback cannot create an order or authorize another operation
