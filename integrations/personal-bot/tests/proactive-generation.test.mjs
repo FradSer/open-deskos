@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ProactiveWatch, validateOwnerConfig } from '../src/proactive.mjs'
 import { generationKey, timeWindow } from '../src/proactive-lifecycle.mjs'
-import { generationInstructions, validateGeneratedBatch } from '../src/proactive-generation.mjs'
+import { generationInstructions, validateGeneratedBatch, generatedFormatCorrection } from '../src/proactive-generation.mjs'
 import { createJevJudge } from '../src/proactive-jev.mjs'
 
 const stamp = '2026-10-02T10:00:00.000Z'
@@ -281,4 +281,30 @@ test('a legacy generation cache cannot suppress generation of the required next 
   await f.watch.tick()
   assert.equal(f.requests.length, 2)
   assert.ok(f.watch.list().every(p => p.nextStep))
+})
+
+
+test('suggestion schema correction identifies missing advice without disclosing private model errors', () => {
+  for (const intentPreview of [false, true]) {
+    const topic = { id: 'topic-id', intentPreview, actions: [{ id: 'inspect', label: 'Inspect the current observation.' }], evidence: [{ id: 'e0' }] }
+    const candidate = { topicId: topic.id, key: 'stable-key', evidenceIds: ['e0'], ...(intentPreview ? { nextStep: 'Inspect the returned places.' } : { actionId: 'inspect' }) }
+    let error
+    try { validateGeneratedBatch({ suggestions: [candidate] }, [topic], 1) } catch (caught) { error = caught }
+    assert.equal(error?.code, 'advice_required')
+    error.message = 'PRIVATE_MODEL_RESPONSE'
+    const correction = generatedFormatCorrection(error)
+    assert.match(correction, /Missing required field "advice"/)
+    assert.doesNotMatch(correction, /PRIVATE_MODEL_RESPONSE/)
+    assert.equal(Object.hasOwn(candidate, 'advice'), false)
+  }
+  for (const error of [new SyntaxError('PRIVATE_MODEL_RESPONSE'), Object.assign(Error('PRIVATE_MODEL_RESPONSE'), { code: 'advice_required' })]) {
+    const correction = generatedFormatCorrection(error)
+    assert.doesNotMatch(correction, /PRIVATE_MODEL_RESPONSE|Missing required field/)
+    for (const label of ['Ordinary example: ', 'Intent preview example: ']) {
+      const example = JSON.parse(correction.split('\n').find(line => line.startsWith(label)).slice(label.length))
+      const candidate = example.suggestions[0]
+      assert.equal(typeof candidate.advice, 'string')
+      assert.deepEqual(Object.keys(candidate).sort(), ['topicId', 'key', 'advice', label.startsWith('Intent') ? 'nextStep' : 'actionId', 'evidenceIds'].sort())
+    }
+  }
 })

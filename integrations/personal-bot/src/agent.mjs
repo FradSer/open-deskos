@@ -24,7 +24,7 @@ import { createPersonalTools } from './personal-tools.mjs'
 import { createProposalTools } from './proactive-tools.mjs'
 import { createJevIntentRouter, createIntentTurn, guardIntentTools, intentToolNames, proposalConfirmations, isExtensionTool } from './intent-routing.mjs'
 import { normalizeCapabilityDeclarations, createReviewedCapabilities, childCapabilityDeclarations } from './reviewed-capabilities.mjs'
-import { generationInstructions, validateGeneratedBatch } from './proactive-generation.mjs'
+import { generationInstructions, validateGeneratedBatch, generatedFormatCorrection } from './proactive-generation.mjs'
 import { createAgentPluginRuntime, pluginWorkKind } from './agent-plugins/runtime.mjs'
 import { renderPluginInput } from './agent-plugins/prompt.mjs'
 import { createExperienceStore } from './agent-plugins/experience.mjs'
@@ -426,6 +426,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
       },
       generateProposals: async ({ signal, ...input }) => generateWithinDeadline({
         signal, timeoutMs: (config.env ?? process.env).ODK_PROACTIVE_GENERATION_TIMEOUT_MS,
+        formatCorrection: generatedFormatCorrection,
         validate: raw => { validateGeneratedBatch(raw, input.topics, input.maxCandidates) },
         create: async () => {
           const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,

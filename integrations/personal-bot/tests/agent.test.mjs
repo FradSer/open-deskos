@@ -561,6 +561,50 @@ test('invalid fact selections retry without restoring required source coverage',
   assert.equal(attempts, 2)
 })
 
+test('Intent generation repairs an omitted advice field through the actual isolated session prompt', async t => {
+  const topic = { id: 'intent-ride', intentPreview: true, evidence: [{ id: 'e0', value: 'Read-only ride preview available' }] }
+  const missing = { topicId: topic.id, key: 'ride-preview', nextStep: '查看行程候选并选择起终点。', evidenceIds: ['e0'] }
+  const repaired = { ...missing, advice: '查看当前行程方案。' }
+  let calls = 0, instructions = ''
+  const bot = await generationFixture(t, {}, async (emit, text) => {
+    const input = JSON.parse(text.slice(text.indexOf('{')))
+    if (++calls === 2) {
+      assert.match(input.formatCorrection, /Missing required field "advice"/)
+      for (const label of ['Ordinary example: ', 'Intent preview example: ']) {
+        const line = input.formatCorrection.split('\n').find(row => row.startsWith(label))
+        assert.ok(line, label)
+        const example = JSON.parse(line.slice(label.length)).suggestions[0]
+        assert.equal(typeof example.advice, 'string')
+        assert.ok(Array.isArray(example.evidenceIds))
+        assert.equal(Object.hasOwn(example, 'reason'), false)
+        assert.equal(Object.hasOwn(example, 'why'), false)
+        assert.equal(Object.hasOwn(example, label.startsWith('Intent') ? 'nextStep' : 'actionId'), true)
+      }
+      assert.deepEqual(input.topics, [topic])
+    }
+    emit({ type: 'message_end', message: assistant(JSON.stringify({ suggestions: [calls === 1 ? missing : repaired] })) })
+  }, options => {
+    instructions = options.resourceLoader.getSystemPrompt()
+    assert.deepEqual(options.tools, [])
+    assert.deepEqual(options.customTools, [])
+  })
+  assert.deepEqual(await bot.generateProposals({ topics: [topic], maxCandidates: 1 }), { suggestions: [repaired] })
+  assert.equal(calls, 2)
+  assert.match(instructions, /Every candidate, including an Intent preview, must include advice/)
+  assert.equal(Object.hasOwn(missing, 'advice'), false)
+})
+
+test('Intent generation cannot substitute a next step for advice after its one correction', async t => {
+  let calls = 0
+  const topic = { id: 'intent-ride', intentPreview: true, evidence: [{ id: 'e0', value: 'Read-only preview' }] }
+  const bot = await generationFixture(t, {}, async emit => {
+    calls++
+    emit({ type: 'message_end', message: assistant(JSON.stringify({ suggestions: [{ topicId: topic.id, key: 'ride-preview', nextStep: '查看行程候选。', evidenceIds: ['e0'] }] })) })
+  })
+  await assert.rejects(bot.generateProposals({ topics: [topic], maxCandidates: 1 }), error => error.code === 'advice_required')
+  assert.equal(calls, 2)
+})
+
 test('Given different service and process environments When generating suggestions Then the service timeout controls the injected SDK session', { timeout: 5000 }, async t => {
   const previous = process.env.ODK_PROACTIVE_GENERATION_TIMEOUT_MS
   process.env.ODK_PROACTIVE_GENERATION_TIMEOUT_MS = 'invalid'

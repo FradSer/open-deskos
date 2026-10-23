@@ -44,6 +44,15 @@ Feature: Owner controlled proactive Personal Bot proposals
     And source hashes remain in the cited observations
     And preview details do not grant an order or execution permission
 
+  Scenario: Intent generation repairs a missing advice field without changing its authority
+    Given a ready Intent has current ride preview evidence
+    When the first generated candidate has a next step but omits advice
+    Then validation rejects that candidate before judgment or publication
+    And one correction identifies the missing advice field with complete valid JSON examples
+    And both ordinary and Intent examples retain advice and their own evidence identifiers
+    And only a corrected candidate with advice and a next step can pass
+    And two responses without advice fail without a generated fallback or new permission
+
   Scenario: Presentation receipts recheck observation freshness
     Given offered routine recommendations have timestamped observations
     When a presentation receipt arrives after some observations expire
