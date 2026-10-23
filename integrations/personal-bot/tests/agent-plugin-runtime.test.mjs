@@ -286,6 +286,60 @@ test('unsupported verification, errors and truncated receipts cannot approve com
   }
 })
 
+test('Given complete installation receipts When an unrelated computation summary is truncated Then requested effects retain exact evidence', async t => {
+  const directory = await fixture(t)
+  let captured
+  const check = (requirement, id, quote) => ({ requirement, scope: 'completion', status: 'passed', evidence: [{ id, quote }] })
+  const checks = [check('Install the requested revision', 'tool-2', 'installed revision r1'), check('Read the installed catalog', 'tool-3', 'catalog revision r1')]
+  const runtime = createAgentPluginRuntime({ store: createExperienceStore(join(directory, 'installation.json')), config: { enabled: ['completion'] },
+    infer: async (_kind, input) => { captured = input.receipts; return { status: 'passed', summary: 'Both requested effects have exact receipts.', checks } } })
+  runtime.beginTurn('Install revision r1 and read its catalog.', 'app_manage')
+  runtime.beginComputation({ source: 'text(await odk.coding_task_history({taskId:"original"}))' })({ status: 'succeeded', output: 'unrelated bounded history summary', truncated: true })
+  for (const [name, text] of [['user_app_install', 'installed revision r1'], ['user_apps_list', 'catalog revision r1']]) {
+    await runtime.observeTools([{ name, execute: async () => ({ content: [{ type: 'text', text }], details: {} }) }])[0].execute(name, {})
+  }
+  assert.equal((await runtime.finishTurn('Revision r1 is installed and listed.')).verification.status, 'passed')
+  assert.equal(captured[0].truncated, true)
+  assert.throws(() => validateCompletion({ status: 'passed', summary: 'Invalid source', checks: [check('Read history', 'tool-1', 'unrelated bounded history summary')] }, captured), error => error.code === 'scope' || error.code === 'citation')
+  const missing = { status: 'needs_review', summary: 'Requested history has no complete receipt.', checks: [...checks, { requirement: 'Read all required history', scope: 'completion', status: 'needs_review', evidence: [] }] }
+  assert.equal(validateCompletion(missing, captured).status, 'needs_review')
+  assert.throws(() => validateCompletion({ ...missing, status: 'passed' }, captured), error => error.code === 'unresolved')
+})
+
+test('Given complete effect evidence When its inventory is running or overflowed Then completion cannot approve it', async t => {
+  const directory = await fixture(t)
+  for (const variant of ['running', 'overflow']) {
+    let calls = 0
+    const runtime = createAgentPluginRuntime({ store: createExperienceStore(join(directory, `inventory-${variant}.json`)), config: { enabled: ['completion'] },
+      infer: async () => { calls++; return { status: 'passed', summary: 'Installed.', checks: [{ requirement: 'Install r1', scope: 'completion', status: 'passed', evidence: [{ id: 'tool-1', quote: 'installed r1' }] }] } } })
+    runtime.beginTurn('Install r1.', 'app_manage')
+    await runtime.observeTools([{ name: 'user_app_install', execute: async () => ({ content: [{ type: 'text', text: 'installed r1' }], details: {} }) }])[0].execute('install', {})
+    const count = variant === 'running' ? 1 : 64
+    for (let i = 0; i < count; i++) {
+      const done = runtime.beginComputation({ source: 'text("unrelated")' })
+      if (variant === 'overflow') done({ status: 'succeeded', output: 'unrelated' })
+    }
+    assert.equal((await runtime.finishTurn('Installed.')).verification.status, 'needs_review', variant)
+    assert.equal(calls, 0, 'An incomplete inventory must fail before model judgment')
+  }
+})
+
+test('Given identical literal and structured JSON When captured Then one complete copy stays within the receipt budget', async t => {
+  const directory = await fixture(t)
+  for (const durable of [false, true]) {
+    const payload = { taskId: 'original', history: 'observed source '.repeat(1200) }, literal = JSON.stringify(payload)
+    let receipt
+    const runtime = createAgentPluginRuntime({ store: createExperienceStore(join(directory, `deduplicate-${durable}.json`)), config: { enabled: ['completion'] },
+      infer: async (_kind, input) => { receipt = input.receipts[0]; return { status: 'passed', summary: 'Actual history was read.', checks: [{ requirement: 'Read the original history', scope: 'completion', status: 'passed', evidence: [{ id: receipt.id, quote: '"taskId":"original"' }] }] } } })
+    runtime.beginTurn('Read the original history.', 'task_query')
+    if (durable) await runtime.observeDurableTools([{ name: 'coding_task_history', execute: async () => ({ output: [{ type: 'text', text: literal }], structuredOutput: payload }) }])[0].execute({}, {}, {})
+    else await runtime.observeTools([{ name: 'coding_task_history', execute: async () => ({ content: [{ type: 'text', text: literal }], structuredContent: payload, details: {} }) }])[0].execute('read', {})
+    assert.equal((await runtime.finishTurn('History read.')).verification.status, 'passed')
+    assert.equal(receipt.truncated, false)
+    assert.equal(receipt.text, `Tool output:\n${literal}`)
+  }
+})
+
 test('learning rejects unsupported and sensitive candidates; disabled learning retains retrieval', async t => {
   const directory = await fixture(t)
   const store = createExperienceStore(join(directory, 'experience.json'))

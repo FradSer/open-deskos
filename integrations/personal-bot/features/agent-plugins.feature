@@ -56,9 +56,23 @@ Feature: Personal Agent owns a bounded plugin runtime
     Then an isolated zero-tool model checks each requested outcome against cited receipts
     And tool orchestration does not add an unrequested derivation requirement
     And accepted or running work cannot become completed work
-    And missing, failed, truncated, or invalid evidence requires review
+    And missing, failed, truncated, or invalid cited evidence requires review
     And verification never replays a mutation
     And a child start or continuation receipt proves only admission
+
+  Scenario: Completed installation retains independent evidence
+    Given history reads and an installation have complete successful tool receipts
+    And an unrelated Code Mode summary was truncated
+    When completion cites the actual installation and catalog receipts
+    Then the summary does not invalidate those independent receipts
+    But a check cannot cite a truncated receipt or omit a required outcome
+    And incomplete running or overflowed receipt inventories still require review
+
+  Scenario: Identical structured output uses one receipt copy
+    Given a tool returns identical literal JSON and structured data
+    When completion captures the receipt
+    Then the literal JSON occurs once without reconstruction
+    And distinct structured data remains available
 
   Scenario: Derived answers retain actual computation evidence
     Given a task supplies data and an applicable method

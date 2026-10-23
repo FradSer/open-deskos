@@ -21,11 +21,12 @@ function resultEvidence(result, durable) {
   const output = (durable ? result.output : result.content) ?? []
   const content = output.map(part => part.type === 'text' ? part.text : `[${part.type} content omitted]`).join('\n')
   const structured = durable ? result.structuredOutput : result.structuredContent
+  const structuredJson = structured === undefined ? undefined : JSON.stringify(structured)
   const diagnostics = durable ? result.diagnostics ?? [] : []
   return {
     // Preserve literal tool text. Encoding it inside another JSON string makes
     // exact citations require quoting a serialized representation of the result.
-    text: `Tool output:\n${content}${structured === undefined ? '' : `\nStructured output (JSON):\n${JSON.stringify(structured)}`}${diagnostics.length ? `\nDiagnostics (JSON):\n${JSON.stringify(diagnostics)}` : ''}`,
+    text: `Tool output:\n${content}${structuredJson === undefined || structuredJson === content ? '' : `\nStructured output (JSON):\n${structuredJson}`}${diagnostics.length ? `\nDiagnostics (JSON):\n${JSON.stringify(diagnostics)}` : ''}`,
     truncated: (durable && result.output === undefined) || output.some(part => part.type !== 'text') || result.details?.truncation?.truncated === true || result.details?.linesTruncated === true
       || ['matchLimitReached', 'entryLimitReached', 'resultLimitReached'].some(key => Number(result.details?.[key]) > 0) || diagnostics.some(item => item.code === 'truncated'),
   }
