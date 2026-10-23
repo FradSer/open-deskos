@@ -419,3 +419,68 @@ test('a plugin manifest that declares more than the schema version is still supp
     fs.rmSync(runtime.root, { recursive: true, force: true })
   }
 })
+
+
+test('candidate composition refuses operator-private inputs without reading their values', () => {
+  const runtime = makeRuntime()
+  try {
+    for (const [index, name] of ['.env.local', 'integrations/personal-bot/personal-bot.env', 'src/private/session.env', 'auth.json', '.pi/config.json'].entries()) {
+      const release = makeCompleteRelease(runtime, `private-${index}`)
+      const file = path.join(release, name)
+      fs.mkdirSync(path.dirname(file), { recursive: true })
+      fs.writeFileSync(file, 'FIXTURE_ONLY_DO_NOT_PACKAGE', { mode: 0o600 })
+      const result = validateRuntimeComposition(release)
+      assert.equal(result.ok, false, `${name} must not enter a release`)
+      assert.match(result.reason, /private configuration/)
+      assert.equal(fs.readFileSync(file, 'utf8'), 'FIXTURE_ONLY_DO_NOT_PACKAGE')
+      assert.equal(fs.statSync(file).mode & 0o777, 0o600)
+    }
+  } finally { cleanup(runtime) }
+})
+
+test('managed dependency resources do not become operator configuration', () => {
+  const runtime = makeRuntime()
+  try {
+    const release = makeCompleteRelease(runtime, 'managed-resources')
+    const file = path.join(release, 'node_modules', 'dependency', '.env.example')
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, 'PUBLIC_DEPENDENCY_EXAMPLE')
+    assert.equal(validateRuntimeComposition(release).ok, true)
+  } finally { cleanup(runtime) }
+})
+
+test('a private input created after preflight prevents ownership and mode changes', () => {
+  const runtime = makeRuntime()
+  try {
+    const release = makeCompleteRelease(runtime, 'late-private-input')
+    assert.equal(validateRuntimeComposition(release).ok, true)
+    const file = path.join(release, '.env.local')
+    fs.writeFileSync(file, 'FIXTURE_ONLY_LATE_PRIVATE_INPUT', { mode: 0o600 })
+    const source = fs.readFileSync(path.join(__dirname, '../scripts/update-runtime.js'), 'utf8')
+    const implementation = source.match(/function sealRelease\([^)]*\) \{[\s\S]*?\n\}/)
+    assert.ok(implementation)
+    const calls = []
+    const result = require('node:vm').runInNewContext(implementation[0] + '\nsealRelease(releasePath, {user: "fixture"})', {
+      releasePath: release, validateRuntimeComposition,
+      spawnSync: (file, args) => { calls.push({ file, args }); return { status: 0, stdout: '1000\n' } },
+    })
+    assert.equal(result.ok, false)
+    assert.match(result.reason, /private configuration/)
+    assert.equal(calls.length, 0, 'private configuration must never reach permission widening')
+    assert.equal(fs.statSync(file).mode & 0o777, 0o600)
+  } finally { cleanup(runtime) }
+})
+
+
+test('candidate privacy validation returns a failure when it cannot enumerate the release', () => {
+  const runtime = makeRuntime()
+  try {
+    const missing = path.join(runtime.releasesDir, 'missing')
+    assert.equal(validateRuntimeComposition(missing).ok, false)
+    const file = path.join(runtime.releasesDir, 'ordinary-file')
+    fs.writeFileSync(file, 'data')
+    assert.equal(validateRuntimeComposition(file).ok, false)
+  } finally {
+    cleanup(runtime)
+  }
+})

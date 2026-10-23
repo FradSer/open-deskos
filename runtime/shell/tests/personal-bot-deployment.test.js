@@ -28,8 +28,12 @@ function integrationTree() {
 test('integration staging excludes host dependencies and private auth/config', () => {
   const integrations = stage.split('\n').filter((line, index, lines) =>
     line.includes('"${ROOT}/integrations/"') || lines[index + 1]?.includes('"${ROOT}/integrations/"')).join('\n')
-  for (const excluded of ['node_modules', '.env*', 'auth.json', '.pi', '*.env']) {
-    assert.ok(integrations.includes(`--exclude '${excluded}'`), excluded)
+  assert.ok(integrations.includes("--exclude 'node_modules'"))
+  assert.ok(integrations.includes('${RELEASE_PRIVATE_EXCLUDES[@]}'))
+  assert.match(stage, /source "\$\{ROOT\}\/runtime\/shell\/scripts\/cm5-personal-bot.sh"/)
+  const helper = fs.readFileSync(helperPath, 'utf8')
+  for (const excluded of ['.env*', 'auth.json', '.pi', '*.env']) {
+    assert.ok(helper.includes(`--exclude '${excluded}'`), excluded)
   }
 })
 
@@ -105,6 +109,7 @@ test('voice packaging installs frozen production dependencies in release only', 
     fs.mkdirSync(path.join(dir, 'source', 'src'))
     fs.mkdirSync(path.join(dir, 'source', 'systemd'))
     fs.writeFileSync(path.join(dir, 'source', 'auth.json'), 'private')
+    fs.writeFileSync(path.join(dir, 'source', 'src', 'private.env'), 'FIXTURE_ONLY_PRIVATE')
     const packaged = spawnSync('bash', ['-c', `
       set -euo pipefail
       source "$1"
@@ -118,6 +123,7 @@ test('voice packaging installs frozen production dependencies in release only', 
     assert.equal(packaged.status, 0, packaged.stderr)
     assert.ok(fs.existsSync(path.join(dir, 'release/integrations/personal-bot/package.json')))
     assert.equal(fs.existsSync(path.join(dir, 'release/integrations/personal-bot/auth.json')), false)
+    assert.equal(fs.existsSync(path.join(dir, 'release/integrations/personal-bot/src/private.env')), false)
     assert.equal(fs.readFileSync(path.join(dir, 'log'), 'utf8').trim(), `${dir}/release/integrations/personal-bot:pnpm install --prod --frozen-lockfile --ignore-scripts`)
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
@@ -353,4 +359,40 @@ test('Personal Bot upgrade reads existing configuration and retires old services
   assert.doesNotMatch(windows, /migrate-personal-bot\.mjs/)
   assert.match(windows, /src\\display-client\.mjs/)
   assert.match(fs.readFileSync('scripts/cm5-personal-bot.sh', 'utf8'), /migrate-personal-bot\.mjs/)
+})
+
+
+test('direct release copying excludes private inputs and preserves their source bytes and modes', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-private-release-copy-'))
+  const source = path.join(root, 'source')
+  const release = path.join(root, 'release')
+  const privatePaths = ['.env.local', 'auth.json', '.pi/session.json', 'src/private.env', 'src/.env.debug']
+  try {
+    fs.mkdirSync(source)
+    fs.mkdirSync(release)
+    for (const name of privatePaths) {
+      const file = path.join(source, name)
+      fs.mkdirSync(path.dirname(file), { recursive: true })
+      fs.writeFileSync(file, 'FIXTURE_ONLY_PRIVATE', { mode: 0o600 })
+    }
+    fs.writeFileSync(path.join(source, 'src', 'public.js'), 'module.exports = true\n', { mode: 0o600 })
+    const copy = installer.split('\n').find(line => line.includes('"${DIR}/."') && /cp -a|copy_release_input/.test(line))
+    assert.ok(copy, 'execute the actual installer copy operation')
+    assert.ok(!copy.includes('\n'), 'only one audited copy command may execute')
+    assert.match(copy.trim(), /^(run_as_target_user cp -a|copy_release_input) /)
+    const result = spawnSync('bash', ['-c', `
+      set -euo pipefail
+      source "$1"
+      run_as_target_user() { "$@"; }
+      DIR="$2" RELEASE_DIR="$3"
+      ${copy}
+    `, 'fixture', helperPath, source, release], { encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+    for (const name of privatePaths) {
+      assert.equal(fs.existsSync(path.join(release, name)), false, `${name} must stay outside the artifact`)
+      assert.equal(fs.readFileSync(path.join(source, name), 'utf8'), 'FIXTURE_ONLY_PRIVATE')
+      assert.equal(fs.statSync(path.join(source, name)).mode & 0o777, 0o600)
+    }
+    assert.equal(fs.readFileSync(path.join(release, 'src', 'public.js'), 'utf8'), 'module.exports = true\n')
+  } finally { fs.rmSync(root, { recursive: true, force: true }) }
 })

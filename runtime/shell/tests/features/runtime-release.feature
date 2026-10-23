@@ -117,3 +117,11 @@ Feature: Immutable runtime release deployment
     Then every runtime file is readable by the kiosk user
     And directories and existing executables retain traversal or execution permissions
     And no release file or directory stays writable
+
+  Scenario: Private operator configuration never enters a release
+    Given source directories contain private environment files and authentication state
+    When the host stages or directly packages the release
+    Then private inputs stay outside the artifact and original files stay unchanged
+    And composition validation rejects any private input before sealing
+    And newly created private inputs after preflight also prevent sealing
+    And only root and the kiosk group can read sealed runtime code
