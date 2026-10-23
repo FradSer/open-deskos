@@ -111,8 +111,12 @@ Feature: Widget continuations in the right desk pane
 
   Scenario: App and Widget use the same frame
     Given a supported theme and a Widget App
-    When the App opens
+    And the visible source Widget has completed its surface setup
+    When the App opens and completes its visible surface setup
     Then the App card has the same border width, color, and radius as its source Widget
+    And comparison uses the visible source snapshot and each surface's effective clipped radius
+    And a hidden source Widget does not define the comparison after its SDK surface is released
+    And surface setup waits remain bounded by the existing acceptance deadline
     And all eight Widgets use the same Shell-owned frame material in each theme
     And no extra active outline or nested runtime border surrounds the App
     And Liquid Glass uses one continuous SDK edge without a second CSS border or inset shadow
