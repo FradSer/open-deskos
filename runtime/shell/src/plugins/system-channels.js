@@ -120,7 +120,7 @@ function createSystemChannelPlugins() {
         let pendingToggle = null
         ctx.onCleanup(client.subscribe(status => {
           if (pendingToggle === 'starting' && status.state === 'idle') return
-          if (pendingToggle === 'sending' && status.state === 'recording') return
+          if (['sending', 'cancelling'].includes(pendingToggle) && status.state === 'recording') return
           pendingToggle = null
           broadcast('odk-personal-bot-status', status)
         }))
@@ -138,10 +138,21 @@ function createSystemChannelPlugins() {
           } else broadcast('odk-personal-bot-status', { ...current, activated: true })
           return { accepted: sent }
         })
+        bind(ctx, 'odk-personal-bot-cancel', () => {
+          const current = client.snapshot()
+          if (pendingToggle || current.state !== 'recording' || current.cancelInput !== true) return { accepted: false }
+          const sent = client.cancelRecording()
+          if (sent) {
+            pendingToggle = 'cancelling'
+            broadcast('odk-personal-bot-status', { ...current, state: 'sending', message: '' })
+          }
+          return { accepted: sent }
+        })
         bind(ctx, 'odk-personal-bot-text', async (_event, text, replyTo) => {
           const reference = replyTo === undefined ? undefined : parseReplyTo(replyTo)
           if (reference === null) return { accepted: false }
           if (pendingToggle || typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 3000) return { accepted: false }
+          if (client.sendTextReceipt) return client.sendTextReceipt(text, reference)
           return { accepted: await (reference ? client.sendText(text, reference) : client.sendText(text)) }
         })
         bind(ctx, 'odk-personal-bot-proposal', (_event, command) => {
