@@ -1,5 +1,28 @@
 Feature: Personal Agent home briefing
 
+  Scenario: Generation status stays inside the Overview indicator
+    Given Overview can retain current source-bound readings
+    When generation fails or current state cannot be confirmed
+    Then the existing spinner shows a static failure mark
+    And its accessible label explains automatic recovery
+    And the paragraph contains no generation error text
+    And an empty failure leaves the paragraph empty
+
+  Scenario: Each service supplies at most one Overview fact
+    Given Pi supplies session fields and several remote reports
+    And resident Agent tasks share their own service
+    When all facts participate in selection or recovery
+    Then only the first selected fact from each service is displayed
+    And different services with the same icon remain independent
+
+  Scenario: Overview supports safe Markdown
+    Given a selected source contains emphasis, lists, code, and links
+    When Overview renders the source-bound text
+    Then Markdown uses local semantic styling in each theme
+    And HTML remains literal and images cannot load
+    And links remain display-only text
+    And temperatures and signed percentages retain their formatting
+
   Scenario: All connected sources can inform Overview
     Given more than 64 visible data sources with different declared priorities
     When Overview reads current desk information
@@ -162,7 +185,7 @@ Feature: Personal Agent home briefing
   Scenario: Bounded accessible text
     Given a briefing contains long English, Chinese, or HTML-like text
     When the home renders in any supported theme or compact size
-    Then the text wraps and remains literal
+    Then Markdown wraps and HTML-like text remains literal
     And meaningful availability changes use a stable status region
 
   Scenario: Home reads as a short sentence with inline icons
@@ -263,7 +286,7 @@ Feature: Personal Agent home briefing
     And failed unsubscribe retains cleanup ownership until retry
 
   Scenario: An independent Dashboard preserves briefing behavior during runtime replacement
-    Given Today displays literal briefing segments and truthful availability
+    Given Today displays safe Markdown briefing segments and truthful availability
     When a development or signed independent Dashboard replaces the default page
     Then the same page container displays equivalent values and source states
     And Instrument, Pixel, and Border Beam retain equivalent rendered content
@@ -498,7 +521,8 @@ Scenario: Overview refresh uses the weekday indicator without adding chat text
   Given Overview shows a red presence dot beside its weekday
   When the existing briefing state becomes loading
   Then that same indicator shows a spinner in the same position
-  And a terminal briefing state restores the red dot, including update failure
+  And successful generation restores the red dot
+  And failed generation shows a static failure mark inside the same indicator
   And loading preserves the previous briefing text without adding refresh narration
   And an initial load uses the empty placeholder with an accessible busy state
   And automatic refresh preserves all conversation text and message nodes

@@ -36,7 +36,7 @@ function selectionValue(value, path = '', now = Date.now()) {
   if (typeof value === 'string' && /(?:At|Time|deadline)$/.test(path)) return { value, attention: homeAttention(path, value, {}, now) }
   return value
 }
-const layoutFingerprint = (readings, now) => JSON.stringify(readings.map(({ id, label, kind, state, home, value }) => ({ id, label, kind, state, home, shape: valueShape(value), selection: selectionValue(value, '', now) })))
+const layoutFingerprint = (readings, now) => JSON.stringify(readings.map(({ id, serviceId, label, kind, state, home, value }) => ({ id, serviceId, label, kind, state, home, shape: valueShape(value), selection: selectionValue(value, '', now) })))
 const partialValue = value => typeof value === 'string' ? value.length > 8192 : Boolean(value && typeof value === 'object'
   && (value.truncated === true || value.incomplete === true || Object.values(value).some(partialValue)))
 
@@ -201,7 +201,8 @@ export class HomeBriefing {
             const value = result.status === 'fulfilled' ? result.value : null
             const valid = value && value.id === entry.id && STATES.has(value.state)
               && (value.value === null || (typeof value.value === 'object' && !Array.isArray(value.value)))
-            const home = entry.home ? { home: entry.home } : {}
+            const home = { ...(entry.home ? { home: entry.home } : {}),
+              ...(typeof entry.serviceId === 'string' && ID.test(entry.serviceId) && entry.serviceId !== entry.id ? { serviceId: entry.serviceId } : {}) }
             const selected = valid && value.value && entry.home ? Object.fromEntries(entry.home.fields.filter(field => Object.hasOwn(value.value, field)).map(field => [field, value.value[field]])) : value?.value
             let source = valid ? { id: entry.id, label: entry.label, kind: entry.kind, state: value.state, value: selected, ...home,
               ...(Number.isFinite(value.updatedAt) && value.updatedAt >= 0 && value.updatedAt <= 8640000000000000 ? { updatedAt: value.updatedAt } : {}) }

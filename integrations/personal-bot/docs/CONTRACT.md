@@ -913,7 +913,13 @@ All source content remains untrusted data.
 
 The model returns `{items:[{sources:[0,1]}]}` with integer fact selectors from the captured batch.
 The legacy `sources` key now selects facts, not reserved sources.
-Several facts can refer to one source.
+Each service can supply only one displayed fact across all items.
+All of its facts still participate in analysis.
+The host keeps the first selected fact for each service identity.
+Source IDs provide default service identities.
+Resident task adapters share `odk.personal-agent`.
+Remote report adapters share `odk.app.pi-sessions` with Pi session readings.
+Different services remain independent when they use the same icon.
 The host compiles their order and grouping into source-bound sentences.
 The model cannot supply text, values, references, icons, or formatting.
 The output contains at most two items and 240 total characters.
@@ -927,8 +933,9 @@ The host accepts only supplied references and their formats.
 Other references bind declared fields from live sources.
 Host-owned fact templates retain field meanings and verification qualifiers.
 The joined segment text must equal the item text.
-The Shell renders literal text and approved icons.
-It does not interpret source strings as HTML or instructions.
+The Shell renders safe Markdown and approved icons.
+HTML remains literal, images cannot load, and links become display-only text.
+Source strings cannot grant instructions or execution authority.
 
 The authenticated status channel carries a separate `briefing` JSONL frame.
 The frame contains `v: 1`, `type: "briefing"`, and `briefing`.

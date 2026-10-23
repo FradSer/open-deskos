@@ -1,7 +1,7 @@
 const AGENT_PREFIX = 'odk.agent.'
 const REMOTE_PREFIX = 'odk.remote.'
 const dataFailure = { id: 'odk.data.connection', label: 'Desk data', kind: 'status', state: 'unavailable', value: null }
-const declaration = (id, label, icon, fields) => ({ id, label, kind: 'app', home: { mode: 'optional', priority: 0, icon, fields } })
+const declaration = (id, label, icon, fields) => ({ id, label, kind: 'app', serviceId: id.startsWith(REMOTE_PREFIX) ? 'odk.app.pi-sessions' : 'odk.personal-agent', home: { mode: 'optional', priority: 0, icon, fields } })
 
 /** Adapt existing read-only runtime views. Do not retain a second reading cache. */
 export function createHomeSourceAccess({ dataRequest, runtime, remote }) {

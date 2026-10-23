@@ -92,6 +92,11 @@ try {
       assert.equal(home.frame.state, 'live', 'Real generation must succeed without fallback')
       for (const fact of sourceFacts) assert.ok(current.seenFacts.has(fact.factId), `Fact did not reach real model: ${fact.factId}`)
       assert.equal(home.frame.omittedSources, 0)
+      const selected = home.frame.items.flatMap(item => item.sources)
+      const serviceBySource = new Map(sourceFacts.map(fact => [fact.id, fact.serviceId]))
+      const services = selected.map(source => serviceBySource.get(source.id))
+      assert.equal(new Set(services).size, services.length, 'Each service can display only one fact')
+      row.selectedServices = services
       if (!synthetic) assert.ok(!current.seenSources.has('odk.data.connection'), 'The live source inventory must be reachable')
       assert.equal(current.controls.length, current.requests, 'Every prompt must reach the provider payload boundary')
       for (const control of current.controls) {
@@ -119,12 +124,14 @@ try {
   for (const state of (process.env.ODK_OVERVIEW_LIVE_DEVICE_ONLY === '1' ? [] : ['failed', 'waiting', 'running'])) {
     const readings = [makeReading('portfolio', 'Portfolio', 'portfolio', { todayChangePercent: 0.1 }),
       makeReading('weather', 'Weather', 'weather', { temperatureC: 23, condition: 'clear' }),
-      makeReading('pi', 'Pi sessions', 'sessions', { total: 1, counts: { running: 1, waiting: 0 }, sessions: [{ id: 'live-test-session', project: 'Desk runtime', state: 'running', goal: 'Verify Overview', activity: 'Reading source inventory' }] }),
+      makeReading('odk.app.pi-sessions', 'Pi sessions', 'sessions', { total: 1, counts: { running: 1, waiting: 0 }, sessions: [{ id: 'live-test-session', project: 'Desk runtime', state: 'running', goal: 'Verify Overview', activity: 'Reading source inventory' }] }),
       ...Array.from({ length: state === 'failed' ? 70 : 2 }, (_, index) => makeReading(`connected.${index}`, `Reading ${index}`, 'tasks', { status: 'normal' }))]
     const task = { taskId: 'overview-acceptance-task', identity: { name: 'Release Agent' }, state,
       updatedAt: new Date().toISOString(), request: 'Verify release', verification: { status: 'not_run' }, learning: { status: 'not_run' } }
+    const sibling = { ...task, taskId: 'overview-secondary-task', identity: { name: 'Background Agent' }, state: 'running', request: 'Observe background work' }
+    const messages = Array.from({ length: 2 }, (_, index) => ({ id: `overview-report-${index}`, at: Date.now(), text: `Pi report ${index}`, verification: 'reported_unverified', sources: [{ sessionId: `remote-${index}`, taskName: 'Remote Pi task', state: 'settled' }] }))
     const access = createHomeSourceAccess({ dataRequest: async (command, options) => command === 'list' ? { readings } : { reading: readings.find(reading => reading.id === options.id) },
-      runtime: () => ({ agent: { agentTasks: { list: () => ({ tasks: [task], total: 1 }), status: () => task } } }), remote: () => null })
+      runtime: () => ({ agent: { agentTasks: { list: () => ({ tasks: [task, sibling], total: 2 }), status: id => id === task.taskId ? task : sibling } } }), remote: () => ({ snapshot: () => ({ state: 'live', messages, nextOffset: null }) }) })
     await check(`agent-${state}`, access, 'odk.agent.overview-acceptance-task', true)
     if (state === 'failed') await check('agent-changing-during-generation', access, 'odk.agent.overview-acceptance-task', true, () => { task.state = 'finished' })
   }

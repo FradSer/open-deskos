@@ -69,11 +69,11 @@
       }
       const shell = make('div', 'dash'), header = make('header', 'dash-head')
       const weekday = identified('div', 'dash-wd', 'dash-wd'), presence = make('span', 'dash-presence')
-      presence.setAttribute('aria-hidden', 'true')
+      presence.setAttribute('role', 'status'); presence.setAttribute('aria-live', 'polite'); presence.setAttribute('aria-atomic', 'true')
       const date = make('div', 'dash-date text-right')
       const monthDay = identified('span', '', 'dash-md'), year = identified('span', '', 'dash-y')
       date.append(monthDay, year); header.append(weekday, presence, date)
-      const paragraph = identified('p', 'dash-narrative', 'dash-narrative')
+      const paragraph = identified('div', 'dash-narrative', 'dash-narrative')
       paragraph.setAttribute('role', 'status'); paragraph.setAttribute('aria-live', 'polite'); paragraph.setAttribute('aria-atomic', 'true')
       shell.append(header, paragraph); container.replaceChildren(shell)
       let released = false
@@ -128,39 +128,61 @@
         }
         parent.append(doc.createTextNode(text.slice(position)))
       }
+      function markdown(parent, text, portfolio, live) {
+        const content = make('div', '')
+        root.odkPersonalBotReply.render(content, text)
+        if (!content.classList.contains('personal-bot-status-markdown')) return false
+        content.className = 'dash-markdown'
+        const reader = doc.createTreeWalker(content, 4), leaves = []
+        while (reader.nextNode()) leaves.push(reader.currentNode)
+        leaves.forEach(leaf => {
+          if (leaf.parentElement.closest('code, pre')) return
+          const fragment = doc.createDocumentFragment()
+          literal(fragment, leaf.textContent, portfolio, live)
+          leaf.replaceWith(fragment)
+        })
+        parent.append(content)
+        return true
+      }
       function update(frame) {
         if (!current()) return
         const label = messages.get(frame.state) || messages.get('unavailable')
         presence.dataset.state = frame.state; paragraph.dataset.state = frame.state
+        const status = frame.state === 'loading' ? 'Updating Overview.'
+          : frame.state === 'unavailable' ? 'Overview unavailable. Waiting to reconnect.'
+            : frame.state === 'error' ? 'Overview update failed. It will retry automatically.'
+              : frame.state === 'stale' ? 'Overview could not confirm current readings. It will retry automatically.' : label
+        presence.setAttribute('aria-label', status); presence.title = status
         paragraph.setAttribute('aria-busy', String(frame.state === 'loading'))
         paragraph.replaceChildren()
-        if (frame.items.length && frame.state !== 'live' && frame.state !== 'loading') paragraph.append(make('span', 'dash-availability',
-          label + ' '))
         frame.items.forEach((item, index) => {
           if (index) paragraph.append(doc.createTextNode(' '))
-          const clause = make('span', 'dash-clause'); clause.dataset.briefing = 'agent-' + index
+          const clause = make('div', 'dash-clause'); clause.dataset.briefing = 'agent-' + index
           const fallback = item.sources.some(source => source.id.toLowerCase().includes('mail')) ? 'mail' : 'status'
           const live = frame.state === 'live' && item.sources.length > 0 && item.sources.every(source => source.state === 'live')
           for (const segment of item.segments || [{ text: item.text, icon: fallback }]) {
-            const art = artwork[segment.icon], fact = make('span', art ? 'dash-fact' : 'dash-context')
+            const art = artwork[segment.icon], fact = make('div', art ? 'dash-fact' : 'dash-context')
             if (art) {
               const icon = make('span', 'dash-icon'); icon.dataset.kind = segment.icon
               if (live) icon.dataset.state = 'live'
               icon.innerHTML = '<svg data-tabler="' + art.name + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + art.paths + '</svg>'
-              const joined = make('span', 'dash-token'); joined.append(icon)
-              const whitespace = segment.text.search(/\S/)
-              const word = segment.text.slice(whitespace).split(/\s/)[0]
-              const length = word.length <= 8 || /^[+-]?\d+(?:\.\d+)?%$/.test(word) ? word.length : [...word][0].length
-              const boundary = whitespace + length
-              literal(joined, segment.text.slice(0, boundary), segment.icon === 'portfolio', live)
-              fact.append(joined)
-              literal(fact, segment.text.slice(boundary), segment.icon === 'portfolio', live)
-            } else literal(fact, segment.text, false, false)
+              if (markdown(fact, segment.text, segment.icon === 'portfolio', live)) fact.prepend(icon)
+              else {
+                const joined = make('span', 'dash-token'); joined.append(icon)
+                const whitespace = segment.text.search(/\S/)
+                const word = segment.text.slice(whitespace).split(/\s/)[0]
+                const length = word.length <= 8 || /^[+-]?\d+(?:\.\d+)?%$/.test(word) ? word.length : [...word][0].length
+                const boundary = whitespace + length
+                literal(joined, segment.text.slice(0, boundary), segment.icon === 'portfolio', live)
+                fact.append(joined)
+                literal(fact, segment.text.slice(boundary), segment.icon === 'portfolio', live)
+              }
+            } else if (!markdown(fact, segment.text, false, false)) literal(fact, segment.text, false, false)
             clause.append(fact)
           }
           paragraph.append(clause)
         })
-        if (frame.items.length === 0) paragraph.append(make('span', 'dash-clause', label))
+        if (frame.items.length === 0 && !['error', 'stale', 'unavailable'].includes(frame.state)) paragraph.append(make('div', 'dash-clause', label))
         root.odkIcons.apply(paragraph)
         fitCopy()
       }

@@ -291,3 +291,26 @@ test('rebinding keeps complete current facts within the existing display budget'
   assert.match(fresh.items[0].text, /verification not_run/)
   assert.doesNotMatch(fresh.items[0].text, /running/)
 })
+
+
+test('selection and recovery show one fact per service while every fact reaches analysis', async () => {
+  const { fallbackHomeSelection } = await import('../src/home-template.mjs')
+  const readings = [
+    { ...source('pi', 'sessions', { state: 'failed', goal: 'Fix **release**' }), serviceId: 'pi-service' },
+    { ...source('remote', 'sessions', { report: 'Prior result', verification: 'reported_unverified' }), serviceId: 'pi-service' },
+    source('other', 'sessions', { state: 'waiting' }),
+  ]
+  const seen = []
+  const raw = await generateHomeSelection(readings, { choose: async request => {
+    seen.push(...request.variables)
+    return { items: [{ sources: [0, 1, 2] }, { sources: [3, 4] }] }
+  } })
+  assert.equal(seen.length, homeFactVariables(readings).length)
+  assert.equal(new Set(seen.map(f => f.serviceId)).size, 2)
+  const bound = resolveHomeTemplate(raw, readings)
+  assert.equal(bound.items.flatMap(item => item.segments).length, 2)
+  assert.match(bound.items.map(item => item.text).join(' '), /pi failed.*other waiting/)
+  const fallback = resolveHomeTemplate(fallbackHomeSelection(readings), readings)
+  assert.equal(fallback.items.flatMap(item => item.segments).length, 2)
+  assert.match(fallback.items[0].text, /failed/)
+})

@@ -59,6 +59,8 @@ test('resident Agent tasks and every remote report page join the shared source i
     remote: () => ({ snapshot: (offset = 0, limit = 8) => ({ state: 'live', messages: records.slice(offset, offset + limit), totalMessages: records.length, nextOffset: offset + limit < records.length ? offset + limit : null }) }) })
   const entries = await access.list()
   assert.equal(entries.length, 12)
+  assert.equal(entries.find(entry => entry.id.startsWith('odk.agent.')).serviceId, 'odk.personal-agent')
+  assert.deepEqual([...new Set(entries.filter(entry => entry.id.startsWith('odk.remote.')).map(entry => entry.serviceId))], ['odk.app.pi-sessions'])
   const agent = await access.read(entries.find(entry => entry.id.startsWith('odk.agent.')).id)
   assert.equal(agent.value.goal, 'Check the runtime')
   assert.equal(agent.value.state, 'running')
@@ -538,7 +540,8 @@ test('busy Pi activity publishes current bound facts and reselects with new comp
   task = { ...task, state: 'finished', activity: 'Checks reported complete' }
   home.invalidate(); release(); await pending
   assert.equal(home.frame.state, 'live')
-  assert.match(home.frame.items[0].text, /Checks reported complete/)
+  assert.match(home.frame.items[0].text, /Build finished/)
+  assert.equal(home.frame.items[0].segments.length, 1, 'One service supplies one selected fact')
   assert.match(home.frame.items[0].text, /verification not_run/)
   assert.doesNotMatch(home.frame.items[0].text, /running|Checking/)
   await home.refresh()

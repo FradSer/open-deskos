@@ -181,7 +181,9 @@ async function exercise() {
           if(!narrative||narrative.querySelector('img,script'))throw Error('Dashboard literal rendering failed');
           if(expected.items.length&&[...narrative.querySelectorAll('[data-briefing]')].map(node=>node.textContent).join(' ')!==expected.items.map(item=>item.text).join(' '))throw Error('Dashboard literal text changed');
           const bounds=narrative.getBoundingClientRect(),box=dashboardPlacement.getBoundingClientRect();
-          if(bounds.width<=0||bounds.height<=0||bounds.left<box.left||bounds.right>box.right||bounds.top<box.top||bounds.bottom>box.bottom)throw Error('Dashboard narrative clipped');
+          const emptyFailure=!expected.items.length&&['error','stale','unavailable'].includes(expected.state);
+          if(emptyFailure&&narrative.textContent!=='')throw Error('Generation failure entered the paragraph');
+          if(bounds.width<=0||(!emptyFailure&&bounds.height<=0)||bounds.left<box.left||bounds.right>box.right||bounds.top<box.top||bounds.bottom>box.bottom)throw Error('Dashboard narrative clipped');
           for(const change of dashboardPlacement.querySelectorAll('.dash-change')){
             const value=parseFloat(change.textContent),direction=expected.state==='live'&&value&&/^[+-]/.test(change.textContent)?(value>0?'up':'down'):undefined;
             if(change.dataset.direction!==direction)throw Error('Dashboard portfolio state changed');
