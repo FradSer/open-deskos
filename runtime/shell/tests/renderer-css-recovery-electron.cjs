@@ -11,11 +11,14 @@ let win
 app.on('window-all-closed', () => {})
 const timer = setTimeout(() => { console.error('CSS recovery fixture timed out'); app.exit(1) }, 20000)
 app.whenReady().then(async () => {
-  session.defaultSession.setPermissionRequestHandler((_window, _permission, callback) => callback(false))
-  session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (_request, callback) => callback({ cancel: true }))
+  const fixtureSession = session.fromPartition(`css-recovery-${process.pid}`, { cache: false })
+  assert.equal(fixtureSession.isPersistent(), false)
+  fixtureSession.setPermissionRequestHandler((_window, _permission, callback) => callback(false))
+  fixtureSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (_request, callback) => callback({ cancel: true }))
   const reports = []
   for (const mode of ['success', 'missing', 'mount-failure', 'cleanup-failure', 'no-css']) {
-    win = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } })
+    win = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, session: fixtureSession } })
+    assert.equal(win.webContents.session, fixtureSession)
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     let loads = 0
     win.webContents.on('did-finish-load', () => loads++)

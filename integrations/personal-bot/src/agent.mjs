@@ -18,6 +18,7 @@ import { createCodemodeExtension, DefaultResourceLoader, ModelRuntime, SessionMa
 import { createDurableAgentSession } from './durable-agent-session.mjs'
 import { originatingAppsRequest } from './display-apps.mjs'
 import { loadCapabilities, createRemoteUpdatesTool, createRemoteFollowupTool } from './capabilities.mjs'
+import { taskFailureReceipt } from './task-client.mjs'
 import { createMemoryStore } from './memory.mjs'
 import { createPersonalTools } from './personal-tools.mjs'
 import { createProposalTools } from './proactive-tools.mjs'
@@ -33,6 +34,37 @@ import { openAgentCatalog } from './agent-catalog/catalog.mjs'
 import { createAgentCatalogRuntime } from './agent-catalog/tools.mjs'
 import { openAgentTasks } from './agent-tasks/runtime.mjs'
 import { createAgentTaskTools } from './agent-tasks/tools.mjs'
+
+const PROPOSAL_ACTIONS = new Set(['memory_update', 'user_app_install', 'coding_task_start', 'coding_task_history'])
+const PROPOSAL_TASK_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
+
+/** Classify host-owned operation facts, never an assistant or tool's display text. */
+export function proposalExecutionResult(name, params, result, memoryReadback = undefined) {
+  const payload = result?.structuredContent
+  if (result?.isError === true || payload?.ok === false || payload?.accepted === false) {
+    return { outcome: 'failed', text: '操作未成功；请查看原工具的结果。' }
+  }
+  if (name === 'memory_update' && memoryReadback && Object.hasOwn(memoryReadback, params.category) && memoryReadback[params.category] === params.value) {
+    return { outcome: 'completed', text: '已保存这条记忆。', receipt: { tool: name, category: params.category } }
+  }
+  if (name === 'user_app_install' && payload?.ok === true && payload.app?.id === params.id && /^[a-f0-9]{32}$/.test(payload.app?.revision ?? '')) {
+    return { outcome: 'completed', text: '应用已安装并通过 Shell 校验。', receipt: { tool: name, appId: params.id, revision: payload.app.revision } }
+  }
+  const task = payload?.task
+  if (payload?.ok === true && PROPOSAL_TASK_ID.test(task?.taskId ?? '') && task.project === params.project) {
+    const receipt = { tool: name, target: params.target, project: params.project, taskId: task.taskId }
+    if (name === 'coding_task_start') {
+      return payload.delivery === 'unknown'
+        ? { outcome: 'unknown', text: '任务投递结果未确认；请通过原任务核实，不要重复执行。', receipt }
+        : { outcome: 'accepted', text: '任务已受理；这不代表后续工作已完成或通过验收。', receipt }
+    }
+    if (name === 'coding_task_history' && task.taskId === params.taskId && payload.history && typeof payload.history === 'object'
+      && (Array.isArray(payload.history.events) || Array.isArray(payload.history.entries))) {
+      return { outcome: 'completed', text: '已读取任务记录；这不代表任务已完成或通过验收。', receipt }
+    }
+  }
+  return { outcome: 'unknown', text: '执行结果未确认；请通过原工具核实，不要重复执行。' }
+}
 
 /** Keep Overview requests short without changing the resident registry or authentication.
  * @param {import('@earendil-works/pi-coding-agent').ModelRuntime} source
@@ -237,6 +269,16 @@ export async function createPersonalBot(config, { createSession = createDurableA
       }}
     }
     const actionTools = [...customTools]
+    const proposalTool = (action, allowInstall = false) => {
+      if (lifetime.signal.aborted || !action || !PROPOSAL_ACTIONS.has(action.tool) || !action.params || typeof action.params !== 'object' || Array.isArray(action.params)) return undefined
+      const tool = actionTools.find(tool => tool.name === action.tool && typeof tool.execute === 'function')
+      if (!tool) return undefined
+      try { if (JSON.stringify(action.params).length > 4096 || !Check(tool.parameters, action.params)) return undefined } catch { return undefined }
+      if (action.tool === 'user_app_install') return allowInstall ? tool : undefined
+      if (action.tool === 'memory_update') return memory ? tool : undefined
+      const eligibility = /** @type {{canExecuteProposal?: (params: unknown) => boolean}} */ (tool).canExecuteProposal
+      try { return eligibility?.(action.params) === true ? tool : undefined } catch { return undefined }
+    }
     if (config.getWatch) customTools.push(...createProposalTools(config.getWatch, () => currentTurn, { intentPreviews: Boolean(intents), currentTurnId: () => intentTurn.getTurn() }))
     if (intents) customTools.push(...createIntentTools({ runtime: intents, judge: intentJudgment, currentTurn: () => ({ text: currentTurn, intent: intentTurn.getIntent(), turn: intentTurn.getTurn() }), getWatch: config.getWatch ?? (() => undefined), memory: async () => JSON.parse(await memory.read()) }))
     const intentTurn = createIntentTurn({ route: routeIntent, profile, tools: customTools.map(tool => tool.name), childExecution: Boolean(config.childAgent), getRemoteContext: () => remoteContext(),
@@ -396,22 +438,52 @@ export async function createPersonalBot(config, { createSession = createDurableA
         },
         prompt: (generator, text) => sessionAdapter(generator).prompt(text),
       }, input),
-      executeProposal: async (name, params, confirmation) => {
-        lifetime.signal.throwIfAborted()
+      canExecuteProposal: action => Boolean(proposalTool(action)),
+      executeProposal: async (name, params, confirmation, context = undefined) => {
+        const executionSignal = context?.signal ? AbortSignal.any([lifetime.signal, context.signal]) : lifetime.signal
+        const current = () => {
+          executionSignal.throwIfAborted()
+          if (context?.isCurrent !== undefined && (typeof context.isCurrent !== 'function' || context.isCurrent() !== true)) throw Error('Proposal action is no longer current')
+        }
+        current()
+        // Cards have no fixed originating desk yet. They cannot reuse the last
+        // text turn's application binding or fall back to the central desk.
+        if (name === 'user_app_install' && !currentTurn) throw Error('Application proposal requires an explicit text turn and destination')
+        // Legacy direct callers may use an already loaded reviewed capability.
+        // This does not grant it discovery or execution through new proposal cards.
+        const legacyCapability = context === undefined && !PROPOSAL_ACTIONS.has(name)
+        const selectedTool = () => {
+          if (!legacyCapability) return proposalTool({ tool: name, params }, Boolean(currentTurn))
+          const tool = actionTools.find(tool => tool.name === name && typeof tool.execute === 'function')
+          try { return tool && Check(tool.parameters, params) ? tool : undefined } catch { return undefined }
+        }
+        if (!selectedTool()) throw Error('Proposal action is unavailable or has invalid parameters or target')
         // Touch acceptance also enters intent classification; neither classification replaces
         // the exact displayed phrase or the action tool's own authorization.
         const decision = currentTurn ? { intent: intentTurn.getIntent() }
-          : await routeIntent({ text: confirmation, profile, tools: customTools.map(tool => tool.name), pendingConfirmations: proposalConfirmations(config.getWatch?.()) })
+          : await routeIntent({ text: confirmation, profile, tools: customTools.map(tool => tool.name), pendingConfirmations: proposalConfirmations(config.getWatch?.()), signal: executionSignal })
+        current()
         if (decision.intent !== 'proposal_response') throw Error('Proposal action requires its selected intent')
-        const tool = actionTools.find(tool => tool.name === name)
-        if (!tool) throw Error('Proposal action is unavailable in this profile')
-        if (!Check(tool.parameters, params)) throw Error('Invalid proposal action parameters')
+        if (name === 'user_app_install' && !currentTurn) throw Error('Application proposal requires an explicit text turn and destination')
+        const tool = selectedTool()
+        if (!tool) throw Error('Proposal action is unavailable or has invalid parameters or target')
         // The host checked the exact displayed phrase. Memory still sees that actual
         // phrase through its existing current-turn gate; no synthetic authorization.
         if (!currentTurn) memory?.beginTurn(confirmation)
         try {
-          const result = await tool.execute(randomUUID(), params, lifetime.signal, undefined, undefined)
-          return result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
+          current()
+          const result = await tool.execute(randomUUID(), params, executionSignal, undefined, undefined)
+          if (context === undefined) return result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
+          const memoryReadback = name === 'memory_update' ? JSON.parse(await memory.read()) : undefined
+          return proposalExecutionResult(name, params, result, memoryReadback)
+        } catch (error) {
+          if (context === undefined) throw error
+          const receipt = taskFailureReceipt(error)
+          if (name === 'coding_task_start' && receipt?.command === 'start' && receipt.target === params.target && receipt.project === params.project) {
+            return { outcome: 'unknown', text: '任务投递结果未确认；请通过原任务核实，不要重复执行。',
+              receipt: { tool: name, target: receipt.target, project: receipt.project, taskId: receipt.taskId, mutationId: receipt.mutationId } }
+          }
+          throw error
         } finally { memory?.beginTurn('') }
       },
       phraseProposal: async ({ advice, signal }) => {

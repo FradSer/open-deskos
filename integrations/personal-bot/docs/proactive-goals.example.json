@@ -30,6 +30,17 @@
             "value": true
           }
         }
+      ],
+      "actions": [
+        {
+          "id": "save-soil-note",
+          "label": "保存盆土检查备忘",
+          "tool": "memory_update",
+          "params": {
+            "category": "plant_care",
+            "value": "检查盆土实际情况后再决定是否浇水。"
+          }
+        }
       ]
     },
     {
@@ -46,6 +57,17 @@
             "highC",
             "lowC"
           ]
+        }
+      ],
+      "actions": [
+        {
+          "id": "save-weather-note",
+          "label": "保存天气检查备忘",
+          "tool": "memory_update",
+          "params": {
+            "category": "weather",
+            "value": "出行前检查当前天气读数。"
+          }
         }
       ]
     }

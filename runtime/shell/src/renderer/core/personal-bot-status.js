@@ -57,6 +57,11 @@
   let proposalSnapshot = ''
   let proposalError = ''
   let proposalCommandError = ''
+  // Keep dispatched operations reserved until this ID has an authoritative terminal state.
+  const executionAttempts = new Map()
+  const actionConfirmations = new Map()
+  const renderedProposalIds = new Set()
+  const uncertainActionWarning = 'Suggestion response was not delivered. Check the personal bot service; do not repeat an uncertain action.'
   let feedbackFocus
   let proposalEpoch = 0
   let suggestionCapabilities = { read: true, respond: true, acknowledge: true }
@@ -93,17 +98,22 @@
     if (!document.hidden) for (const node of observedAdvice.keys()) { visibility?.unobserve(node); visibility?.observe(node) }
   }
   document.addEventListener('visibilitychange', recheckVisibility)
-  window.addEventListener('pagehide', () => { visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear(); expandedDisclosures.clear(); document.removeEventListener('visibilitychange', recheckVisibility) })
+  window.addEventListener('pagehide', () => { visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear(); expandedDisclosures.clear(); actionConfirmations.clear(); document.removeEventListener('visibilitychange', recheckVisibility) })
 
   async function command(value) {
     const epoch = proposalEpoch
+    const executionAttempt = value.type === 'proposal_respond' && value.decision === 'accept' ? executionAttempts.get(value.id) : undefined
     try {
       const receipt = await window.odkPersonalBot.proposalCommand(value)
       if (!receipt?.accepted) throw Error('Unavailable')
     } catch {
-      if (epoch !== proposalEpoch) return
+      if (executionAttempt) {
+        if (executionAttempts.get(value.id) !== executionAttempt) return
+        executionAttempt.uncertain = true
+      }
+      if (epoch !== proposalEpoch && (!executionAttempt || !renderedProposalIds.has(value.id))) return
       if (value.type === 'proposal_presented') return
-      proposalCommandError = 'Suggestion response was not delivered. Check the personal bot service; do not repeat an uncertain action.'
+      proposalCommandError = uncertainActionWarning
       showProposalError()
     }
   }
@@ -213,20 +223,31 @@
   function renderProposals(status) {
     if (status.state === 'unavailable' || status.proposalCapabilities?.read === false) {
       proposalEpoch++
+      renderedProposalIds.clear()
       visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear(); proposalSnapshot = ''
       suggestionCapabilities = { read: false, respond: false, acknowledge: false }
       proposalError = ''; proposalCommandError = ''; visibilityFailure = false; feedbackFocus = undefined
       expandedDisclosures.clear()
+      actionConfirmations.clear()
       if (proposals) { proposals.replaceChildren(); proposals.hidden = true }
       return
     }
     if (!Array.isArray(status.proposals)) return
+    renderedProposalIds.clear()
+    for (const p of status.proposals) if (p?.id) renderedProposalIds.add(p.id)
+    for (const p of status.proposals) if (p && ['completed', 'unknown', 'ignored', 'expired'].includes(p.status)) executionAttempts.delete(p.id)
+    const uncertainExecution = status.proposals.some(p => p && executionAttempts.get(p.id)?.uncertain)
     if (visibilityFailure && !status.proposalError) visibilityAttempts.clear()
     visibilityFailure = Boolean(status.proposalError)
     suggestionCapabilities = status.proposalCapabilities === undefined ? { read: true, respond: true, acknowledge: true } : {
       read: status.proposalCapabilities?.read === true,
       respond: status.proposalCapabilities?.respond === true,
       acknowledge: status.proposalCapabilities?.acknowledge === true,
+    }
+    const actionSignature = p => JSON.stringify([p.actionId, p.action, p.confirmation, p.nextStep])
+    for (const [id, confirmation] of actionConfirmations) {
+      const p = status.proposals.find(proposal => proposal?.id === id)
+      if (!suggestionCapabilities.respond || !p?.action || p.status !== 'pending' || p.snoozedUntil > Date.now() || executionAttempts.has(id) || actionSignature(p) !== confirmation.signature) actionConfirmations.delete(id)
     }
     if (!proposals) {
       if (!status.proposals.length) return
@@ -246,7 +267,7 @@
       const previousScroll = elements.content.scrollTop
       visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear()
       proposals.replaceChildren()
-      proposalCommandError = ''
+      proposalCommandError = uncertainExecution ? uncertainActionWarning : ''
       if (!status.proposals.length || !suggestionCapabilities.read) { proposalError = status.proposalError || ''; return }
       const header = document.createElement('div')
       header.className = 'personal-bot-proposals-header'
@@ -281,13 +302,35 @@
         state.textContent = snoozed ? 'Saved for later' : statusLabels[p.status] || 'Suggestion state unavailable'
         const advice = document.createElement('p')
         advice.className = 'personal-bot-proposal-advice'
-        advice.textContent = p.advice
+        let presentationAdvice = advice
+        const technicalText = /sha[-_\s]?256|\b[a-f0-9]{32,}\b/i
+        const technicalAdvice = technicalText.test(p.advice)
+        const technicalNext = typeof p.nextStep === 'string' && technicalText.test(p.nextStep)
+        const executableAction = Boolean(p.action && typeof p.confirmation === 'string' && p.confirmation.trim())
+        const nextStep = typeof p.nextStep === 'string' && p.nextStep.length <= 240 && !/[\x00-\x1f\x7f]/.test(p.nextStep) && !technicalNext ? p.nextStep.trim() : ''
+        const readOnlyStep = !suggestionCapabilities.respond && Boolean(nextStep)
+        if (!executableAction) state.textContent += p.ridePreview || readOnlyStep ? ' · Read-only preview' : ' · Earlier suggestion · No executable action'
+        else if (!nextStep || technicalAdvice) state.textContent += ' · Earlier suggestion'
+        advice.textContent = technicalAdvice ? 'Review the earlier suggestion in Sources.' : p.advice
         article.append(state, advice)
-        if (typeof p.reason === 'string' && p.reason.trim()) {
-          const reason = document.createElement('p')
-          reason.className = 'personal-bot-proposal-reason'
-          reason.textContent = `Why now: ${p.reason}`
-          article.append(reason)
+        if ((executableAction || readOnlyStep) && nextStep && !technicalAdvice) {
+          const next = document.createElement('div')
+          next.className = 'personal-bot-proposal-next'
+          const caption = document.createElement('p')
+          caption.className = 'personal-bot-proposal-next-label'
+          caption.textContent = 'Next step'
+          const step = document.createElement('p')
+          step.className = 'personal-bot-proposal-next-step'
+          step.textContent = nextStep
+          next.append(caption, step)
+          article.append(next)
+        }
+        if (current && executionAttempts.has(p.id)) {
+          const pending = document.createElement('p')
+          pending.className = 'personal-bot-proposal-feedback'
+          pending.setAttribute('role', 'status')
+          pending.textContent = 'Operation submitted; waiting for its confirmed outcome. Do not repeat this action.'
+          article.append(pending)
         }
         if (p.feedback && feedbackLabels[p.feedback]) {
           const feedback = document.createElement('p')
@@ -301,6 +344,19 @@
         identity.className = 'personal-bot-proposal-evidence'
         identity.textContent = `${p.ruleId} · ${p.status}`
         sources.append(identity)
+        if (technicalAdvice) {
+          const original = document.createElement('p')
+          original.className = 'personal-bot-proposal-evidence personal-bot-proposal-original-advice'
+          original.textContent = p.advice
+          sources.append(original)
+          presentationAdvice = original
+        }
+        if (technicalNext || (((!executableAction && !readOnlyStep) || technicalAdvice) && typeof p.nextStep === 'string')) {
+          const originalNext = document.createElement('p')
+          originalNext.className = 'personal-bot-proposal-evidence'
+          originalNext.textContent = p.nextStep
+          sources.append(originalNext)
+        }
         for (const e of p.evidence ?? []) {
           const evidence = document.createElement('p')
           evidence.className = 'personal-bot-proposal-evidence'
@@ -312,13 +368,28 @@
           next.textContent = `Next: ${p.action.tool} ${JSON.stringify(p.action.params ?? {})}. Confirmation: ${p.confirmation}`
           sources.append(next)
         }
-        article.append(sources)
+        if (p.execution && typeof p.execution === 'object') {
+          const execution = document.createElement('p')
+          execution.className = 'personal-bot-proposal-evidence personal-bot-proposal-execution'
+          execution.textContent = `Execution receipt: ${JSON.stringify(p.execution).slice(0, 16384)}`
+          sources.append(execution)
+        }
         if (p.ridePreview) rideDetails(article, p, suggestionCapabilities.respond)
         if (p.result) {
+          let structuredResult = false
+          if (typeof p.result === 'string' && p.result.length <= 8192) {
+            try {
+              const parsed = JSON.parse(p.result)
+              structuredResult = parsed !== null && typeof parsed === 'object'
+            } catch { /* Human-readable operation results are not JSON receipts. */ }
+          }
           const result = document.createElement('p')
           result.textContent = p.result
           result.setAttribute('role', 'status')
-          article.append(result)
+          if (technicalText.test(p.result) || structuredResult) {
+            result.className = 'personal-bot-proposal-evidence personal-bot-proposal-original-result'
+            sources.append(result)
+          } else article.append(result)
         }
         if (current && suggestionCapabilities.respond) {
           const actions = document.createElement('div')
@@ -332,25 +403,59 @@
             control.dataset.proposalId = p.id; control.dataset.proposalAction = decision
             return control
           }
-          if (p.action && p.confirmation) actions.append(button('Accept', () => {
-            actions.replaceChildren(button(p.confirmation, async () => {
-              for (const control of actions.children) control.disabled = true
-              await command({ type: 'proposal_respond', id: p.id, decision: 'accept', confirmation: p.confirmation })
-            }), button('Cancel', () => { proposalSnapshot = ''; renderProposals(status) }))
-          }))
-          if (!p.action) actions.append(response('Done', 'done'), response('Later', 'snooze'))
+          if (!executableAction || !nextStep || technicalAdvice) {
+            const view = button('View sources', () => { sources.open = true; expandedDisclosures.add(`${p.id}:sources`); sources.children[0].focus({ preventScroll: true }) })
+            view.className = 'personal-bot-proposal-primary'
+            view.dataset.proposalId = p.id; view.dataset.proposalAction = 'view-sources'
+            actions.append(view)
+          }
+          if (executableAction) {
+            const showConfirmation = confirmation => {
+              const isCurrent = () => proposals.contains(actions) && suggestionCapabilities.respond && actionConfirmations.get(p.id) === confirmation && !executionAttempts.has(p.id)
+              const confirm = button(p.confirmation, async () => {
+                if (!isCurrent()) return
+                actionConfirmations.delete(p.id)
+                executionAttempts.set(p.id, { uncertain: false })
+                for (const control of actions.children) control.disabled = true
+                await command({ type: 'proposal_respond', id: p.id, decision: 'accept', confirmation: p.confirmation })
+              })
+              confirm.dataset.proposalId = p.id; confirm.dataset.proposalAction = 'confirm'
+              const cancel = button('Cancel', () => {
+                if (!isCurrent()) return
+                actionConfirmations.delete(p.id)
+                proposalSnapshot = ''; renderProposals(status)
+              })
+              cancel.dataset.proposalId = p.id; cancel.dataset.proposalAction = 'cancel'
+              actions.replaceChildren(confirm, cancel)
+            }
+            const confirmation = actionConfirmations.get(p.id)
+            if (confirmation) showConfirmation(confirmation)
+            else {
+              const accept = button(nextStep && !technicalAdvice ? nextStep : 'Run action', () => {
+                if (!proposals.contains(accept) || !suggestionCapabilities.respond || executionAttempts.has(p.id)) return
+                const confirmation = { signature: actionSignature(p) }
+                actionConfirmations.set(p.id, confirmation)
+                showConfirmation(confirmation)
+              })
+              accept.className = 'personal-bot-proposal-primary'
+              accept.disabled = executionAttempts.has(p.id)
+              const later = response('Later', 'snooze')
+              later.disabled = accept.disabled
+              actions.append(accept, later)
+            }
+          }
           const feedback = disclosure('Feedback', 'personal-bot-proposal-feedback-options', `${p.id}:feedback`)
           const choices = document.createElement('div')
           choices.className = 'personal-bot-proposal-actions'
-          if (!p.action) choices.append(response('Useful', 'useful'), response('Not relevant', 'irrelevant'), response('Incorrect', 'incorrect'))
+          if (!p.action) choices.append(response('Done', 'done'), response('Later', 'snooze'), response('Useful', 'useful'), response('Not relevant', 'irrelevant'), response('Incorrect', 'incorrect'))
           choices.append(response('Ignore', 'ignore'), response('Never suggest this category', 'mute'))
           feedback.append(choices)
-          article.append(actions, feedback)
-        }
+          article.append(actions, sources, feedback)
+        } else article.append(sources)
         if (current) {
           proposals.append(article)
-          observedAdvice.set(advice, p)
-          visibility?.observe(advice)
+          observedAdvice.set(presentationAdvice, p)
+          visibility?.observe(presentationAdvice)
         } else { history.append(article); historical++ }
       }
       if (historical) {

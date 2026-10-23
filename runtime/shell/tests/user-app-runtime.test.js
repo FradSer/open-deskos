@@ -65,40 +65,63 @@ test('verifier runner isolates both Electron profiles and hides its Dock entry b
 // The runner is a GUI process on Windows, where a piped stdin is not a channel it
 // can read: the bundle travels as a file and the result comes back as a file, so
 // neither direction depends on the child's standard streams.
-test('verifier runner creates a hidden window without background throttling', { timeout: 1000 }, async () => {
+for (const state of [{ visible: true, error: '' }, { visible: false, error: '' }, { visible: true, error: 'controlled script error' }]) {
+for (const stdout of ['backpressure', 'closed']) {
+test(`verifier runner exits after writing its ${state.visible && !state.error ? 'success' : 'failure'} result without another scheduling turn: ${stdout} ${JSON.stringify(state)}`, { timeout: 1000 }, async () => {
   let options
-  let done
-  const closed = new Promise(resolve => { done = resolve })
-  const app = { setPath() {}, disableHardwareAcceleration() {}, whenReady: async () => {}, exit: done }
-  const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {},
-    webRequest: { onBeforeRequest() {} } } }
-  const protocol = { registerSchemesAsPrivileged() {}, handle() {} }
+  let written, savedResult
+  const saved = new Promise(resolve => { written = resolve })
+  const events = [], pendingImmediates = []
+  const app = { setPath() {}, disableHardwareAcceleration() {}, whenReady: async () => {}, exit(code) { events.push({ kind: 'exit', code }) } }
+  const verificationSession = { setPermissionRequestHandler() {}, setPermissionCheckHandler() {},
+    webRequest: { onBeforeRequest() {} }, protocol: { handle() {} } }
+  const session = { fromPartition(partition, settings) {
+    assert.equal(partition, 'verify-1')
+    assert.equal(JSON.stringify(settings), JSON.stringify({ cache: false }))
+    return verificationSession
+  }, get defaultSession() { throw Error('Verification must not initialize the default persistent session') } }
+  const protocol = { registerSchemesAsPrivileged() {}, handle() { throw Error('Verification must use its session protocol') } }
   class BrowserWindow {
     constructor(value) {
       options = value
-      this.webContents = { setWindowOpenHandler() {}, on() {}, executeJavaScript: async () => ({ visible: true, error: '' }) }
+      this.webContents = { setWindowOpenHandler() {}, on() {}, executeJavaScript: async () => state }
     }
     async loadURL() {}
   }
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/user-app-verifier-runner.js'), 'utf8'), {
     module: { exports: {} }, process: { platform: 'linux', argv: ['electron', '/fixture/user-app-verifier-runner.js', '/bundle', '/result', '/profile'],
-      pid: 1, stdout: { write() {} } }, Buffer, setTimeout: callback => callback(), setImmediate: callback => callback(),
+      pid: 1, stdout: { write(text) { events.push({ kind: 'stdout', text }); if (stdout === 'closed') throw Error('Controlled closed stdout'); return false } } }, Buffer,
+    setTimeout: callback => callback(), setImmediate: callback => { pendingImmediates.push(callback) },
     require(name) {
       if (name === 'electron') return { app, session, protocol, BrowserWindow }
       if (name === './user-app-content') return { buildUserAppDocument: () => '<body>Fixture</body>' }
       if (name === './user-app-context') return {}
       if (name === './user-app-system') return { USER_APP_SCHEME_PRIVILEGES: {} }
-      if (name === 'node:fs') return { statSync: () => ({ size: 30 }), readFileSync: () => JSON.stringify({ html: '<body>Fixture</body>' }), writeFileSync() {} }
+      if (name === 'node:fs') return { statSync: () => ({ size: 30 }), readFileSync: () => JSON.stringify({ html: '<body>Fixture</body>' }), writeFileSync(file, text) {
+        assert.equal(file, '/result')
+        savedResult = JSON.parse(text)
+        events.push({ kind: 'file' })
+        written()
+      } }
       throw Error(`Unexpected runner import: ${name}`)
     },
   })
-  assert.equal(await closed, 0)
+  await saved
+  const ok = state.visible && !state.error
+  assert.equal(savedResult.ok, !!ok)
+  if (!ok) assert.equal(savedResult.error, state.error || 'user app has no visible body content')
+  assert.deepEqual(events.map(event => event.kind), ['file', 'stdout', 'exit'])
+  assert.equal(events.at(-1).code, ok ? 0 : 1)
+  assert.equal(pendingImmediates.length, 0, 'A completed verdict must not defer its only exit request')
   assert.equal(options.show, false)
   assert.equal(options.webPreferences.backgroundThrottling, false)
   assert.equal(options.webPreferences.contextIsolation, true)
   assert.equal(options.webPreferences.nodeIntegration, false)
   assert.equal(options.webPreferences.sandbox, true)
+  assert.equal(options.webPreferences.session, verificationSession)
 })
+}
+}
 
 test('verifier hands the bundle over as a file and reads the result from one', async () => {
   const seen = []

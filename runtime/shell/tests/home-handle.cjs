@@ -54,6 +54,28 @@ app.whenReady().then(async () => {
   }
   const open = () => js(`(async()=>{document.querySelectorAll('.dot')[0].click();document.querySelector('[data-widget="odk.tile.futu"] .widget-launch').click();await until(()=>odkAppPlatform.active()?.sourceWidget==='odk.tile.futu'&&!document.getElementById('app-view').hidden);await document.fonts.ready})()`)
   const isOpen = () => js(`!document.getElementById('app-view').hidden`)
+  // Sample only a visible, ready surface. Hidden Widgets release their SDK surface.
+  async function visibleFrame(selector) {
+    return js(`(async()=>{
+      await document.fonts.ready
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))
+      const target=document.querySelector(${JSON.stringify(selector)})
+      await until(()=>{
+        if(!target?.isConnected)return false
+        const style=getComputedStyle(target),box=target.getBoundingClientRect()
+        if(style.visibility==='hidden'||box.width<2||box.height<2)return false
+        if(document.documentElement.dataset.theme!=='liquid-glass')return true
+        const lifecycle=document.documentElement.dataset.liquidGlass
+        if(lifecycle==='fallback')return !target.classList.contains('lg-surface')
+        return lifecycle==='sdk'&&target.classList.contains('lg-surface')
+          &&style.clipPath!=='none'&&Boolean(style.getPropertyValue('--lg-radius').trim())
+      })
+      const style=getComputedStyle(target)
+      const radius=style.clipPath!=='none'&&style.getPropertyValue('--lg-radius').trim()
+        ?parseFloat(style.getPropertyValue('--lg-radius'))+'px':style.borderTopLeftRadius
+      return [style.borderTopWidth,style.borderTopColor,radius]
+    })()`)
+  }
   async function pinchCard(kind = 'inward') {
     const origin=await js(`(()=>{const r=document.querySelector('#app-view .app-body').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,span:Math.min(240,r.width*.65)}})()`)
     const points=(span,dy=0)=>[{x:origin.x-span/2,y:origin.y+dy,id:1},{x:origin.x+span/2,y:origin.y+dy,id:2}]
@@ -98,7 +120,9 @@ app.whenReady().then(async () => {
     await js(`document.querySelector('.dot.active').focus()`)
     await key('ArrowLeft')
     assert.equal(await js(`document.activeElement===document.querySelector('.dot.active')`),true,'Page changes must retain focus on the handle')
+    const sourceFrame=await visibleFrame('[data-widget="odk.tile.futu"]')
     await open()
+    const appFrame=await visibleFrame('#app-view')
     const appHandle=await js(`(()=>{const control=document.getElementById('dots'),marks=[...control.querySelectorAll('.dot')],visible=marks.filter(n=>n.getClientRects().length),active=marks.find(n=>n.classList.contains('active'));const bar=getComputedStyle(active,'::before'),r=active.getBoundingClientRect();return {mode:control.dataset.mode,label:control.getAttribute('aria-label'),count:visible.length,height:r.height,width:r.width,bar:[parseFloat(bar.width),parseFloat(bar.height)],capsule:getComputedStyle(control,'::before').content!=='none'||getComputedStyle(control).borderTopWidth!=='0px'}})()`)
     assert.equal(appHandle.mode,'handle','An open App must replace the page controller with the return handle')
     assert.equal(appHandle.label,'Home handle')
@@ -110,10 +134,9 @@ app.whenReady().then(async () => {
     const chrome = await js(`(()=>{const title=document.getElementById('app-title'),s=getComputedStyle(title),r=title.getBoundingClientRect();return {header:document.querySelector('#app-view > .app-header').getBoundingClientRect().height,titleHidden:s.position==='absolute'&&r.width<=1&&r.height<=1,name:title.textContent,label:document.getElementById('app-view').getAttribute('aria-labelledby')}})()`)
     check(chrome.header===0 && chrome.titleHidden, theme+': no visible Shell title or empty header')
     check(chrome.name==='Futu holdings' && chrome.label==='app-title', theme+': retained accessible App name')
-    // The SDK owns a clipped shape and exposes its effective radius in --lg-radius.
-    // Its host borderRadius is zero while the visible shape remains rounded.
-    const frame=await js(`(() => {const source=getComputedStyle(document.querySelector('[data-widget="odk.tile.futu"]'));const card=document.getElementById('app-view'),s=getComputedStyle(card),inner=getComputedStyle(document.querySelector('#app-runtime > *')),r=card.getBoundingClientRect(),h=document.querySelector('.dot.active').getBoundingClientRect();return {source:[source.borderTopWidth,source.borderTopColor,source.clipPath!=='none'&&source.getPropertyValue('--lg-radius').trim()?parseFloat(source.getPropertyValue('--lg-radius'))+'px':source.borderTopLeftRadius],app:[s.borderTopWidth,s.borderTopColor,s.borderTopLeftRadius],outline:s.outlineStyle,innerBorder:inner.borderTopWidth,inside:r.left>=document.getElementById('desk-content').getBoundingClientRect().left&&r.right<=innerWidth&&r.bottom<=h.top,handleHit:document.querySelector('.dot.active').contains(document.elementFromPoint(h.x+h.width/2,h.y+h.height/2))}})()`)
-    assert.deepEqual(frame.app,frame.source,'App card frame must match its source Widget')
+    // Compare visible surfaces at the same lifecycle stage, including SDK clipping.
+    const frame=await js(`(() => {const card=document.getElementById('app-view'),s=getComputedStyle(card),inner=getComputedStyle(document.querySelector('#app-runtime > *')),r=card.getBoundingClientRect(),h=document.querySelector('.dot.active').getBoundingClientRect();return {outline:s.outlineStyle,innerBorder:inner.borderTopWidth,inside:r.left>=document.getElementById('desk-content').getBoundingClientRect().left&&r.right<=innerWidth&&r.bottom<=h.top,handleHit:document.querySelector('.dot.active').contains(document.elementFromPoint(h.x+h.width/2,h.y+h.height/2))}})()`)
+    assert.deepEqual(appFrame,sourceFrame,'App card frame must match its source Widget')
     assert.equal(frame.outline,'none')
     assert.equal(frame.innerBorder,'0px')
     assert.equal(frame.inside,true)

@@ -1,4 +1,12 @@
 Feature: Independent resident personal bot
+  Scenario: Folded historical advice is unread until its actual text becomes visible
+    Given a historical suggestion contains a technical hash
+    And its original advice is inside collapsed Sources and details
+    When its source-inspection placeholder becomes visible
+    Then the suggestion remains unacknowledged
+    When the owner expands sources and the original advice enters the viewport
+    Then that suggestion identifier receives a presentation acknowledgement
+
   Scenario: Remote microphone asks the renderer before controlling recording
     Given the CM5 personal bot service is connected and no interaction has been activated
     When the Remote sends mic
@@ -302,18 +310,22 @@ Feature: Independent resident personal bot
     And local focus and Shell navigation remain available
 
   Scenario: Feedback describes the outcome of one suggestion
-    Given a current read-only suggestion contains advice and its evidence-based reason
-    When the owner selects Done, Later, Useful, Not relevant, or Incorrect
+    Given an earlier actionless suggestion contains concise advice and stored next-step text
+    When the owner opens Feedback and selects Done, Later, Useful, Not relevant, or Incorrect
     Then the response identifies only that suggestion and decision
     And Done does not execute the suggested action
-    And the main content keeps the advice and reason visible
+    And the main content states that no executable action is available
+    And Sources retains the earlier next-step text
+    And no reason or Why now explanation appears
     And technical sources and previous suggestions use keyboard-accessible disclosures
     And controls retain 44-pixel touch targets across themes and compact sizes
 
   Scenario: Android reads suggestions without acquiring response authority
     Given the desk publishes suggestions through the authenticated Personal Agent link
     When the Android host projects the status
-    Then advice, reason, source evidence, and suggestion state remain readable
+    Then advice, the next step, source evidence, and suggestion state remain readable
+    And the desk projection preserves bounded next-step text and excludes the retired reason
+    And a current next step is labelled as a read-only preview instead of an earlier suggestion
     And the frame explicitly declares read-only suggestion capabilities
     And the renderer shows no response, execution, or ride quote control
     And no suggestion acknowledgement or response crosses the read-only link
@@ -325,3 +337,79 @@ Feature: Independent resident personal bot
     Then the offered pending suggestion can receive a visibility acknowledgement
     And showing only its heading does not acknowledge the suggestion
     And hidden and read-only surfaces still send no acknowledgement
+
+  Scenario: Recommendation cards emphasize the next action
+    Given a suggestion contains concise advice and an authorized plugin action
+    And its source evidence contains complete SHA256 values
+    When the nonmodal card opens
+    Then advice has visual priority over metadata
+    And the concrete execution button precedes source and feedback disclosures
+    And source and feedback disclosures are closed by default
+    And no Why now explanation appears
+    And source values remain complete when the owner opens Sources
+
+  Scenario: Earlier technical suggestions retain their complete content
+    Given an earlier stored suggestion contains a SHA256 value in its advice
+    And it has no next step
+    When the card opens
+    Then the main content asks the owner to review the earlier suggestion in Sources
+    And View sources opens the complete original advice without executing an action
+
+  Scenario: The next step starts an authorized plugin operation
+    Given a pending suggestion has an owner-authorized action and exact confirmation
+    When the owner selects its concrete next-step button
+    Then the card requests a separate exact confirmation without executing yet
+    When the owner confirms twice before the host replies
+    Then only one proposal acceptance reaches the plugin
+    And completion appears only after the host reports completion
+    And executing and uncertain outcomes offer no repeat execution
+
+  Scenario: Earlier suggestions cannot imply executable authority
+    Given an earlier suggestion has text for a next step but no authorized action
+    When the card opens
+    Then it states that no executable action is available
+    And the earlier text remains available in Sources
+    And Done is available only as historical feedback
+
+  Scenario: An incomplete action remains non-executable
+    Given an earlier suggestion has an action but no exact confirmation
+    When the card opens
+    Then no executable next-step control appears
+    And Sources retains the earlier action details
+
+  Scenario: Execution receipts remain inspectable in Sources
+    Given an accepted operation has a structured execution receipt
+    When the suggestion card opens
+    Then Sources keeps the receipt closed by default
+    And the main card does not expose technical receipt fields
+    When the owner opens Sources
+    Then the complete bounded receipt is readable as text
+    And receipt presence does not change the authoritative suggestion state
+
+  Scenario: An uncertain action stays reserved across card redraw and reconnect
+    Given a confirmed action has no authoritative execution outcome
+    When another suggestion changes and the panel redraws
+    Then the first suggestion cannot execute again
+    And its uncertain-action warning remains visible
+    When the service reconnects with the same pending suggestion
+    Then the execution reservation and warning remain
+    And no automatic response replay occurs
+
+  Scenario: Earlier tool results keep technical details in Sources
+    Given an earlier plugin returns a technical result or a bounded JSON receipt
+    When the recommendation card opens
+    Then Sources keeps the complete original result as collapsed text
+    And natural-language results remain in the main card
+    And the result never replaces the authoritative proposal state
+
+  Scenario: Stable action confirmation survives unrelated status updates
+    Given the owner opens the exact confirmation for a pending action
+    When its visibility receipt or another suggestion changes the panel
+    Then the same authorized confirmation remains available
+    And repeated activation sends at most one acceptance
+
+  Scenario: A superseded confirmation cannot authorize an old action
+    Given the owner opens an exact action confirmation
+    When its action or confirmation changes, its proposal ends, or response capability is withdrawn
+    Then the earlier confirmation cannot send an acceptance
+    And a detached control cannot regain execution authority

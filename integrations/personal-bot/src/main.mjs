@@ -241,6 +241,7 @@ async function main() {
         save: env.ODK_PROACTIVE_CONFIG ? ownerConfigWriter(env.ODK_PROACTIVE_CONFIG, config) : async () => { throw Error('No owner rule file selected') },
         phrase: runtime.agent.phraseProposal,
         execute: runtime.agent.executeProposal,
+        canExecute: action => runtime?.agent?.canExecuteProposal?.(action) === true,
         codingList: async (scope, signal) => {
           const target = targets.find(target => target.id === scope.target)
           if (!target) throw Error('Coding target unavailable')

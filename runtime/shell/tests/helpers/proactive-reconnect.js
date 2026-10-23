@@ -29,6 +29,12 @@ async function createProactiveReconnectFixture(options = {}) {
   const token = 'synthetic-reconnect-fixture-token-not-a-credential'
   const checkpoint = options.checkpoint ?? proposalStateStore(path.join(directory, 'checkpoint', 'proposals.json'))
   const measuredAt = new Date().toISOString()
+  const memoryFile = path.join(directory, 'memory', 'notes.json')
+  const [{ createMemoryStore }, { createPersonalTools }] = await Promise.all([import(integrationURL('personal-bot/src/memory.mjs')), import(integrationURL('personal-bot/src/personal-tools.mjs'))])
+  const memory = createMemoryStore(memoryFile)
+  const memoryTool = createPersonalTools({ memory, skillPaths: [] }).find(tool => tool.name === 'memory_update')
+  const action = { id: 'save-reconnect-note', label: 'Save reconnect test note', tool: 'memory_update', params: { category: 'reconnect', value: 'The recovered suggestion was confirmed.' } }
+  let executions = 0
   const forbidden = async () => { throw Error('Reconnect fixture forbids owner turns, recording, models and execution') }
   const service = new PersonalBotService({ record: forbidden, transcribe: forbidden, prompt: forbidden })
   const received = []
@@ -39,17 +45,28 @@ async function createProactiveReconnectFixture(options = {}) {
     config: { version: 2, pollMs: 3600000, maxAgeMs: 300000, cooldownMs: 60000,
       maxCandidates: 1, maxPush: 1, maxGenerationCalls: 1, generationIntervalMs: 3600000, attentionCooldownMs: 60000,
       suppressed: [], snoozed: {}, rules: [{ id: 'reconnect-fixture', delivery: 'immediate', urgent: false,
-        goal: 'Inspect the synthetic reconnect fixture.', observations: [{ readingId: 'fixture.reconnect', fields: ['status'] }] }] },
+        goal: 'Save the synthetic reconnect fixture note.', actions: [action], observations: [{ readingId: 'fixture.reconnect', fields: ['status'] }] }] },
     loadState: checkpoint.load, saveState: checkpoint.save,
     read: async () => ({ id: 'fixture.reconnect', label: 'Synthetic reconnect fixture', state: 'live', value: { status: 'Unread fixture note', measured_at: measuredAt } }),
     generate: async ({ topics }) => {
       return { suggestions: topics.map(topic => ({ topicId: topic.id, key: 'inspect-reconnect-fixture',
-        advice: 'Synthetic fixture: inspect the reconnect test note.', reason: 'This fixture tests display recovery and feedback, not model quality.', evidenceIds: [topic.evidence[0].id] })) }
+        advice: 'Synthetic fixture: save a note confirming this recovered suggestion.', actionId: action.id, evidenceIds: [topic.evidence[0].id] })) }
     },
     judge: async ({ candidates }) => {
       return { model: 'jev-reconnect-fixture', answers: Object.fromEntries(candidates.map(candidate => [candidate.id, { probability: 1, groundingProbability: 1, threshold: 0.8 }])) }
     },
-    phrase: forbidden, execute: forbidden, save: async () => {}, publish: frame => service.propose(frame),
+    phrase: forbidden, canExecute: candidate => candidate.tool === memoryTool.name,
+    execute: async (name, params, confirmation) => {
+      assert.equal(name, memoryTool.name)
+      assert.equal(confirmation, `记住 ${params.category}：${params.value}`)
+      executions++
+      memory.beginTurn(confirmation)
+      try {
+        const result = await memoryTool.execute('reconnect-fixture-execution', params)
+        assert.equal(JSON.parse(await memory.read())[params.category], params.value)
+        return { outcome: 'completed', text: result.content[0].text, receipt: { category: params.category } }
+      } finally { memory.beginTurn('') }
+    }, save: async () => {}, publish: frame => service.propose(frame),
   })
   for (const [name, count] of [['generate', () => generations++], ['judge', () => judgments++]]) {
     const original = watch[name]
@@ -107,8 +124,10 @@ async function createProactiveReconnectFixture(options = {}) {
       const click = async label => {
         await evaluate(`(() => { const details = document.querySelector('.personal-bot-proposal-feedback-options'); if (details) details.open = true; const button = [...document.querySelectorAll('.personal-bot-proposals button')].find(node => node.textContent === ${JSON.stringify(label)}); if (!button) throw Error('Missing feedback control'); button.scrollIntoView({block:'center'}); button.click() })()`)
       }
-      await click('Useful')
-      await until(() => checkpoint.load().proposals[0].feedback === 'useful', 'Useful must reach the original durable proposal')
+      if (!proposal.action) {
+        await click('Useful')
+        await until(() => checkpoint.load().proposals[0].feedback === 'useful', 'Useful must reach the original durable proposal')
+      }
       await click('Later')
       await until(() => checkpoint.load().proposals[0].feedback === 'snooze', 'Later must persist on the same proposal')
       const due = watch.list()[0].snoozedUntil
@@ -118,14 +137,28 @@ async function createProactiveReconnectFixture(options = {}) {
       await new Promise(resolve => setTimeout(resolve, Math.max(0, due - Date.now()) + 50))
       await disconnect(); await reconnect()
       await until(() => watch.list()[0].presented, 'An expired snooze must recover through the actual renderer after reconnect')
-      await click('Done')
-      await until(() => checkpoint.load().proposals[0].status === 'completed', 'Done must persist owner feedback without executing any action')
+      if (proposal.action) {
+        assert.equal(executions, 0, 'Snooze and recovery must not execute the authorized action')
+        await click(proposal.nextStep)
+        assert.equal(executions, 0, 'The concrete action button only opens exact confirmation')
+        await evaluate(`(() => { const button = [...document.querySelectorAll('.personal-bot-proposals button')].find(node => node.textContent === ${JSON.stringify(proposal.confirmation)}); if (!button) throw Error('Missing exact confirmation'); button.click(); button.click() })()`)
+        await until(() => checkpoint.load().proposals[0].status === 'completed', 'Confirmed action must complete through the real plugin')
+        assert.equal(executions, options.createWatch ? 0 : 1, 'Repeated confirmation executes the default memory plugin only once')
+        if (!options.createWatch) {
+          assert.equal(JSON.parse(fs.readFileSync(memoryFile, 'utf8')).reconnect, action.params.value)
+          assert.equal(JSON.parse(await memory.read()).reconnect, action.params.value)
+        }
+        await until(() => evaluate(`![...document.querySelectorAll('.personal-bot-proposals button')].some(node => [${JSON.stringify(proposal.nextStep)}, ${JSON.stringify(proposal.confirmation)}].includes(node.textContent))`), 'Authoritative completion removes execution controls')
+      } else {
+        await click('Done')
+        await until(() => checkpoint.load().proposals[0].status === 'completed', 'Done must persist historical feedback without executing any action')
+        assert.equal(checkpoint.load().proposals[0].feedback, 'done')
+      }
       assert.equal(checkpoint.load().proposals[0].id, id)
-      assert.equal(checkpoint.load().proposals[0].feedback, 'done')
       assert.equal(generations, 1); assert.equal(judgments, 1)
       assert.equal(received.some(command => command.type === 'proposal_list'), false, 'The test must not mask recovery with an explicit list request')
-      assert.deepEqual(received.filter(command => command.type === 'proposal_respond').map(command => [command.id, command.decision]), [[id, 'useful'], [id, 'snooze'], [id, 'done']])
-      console.log(`PROACTIVE_RECONNECT_E2E_PASS: real renderer/client/socket/service/Watch, offline generation, natural visible receipt, same UUID Useful/Later/Done; ${options.createWatch ? 'injected inference adapter' : 'synthetic inference, zero models'}`)
+      assert.deepEqual(received.filter(command => command.type === 'proposal_respond').map(command => [command.id, command.decision]), proposal.action ? [[id, 'snooze'], [id, 'accept']] : [[id, 'useful'], [id, 'snooze'], [id, 'done']])
+      console.log(`PROACTIVE_RECONNECT_E2E_PASS: real renderer/client/socket/service/Watch, offline generation, natural visible receipt, same UUID ${proposal.action ? 'Later/exact confirmation/plugin execution/readback' : 'legacy Useful/Later/Done'}; ${options.createWatch ? 'injected inference adapter' : 'synthetic inference, zero models'}`)
     },
     async close() {
       for (const cleanup of cleanups.reverse()) await cleanup()

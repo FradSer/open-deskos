@@ -243,7 +243,7 @@
 #personal-bot-status[data-proactive='true'] .personal-bot-proposals { display: grid; gap: var(--odk-space-3); }
 .personal-bot-proposals-header { display: flex; align-items: center; justify-content: space-between; gap: var(--odk-space-2); }
 .personal-bot-proposals-header h2 { font-size: 1em; font-weight: 400; margin: 0; }
-.personal-bot-proposal { display: grid; gap: var(--odk-space-2); border-top: 1px solid var(--odk-stroke); padding-top: var(--odk-space-3); }
+.personal-bot-proposal { display: grid; gap: var(--odk-space-3); border-top: 1px solid var(--odk-stroke); padding-top: var(--odk-space-3); }
 .personal-bot-proposal p { margin: 0; }
 .personal-bot-proposal-state, .personal-bot-proposal-evidence { color: var(--odk-secondary-strong); font-size: 14px; font-variant-numeric: tabular-nums; }
 .personal-bot-proposal-actions { display: flex; flex-wrap: wrap; gap: var(--odk-space-2); }
@@ -258,8 +258,12 @@
 .personal-bot-ride-details select { min-height: 44px; width: 100%; min-width: 0; max-width: 100%; font: inherit; color: var(--odk-primary); background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: 8px; }
 .personal-bot-ride-details select:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 
-.personal-bot-proposal-advice { font-size: inherit; color: var(--odk-primary); }
-.personal-bot-proposal-reason, .personal-bot-proposal-feedback, .personal-bot-proposal-capability { color: var(--odk-secondary-strong); font-size: 14px; }
+.personal-bot-proposal-advice { font-size: clamp(22px, 1.67vw, 28px); line-height: 1.5; color: var(--odk-primary); }
+.personal-bot-proposal-next { display: grid; gap: var(--odk-space-1); }
+.personal-bot-proposal-next-label { font-size: 12px; color: var(--odk-secondary-strong); }
+.personal-bot-proposal-next-step { font-size: 16px; line-height: 1.5; color: var(--odk-primary); }
+.personal-bot-proposals .personal-bot-proposal-primary { background: var(--odk-button); border-color: var(--odk-stroke-focus); }
+.personal-bot-proposal-feedback, .personal-bot-proposal-capability { color: var(--odk-secondary-strong); font-size: 14px; }
 .personal-bot-proposals details { min-width: 0; }
 .personal-bot-proposals summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--odk-secondary-strong); font-size: 14px; text-decoration: underline; text-underline-offset: 0.2em; }
 .personal-bot-proposals summary:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }

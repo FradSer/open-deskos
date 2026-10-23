@@ -1,6 +1,6 @@
 'use strict'
 
-const { app, BrowserWindow, ipcMain, protocol } = require('electron')
+const { app, BrowserWindow, ipcMain, protocol, session } = require('electron')
 ipcMain.handle('odk-personal-bot-consumer-ready', () => ({ accepted: false }))
 const fs = require('node:fs')
 const os = require('node:os')
@@ -26,6 +26,9 @@ let win
 const deadline = setTimeout(() => { console.error('Renderer diagnosis fixture timed out'); app.exit(1) }, 15000)
 
 app.whenReady().then(async () => {
+  const fixtureSession = session.fromPartition(`renderer-diagnosis-${process.pid}`, { cache: false })
+  assert.equal(fixtureSession.isPersistent(), false)
+  const protocol = fixtureSession.protocol
   const diagnosisProof = process.argv.includes('--diagnosis-selection-proof')
   const bridgeDiagnosisProof = process.argv.includes('--bridge-diagnosis-proof')
   const selectedDiagnosisBridge = process.argv.includes('--selected-diagnosis-bridge')
@@ -151,8 +154,9 @@ app.whenReady().then(async () => {
   }
   const endpoint = diagnosisProof ? controlHost.endpoint('plugin-diagnostics') : path.join(root, 'diag.sock')
   win = new BrowserWindow({ show: false, width: 1920, height: 1280, useContentSize: appearanceFactory, webPreferences: {
-    preload: path.resolve(__dirname, '../src/preload.js'), nodeIntegration: false, contextIsolation: true, sandbox: true,
+    preload: path.resolve(__dirname, '../src/preload.js'), nodeIntegration: false, contextIsolation: true, sandbox: true, session: fixtureSession,
   } })
+  assert.equal(win.webContents.session, fixtureSession)
   const runtimeLifecycle = process.argv.includes('--runtime-lifecycle')
   const invalidReplacement = process.argv.includes('--invalid-replacement')
   const replacementMode = process.argv.includes('--replacement') || invalidReplacement || runtimeLifecycle

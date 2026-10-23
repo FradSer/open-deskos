@@ -996,6 +996,8 @@ async function main() {
   if (sequential.error) console.error(`FAIL  sequential checks: ${sequential.error.message}`)
   const hydraComposition = runFixture('hydra-style.cjs')
   if (hydraComposition.error) console.error(`FAIL  hydra composition checks: ${hydraComposition.error.message}`)
+  const proactivePanel = runFixture('proactive-panel.cjs')
+  if (proactivePanel.error) console.error(`FAIL  proactive card checks: ${proactivePanel.error.message}`)
   // This child observes the production minute-long snooze. The driver's own 60-second deadline has already ended.
   const proactiveReconnect = runFixture('proactive-panel.cjs', ['--reconnect-only'], { timeout: 120000 })
   if (proactiveReconnect.error) console.error(`FAIL  proactive reconnect: ${proactiveReconnect.error.message}`)
@@ -1024,6 +1026,7 @@ async function main() {
     sequential: sequential.status,
     widgetGrid: widgetGrid.status,
     hydraComposition: hydraComposition.status,
+    proactivePanel: proactivePanel.status,
     proactiveReconnect: proactiveReconnect.status,
     density: densityRuns.map(r => r.status),
     theme: themeUiRuns.map(r => r.status),

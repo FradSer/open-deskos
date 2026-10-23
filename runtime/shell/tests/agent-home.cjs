@@ -1077,9 +1077,16 @@ app.whenReady().then(async () => {
     await evaluate('new Promise(r=>setTimeout(r,60))')
     const scroll=await evaluate(`(()=>{const list=document.querySelector('.agent-conversation'),composer=document.querySelector('.agent-composer');window.referenceComposerY=composer.getBoundingClientRect().y;list.scrollTop=0;list.dispatchEvent(new Event('scroll'));return {overflow:list.scrollHeight>list.clientHeight,latest:!document.querySelector('.agent-latest').hidden,fixed:Math.abs(composer.getBoundingClientRect().y-referenceComposerY)<1}})()`)
     assert.ok(scroll.overflow&&scroll.latest&&scroll.fixed,JSON.stringify(scroll))
+    const settleConversationMask=async (unmasked=false)=>{
+      // A native paint ACK can belong to the frame before this style update.
+      // Let the requested mask reach rendering before capturing compositor pixels.
+      const mask=await evaluate(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(getComputedStyle(document.querySelector('.agent-conversation')).maskImage))))`)
+      if(unmasked)assert.equal(mask,'none','the plain comparison frame has no mask')
+      else assert.match(mask,/linear-gradient.*rgba\(0, 0, 0, 0\).*rgb\(0, 0, 0\) 32px/,'the conversation has a transparent-to-solid top fade')
+    }
     for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
       await evaluate(`(async()=>{await odkTheme.set('${theme}');await document.fonts.ready;await new Promise(r=>setTimeout(r,40));const list=document.querySelector('.agent-conversation'),first=list.querySelector('.agent-message');list.scrollTop+=first.getBoundingClientRect().top-list.getBoundingClientRect().top+20})()`)
-      assert.match(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).maskImage`),/linear-gradient.*rgba\(0, 0, 0, 0\).*rgb\(0, 0, 0\) 32px/,'the conversation has a transparent-to-solid top fade')
+      await settleConversationMask()
       const underlay=await evaluate(`(()=>{const list=document.querySelector('.agent-conversation'),head=document.querySelector('.agent-head'),r=head.getBoundingClientRect(),x=r.left+8,y=r.top+24,hit=document.elementFromPoint(x,y),pill=document.querySelector('.agent-identity .agent-capsule'),p=pill.getBoundingClientRect();return {message:!!hit?.closest('.agent-message'),throughCapsule:!pill.contains(document.elementFromPoint(p.x+p.width/2,p.y+p.height/2)),x,y,scrollTop:list.scrollTop,header:r.top}})()`)
       assert.ok(underlay.message&&underlay.throughCapsule,theme+': read-only header allows message input through its capsule '+JSON.stringify(underlay))
       const fadeCrop=await evaluate(`(()=>{const r=document.querySelector('.agent-conversation').getBoundingClientRect();return{x:Math.ceil(r.left+4),y:Math.ceil(r.top),width:Math.min(180,Math.floor(r.width-8)),height:32}})()`)
@@ -1087,9 +1094,11 @@ app.whenReady().then(async () => {
       let plain
       try {
         await evaluate(`document.querySelector('.agent-conversation').style.maskImage='none'`)
+        await settleConversationMask(true)
         plain=(await capturePaintedPage(win,fadeCrop)).toBitmap()
       } finally {
         await evaluate(`document.querySelector('.agent-conversation').style.removeProperty('mask-image')`)
+        await settleConversationMask()
       }
       let changed=0;for(let i=0;i<faded.length;i+=4)if(faded[i]!==plain[i]||faded[i+1]!==plain[i+1]||faded[i+2]!==plain[i+2])changed++
       assert.ok(changed>=16,theme+': the native image shows the top fade: '+changed)

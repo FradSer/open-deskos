@@ -4,11 +4,12 @@ import assert from 'node:assert/strict'
 import { ProactiveWatch } from '../src/proactive.mjs'
 import { answerSuggestions } from '../src/proactive-answer.mjs'
 
-const proposal = () => ({ id: 'test', status: 'pending', advice: '出门前查看天气再决定穿着。', evidence: [{ readingId: 'odk.tile.weather', field: 'temperatureC', value: 19, state: 'live', measuredAt: '2026-10-02T11:00:00Z' }], action: null })
+const proposal = () => ({ id: 'test', status: 'pending', advice: '出门前查看天气再决定穿着。', nextStep: '打开天气，查看最新预报。', reason: 'Legacy reason must remain hidden.', evidence: [{ readingId: 'odk.tile.weather', field: 'temperatureC', value: 19, state: 'live', measuredAt: '2026-10-02T11:00:00Z' }], action: null })
 
 test('current proposals produce advice and measured evidence without model capabilities', async () => {
   let reads = 0
   const answer = await answerSuggestions({ readProposals: async () => { reads++; return [proposal(), { ...proposal(), status: 'ignored', advice: '旧任务' }] } })
+  assert.match(answer, /下一步：打开天气，查看最新预报/); assert.doesNotMatch(answer, /Legacy reason|建议原因/);
   assert.equal(reads, 1); assert.match(answer, /出门前查看天气再决定穿着/); assert.match(answer, /19°C/); assert.match(answer, /2026-10-02T11:00:00Z/); assert.doesNotMatch(answer, /旧任务|我能|可用工具/)
 })
 

@@ -170,17 +170,19 @@ test('a proactive heartbeat uses production Durable generation and preserves ded
     const request = JSON.parse(context.messages.findLast(message => message.role === 'user').content.split('Personal Bot request:\n')[1])
     generations++
     const evidenceIds = request.topics[0].evidence.map(item => item.id)
-    return assistant(JSON.stringify({ suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '有待领取的物品，可以安排领取。', reason: '当前读数显示物品待领取。', evidenceIds }] }))
+    return assistant(JSON.stringify({ suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '有待领取的物品，可以安排领取。', actionId: 'save-collection', evidenceIds }] }))
   })
   const owner = { version: 2, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 60000, maxCandidates: 4, maxPush: 2,
     suppressed: [], snoozed: {}, rules: [{ id: 'deliveries', goal: '及时领取待取物品。',
-      observations: [{ readingId: 'thirdparty.parcels', fields: ['ready', 'count'] }], delivery: 'immediate', urgent: false }] }
+      observations: [{ readingId: 'thirdparty.parcels', fields: ['ready', 'count'] }], delivery: 'immediate', urgent: false,
+      actions: [{ id: 'save-collection', label: '记下取件事项', tool: 'memory_update', params: { category: 'deliveries', value: '领取待取物品' } }] }] }
   const state = proposalStateStore(join(dir, 'private', 'proposals.json'))
   let watch
   let bot = await createPersonalBot({ ...config, getWatch: () => watch }, { createRuntime: async () => modelRuntime, createIntentRouter: () => async () => ({ intent: 'conversation' }) })
   t.after(async () => { await watch?.close(); await bot.close() })
   const createWatch = () => new ProactiveWatch({ config: owner, now: () => now, loadState: state.load, saveState: state.save,
     generate: bot.generateProposals,
+    canExecute: action => bot.canExecuteProposal?.(action) === true,
     read: async id => ({ id, label: '物品服务', state: 'live', value: { ready: true, count: 2, measured_at: new Date(now).toISOString() } }),
     judge: async ({ candidates }) => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(candidate => [candidate.id,
       { probability: 0.95, groundingProbability: 0.95, threshold: 0.8 }])) }),

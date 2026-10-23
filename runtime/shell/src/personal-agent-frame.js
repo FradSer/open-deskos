@@ -38,7 +38,11 @@ function readableProposals(value) {
     if (!p || typeof p.id !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(p.id) ||
         typeof p.advice !== 'string' || p.advice.length > 1000 || !['pending', 'ignored', 'expired', 'executing', 'completed', 'unknown'].includes(p.status)) return null
     const row = { id: p.id, status: p.status, advice: p.advice, action: null, confirmation: '', offered: p.offered === true, presented: p.presented === true }
-    for (const [key, limit] of [['ruleId', 128], ['reason', 600], ['createdAt', 40], ['completedAt', 40]]) {
+    if (Object.hasOwn(p, 'nextStep')) {
+      if (typeof p.nextStep !== 'string' || !p.nextStep.trim() || p.nextStep.length > 240 || /[\x00-\x1f\x7f]/.test(p.nextStep)) return null
+      row.nextStep = p.nextStep
+    }
+    for (const [key, limit] of [['ruleId', 128], ['createdAt', 40], ['completedAt', 40]]) {
       if (typeof p[key] === 'string' && p[key].length <= limit) row[key] = p[key]
     }
     if (['done', 'snooze', 'useful', 'irrelevant', 'incorrect'].includes(p.feedback)) row.feedback = p.feedback

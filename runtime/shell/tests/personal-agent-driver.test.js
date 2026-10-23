@@ -236,10 +236,11 @@ test('cross-capability parity preserves busy and unavailable control boundaries'
 
 
 test('the Android projection carries bounded readable suggestions without response authority', () => {
-  const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'soil', status: 'pending', advice: 'Inspect the soil.', reason: 'A current soil reading is low.', offered: true, presented: false, action: { tool: 'memory_update', params: { value: 'private action' } }, confirmation: 'private confirmation', result: 'PRIVATE_TOOL_RESULT', evidence: [{ readingId: 'hydra', field: 'soil', value: 10, state: 'live', measuredAt: '2026-10-23T00:00:00Z' }] }
+  const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'soil', status: 'pending', advice: 'Inspect the soil.', nextStep: 'Save a soil inspection note', reason: 'A current soil reading is low.', offered: true, presented: false, action: { tool: 'memory_update', params: { value: 'private action' } }, confirmation: 'private confirmation', result: 'PRIVATE_TOOL_RESULT', evidence: [{ readingId: 'hydra', field: 'soil', value: 10, state: 'live', measuredAt: '2026-10-23T00:00:00Z' }] }
   const projected = projectPersonalAgentFrame({ state: 'idle', proposals: [p], proposalPopup: true, proposalCapabilities: { read: true, respond: true, acknowledge: true } })
   assert.equal(projected.proposals[0].advice, p.advice)
-  assert.equal(projected.proposals[0].reason, p.reason)
+  assert.equal(projected.proposals[0].nextStep, p.nextStep)
+  assert.equal(Object.hasOwn(projected.proposals[0], 'reason'), false)
   assert.deepEqual(projected.proposals[0].evidence, p.evidence)
   assert.deepEqual(projected.proposalCapabilities, { read: true, respond: false, acknowledge: false })
   assert.equal(projected.proposals[0].action, null)
@@ -247,4 +248,17 @@ test('the Android projection carries bounded readable suggestions without respon
   assert.equal(projected.proposalPopup, true)
   assert.equal(JSON.stringify(projected).includes('private action'), false)
   assert.equal(JSON.stringify(projected).includes('PRIVATE_TOOL_RESULT'), false)
+})
+
+test('the Android desk projection rejects malformed next steps and preserves actionless legacy data', () => {
+  const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', status: 'pending', advice: 'Inspect the soil.', evidence: [] }
+  for (const nextStep of ['', ' ', 'x'.repeat(241), 7, null, 'inspect\u0000file', 'inspect\nfile', 'inspect\tfile', 'inspect\u007ffile']) {
+    const frame = projectPersonalAgentFrame({ state: 'idle', proposals: [{ ...p, nextStep }] })
+    assert.equal(frame.proposalCapabilities.read, false, JSON.stringify(nextStep))
+    assert.deepEqual(frame.proposals, [])
+  }
+  const legacy = projectPersonalAgentFrame({ state: 'idle', proposals: [{ ...p, reason: 'Stored legacy reason' }] })
+  assert.equal(legacy.proposalCapabilities.read, true)
+  assert.equal(Object.hasOwn(legacy.proposals[0], 'nextStep'), false)
+  assert.equal(Object.hasOwn(legacy.proposals[0], 'reason'), false)
 })
