@@ -962,12 +962,22 @@ An authenticated source push schedules another check after one second.
 Agent task and Remote Pi updates also schedule a check.
 Measurement timestamps alone do not require another model request.
 Ordinary numeric changes bind into the retained template.
-Changes to goals, activity, lifecycle states, waiting counts, and attention thresholds require selection again.
+Changes to goals, activity, lifecycle states, waiting counts, and attention thresholds queue another selection.
 Time-sensitive fields also participate in attention checks.
 Templates expire after 15 minutes.
+Model generation has a minimum interval of five minutes after the preceding attempt finishes.
+Source pushes and periodic checks cannot bypass this interval.
+Consecutive failures delay retries by five, ten, twenty, and at most thirty minutes.
+Successful generation resets this retry delay.
+During a cooldown, compatible selected facts bind to current source identities and values.
+Removed or incompatible facts use current bounded source facts instead.
+Compatible retained selections stay live within the template lifetime without restarting the generation indicator.
+Fallback facts and expired selections carry a stale state.
+Failed generation retains its error state and zero success timestamp during retry cooldowns.
+Ordinary numeric updates still use the retained template without another model request.
 The host confirms source identity before publishing pending output.
 Pending selections bind to current host fact identities and verification qualifiers.
-Changed context schedules another selection without discarding compatible current facts.
+Changed context schedules another selection after the cooldown without discarding compatible current facts.
 Reordered Pi sessions retain their task identities.
 Removed or hidden sources cannot supply displayed facts.
 
