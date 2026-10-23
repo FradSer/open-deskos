@@ -203,7 +203,7 @@ export class ProactiveWatch {
   }
   setBusy(busy) {
     this.busy = busy
-    if (!busy && !this.closed) this.emit(this.config.version !== 2)
+    if (!busy && !this.closed) this.emit(this.config.version !== 2 && !this.consumerRecovery?.size)
     if (!busy && this.pushIds.size) this.schedulePush()
   }
   push(readingIds) {
@@ -269,16 +269,25 @@ export class ProactiveWatch {
     }
     this.emit()
   }
-  emit(interaction = false) {
+  consumerReady() {
+    if (this.closed) return
+    this.consumerRecovery = new Set(this.list().filter(p => pending(p) && p.offered && !p.presented).map(p => p.id))
+    this.emit(false, true)
+  }
+  emit(interaction = false, consumerReady = false) {
     if (this.closed) return
     this.list()
+    if (this.consumerRecovery) for (const id of this.consumerRecovery) {
+      if (!this.proposals.some(p => p.id === id && pending(p) && p.offered && !p.presented)) this.consumerRecovery.delete(id)
+    }
     const generated = this.config.version === 2
     const available = p => !generated || !this.failedJudgments.has(p.ruleId)
-    let eligible = this.busy || this.storageFailure || (!generated && this.judgmentError) ? [] : this.proposals.filter(p => pending(p) && available(p) && (p.snoozedUntil ?? 0) <= this.now() && ((this.revealAll && this.recoverable(p)) || (!p.offered && this.deliverable(p, interaction)) || (interaction && p.offered && !p.presented && this.recoverable(p))))
+    const recovering = p => this.consumerRecovery?.has(p.id) && p.offered && !p.presented && this.deliverable(p, false, true)
+    let eligible = this.busy || this.storageFailure || (!generated && this.judgmentError) ? [] : this.proposals.filter(p => pending(p) && available(p) && (p.snoozedUntil ?? 0) <= this.now() && (recovering(p) || (this.revealAll && this.recoverable(p)) || (!p.offered && (!consumerReady || p.feedback === 'snooze') && this.deliverable(p, interaction)) || (interaction && p.offered && !p.presented && this.recoverable(p))))
     if (generated) {
       eligible.sort((a, b) => proposalPriority(this, a, b))
-      if (!interaction && this.now() >= this.lastAttentionAt && this.now() - this.lastAttentionAt < (this.config.attentionCooldownMs ?? 60000)) eligible = []
-      else eligible = eligible.slice(0, this.config.maxPush)
+      if (!interaction && this.now() >= this.lastAttentionAt && this.now() - this.lastAttentionAt < (this.config.attentionCooldownMs ?? 60000)) eligible = eligible.filter(recovering)
+      eligible = eligible.slice(0, this.config.maxPush)
     }
     if (interaction && this.revealAll && !this.busy && !this.storageFailure && !this.judgmentError) eligible.push(...this.proposals.filter(p => p.status === 'expired' && p.ridePreview?.handle))
     const priority = p => pending(p) ? (p.offered ? 1 : 0) : 2
@@ -287,20 +296,24 @@ export class ProactiveWatch {
       if (Buffer.byteLength(JSON.stringify([...display, p])) > 48000) continue
       display.push(p)
     }
+    const recovery = eligible.length > 0 && eligible.every(recovering)
     const popup = !this.busy && eligible.some(p => display.some(d => d.id === p.id))
     if (popup) for (const p of eligible) if (display.some(d => d.id === p.id)) {
       p.offered = true
-      if (this.rules().find(r => r.id === p.ruleId)?.delivery === 'routine') p.routineDay = localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC').date
+      if (!recovering(p) && this.rules().find(r => r.id === p.ruleId)?.delivery === 'routine') p.routineDay = localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC').date
       Object.assign(display.find(d => d.id === p.id), { offered: p.offered, ...(p.routineDay ? { routineDay: p.routineDay } : {}) })
     }
-    if (popup && !interaction && generated) this.lastAttentionAt = this.now()
+    if (popup && !interaction && !recovery && generated) this.lastAttentionAt = this.now()
     try { this.persist() } catch (error) {
       this.storageFailure = true
       this.publish({ proposals: display, popup: false, interaction, hiddenCount: this.proposals.length - display.length, error: storageError(error) })
       return
     }
-    if (popup) this.revealAll = false
-    this.publish({ proposals: display, popup, interaction, hiddenCount: this.proposals.length - display.length, ...(this.judgmentError ? { error: this.judgmentError } : {}) })
+    if (popup) {
+      this.revealAll = false
+      for (const p of eligible) if (display.some(d => d.id === p.id)) this.consumerRecovery?.delete(p.id)
+    }
+    this.publish({ proposals: display, popup, interaction, ...(recovery ? { recovery: true } : {}), hiddenCount: this.proposals.length - display.length, ...(this.judgmentError ? { error: this.judgmentError } : {}) })
   }
   interact(revealAll = false) { this.revealAll ||= revealAll; this.emit(true) }
   recoverable(p) {
@@ -321,17 +334,17 @@ export class ProactiveWatch {
       (params.project === scope.project || (!scope.taskId && params.project.startsWith(scope.project.replace(/\/$/, '') + '/'))) &&
       Object.keys(params).every(key => ['target', 'project', 'taskId'].includes(key))
   }
-  deliverable(p, interaction = false) {
+  deliverable(p, interaction = false, recovery = false) {
     const rule = this.rules().find(r => r.id === p.ruleId)
     if (!rule || this.config.suppressed.includes(rule.id) || (p.snoozedUntil ?? 0) > this.now()) return false
     const resumed = p.feedback === 'snooze' && typeof p.snoozedUntil === 'number' && p.snoozedUntil <= this.now()
     if (rule.delivery === 'routine' && !resumed) {
       const clock = localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC')
-      if (clock.time < rule.at || this.config.routineDays[rule.id] === clock.date || this.proposals.some(q => q.ruleId === rule.id && q.routineDay === clock.date)) return false
+      if (clock.time < rule.at || this.config.routineDays[rule.id] === clock.date || (!recovery && this.proposals.some(q => q.ruleId === rule.id && q.routineDay === clock.date))) return false
     }
     if (interaction) return true
     if ((this.config.snoozed[rule.id] ?? 0) > this.now() || (this.quiet() && !rule.urgent)) return false
-    if (rule.delivery === 'silent' || (this.config.version === 1 && this.proposals.some(q => q !== p && q.ruleId === p.ruleId && pending(q) && q.offered))) return false
+    if (rule.delivery === 'silent' || (!recovery && this.config.version === 1 && this.proposals.some(q => q !== p && q.ruleId === p.ruleId && pending(q) && q.offered))) return false
     return true
   }
   async evidence(rule, enforceCriteria = false) {

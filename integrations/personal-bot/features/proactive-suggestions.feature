@@ -444,3 +444,11 @@ Feature: Owner controlled proactive Personal Bot proposals
     When a supported new need enters the full store
     Then old processed history can release capacity under its original policy
     And unknown or executing records remain protected
+
+  Scenario: A ready Shell recovers an offer that was not presented
+    Given the resident offered a current suggestion before the Shell subscribed
+    When the visible Shell announces a new consumer readiness episode
+    Then Watch recovers the same suggestion without generation or judgment
+    And readiness does not acknowledge presentation
+    And quiet, busy, routine, snooze and dismissal policies remain effective
+    And diagnostic status queries do not request recovery

@@ -136,11 +136,15 @@ export class PersonalBotService {
     return this.watch.push(readingIds)
   }
 
-  propose({ proposals, popup, interaction, hiddenCount, error }) {
+  consumerReady() {
+    if (!this.closed) return this.watch?.consumerReady?.()
+  }
+
+  propose({ proposals, popup, interaction, recovery, hiddenCount, error }) {
     this.proposalFrame = { proposals, proposalPopup: false, proposalHiddenCount: hiddenCount ?? 0, ...(error ? { proposalError: error } : {}) }
-    const frame = { ...this.status, ...this.proposalFrame, message: boundedText(this.status.message, proposals.length ? 8192 : 16384, 'Response'), proposalPopup: popup, proposalInteraction: interaction === true, ...(error ? { proposalError: error } : {}) }
+    const frame = { ...this.status, ...this.proposalFrame, message: boundedText(this.status.message, proposals.length ? 8192 : 16384, 'Response'), proposalPopup: popup, proposalInteraction: interaction === true, proposalRecovery: recovery === true, ...(error ? { proposalError: error } : {}) }
     if (!error) delete frame.proposalError
-    this.status = { ...frame, proposalPopup: false, proposalInteraction: false }
+    this.status = { ...frame, proposalPopup: false, proposalInteraction: false, proposalRecovery: false }
     for (const listener of this.listeners) listener(frame)
   }
 

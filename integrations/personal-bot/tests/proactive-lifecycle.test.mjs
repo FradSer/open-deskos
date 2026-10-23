@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ProactiveWatch } from '../src/proactive.mjs'
+import { PersonalBotService } from '../src/service.mjs'
 
 const start = Date.parse('2026-10-23T10:00:00Z')
 const answer = candidates => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.95, groundingProbability: 0.95, threshold: 0.8 }])) })
@@ -438,4 +439,79 @@ test('a full receipt archive recovers after an old rule changes or is removed wi
     assert.equal(store.load().proposals.find(p => p.id === unknown.id).status, 'unknown')
     assert.equal(recovered.actions.length, 0)
   }
+})
+
+test('consumer readiness recovers a missed offer without inference or presentation', async () => {
+  const f = fixture({ config: { attentionCooldownMs: 60000 } }); await f.watch.tick()
+  const first = f.watch.list().find(p => p.offered)
+  const generated = f.requests.length, attention = f.watch.lastAttentionAt
+  f.frames.length = 0
+  f.watch.consumerReady?.()
+  assert.equal(f.frames.at(-1)?.popup, true)
+  assert.equal(f.frames.at(-1)?.recovery, true)
+  assert.equal(f.frames.at(-1)?.proposals.find(p => p.id === first.id).presented, false)
+  assert.equal(f.requests.length, generated)
+  assert.equal(f.watch.lastAttentionAt, attention)
+  await f.watch.presented([first.id]); f.watch.consumerReady?.()
+  assert.equal(f.frames.at(-1).popup, false, 'presented offers are never replayed')
+})
+
+test('consumer recovery defers to busy and quiet policy without spending attention twice', async () => {
+  const f = fixture({ config: { attentionCooldownMs: 60000 } }); await f.watch.tick()
+  const id = f.watch.list().find(p => p.offered).id
+  f.watch.setBusy(true); f.watch.consumerReady()
+  assert.equal(f.frames.at(-1).popup, false)
+  f.watch.config.quietHours = { start: '09:00', end: '11:00', timeZone: 'UTC' }
+  f.watch.setBusy(false); assert.equal(f.frames.at(-1).popup, false)
+  f.watch.config.quietHours = undefined; f.watch.emit()
+  assert.equal(f.frames.at(-1).popup, true)
+  assert.equal(f.frames.at(-1).recovery, true)
+  assert.equal(f.frames.at(-1).proposals.find(p => p.id === id).presented, false)
+  f.watch.emit(); assert.equal(f.frames.at(-1).popup, false, 'one readiness episode does not repeatedly open an unacknowledged offer')
+})
+
+test('consumer recovery preserves routine receipts, snooze, silence, suppression and expiration', async () => {
+  for (const policy of ['routine', 'snooze', 'silent', 'suppressed', 'expired']) {
+    const f = fixture({ dependencies: { generate: async ({ topics }) => ({ suggestions: topics.map(topic => ({ topicId: topic.id, key: 'collect', advice: 'Check parcels.', reason: 'Pending parcels.', evidenceIds: [topic.evidence[0].id] })) }) } }); await f.watch.tick()
+    const p = f.watch.proposals.find(p => p.offered)
+    if (policy === 'routine') {
+      Object.assign(f.watch.config.rules[0], { delivery: 'routine', at: '09:00' }); p.routineDay = '2026-10-23'
+      f.watch.consumerReady(); assert.equal(f.frames.at(-1).popup, true, 'an unpresented routine can recover its own offer')
+      f.watch.config.routineDays.parcels = '2026-10-23'
+    } else if (policy === 'snooze') { await f.watch.respond(p.id, 'snooze') }
+    else if (policy === 'silent') f.watch.config.rules[0].delivery = 'silent'
+    else if (policy === 'suppressed') f.watch.config.suppressed = ['parcels']
+    else f.clock(start + 1800001)
+    f.watch.consumerReady(); assert.equal(f.frames.at(-1).popup, false, policy)
+  }
+})
+
+test('application recovery uses the attached optional Watch and never retains a popup snapshot', async () => {
+  const forbidden = async () => { throw Error('No owner or action call is permitted') }
+  const service = new PersonalBotService({ record: forbidden, transcribe: forbidden, prompt: forbidden })
+  const f = fixture({ dependencies: { publish: frame => service.propose(frame) } })
+  service.attachWatch(f.watch); await f.watch.tick()
+  const first = service.status.proposals.find(p => p.offered)
+  assert.equal(service.status.proposalPopup, false)
+  const frames = []; const release = service.subscribe(frame => frames.push(frame))
+  service.consumerReady()
+  assert.equal(frames.at(-1).proposalPopup, true)
+  assert.equal(frames.at(-1).proposalRecovery, true)
+  assert.equal(frames.at(-1).proposals.find(p => p.id === first.id).presented, false)
+  assert.equal(service.status.proposalPopup, false)
+  assert.equal(service.status.proposalRecovery, false)
+  service.attachWatch({}); service.consumerReady()
+  service.attachWatch(undefined); service.consumerReady()
+  assert.equal(f.requests.length, 1)
+  release(); await f.watch.close(); await service.close()
+})
+
+test('multiple unpresented offers from one routine topic recover within the original push bound', async () => {
+  const f = fixture({ config: { maxPush: 2, rules: [{ id: 'parcels', goal: 'Handle pending parcels', delivery: 'routine', at: '09:00', urgent: false, observations: [{ readingId: 'parcels', fields: ['count'] }] }] } })
+  await f.watch.tick()
+  assert.equal(f.watch.list().filter(p => p.offered).length, 2)
+  f.watch.consumerReady()
+  assert.equal(f.frames.at(-1).popup, true)
+  assert.equal(f.frames.at(-1).recovery, true)
+  assert.ok(f.frames.at(-1).proposals.every(p => !p.presented))
 })
