@@ -267,9 +267,10 @@ export function homeFactVariables(readings, now = Date.now()) {
         const identity = name && refFor(`${ancestorPath}.${name}`)
         if (identity && !reference.startsWith(`{{${source.id}|${ancestorPath}.${name}|`)) context += `${identity} `
       }
+      const verification = parent?.verification?.status ?? parent?.verification
       const verificationPath = [parentPath, parent?.verification?.status ? 'verification.status' : 'verification'].filter(Boolean).join('.')
-      const evidence = parts.at(-1) !== 'report' && /^(finished|settled|completed)$/.test(String(parent?.state))
-        ? (refFor(verificationPath) ? ` verification ${refFor(verificationPath)}` : ' reported, verification unknown') : ''
+      const evidence = parts.at(-1) !== 'report' && /^(finished|settled|completed)$/.test(String(parent?.reportedState ?? parent?.state))
+        ? (['passed', 'failed', 'needs_review'].includes(verification) && refFor(verificationPath) ? ` verification ${refFor(verificationPath)}` : ' (reported)') : ''
       const field = parts.at(-1)
       const statement = field === 'report' ? `reported: ${reference}`
         : field === 'remainingPercent' ? `${reference} remaining`

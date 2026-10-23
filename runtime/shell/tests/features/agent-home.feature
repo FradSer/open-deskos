@@ -6,7 +6,8 @@ Feature: Personal Agent home briefing
     Then verification metadata remains available for analysis
     And verification metadata cannot appear as a separate Overview fact
     And report content keeps its reported attribution without raw verification codes
-    And terminal task states retain their verification qualifiers
+    And local and reported terminal states retain their verification qualifiers
+    And absent verification uses reported attribution without raw backend codes
 
   Scenario: Generation status stays inside the Overview indicator
     Given Overview can retain current source-bound readings

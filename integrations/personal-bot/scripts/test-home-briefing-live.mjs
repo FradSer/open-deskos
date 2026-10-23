@@ -118,7 +118,7 @@ try {
       }
       if (mutate) {
         assert.match(home.frame.items.map(item => item.text).join(' '), /finished/)
-        assert.match(home.frame.items.map(item => item.text).join(' '), /verification not_run/)
+        assert.match(home.frame.items.map(item => item.text).join(' '), /\(reported\)/)
       }
       assert.equal(home.frame.coverage.readSources, home.frame.coverage.totalSources)
       if (expected) {

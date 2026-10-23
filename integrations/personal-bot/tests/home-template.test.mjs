@@ -42,6 +42,18 @@ test('nested verification status and execution flags stay analysis-only', async 
   await assert.rejects(generateHomeSelection(readings, { choose: async () => ({ items: [{ sources: [0] }] }) }), /analysis-only/i)
 })
 
+test('terminal local and reported states retain meaningful verification without raw absence flags', () => {
+  for (const field of ['state', 'reportedState']) for (const verification of [undefined, 'not_run', 'reported_unverified', 'passed', 'failed']) {
+    const readings = [source('pi', 'sessions', { tasks: [{ id: 'audit', name: 'Audit', [field]: 'settled', ...(verification ? { verification } : {}) }] })]
+    const facts = homeFactVariables(readings)
+    const raw = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(`:${'tasks.0.' + field}`))] }] }, facts)
+    const text = resolveHomeTemplate(raw, readings).items[0].text
+    if (['passed', 'failed'].includes(verification)) assert.ok(text.includes(`verification ${verification}`), text)
+    else assert.match(text, /\(reported\)/)
+    assert.doesNotMatch(text, /reported_unverified|not_run|verification unknown/)
+  }
+})
+
 test('semantic facts retain nested units and Agent goals, state, and verification', () => {
   const readings = [source('hydra', 'plants', { plants: [{ name: 'Fern', soilPercent: 8 }] }),
     source('pi', 'sessions', { sessions: [{ id: 'pi-1', project: 'Desk', goal: 'Review release', state: 'waiting', activity: 'Needs input' }] }),
@@ -53,7 +65,7 @@ test('semantic facts retain nested units and Agent goals, state, and verificatio
   const resolved = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [soil, waiting, finished] }] }, facts), readings)
   assert.match(resolved.items[0].text, /Fern.*8%/)
   assert.match(resolved.items[0].text, /Desk.*waiting/)
-  assert.match(resolved.items[0].text, /finished verification not_run/)
+  assert.match(resolved.items[0].text, /finished \(reported\)/)
   assert.ok(facts.some(fact => fact.factId === 'pi:sessions.0.goal'))
   assert.ok(facts.some(fact => fact.factId === 'pi:sessions.0.activity'))
   assert.deepEqual(facts[waiting].entities, [{ id: 'pi-1', project: 'Desk' }])
@@ -323,7 +335,7 @@ test('rebinding keeps complete current facts within the existing display budget'
   const raw = compileHomeSelection({ items: [{ sources: facts.map((_, index) => index) }] }, facts)
   const fresh = resolveHomeTemplate(rebindHomeSelection(raw, before, after), after)
   assert.ok(fresh.items.reduce((sum, item) => sum + item.text.length, 0) <= 240)
-  assert.match(fresh.items[0].text, /verification not_run/)
+  assert.match(fresh.items[0].text, /\(reported\)/)
   assert.doesNotMatch(fresh.items[0].text, /running/)
 })
 
