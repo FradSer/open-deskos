@@ -329,7 +329,7 @@ test('independent selected Home preserves service pushes, unavailable readings, 
     })
     const snapshots = []
     const push = async predicate => {
-      now += 5 * 60 * 1000
+      now += 15 * 60 * 1000
       const published = new Promise(resolve => {
         const off = service.subscribe(frame => { if (predicate(frame.briefing)) { off(); resolve() } })
       })
