@@ -52,7 +52,7 @@ for (const { mode, bypass = false } of [{ mode: 'development', bypass: true }, {
       }
       const result = await running
       assert.deepEqual(JSON.parse(result.stdout.trim().split('\n').pop()), {
-        actualPreload: true, mode, documentLoads: 1, comparisons: 12, states: 19,
+        actualPreload: true, mode, documentLoads: 1, comparisons: 12, states: 20,
         retainedConsumers: true, lifecycleRecovery: true, selectedServiceConsumers: 3, subscriptionsReleased: true,
         discoveryReleased: true, assetLeaseReleased: mode === 'native',
       })

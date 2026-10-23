@@ -132,14 +132,15 @@ app.whenReady().then(async () => {
       groups: [{ title: 'Limits', quotas: [{ label: 'Weekly', remainingPct: value, resetAt: null }] }] }] } })),
     { state: 'available', snapshot: { accounts: [{ provider: 'unknown', fileName: 'Empty windows.json', groups: [] }, { provider: 'xai', error: 'Failed without groups' }] } }]
   for (const values of [[0, null, 12, 80], [null, 12, 80]]) states.push({ state: 'available', snapshot: { accounts: [{ ...live.snapshot.accounts[0], groups: [{ title:'Mixed windows', quotas:values.map(remainingPct=>({label:'Window',remainingPct})) }] }] } })
-  states.push({ state: 'available', snapshot: { accounts: [
+  const displayedWindows = { state: 'available', snapshot: { accounts: [
     { ...live.snapshot.accounts[0], provider: 'codex', plan: 'Pro', groups: [{ title: 'Limits', quotas: [
       { label: '5 hour limit', horizon: 'short', remainingPct: 0 }, { label: 'Weekly limit', horizon: 'long', remainingPct: 80 },
     ] }] },
     { ...live.snapshot.accounts[0], provider: 'antigravity', groups: [{ title: 'Models', quotas: [
       { label: '5 hour limit', horizon: 'short', remainingPct: 80 },
     ] }] },
-  ] } })
+  ] } }
+  states.push(displayedWindows)
   const baseline = []
   for (const phase of ['default', 'independent', 'restored']) {
     await publish(live)
@@ -187,9 +188,13 @@ app.whenReady().then(async () => {
     const observed = []
     for (const value of states) {
       await publish(value); observed.push(await collect())
-      const expected = (value.snapshot?.accounts || []).filter(account=>!account.error)
+      const expected = value === displayedWindows ? ['80', '80'] : (value.snapshot?.accounts || []).filter(account=>!account.error)
         .flatMap(account=>account.groups.flatMap(group=>group.quotas)).filter(quota=>Number.isFinite(quota.remainingPct)&&quota.remainingPct>=0&&quota.remainingPct<=100).map(quota=>String(quota.remainingPct))
       assert.deepEqual(await js("window.quotaContainers().map(node=>[...node.querySelectorAll('[role=\"meter\"]')].map(meter=>meter.getAttribute('aria-valuenow')))"), [expected,expected])
+      if (value === displayedWindows) {
+        const expectedStates = ['Available', 'Quota unknown']
+        assert.deepEqual(await js("window.quotaContainers().map(node=>[...node.querySelectorAll('.provider-quota-availability')].map(state=>state.textContent))"), [expectedStates, expectedStates])
+      }
     }
     if (phase === 'default') baseline.push(observed)
     else assert.deepEqual(observed, baseline[6])
