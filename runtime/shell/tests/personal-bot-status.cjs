@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-personal-bot-consumer-ready', () => ({ accepted: false }))
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const path = require('node:path')
 const fs = require('node:fs')

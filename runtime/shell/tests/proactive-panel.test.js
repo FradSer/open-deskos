@@ -18,7 +18,7 @@ class Element {
   scrollBy() {}
   async click() { await this.events.click?.() }
 }
-function fixture() {
+function fixture({ readiness = false, hidden = false } = {}) {
   let now = Date.now()
   class Clock extends Date { static now() { return now } }
   const surface = new Element(); surface.hidden = true
@@ -26,13 +26,15 @@ function fixture() {
   surface.selectors = Object.fromEntries(selectors.map(name => [`.personal-bot-status-${name}`, new Element()]))
   surface.selectors['.personal-bot-status-level span'] = new Element()
   const content = surface.selectors['.personal-bot-status-content']; surface.append(content)
-  const local = new Element('button'), commands = [], events = {}, observers = []
-  const document = { hidden: false, addEventListener(name, cb) { events[name] = cb }, removeEventListener() {}, querySelector: () => null, getElementById: () => surface, activeElement: local, body: { children: [local, surface] }, createElement: tag => new Element(tag) }
+  const local = new Element('button'), commands = [], ready = [], events = {}, observers = []
+  const document = { hidden, visibilityState: hidden ? 'hidden' : 'visible', addEventListener(name, cb) { events[name] = cb }, removeEventListener() {}, querySelector: () => null, getElementById: () => surface, activeElement: local, body: { children: [local, surface] }, createElement: tag => new Element(tag) }
   let render
   const window = { odkPersonalBot: { subscribe: callback => { render = callback }, onMic() {}, proposalCommand: async command => { commands.push(command); return { accepted: true } } },
     odkPersonalBotReply: { render: (el, text) => { el.textContent = text } }, addEventListener: (name, callback) => { events[name] = callback }, dispatchEvent() {} }
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/personal-bot-status.js'), 'utf8'), { window, document, CustomEvent: class {}, console, Date: Clock, IntersectionObserver: class { constructor(callback) { this.callback = callback; this.nodes = new Set(); observers.push(this) } observe(node) { this.nodes.add(node) } disconnect() { this.nodes.clear() } unobserve(node) { this.nodes.delete(node) } } })
-  return { surface, content, local, commands, render, window, events, document, observers, advance(ms) { now += ms }, visible(node, ratio = 1, { height = 44, viewportHeight = 200 } = {}) { for (const observer of observers) if (observer.nodes.has(node)) observer.callback([{ target: node, isIntersecting: ratio > 0, intersectionRatio: ratio, boundingClientRect: { width: 100, height }, rootBounds: { width: 100, height: viewportHeight }, intersectionRect: { width: ratio > 0 ? 100 : 0, height: height * ratio } }]) } }
+  if (readiness) window.odkPersonalBot.consumerReady = id => { ready.push(id); return Promise.resolve({ accepted: true }) }
+  let sequence = 0
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/personal-bot-status.js'), 'utf8'), { window, document, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++sequence).padStart(12, '0')}` }, CustomEvent: class {}, console, Date: Clock, IntersectionObserver: class { constructor(callback) { this.callback = callback; this.nodes = new Set(); observers.push(this) } observe(node) { this.nodes.add(node) } disconnect() { this.nodes.clear() } unobserve(node) { this.nodes.delete(node) } } })
+  return { surface, content, local, commands, ready, render, window, events, document, observers, advance(ms) { now += ms }, visible(node, ratio = 1, { height = 44, viewportHeight = 200 } = {}) { for (const observer of observers) if (observer.nodes.has(node)) observer.callback([{ target: node, isIntersecting: ratio > 0, intersectionRatio: ratio, boundingClientRect: { width: 100, height }, rootBounds: { width: 100, height: viewportHeight }, intersectionRect: { width: ratio > 0 ? 100 : 0, height: height * ratio } }]) } }
 }
 const proposal = () => ({ id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry', status: 'pending', offered: true, presented: false, confirmation: '记住 watering：检查盆土', advice: '<script>不可信文本</script>', action: { tool: 'memory_update' }, evidence: [{ readingId: 'hydra', field: 'soil', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z' }] })
 const flatten = node => [node, ...node.children.flatMap(flatten)]
@@ -314,4 +316,41 @@ test('long advice uses the visible viewport while a heading-only glimpse is insu
   assert.equal(f.commands.length, 0, 'Ten visible pixels below a heading do not establish a visible body')
   f.visible(body, 0.1, { height: 1000, viewportHeight: 200 })
   assert.equal(f.commands.length, 1, 'Half the available viewport is meaningful even for a very long paragraph')
+})
+
+test('a recovered offer cannot reopen a suggestion dismissed in the current document', () => {
+  const f = fixture(), p = proposal()
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  f.window.odkPersonalBotStatus.close()
+  assert.equal(f.surface.hidden, true)
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true, proposalRecovery: true })
+  assert.equal(f.surface.hidden, true)
+  f.render({ state: 'idle', proposals: [{ ...p, id: '11111111-1111-4111-8111-111111111111' }], proposalPopup: true })
+  assert.equal(f.surface.hidden, false, 'a genuinely new offer keeps the original opening behavior')
+})
+
+test('only visible subscribed consumers request recovery and replacement reuses the episode identity', () => {
+  const f = fixture({ readiness: true, hidden: true })
+  assert.equal(f.ready.length, 0)
+  f.document.hidden = false; f.document.visibilityState = 'visible'; f.events.visibilitychange()
+  assert.equal(f.ready.length, 1)
+  const first = f.ready[0]
+  f.render({ state: 'unavailable' }); f.render({ state: 'idle', proposals: [] })
+  assert.equal(f.ready.at(-1), first, 'replacement clients receive the same visible episode ID')
+  f.document.hidden = true; f.document.visibilityState = 'hidden'; f.events.visibilitychange()
+  assert.equal(f.ready.at(-1), null, 'hidden consumers clear reconnect readiness')
+  f.document.hidden = false; f.document.visibilityState = 'visible'; f.events.visibilitychange()
+  assert.notEqual(f.ready.at(-1), first)
+  assert.equal(f.commands.length, 0, 'readiness never fabricates a presented command')
+})
+
+test('watch capability replacement on the same resident starts a new readiness episode', () => {
+  const f = fixture({ readiness: true })
+  const first = f.ready.at(-1)
+  f.render({ state: 'idle', proposals: [], proposalCapabilities: { read: false } })
+  f.render({ state: 'idle', proposals: [], proposalCapabilities: { read: true } })
+  assert.notEqual(f.ready.at(-1), first)
+  const restored = f.ready.at(-1)
+  f.render({ state: 'idle', proposals: [], proposalCapabilities: { read: true } })
+  assert.equal(f.ready.at(-1), restored)
 })
