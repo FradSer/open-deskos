@@ -133,6 +133,32 @@ test('child launcher isolates profiles and cleans them after completion, timeout
   assert.equal(new Set(profiles).size, profiles.length)
 })
 
+for (const outcome of [
+  { status: 0, signal: null, error: Object.assign(Error('child deadline elapsed'), { code: 'ETIMEDOUT' }) },
+  { status: 0, signal: 'SIGTERM' },
+  { status: null, signal: 'SIGKILL' },
+  { status: null, error: Object.assign(Error('spawn failed'), { code: 'ENOENT' }) },
+]) test(`child failure reaches the E2E result despite status ${outcome.status}: ${outcome.error?.code || outcome.signal}`, () => {
+  let profile
+  const result = runFixture('widget-density.cjs', [], { spawn(_executable, args) {
+    profile = args[1]
+    assert.equal(fs.existsSync(profile), true)
+    return outcome
+  } })
+  assert.notEqual(result.status, 0)
+  assert.equal(result.error, outcome.error)
+  assert.equal(result.signal, outcome.signal)
+  assert.equal(fs.existsSync(profile), false)
+  const source = fs.readFileSync(path.join(__dirname, 'e2e.js'), 'utf8')
+  const exitStatus = source.split('\n').find(line => line.trimStart().startsWith('process.exitCode = Object.entries(subStatuses)'))
+  assert.ok(exitStatus)
+  for (const subStatuses of [{ child: result.status }, { children: [0, result.status, 0] }]) {
+    const context = { process: {}, subStatuses }
+    vm.runInNewContext(exitStatus, context)
+    assert.equal(context.process.exitCode, 1)
+  }
+})
+
 test('child runner sets its profile and hides the dock before loading fixture code', () => {
   const calls = []
   const profile = path.join(__dirname, 'fixtures', 'temporary-profile')

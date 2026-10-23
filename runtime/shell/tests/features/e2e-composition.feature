@@ -17,6 +17,13 @@ Feature: E2E validates the current declarative desktop
     And a locked Windows profile does not prevent fixture termination
     And Windows indicator checks can complete the existing page and theme matrix
 
+  Scenario: A timed-out child cannot pass after a normal exit
+    Given a child completes its assertions
+    When the launcher reports a timeout or signal with exit code zero
+    Then the child status is unsuccessful
+    And the complete E2E result is unsuccessful
+    And the original diagnostic and profile cleanup remain available
+
   Scenario: Every declared widget is present once
     Given the current desktop layout declares its widget identities
     When E2E inspects the Home page
