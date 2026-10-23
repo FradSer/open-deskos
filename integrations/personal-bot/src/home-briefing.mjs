@@ -3,7 +3,7 @@ const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const STATES = new Set(['live', 'stale', 'unavailable', 'unconfigured', 'unauthorized', 'error'])
 const ICONS = new Set(['sessions', 'plants', 'weather', 'mail', 'calendar', 'tasks', 'reading', 'portfolio', 'quota', 'apps', 'status'])
 const MAX_AGE_MS = 15 * 60 * 1000
-const MIN_GENERATION_INTERVAL_MS = 5 * 60 * 1000
+const MIN_GENERATION_INTERVAL_MS = 15 * 60 * 1000
 const MAX_RETRY_INTERVAL_MS = 30 * 60 * 1000
 const MEASUREMENT_TIMES = new Set(['asOf', 'measuredAt', 'updatedAt', 'publishedAt'])
 
