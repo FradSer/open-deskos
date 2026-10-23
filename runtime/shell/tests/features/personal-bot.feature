@@ -413,3 +413,12 @@ Feature: Independent resident personal bot
     When its action or confirmation changes, its proposal ends, or response capability is withdrawn
     Then the earlier confirmation cannot send an acceptance
     And a detached control cannot regain execution authority
+
+  Scenario: A real ride recommendation opens a fresh interactive quote
+    Given the resident publishes a recommendation from actual Memory and reviewed DiDi results
+    When the owner opens ride details and selects actual returned places
+    And the owner activates Get current quote
+    Then the actual owner text channel reaches the Agent's ride workflow
+    And a new MCP estimate appears in the rendered response and controller readback
+    And a preview price does not become order confirmation
+    And no order or cancellation is sent
