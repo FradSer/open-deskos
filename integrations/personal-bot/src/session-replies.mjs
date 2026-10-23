@@ -37,3 +37,18 @@ export function guardReplyTools(tools,getReply) {
   return tool.execute(...args)
  }}))
 }
+
+/** A correlated transport receipt proves admission to this exact Hosted task, never completion.
+ * @param {unknown} payload
+ * @param {unknown} params
+ * @returns {string | undefined}
+ */
+export function hostedPromptAcknowledgement(payload, params) {
+  /** @param {unknown} value @returns {Record<string, unknown> | undefined} */
+  const object = value => value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : undefined
+  const receipt = object(payload), request = object(params), task = object(receipt?.task)
+  if (!receipt || !request || !task || receipt.ok !== true || receipt.accepted !== true
+    || receipt.delivery === 'unknown' || receipt.pending === true || !uuid(request.taskId)
+    || typeof request.project !== 'string' || !request.project || task.taskId !== request.taskId || task.project !== request.project) return undefined
+  return receipt.delivery === 'queued' ? '这条指令已排入原任务，执行结果仍需确认。' : '原任务已受理这条指令，执行结果仍需确认。'
+}

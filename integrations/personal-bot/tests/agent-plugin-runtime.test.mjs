@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createAgentPluginRuntime, validateAgentPlugins } from '../src/agent-plugins/runtime.mjs'
 import { createExperienceStore } from '../src/agent-plugins/experience.mjs'
-import { validateCompletion, validateLessons, completionInstructions, AgentValidationError, pluginFormatCorrection } from '../src/agent-plugins/completion.mjs'
+import { validateCompletion, validateLessons, completionInstructions, completionNotice, AgentValidationError, pluginFormatCorrection } from '../src/agent-plugins/completion.mjs'
 import { protectProactivePath } from '../src/proactive-private.mjs'
 
 // Given a Windows Limited user, when a fixture creates private state, then apply the actual host ACL policy.
@@ -414,4 +414,26 @@ test('child admission receipts cannot certify completed downstream work', async 
     await runtime.observeTools([{ name, execute: async () => ({ content: [{ type: 'text', text: 'accepted' }], details: {} }) }])[0].execute('id', {})
     assert.equal((await runtime.finishTurn('The report is complete')).verification.status, 'needs_review')
   }
+})
+
+test('completion failures retain a host-owned diagnostic without exposing provider errors', async t => {
+  const directory = await fixture(t)
+  for (const [bad, reason] of [[new Error('private provider diagnostic'), 'unavailable'],
+    [new AgentValidationError('citation'), 'invalid_evidence']]) {
+    const runtime = createAgentPluginRuntime({ store: createExperienceStore(join(directory, 'diagnostic.json')),
+      config: { enabled: ['completion'] }, infer: async () => { throw bad } })
+    runtime.beginTurn('Install the ready App')
+    await runtime.observeTools([{ name: 'user_app_install', execute: async () => success }])[0].execute('id', {})
+    const result = await runtime.finishTurn('Operation returned')
+    assert.equal(result.verification.status, 'needs_review')
+    assert.equal(result.verification.reason, reason)
+    assert(!JSON.stringify(result).includes('private provider diagnostic'))
+  }
+})
+
+test('completion notices preserve passed results and identify the unmet outcome', () => {
+  assert.equal(completionNotice({ status: 'passed' }), '')
+  assert.match(completionNotice({ status: 'needs_review', reason: 'unavailable' }), /检查暂不可用/)
+  assert.match(completionNotice({ status: 'needs_review', reason: 'invalid_evidence' }), /证据校验/)
+  assert.equal(completionNotice({ status: 'needs_review', checks: [{ status: 'needs_review', requirement: '读回已安装版本' }] }), '仍需确认：读回已安装版本。')
 })

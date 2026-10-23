@@ -44,6 +44,7 @@ export const completionInstructions = [
   'Return only JSON with exactly this shape: {"status":"passed","summary":"brief explanation in the request language","checks":[{"requirement":"the requested outcome","scope":"completion","status":"passed","evidence":[{"id":"exact receipt id","quote":"short exact substring of receipt text"}]}]}.',
   'Both status fields permit only passed or needs_review. The scope field permits only admission, completion, or derivation. Include every unmet requirement as needs_review. Overall status must be needs_review when any requested outcome lacks evidence.',
   'Use admission only for an explicitly requested launch or prompt delivery. An admissionOnly receipt cannot prove downstream completion. Accepted, queued, running, unknown, or unsupported worker claims cannot prove completed work.',
+  'A successful system installation receipt and matching catalog readback can establish installation of the same revision. Reinstalling a ready draft does not require a new version or revision. Do not add unrequested downstream outcomes.',
   'Use completion for externally observed outcomes, including package installation. Cite underlying tool receipts. Computation receipts cannot support admission or completion. A launch receipt proves launch only when that is the requested outcome.',
   'Use derivation only for calculations or transformations of supplied data. It never establishes external facts, admission, or effects. Compare actual executed source against the current request input, method, and result. Check that all requested inputs and the applicable supplied or cited method match the execution and answer.',
   'A passed derivation check must cite a successful nontruncated kind:computation receipt. Skill or method reads alone do not prove a calculation. Do not pass hardcoded answers, omitted inputs, wrong methods, or unsupported results.',
@@ -90,4 +91,19 @@ export function validateLessons(value, receipts) {
     if (!validateCitations(lesson.evidence, receipts.filter(receipt => receipt.learningEligible !== false))) throw new AgentValidationError('citation', 'learning')
   }
   return value.lessons
+}
+
+/** Explain the actual verification state without treating verifier failure as missing operation receipts.
+ * @param {{status: string, reason?: string, checks?: {status: string, requirement: string}[]}} verification
+ * @param {string} workKind
+ */
+export function completionNotice(verification, workKind = 'execution') {
+  if (verification.status !== 'needs_review') return ''
+  if (verification.reason === 'unavailable') return '完成检查暂不可用，操作结果仍需核实。'
+  if (verification.reason === 'invalid_evidence') return '完成检查未通过证据校验，尚不能确认完成。'
+  if (verification.reason === 'missing_receipts') return '本轮没有可验证的操作回执，尚不能确认完成。'
+  const unmet = (verification.checks || []).filter(check => check.status === 'needs_review')
+    .slice(0, 2).map(check => check.requirement.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 120))
+  return unmet.length ? `仍需确认：${unmet.join('；')}。`
+    : workKind === 'query' ? '查询结果的来源检查尚未通过。' : '完成检查尚未通过，请核实操作结果。'
 }
