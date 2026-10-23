@@ -1,5 +1,34 @@
 Feature: Personal Agent home briefing
 
+  Scenario: Generation status stays inside the Overview indicator
+    Given Overview can retain current source-bound readings
+    When generation fails or current state cannot be confirmed
+    Then the existing spinner shows a static failure mark
+    And its accessible label explains automatic recovery
+    And the paragraph contains no generation error text
+    And an empty failure leaves the paragraph empty
+    And replacing or restoring the service retains the indicator status
+    And the Markdown content container retains its accessible status role
+
+  Scenario: Each service supplies at most one Overview fact
+    Given Pi supplies session fields and several remote reports
+    And resident Agent tasks share their own service
+    When all facts participate in selection or recovery
+    Then only the first selected fact from each service is displayed
+    And declared producer readings pass through the single data registry
+    And different services with the same icon remain independent
+    And ignored duplicate facts cannot fail generation or enter later selection rounds
+    And a selected analysis-only fact receives the bounded format correction
+    And that correction lists only displayable choices with their original selectors
+
+  Scenario: Overview supports safe Markdown
+    Given a selected source contains emphasis, lists, code, and links
+    When Overview renders the source-bound text
+    Then Markdown uses local semantic styling in each theme
+    And HTML remains literal and images cannot load
+    And links remain display-only text
+    And temperatures and signed percentages retain their formatting
+
   Scenario: All connected sources can inform Overview
     Given more than 64 visible data sources with different declared priorities
     When Overview reads current desk information
@@ -23,6 +52,21 @@ Feature: Personal Agent home briefing
     And the verifier records source coverage separately from synthetic scenarios
     And compact inventories use one request within the input byte budget
     And independent batches run concurrently within the shared deadline
+
+  Scenario: Overview selection bounds provider reasoning
+    Given the configured Model Studio model enables thinking by default
+    When Overview starts an isolated selection
+    Then its provider request disables thinking and bounds output tokens
+    And virtual model defaults retain a positive output bound
+    And the resident Agent keeps its original model configuration
+
+  Scenario: Busy Pi activity does not starve Overview
+    Given a model selection is pending while Pi activity changes
+    When the selection completes
+    Then selected facts bind to current activity and verification qualifiers
+    And changed selection context schedules another selection
+    And removed facts and hidden sources cannot remain displayed
+    And reordered sessions retain their selected task identities
 
   Scenario: Fresh facts survive generation failure
     Given Overview has an earlier generated summary
@@ -150,7 +194,7 @@ Feature: Personal Agent home briefing
   Scenario: Bounded accessible text
     Given a briefing contains long English, Chinese, or HTML-like text
     When the home renders in any supported theme or compact size
-    Then the text wraps and remains literal
+    Then Markdown wraps and HTML-like text remains literal
     And meaningful availability changes use a stable status region
 
   Scenario: Home reads as a short sentence with inline icons
@@ -251,7 +295,7 @@ Feature: Personal Agent home briefing
     And failed unsubscribe retains cleanup ownership until retry
 
   Scenario: An independent Dashboard preserves briefing behavior during runtime replacement
-    Given Today displays literal briefing segments and truthful availability
+    Given Today displays safe Markdown briefing segments and truthful availability
     When a development or signed independent Dashboard replaces the default page
     Then the same page container displays equivalent values and source states
     And Instrument, Pixel, and Border Beam retain equivalent rendered content
@@ -483,7 +527,8 @@ Scenario: Overview refresh uses the weekday indicator without adding chat text
   Given Overview shows a red presence dot beside its weekday
   When the existing briefing state becomes loading
   Then that same indicator shows a spinner in the same position
-  And a terminal briefing state restores the red dot, including update failure
+  And successful generation restores the red dot
+  And failed generation shows a static failure mark inside the same indicator
   And loading preserves the previous briefing text without adding refresh narration
   And an initial load uses the empty placeholder with an accessible busy state
   And automatic refresh preserves all conversation text and message nodes

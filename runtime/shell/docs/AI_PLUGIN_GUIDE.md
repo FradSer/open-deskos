@@ -354,11 +354,12 @@ The briefing frame retains source states and measurement times.
 Today reports loading, empty, unavailable, error, and stale states.
 It does not replace unavailable Agent output with fixed plugin sentences.
 
-New home items contain ordered literal segments.
+New home items contain ordered source-bound Markdown segments.
 Context segments contain text; fact segments contain text and an approved icon name.
 The client validates the joined text and the 240-character paragraph limit.
 The page has no attribution footer, update timestamp, or Sources controls.
-The briefing paragraph announces availability changes.
+The existing generation indicator announces errors and recovery.
+Error text does not enter the briefing paragraph.
 
 ## Home selection declarations
 

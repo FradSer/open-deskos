@@ -111,9 +111,26 @@ async function assertAllSourceOverview() {
     }
   } finally {
     home.close()
+    access.close()
     await resize(previousView.width, previousView.height)
     await evaluate(`odkTheme.set(${JSON.stringify(previousView.theme || 'pixel')})`)
   }
+}
+async function assertOverviewMarkdown() {
+  const previousView = await evaluate(`({width:innerWidth,height:innerHeight,theme:document.documentElement.dataset.theme})`)
+  const text = '**发布** _ready_ `code` 25°C +1.25%\n\n- First\n- Second [docs](https://example.test) ![alt](https://example.test/a.png) <img src=x onerror=alert(1)>'
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) for (const [width,height] of [[1280,800],[480,854],[320,480]]) {
+    await resize(width,height)
+    await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
+    await send({ state: 'live', generatedAt: 1000, omittedSources: 0, items: [{ text, segments: [{text,icon:'portfolio'}], sources: [{id:'futu',label:'Futu',state:'live'}] }] })
+    const result = await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');return {strong:n.querySelector('strong')?.textContent,em:n.querySelector('em')?.textContent,code:n.querySelector('code')?.textContent,li:n.querySelectorAll('li').length,assets:n.querySelectorAll('img,a,script,iframe').length,temp:n.querySelector('.dash-temperature')?.textContent,change:n.querySelector('.dash-change')?.dataset.direction,text:n.textContent,overflow:n.scrollWidth>n.clientWidth+1}})()`)
+    assert.equal(result.strong,'发布');assert.equal(result.em,'ready');assert.equal(result.code,'code');assert.equal(result.li,2)
+    assert.equal(result.assets,0);assert.equal(result.temp,'25°C');assert.equal(result.change,'up');assert.equal(result.overflow,false)
+    assert.match(result.text,/<img src=x onerror=alert\(1\)>/)
+    fs.writeFileSync(path.join(os.tmpdir(),'odk-overview-markdown-'+theme+'-'+width+'.png'),await capturePaintedFrame())
+  }
+  await resize(previousView.width,previousView.height)
+  await evaluate(`odkTheme.set(${JSON.stringify(previousView.theme || 'pixel')})`)
 }
 async function assertOverviewRefreshIndicator({ ownerConversation = false } = {}) {
   const retained = {state:'idle',message:'',jev:{status:'verified'}}
@@ -125,13 +142,13 @@ async function assertOverviewRefreshIndicator({ ownerConversation = false } = {}
     assert.match(await evaluate(`document.querySelector('.agent-conversation').textContent`),/Your existing answer stays here/)
   }
   await evaluate(`window.overviewChatNodes=[...document.querySelector('.agent-conversation').children];window.overviewChatText=document.querySelector('.agent-conversation').textContent;window.overviewPresence=document.querySelector('.dash-presence')`)
-  for (const theme of ['instrument','pixel','border-beam']) {
+  for (const theme of ['instrument','pixel','border-beam','liquid-glass']) {
     await evaluate(`window.odkTheme.set('${theme}');document.fonts.ready`)
     for (const [width,height] of [[1920,1280],[480,854],[320,480]]) {
       await resize(width,height)
       let position
       for (const state of ['empty','loading','live','stale','error','unavailable']) {
-        const items=['live','stale','loading'].includes(state)?[{text:'Synthetic desk reading.',sources:[{id:'desk',label:'Desk',state:'live'}]}]:[]
+        const items=['live','stale','loading','error'].includes(state)?[{text:'Synthetic desk reading.',sources:[{id:'desk',label:'Desk',state:'live'}]}]:[]
         publishStatus({...retained,briefing:{state,items,generatedAt:1000,omittedSources:0}})
         await evaluate('new Promise(r=>setTimeout(r,30))')
         assert.equal(await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');return c.textContent===window.overviewChatText&&c.children.length===window.overviewChatNodes.length&&window.overviewChatNodes.every((n,i)=>c.children[i]===n)})()`),true,'automatic Overview refresh never appends conversation text')
@@ -141,11 +158,20 @@ async function assertOverviewRefreshIndicator({ ownerConversation = false } = {}
         if(!position)position={left:result.left,top:result.top,width:result.width,height:result.height}
         assert.deepEqual({left:result.left,top:result.top,width:result.width,height:result.height},position,'spinner keeps the dot footprint')
         if(state==='loading') {assert.equal(result.animation,'odk-overview-refresh');assert.equal(result.border,'2px');assert.equal(result.busy,true);assert.equal(result.narrative,'Synthetic desk reading.')}
-        else {assert.equal(result.animation,'none');assert.equal(result.background,result.red)}
+        else if(['error','stale','unavailable'].includes(state)) {
+          assert.equal(result.animation,'none');assert.equal(result.background,'rgba(0, 0, 0, 0)')
+          assert.equal(await evaluate(`document.querySelector('.dash-presence').getAttribute('role')`),'status')
+          assert.match(await evaluate(`document.querySelector('.dash-presence').getAttribute('aria-label')`),/retry|reconnect|confirm/i)
+          assert.equal(result.narrative,['stale','error'].includes(state)?'Synthetic desk reading.':'')
+          assert.equal(await evaluate(`document.querySelectorAll('.dash-availability').length`),0)
+        } else {assert.equal(result.animation,'none');assert.equal(result.background,result.red)}
         if((width===480 || width===1920)&&['empty','loading','error'].includes(state))fs.writeFileSync(path.join(os.tmpdir(),'odk-overview-'+theme+'-'+state+'-'+width+'.png'),(await capturePaintedPage(win)).toPNG())
       }
     }
   }
+  publishStatus({...retained,briefing:{state:'error',items:[],generatedAt:1000,omittedSources:0}})
+  await evaluate('new Promise(r=>setTimeout(r,30))')
+  assert.equal(await evaluate(`document.querySelector('#dash-narrative').textContent`),'')
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
   assert.equal(await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches`),true)
   publishStatus({...retained,briefing:{state:'loading',items:[],generatedAt:1000,omittedSources:0}})
@@ -1087,7 +1113,8 @@ app.whenReady().then(async () => {
   }
   if (process.argv.includes('--overview-synthesis-only')) {
     await assertAllSourceOverview()
-    console.log('PASS synthetic all-source generation, Pi Agent analysis, coverage and four renderer themes')
+    await assertOverviewMarkdown()
+    console.log('PASS all-source generation, Pi Agent analysis and safe Markdown across four themes and three sizes')
     finish(0);return
   }
   if (process.argv.includes('--overview-refresh-only')) {
@@ -1115,6 +1142,7 @@ app.whenReady().then(async () => {
     return
   }
   await assertAllSourceOverview()
+  await assertOverviewMarkdown()
   await assertOverviewRefreshIndicator()
   const compactSegments = [{ text: 'You have ' }, { text: '3 active sessions', icon: 'sessions' },
     { text: ' and ' }, { text: '2 plants at 63% moisture', icon: 'plants' },
@@ -1134,7 +1162,7 @@ app.whenReady().then(async () => {
   assert.ok(await evaluate(`document.querySelector('.dash-unit-degree') && getComputedStyle(document.querySelector('.dash-unit')).fontFamily.includes('Zpix')`), 'Pixel Celsius uses pixel font and square degree')
   await evaluate(`window.odkTheme.set('instrument')`)
   await send(compact)
-  assert.equal(await evaluate(`document.querySelector('#dash-narrative').tagName`), 'P')
+  assert.equal(await evaluate(`document.querySelector('#dash-narrative').tagName`), 'DIV')
   assert.equal(await evaluate(`document.querySelector('.dash-foot, .dash-provenance, #dash-agent-status, #dash-source-list')`), null)
   assert.ok(await evaluate(`(() => { const n=document.querySelector('#dash-narrative'), d=document.querySelector('.dash'), c=getComputedStyle(d); return Math.abs(n.getBoundingClientRect().width-(d.clientWidth-parseFloat(c.paddingLeft)-parseFloat(c.paddingRight))) < 2 })()`), 'home uses full content width')
 
@@ -1313,7 +1341,11 @@ app.whenReady().then(async () => {
       for (const state of ['loading', 'empty', 'unavailable', 'error', 'stale']) {
         await send({ ...frame, state, items: ['loading', 'stale'].includes(state) ? frame.items : [] })
         assert.equal(await evaluate(`document.querySelector('#dash-narrative').dataset.state`), state)
-        assert.ok(await evaluate(`document.querySelector('#dash-narrative').textContent.length > 0`))
+        const narrative = await evaluate(`document.querySelector('#dash-narrative').textContent`)
+        if (['error', 'unavailable'].includes(state)) {
+          assert.equal(narrative, '')
+          assert.match(await evaluate(`document.querySelector('.dash-presence').getAttribute('aria-label')`), /retry|reconnect/i)
+        } else assert.ok(narrative.length > 0)
       }
       publishStatus({ state: 'error', message: '' })
       await evaluate(`new Promise(r => setTimeout(r, 30))`)

@@ -89,6 +89,8 @@ for (const mode of ['development', 'native']) {
         { env, timeout: timeouts.externalGuardChild }), error => {
         assert.equal(error.code, 1)
         assert.match(error.stderr, /Captured Pi views must not call packaged mounts/)
+        assert.match(error.stderr, /PI_EXTERNAL_GUARD_PHASE:signed/)
+        assert.doesNotMatch(error.stderr, /PI_EXTERNAL_GUARD_PHASE:default/)
         return true
       })
     } finally { await fs.rm(profile, { recursive: true, force: true }) }

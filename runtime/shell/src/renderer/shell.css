@@ -467,6 +467,7 @@ body.kiosk {
 }
 
 .dash-presence {
+  position: relative;
   width: clamp(12px, 1.5vw, 24px);
   height: clamp(12px, 1.5vw, 24px);
   border-radius: var(--odk-radius-pill);
@@ -474,8 +475,8 @@ body.kiosk {
   background: var(--odk-accent-red);
   flex: none;
 }
-.dash-presence[data-state="loading"] { background: transparent; }
-.dash-presence[data-state="loading"]::after {
+.dash-presence:is([data-state="loading"], [data-state="error"], [data-state="stale"], [data-state="unavailable"]) { background: transparent; }
+.dash-presence:is([data-state="loading"], [data-state="error"], [data-state="stale"], [data-state="unavailable"])::after {
   content: '';
   display: block;
   box-sizing: border-box;
@@ -485,6 +486,19 @@ body.kiosk {
   border-right-color: transparent;
   border-radius: 50%;
   animation: odk-overview-refresh 0.8s linear infinite;
+}
+.dash-presence:is([data-state="error"], [data-state="stale"], [data-state="unavailable"])::after {
+  border-color: var(--odk-accent-red);
+  animation: none;
+}
+.dash-presence:is([data-state="error"], [data-state="stale"], [data-state="unavailable"])::before {
+  content: '!';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 700 12px/1 sans-serif;
+  color: var(--odk-primary);
 }
 @keyframes odk-overview-refresh { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
@@ -518,7 +532,17 @@ body.kiosk {
   text-wrap: pretty;
 }
 
-.dash-clause { white-space: normal; }
+.dash-clause { display: inline; white-space: normal; }
+.dash-fact, .dash-context, .dash-markdown { display: inline; }
+.dash-markdown > :first-child { margin-block-start: 0; }
+.dash-markdown > :last-child { margin-block-end: 0; }
+.dash-markdown p { display: inline; }
+.dash-markdown :is(ul, ol) { margin-block: 0; padding-inline-start: 1.5em; }
+.dash-markdown :is(h1, h2, h3, h4, h5, h6, pre, blockquote) { margin: 0; font: inherit; }
+.dash-markdown :is(code, pre) { white-space: pre-wrap; overflow-wrap: anywhere; }
+.dash-markdown table { border-collapse: collapse; font: inherit; }
+.dash-markdown :is(th, td) { padding-inline-end: 0.5em; }
+[data-theme='pixel'] .dash-markdown :is(strong, em, th) { font-weight: 400; font-style: normal; }
 .dash-context { color: var(--odk-secondary-strong); }
 .dash-fact { color: var(--odk-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
 .dash-icon { display: inline; color: color-mix(in srgb, var(--odk-accent-green) 60%, var(--odk-primary)); }

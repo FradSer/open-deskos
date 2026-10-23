@@ -15,13 +15,16 @@ Read [runtime replacement](RUNTIME_PLUGIN_REPLACEMENT.md) for loading and manage
 
 ## Preserved behavior
 
-The surface renders briefing segments as literal text.
+The surface renders briefing segments as safe Markdown.
+HTML remains literal, images cannot load, and links remain display-only text.
 Approved fact icons retain the Shell theme adapter and static artwork.
 Temperature readings retain their Celsius units.
 Portfolio changes use direction colors only for signed, nonzero values with live sources and a live frame.
 The briefing frame retains source metadata and omitted-source counts.
 The surface has no attribution footer, update timestamp, or Sources controls.
-Loading, empty, unavailable, error, and stale frames show availability in the briefing paragraph.
+Loading and empty frames can show the empty placeholder.
+Unavailable, error, and stale frames report availability only through the generation indicator.
+Their paragraphs contain available facts or remain empty.
 The paragraph uses a polite status region.
 Home fits the paragraph and inline icons within the space below the date row.
 The date row and card geometry do not change with briefing length.
@@ -29,7 +32,9 @@ Long content remains scrollable at the 16-pixel reading floor.
 The date retains its English weekday, month, day, and year.
 A red presence dot stays beside the weekday.
 The existing `loading` briefing state changes that same dot into a spinner without changing its position.
-Every terminal state restores the red dot; the dot does not indicate service health.
+Error, stale, and unavailable states show a static failure ring with an exclamation mark.
+The indicator supplies an accessible status label and automatic recovery description.
+Live and empty states restore the red dot.
 Reduced motion keeps a static busy ring and an accessible busy state.
 Loading shows the retained briefing without refresh narration.
 An initial load uses the empty placeholder with `aria-busy`.
@@ -41,7 +46,7 @@ Failed unsubscribe retains cleanup ownership for retry.
 ## Independent implementation evidence
 
 [The independent fixture](../tests/fixtures/dashboard-surface-replacement/entry.js) constructs its own nodes and formats readings without default factory delegation.
-It shares approved static icon paths, Shell styles, fonts, the public icon adapter, and public services.
+It shares approved static icon paths, Shell styles, fonts, the public icon adapter, public services, and the safe Markdown renderer.
 These shared dependencies limit independence claims for appearance and data providers.
 The fixture is acceptance code, not an installed product default.
 
