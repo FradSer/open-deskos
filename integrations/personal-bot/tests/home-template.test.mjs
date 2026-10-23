@@ -267,3 +267,68 @@ test('independent source batches start together before final selection', async (
     assert.ok(entered <= 4, 'Model concurrency stays bounded')
   } finally { release(); await pending }
 })
+
+test('rebinding follows task identities across reordered Pi sessions', async () => {
+  const { rebindHomeSelection } = await import('../src/home-template.mjs')
+  const task = (id, state) => ({ id, name: id, state })
+  const before = [source('pi', 'sessions', { sessions: [task('Task A', 'waiting'), task('Task B', 'running')] })]
+  const after = [source('pi', 'sessions', { sessions: [task('Task B', 'running'), task('Task A', 'finished')] })]
+  const facts = homeFactVariables(before)
+  const raw = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith('sessions.0.state'))] }] }, facts)
+  const fresh = resolveHomeTemplate(rebindHomeSelection(raw, before, after), after)
+  assert.match(fresh.items[0].text, /Task A finished/)
+  assert.doesNotMatch(fresh.items[0].text, /Task B/)
+})
+
+test('rebinding keeps complete current facts within the existing display budget', async () => {
+  const { rebindHomeSelection } = await import('../src/home-template.mjs')
+  const before = [source('agent', 'tasks', { goal: 'x'.repeat(130), state: 'running', verification: 'not_run' })]
+  const after = [source('agent', 'tasks', { goal: 'x'.repeat(130), state: 'finished', verification: 'not_run' })]
+  const facts = homeFactVariables(before)
+  const raw = compileHomeSelection({ items: [{ sources: facts.map((_, index) => index) }] }, facts)
+  const fresh = resolveHomeTemplate(rebindHomeSelection(raw, before, after), after)
+  assert.ok(fresh.items.reduce((sum, item) => sum + item.text.length, 0) <= 240)
+  assert.match(fresh.items[0].text, /verification not_run/)
+  assert.doesNotMatch(fresh.items[0].text, /running/)
+})
+
+
+test('selection and recovery show one fact per service while every fact reaches analysis', async () => {
+  const { fallbackHomeSelection } = await import('../src/home-template.mjs')
+  const readings = [
+    { ...source('pi', 'sessions', { state: 'failed', goal: 'Fix **release**' }), serviceId: 'pi-service' },
+    { ...source('remote', 'sessions', { report: 'Prior result', verification: 'reported_unverified' }), serviceId: 'pi-service' },
+    source('other', 'sessions', { state: 'waiting' }),
+  ]
+  const seen = []
+  const raw = await generateHomeSelection(readings, { choose: async request => {
+    seen.push(...request.variables)
+    return { items: [{ sources: [0, 1, 2] }, { sources: [3, 4] }] }
+  } })
+  assert.equal(seen.length, homeFactVariables(readings).length)
+  assert.equal(new Set(seen.map(f => f.serviceId)).size, 2)
+  const bound = resolveHomeTemplate(raw, readings)
+  assert.equal(bound.items.flatMap(item => item.segments).length, 2)
+  assert.match(bound.items.map(item => item.text).join(' '), /pi failed.*other waiting/)
+  const fallback = resolveHomeTemplate(fallbackHomeSelection(readings), readings)
+  assert.equal(fallback.items.flatMap(item => item.segments).length, 2)
+  assert.match(fallback.items[0].text, /failed/)
+})
+
+
+for (const count of [1, 260]) test(`ignored service duplicates cannot invalidate or enter reduction (${count} sources)`, async () => {
+  const readings = Array.from({ length: count }, (_, index) => source(`odk.remote.r${index}`, 'sessions', { state: 'running', report: 'x'.repeat(300) }))
+  const seen = new Set()
+  let calls = 0
+  const raw = await generateHomeSelection(readings, { choose: async request => {
+    calls++
+    request.variables.forEach(fact => seen.add(fact.factId))
+    const first = request.variables.find(fact => fact.displayable)
+    const duplicate = request.variables.find(fact => fact.selector !== first.selector)
+    return { items: [{ sources: duplicate ? [first.selector, duplicate.selector] : [first.selector] }] }
+  } })
+  const bound = resolveHomeTemplate(raw, readings)
+  assert.equal(bound.items.flatMap(item => item.segments).length, 1)
+  assert.equal(seen.size, homeFactVariables(readings).length)
+  if (count > 1) assert.ok(calls > 1)
+})

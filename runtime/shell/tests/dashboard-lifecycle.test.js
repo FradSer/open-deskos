@@ -11,7 +11,7 @@ const id = 'odk.page.dashboard'
 function node(document) {
   let literal = ''
   const children = []
-  return { ownerDocument: document, dataset: {}, attributes: {}, setAttribute(name, value) { this.attributes[name] = value }, hidden: false, className: '', children,
+  return { ownerDocument: document, dataset: {}, attributes: {}, setAttribute(name, value) { this.attributes[name] = value }, hidden: false, className: '', classList: { contains: () => false }, children,
     clientWidth: 600, scrollWidth: 600, scrollHeight: 20,
     getBoundingClientRect: () => ({ top: 0 }), style: { setProperty() {} },
     get textContent() { return literal + children.map(child => child.textContent).join('') },
@@ -22,7 +22,7 @@ function node(document) {
 }
 
 async function fixture(t, { failUnsubscribe = false, fit = false } = {}) {
-  const root = { odkPluginHost: { createPluginHost } }
+  const root = { odkPluginHost: { createPluginHost }, odkPersonalBotReply: { render(target, text) { target.textContent = text } } }
   const fitResources = { observers: new Set(), callbacks: [], frames: new Map(), fontListeners: new Set() }
   if (fit) {
     const observer = class {
@@ -102,13 +102,14 @@ test('Dashboard omits attribution, update metadata and Sources controls', async 
   assert.match(f.element.innerHTML, /id="dash-narrative"[^>]*role="status"[^>]*aria-live="polite"/)
 })
 
-test('Dashboard labels retained readings in the paragraph without attribution metadata', async t => {
+test('Dashboard reports retained-reading failures only through its indicator', async t => {
   const f = await fixture(t)
   const item = { text: 'Retained desk reading.', segments: [{ text: 'Retained desk reading.' }], sources: [] }
-  for (const [state, prefix] of [['stale', 'Previous briefing.']]) {
+  for (const state of ['stale', 'error', 'unavailable']) {
     f.briefings[0]({ ...f.frame(state), items: [item] })
     const narrative = f.nodes.get('#dash-narrative')
-    assert.ok(narrative.textContent.startsWith(prefix + ' '))
+    assert.equal(narrative.textContent, item.text)
+    assert.match(f.nodes.get('.dash-presence').attributes['aria-label'], /retry|reconnect/i)
     assert.ok(narrative.textContent.endsWith(item.text))
     assert.equal(narrative.dataset.state, state)
   }
@@ -129,7 +130,8 @@ test('Overview loading keeps retained text and uses only the existing busy indic
   assert.equal(narrative.textContent, 'Personal Agent has no new desk briefing.')
   f.briefings[0](f.frame('error'))
   assert.equal(narrative.attributes['aria-busy'], 'false')
-  assert.match(narrative.textContent, /could not update/)
+  assert.equal(narrative.textContent, '')
+  assert.match(f.nodes.get('.dash-presence').attributes['aria-label'], /failed.*retry/)
 })
 
 test('released Dashboard briefing cannot overwrite the next placement in the same container', async t => {
@@ -146,7 +148,8 @@ test('released Dashboard briefing cannot overwrite the next placement in the sam
   oldBriefing(f.frame('error'))
   assert.deepEqual(f.snapshot(), before)
   f.briefings[1](f.frame('unavailable'))
-  assert.equal(f.nodes.get('#dash-narrative').textContent, 'Personal Agent is unavailable.')
+  assert.equal(f.nodes.get('#dash-narrative').textContent, '')
+  assert.match(f.nodes.get('.dash-presence').attributes['aria-label'], /reconnect/)
   f.ticks[1](new Date(2027, 1, 2))
   assert.equal(f.nodes.get('#dash-md').textContent, 'February 2')
   assert.equal(f.nodes.get('#dash-y').textContent, '2027')

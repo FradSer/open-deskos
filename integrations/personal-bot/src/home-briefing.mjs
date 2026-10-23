@@ -1,4 +1,4 @@
-import { resolveHomeTemplate, homeTemplateVariables, homeSelectionInstructions, homeAttention, fallbackHomeSelection } from './home-template.mjs'
+import { resolveHomeTemplate, homeTemplateVariables, homeSelectionInstructions, homeAttention, fallbackHomeSelection, rebindHomeSelection } from './home-template.mjs'
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const STATES = new Set(['live', 'stale', 'unavailable', 'unconfigured', 'unauthorized', 'error'])
 const ICONS = new Set(['sessions', 'plants', 'weather', 'mail', 'calendar', 'tasks', 'reading', 'portfolio', 'quota', 'apps', 'status'])
@@ -36,7 +36,7 @@ function selectionValue(value, path = '', now = Date.now()) {
   if (typeof value === 'string' && /(?:At|Time|deadline)$/.test(path)) return { value, attention: homeAttention(path, value, {}, now) }
   return value
 }
-const layoutFingerprint = (readings, now) => JSON.stringify(readings.map(({ id, label, kind, state, home, value }) => ({ id, label, kind, state, home, shape: valueShape(value), selection: selectionValue(value, '', now) })))
+const layoutFingerprint = (readings, now) => JSON.stringify(readings.map(({ id, serviceId, label, kind, state, home, value }) => ({ id, serviceId, label, kind, state, home, shape: valueShape(value), selection: selectionValue(value, '', now) })))
 const partialValue = value => typeof value === 'string' ? value.length > 8192 : Boolean(value && typeof value === 'object'
   && (value.truncated === true || value.incomplete === true || Object.values(value).some(partialValue)))
 
@@ -201,7 +201,8 @@ export class HomeBriefing {
             const value = result.status === 'fulfilled' ? result.value : null
             const valid = value && value.id === entry.id && STATES.has(value.state)
               && (value.value === null || (typeof value.value === 'object' && !Array.isArray(value.value)))
-            const home = entry.home ? { home: entry.home } : {}
+            const home = { ...(entry.home ? { home: entry.home } : {}),
+              ...(typeof entry.serviceId === 'string' && ID.test(entry.serviceId) && entry.serviceId !== entry.id ? { serviceId: entry.serviceId } : {}) }
             const selected = valid && value.value && entry.home ? Object.fromEntries(entry.home.fields.filter(field => Object.hasOwn(value.value, field)).map(field => [field, value.value[field]])) : value?.value
             let source = valid ? { id: entry.id, label: entry.label, kind: entry.kind, state: value.state, value: selected, ...home,
               ...(Number.isFinite(value.updatedAt) && value.updatedAt >= 0 && value.updatedAt <= 8640000000000000 ? { updatedAt: value.updatedAt } : {}) }
@@ -258,21 +259,35 @@ export class HomeBriefing {
           }
         } else this.emit('loading')
         stage = 'generate'
-        const raw = await this.generate({ readings, omittedSources, now: this.now(), previous: this.frame.items.filter(item => item.sources.every(source => readings.some(reading => reading.id === source.id))), ...(this.requireBindings ? { variables: homeTemplateVariables(readings) } : {}), signal: controller.signal })
+        let raw = await this.generate({ readings, omittedSources, now: this.now(), previous: this.frame.items.filter(item => item.sources.every(source => readings.some(reading => reading.id === source.id))), ...(this.requireBindings ? { variables: homeTemplateVariables(readings) } : {}), signal: controller.signal })
         if (!current()) return
+        let selectionChanged = false
         // A push reports possible change, not changed content. Repeated telemetry
         // must not cancel a slow model; confirm against fresh readings before use.
         if (this.requireBindings || revision !== this.revision) {
           const confirmationRevision = this.revision
           const latest = await snapshot()
           if (!current()) return
-          if (confirmationRevision !== this.revision || (this.requireBindings ? layoutFingerprint(latest.readings, this.now()) !== layout : contentFingerprint(latest.readings) !== fingerprint) || latest.omittedSources !== omittedSources) {
+          if (confirmationRevision !== this.revision || (!this.requireBindings && (contentFingerprint(latest.readings) !== fingerprint || latest.omittedSources !== omittedSources))) {
             this.fingerprint = ''
             this.emit(this.frame.items.length ? 'stale' : 'loading')
             this.schedule()
             return
           }
           if (this.requireBindings) {
+            selectionChanged = layoutFingerprint(latest.readings, this.now()) !== layout || latest.omittedSources !== omittedSources
+            if (selectionChanged) {
+              stage = 'validate'
+              raw = rebindHomeSelection(raw, readings, latest.readings)
+              if (!raw.items.length) {
+                const items = boundSourceFacts(latest.readings, this.now())
+                this.template = null
+                this.sourceOnly = true
+                this.emit('loading', { items, generatedAt: 0, omittedSources: latest.omittedSources })
+                this.schedule()
+                return
+              }
+            }
             readings = latest.readings
             omittedSources = latest.omittedSources
             fingerprint = contentFingerprint(readings)
@@ -282,12 +297,13 @@ export class HomeBriefing {
         const items = validateHomeBriefing(this.requireBindings ? resolveHomeTemplate(raw, readings) : raw, readings, { requireSegments: this.requireBindings })
         if (this.requireBindings) {
           this.template = structuredClone(raw)
-          this.templateLayout = layoutFingerprint(readings, this.now())
+          this.templateLayout = selectionChanged ? '' : layoutFingerprint(readings, this.now())
           this.templateCreatedAt = this.now()
         }
         this.fingerprint = fingerprint
         this.sourceOnly = false
         this.emit(items.length ? 'live' : 'empty', { items, generatedAt: this.now(), omittedSources })
+        if (selectionChanged) this.schedule()
       } catch (error) {
         if (current()) {
           const name = typeof error?.name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,47}$/.test(error.name) ? error.name : 'Error'

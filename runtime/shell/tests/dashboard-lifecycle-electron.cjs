@@ -51,7 +51,9 @@ app.whenReady().then(async () => {
     });
     await window.odkRendererRuntime.setEnabled('odk.page.dashboard', false);
     await window.odkRendererRuntime.setEnabled('odk.page.dashboard', true);
-    if (document.querySelector('#dash-narrative').textContent !== 'Personal Agent could not update your briefing. It will retry.')
+    if (document.querySelector('#dash-narrative').textContent !== ''
+      || document.querySelector('.dash-presence').dataset.state !== 'error'
+      || !/failed.*retry/i.test(document.querySelector('.dash-presence').getAttribute('aria-label')))
       throw Error('Dashboard bypassed selected Home Briefing service');
     window.homeDelivery = new Promise(resolve => {
       const release = window.odkPersonalBot.subscribe(() => { release(); resolve(); });
@@ -72,7 +74,9 @@ app.whenReady().then(async () => {
     await current;
     await window.odkRendererRuntime.setEnabled('odk.page.dashboard', false);
     await window.odkRendererRuntime.setEnabled('odk.page.dashboard', true);
-    if (document.querySelector('#dash-narrative').textContent !== 'Personal Agent is unavailable.')
+    if (document.querySelector('#dash-narrative').textContent !== ''
+      || document.querySelector('.dash-presence').dataset.state !== 'unavailable'
+      || !/reconnect/i.test(document.querySelector('.dash-presence').getAttribute('aria-label')))
       throw Error('Dashboard did not restore current Home Briefing');
   })()`)
   const result = await js(`(async () => {
@@ -118,7 +122,9 @@ app.whenReady().then(async () => {
       await registry.setEnabled(id, true);
       check(briefings.length === 2 && ticks.length === 2, 'Remount subscriptions absent');
       briefings[1](frame('unavailable')); ticks[1](new Date(2027, 1, 2));
-      check(element.querySelector('#dash-narrative').textContent === 'Personal Agent is unavailable.', 'Current briefing stopped updating');
+      check(element.querySelector('#dash-narrative').textContent === '', 'Failure text entered the paragraph');
+      check(element.querySelector('.dash-presence').dataset.state === 'unavailable', 'Current briefing stopped updating');
+      check(/reconnect/i.test(element.querySelector('.dash-presence').getAttribute('aria-label')), 'Current recovery status absent');
       check(element.querySelector('#dash-md').textContent === 'February 2', 'Current date stopped updating');
       check(element.querySelector('#dash-y').textContent === '2027', 'Current year stopped updating');
       const currentHTML = element.innerHTML;
