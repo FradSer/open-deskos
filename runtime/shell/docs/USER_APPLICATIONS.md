@@ -149,7 +149,15 @@ Standalone callers without a catalog retain their existing store and verifier li
 
 ## Agent operations
 
-The resident Agent writes the same draft format, then calls `user_app_install`. Other tools are `user_apps_list`, `user_apps_desktop`, `user_app_place`, `user_app_rollback`, and `user_app_remove`. They communicate with the running Shell via `$XDG_RUNTIME_DIR/odk-apps/control.sock`; directory mode 0700, socket 0600. No network control listener is opened. A missing Shell is reported as unavailable, not successful installation.
+Hosted Pi writes the draft format. The resident Agent calls `user_app_install` after it reads the drafting result and evidence.
+Other tools are `user_apps_list`, `user_apps_desktop`, `user_app_place`, `user_app_rollback`, and `user_app_remove`.
+On CM5, they use `$XDG_RUNTIME_DIR/odk-apps/control.sock`; directory mode 0700, socket 0600.
+For a Windows owner turn, the existing authenticated display relay binds application operations to that originating desk.
+The central configured workspace retains draft source. Installation transfers only bounded manifest and HTML bytes with a content digest.
+The Windows Shell verifies those exact bytes through its private application control channel before publication.
+Inventory, geometry, updates, placement, rollback, and removal use that same desk.
+A disconnected origin reports an unknown outcome. It never redirects to CM5 or replays a mutation.
+No network control listener is opened. A missing Shell is reported as unavailable, not successful installation.
 
 Call `user_apps_desktop` before selecting a location. Its `pages` array includes stable IDs, one-based pager indices (Home is page 1, Reading page 3), kinds, and for grids `columns`, `rows`, and occupied built-in/user rectangles from the current measured grid.
 The values follow the split desktop and change when the panel size changes.
