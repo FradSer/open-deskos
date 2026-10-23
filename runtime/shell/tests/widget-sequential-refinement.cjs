@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-personal-bot-consumer-ready', () => ({ accepted: false }))
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 ipcMain.handle('odk-camera-frame', () => ({ status: 'unavailable', frame: null, capturedAt: null }))
 ipcMain.handle('odk-weather-status', () => ({ status: 'unconfigured', place: null, current: null, daily: null, updatedAt: null, hint: null, error: null }))

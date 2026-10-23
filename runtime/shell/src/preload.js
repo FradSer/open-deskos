@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('odkPersonalBot', {
   supportsReplyTo: true,
   sendText: (text, replyTo) => replyTo === undefined ? ipcRenderer.invoke('odk-personal-bot-text', text) : ipcRenderer.invoke('odk-personal-bot-text', text, replyTo),
   getStatus: () => ipcRenderer.invoke('odk-personal-bot-status'),
+  consumerReady: (id) => ipcRenderer.invoke('odk-personal-bot-consumer-ready', id),
   proposalCommand: (command) => ipcRenderer.invoke('odk-personal-bot-proposal', command),
   subscribe(listener) {
     const handler = (_event, update) => listener(update)

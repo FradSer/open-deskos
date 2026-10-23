@@ -375,6 +375,8 @@
 
   let active = false
   let dismissed = false
+  let consumerUnavailable = false
+  let consumerId
   const busyStates = new Set(['starting', 'sending', 'transcribing', 'thinking'])
   let togglePending = false
   let savedScrollTop = 0
@@ -472,6 +474,11 @@
   function render(status) {
     if (!status || !Object.hasOwn(presentation, status.state)) return
     renderProposals(status)
+    if (status.proposalCapabilities?.read === false) consumerId = undefined
+    const unavailable = status.state === 'unavailable' || status.proposalCapabilities?.read === false
+    const restoredConsumer = consumerUnavailable && !unavailable
+    consumerUnavailable = unavailable
+    if (restoredConsumer) consumerReady()
     const idle = ['idle', 'error'].includes(status.state)
     const hasSuggestions = suggestionCapabilities.read && Boolean(proposals?.children.length)
     const userSuggestions = hasSuggestions && status.proposalPopup && status.proposalInteraction && active && !dismissed && !proactive
@@ -484,7 +491,7 @@
       proactive = true
       surface.dataset.proactive = 'true'
       surface.setAttribute('aria-modal', 'false')
-      if (status.proposalPopup) dismissed = false
+      if (status.proposalPopup && !status.proposalRecovery) dismissed = false
       setVisible(!dismissed)
       return
     }
@@ -550,6 +557,23 @@
     return changed
   }
 
+  function consumerReady() {
+    if (document.visibilityState === 'hidden' || typeof window.odkPersonalBot.consumerReady !== 'function' || !globalThis.crypto?.randomUUID) return
+    void Promise.resolve(window.odkPersonalBot.consumerReady(consumerId ||= globalThis.crypto.randomUUID())).catch(() => {})
+  }
+  function consumerVisibilityChanged() {
+    if (document.visibilityState === 'hidden') {
+      consumerId = undefined
+      void Promise.resolve(window.odkPersonalBot.consumerReady?.(null)).catch(() => {})
+    }
+    else consumerReady()
+  }
+  document.addEventListener('visibilitychange', consumerVisibilityChanged)
+  window.addEventListener('pagehide', () => {
+    document.removeEventListener('visibilitychange', consumerVisibilityChanged)
+    void Promise.resolve(window.odkPersonalBot.consumerReady?.(null)).catch(() => {})
+  })
   window.odkPersonalBot.subscribe(render)
+  consumerReady()
   window.odkPersonalBot.onMic(mic)
 })()

@@ -101,3 +101,9 @@ test('session reply references cross the narrow preload bridge without adding ta
  await exposed.odkPersonalBot.sendText('Ordinary')
  assert.deepEqual(invokes.at(-1),['odk-personal-bot-text','Ordinary'])
 })
+
+test('consumer readiness has a dedicated narrow bridge', async () => {
+  const { exposed, invokes } = loadPreload()
+  await exposed.odkPersonalBot.consumerReady('11111111-1111-4111-8111-111111111111')
+  assert.deepEqual(invokes, [['odk-personal-bot-consumer-ready', '11111111-1111-4111-8111-111111111111']])
+})

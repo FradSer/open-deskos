@@ -125,6 +125,9 @@ function createSystemChannelPlugins() {
           broadcast('odk-personal-bot-status', status)
         }))
         bind(ctx, 'odk-personal-bot-status', () => client.snapshot())
+        bind(ctx, 'odk-personal-bot-consumer-ready', (event, id) => ({
+          accepted: config.isConsumerFrame?.(event) === true && client.consumerReady?.(id) === true,
+        }))
         bind(ctx, 'odk-personal-bot-toggle', () => {
           const current = client.snapshot()
           if (pendingToggle || ['transcribing', 'thinking'].includes(current.state)) return { accepted: false }

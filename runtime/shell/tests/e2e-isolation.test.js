@@ -99,7 +99,8 @@ test('desktop fixture registers each IPC handler once with its intended state', 
         } } }
     },
   })
-  assert.equal(handlers.size, 12)
+  assert.equal(handlers.size, 13)
+  assert.equal(handlers.get('odk-personal-bot-consumer-ready')().accepted, false)
   assert.equal(handlers.get('odk-remote-link-state')().state, 'disconnected')
   assert.equal(handlers.get('odk-futu-holdings')().state, 'unavailable')
   assert.equal(handlers.get('odk-weather-status')().status, 'unconfigured')
