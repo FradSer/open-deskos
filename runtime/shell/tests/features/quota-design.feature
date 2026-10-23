@@ -43,6 +43,9 @@ Feature: Read AI quotas with clear provenance and recovery
     When each account is displayed under every theme
     Then provider, state, percentage, account, and position remain at least 14px
     And all readings fit inside the shared content inset
+    And the primary percentage uses 40px text in every theme
+    And the quota track and fill retain their 6px height
+    And the bar width and accessible reading match the displayed percentage
 
   Scenario: Hidden consumer acceptance uses its private profile on every host
     Given the parent supplies a private Electron profile
