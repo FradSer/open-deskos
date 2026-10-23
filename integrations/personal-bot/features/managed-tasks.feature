@@ -53,6 +53,14 @@ Feature: Durable per-host Hosted Pi sessions
     Then it runs as a further turn in the same identity
     And no new receipt or identity is created
 
+  Scenario: History compaction preserves the current turn outcome
+    Given a live original session with a long message history
+    When the SDK compacts that history during a further prompt
+    Then the outcome uses the current turn's appended assistant message
+    And a normal stop remains finished with its actual response
+    But an old assistant message cannot complete a turn without a new reply
+    And error, length, and aborted stop reasons do not become finished
+
   Scenario: A further prompt steers a running turn
     Given a session whose turn is executing
     When a further prompt states a delivery behavior
