@@ -131,6 +131,23 @@ Feature: Personal Bot plugin composition
     And a fresh Home publishes current facts through the same resident service
     And a late generation result cannot replace the fresh facts
 
+  Scenario: Overview generation has a fifteen-minute minimum interval
+    Given an Overview generation attempt finishes successfully or with an error
+    When source pushes and sixty-second checks run before fifteen minutes pass
+    Then current source facts update without another generation or loading transition
+    And no new attempt starts at fourteen minutes and fifty-nine seconds
+    When fifteen minutes pass after the attempt finishes
+    Then changed or expired context can start another generation
+    And template expiry remains fifteen minutes
+
+  Scenario: Overview failures use bounded retry delays
+    Given an Overview generation attempt fails
+    When source pushes and sixty-second checks continue
+    Then retry delays are fifteen minutes and then thirty minutes
+    And further failure delays remain thirty minutes
+    When a generation succeeds and the next attempt fails
+    Then its retry delay resets to fifteen minutes
+
   Scenario: Selected Agent runtime preserves the voice service consumer
     Given the resident uses the default Pi adapter or a trusted external Agent runtime
     And recording and transcription use isolated synthetic inputs
