@@ -32,7 +32,7 @@ async function usage(win, check) {
       singlePageTitle: card.querySelector('.quota-page-head h1')?.textContent === 'AI usage & quotas' && card.querySelectorAll('.quota-page-head h1, .quota-page-head p').length === 1,
       noStatusLabel: !card.querySelector('.quota-status-label'),
       noNavigationHelp: !card.querySelector('#quota-help'),
-      conciseCardTitles: [...card.querySelectorAll('.provider-quota-card-head')].every(head => head.querySelectorAll('.provider-quota-identity > *').length === 1 && head.querySelector('strong')?.textContent.endsWith('.json')),
+      conciseCardTitles: [...card.querySelectorAll('.provider-quota-card-head')].every(head => head.querySelectorAll('.provider-quota-identity > *').length === 2 && Boolean(head.querySelector('strong')?.textContent) && Boolean(head.querySelector('.provider-quota-account')?.textContent)),
       plansInBody: [...card.querySelectorAll('.provider-quota-card')].every(providerCard => !providerCard.querySelector('.provider-quota-card-head .provider-plan') && providerCard.querySelector('.provider-quota-card-body .provider-plan')),
       noBadge: !card.querySelector('.widget-glance-badge'),
       hasQuotaGrid: Boolean(metrics),
@@ -46,7 +46,7 @@ async function usage(win, check) {
   check('Usage page heading names AI usage and quotas in one line', result.singlePageTitle)
   check('Usage status instrument omits its redundant label', result.noStatusLabel)
   check('Usage omits redundant navigation help', result.noNavigationHelp)
-  check('Usage quota cards use the authentication filename as one title', result.conciseCardTitles)
+  check('Usage quota cards identify the provider and account before file details', result.conciseCardTitles)
   check('Usage quota plans live in the card body', result.plansInBody)
   check('Usage omits its redundant provider badge', result.noBadge)
   check('Usage exposes the provider quota grid', result.hasQuotaGrid)

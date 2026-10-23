@@ -77,12 +77,32 @@
 
   function accountState(account) {
     if (account.error) return ['unavailable', 'Unavailable']
-    const quotas = account.groups.flatMap((group) => group.quotas)
+    const quotas = visibleGroups(account).flatMap((group) => group.quotas)
     const known = quotas.filter((quota) => isPercent(quota.remainingPct))
     if (known.some((quota) => quota.remainingPct === 0)) return ['low', 'Exhausted window']
     if (known.some((quota) => quota.remainingPct < 25)) return ['low', 'Running low']
     if (!known.length || known.length !== quotas.length) return ['unknown', 'Quota unknown']
     return ['available', 'Available']
+  }
+
+  function windowKind(quota) {
+    if (quota.horizon) return quota.horizon
+    if (/5\s*(hour|h)\b/i.test(quota.label || '')) return 'short'
+    if (/week/i.test(quota.label || '')) return 'long'
+    return null
+  }
+
+  function visibleGroups(account) {
+    const pro = account.provider === 'codex' && /\bpro\b/i.test(account.plan || '')
+    return (account.groups || []).map(group => {
+      const quotas = (group.quotas || []).filter(quota => !pro || windowKind(quota) !== 'short')
+      if (account.provider === 'antigravity') {
+        for (const [horizon, label] of [['short', '5 hour limit'], ['long', 'Weekly limit']]) {
+          if (!quotas.some(quota => windowKind(quota) === horizon)) quotas.push({ label, horizon, remainingPct: null })
+        }
+      }
+      return { ...group, quotas }
+    }).filter(group => group.quotas.length)
   }
 
   function accountCard(account) {
@@ -94,13 +114,13 @@
     return `<article class="provider-quota-card is-${state}" aria-label="${escapeHtml(title)}">
       <header class="provider-quota-card-head">
         <span class="provider-quota-icon">${ICONS[provider] || ICONS.codex}</span>
-        <div class="provider-quota-identity"><strong>${escapeHtml(title)}</strong></div>
+        <div class="provider-quota-identity"><strong>${escapeHtml(providerName)}</strong><p class="provider-quota-account">${escapeHtml(account.account || 'Account identity unavailable')}</p></div>
       </header>
       <div class="provider-quota-card-body">
-        <div class="provider-quota-context">${plan}<p class="provider-quota-account">${escapeHtml(account.account || providerName)}</p><p class="provider-quota-availability">${escapeHtml(label)}</p></div>
+        <div class="provider-quota-context">${plan}<p class="provider-quota-availability">${escapeHtml(label)}</p></div>
         ${account.error
           ? `<p class="provider-quota-error">${escapeHtml(account.error)}</p>`
-          : `${account.groups.map(quotaGroup).join('') || '<p class="provider-quota-error">No quota windows were returned.</p>'}`}
+          : `${visibleGroups(account).map(quotaGroup).join('') || '<p class="provider-quota-error">No quota windows were returned.</p>'}`}
         <details class="provider-details" data-account="${escapeHtml(account.id || `${provider}:${title}`)}">
           <summary>${account.resetCredits ? `Reset credits · ${escapeHtml(account.resetCredits.available)} / Account details` : 'Account details'}</summary>
           ${resetCredits(account.resetCredits)}
@@ -224,12 +244,14 @@
       el.innerHTML = `
         <div class="widget-head"><span class="widget-heading">AI usage</span><span class="quota-state w-state">Loading</span></div>
         <div class="quota-tile-body widget-signal odk-col items-center justify-center">
-          <span class="quota-tile-value runtime-value">--%</span>
+          <div class="quota-tile-reading"><span class="quota-tile-value runtime-value">--%</span><span class="quota-tile-position"></span></div>
           <div class="quota-tile-meter" role="meter" aria-valuemin="0" aria-valuemax="100" hidden>
             <span class="quota-tile-meter-fill"></span>
           </div>
           <div class="quota-tile-unknown" aria-hidden="true" hidden></div>
           <span class="quota-tile-context">AI usage</span>
+          <span class="quota-tile-secondary"></span>
+          <span class="quota-tile-account"></span>
         </div>`
 
       const headingNode = el.querySelector('.widget-heading')
@@ -240,6 +262,12 @@
       const unknownNode = el.querySelector('.quota-tile-unknown')
       const contextNode = el.querySelector('.quota-tile-context')
 
+      const secondaryNode = el.querySelector('.quota-tile-secondary')
+      const accountNode = el.querySelector('.quota-tile-account')
+      const positionNode = el.querySelector('.quota-tile-position')
+      let selectedKey = null
+      let elapsed = 0
+      let previousTick = Date.now()
       let disposed = false
       ctx.trackCleanup(() => { disposed = true })
 
@@ -271,6 +299,9 @@
         if (unknownNode && !unknownNode.hidden) unknownNode.hidden = true
       }
       const showWords = (state, value, context, service = 'AI usage') => {
+        text(secondaryNode, '')
+        text(accountNode, '')
+        text(positionNode, '')
         text(headingNode, service)
         text(stateNode, state)
         text(valueNode, value)
@@ -306,15 +337,38 @@
 
         const windows = (Array.isArray(accounts) ? accounts : [])
           .filter((account) => !account.error)
-          .flatMap((account) => (account.groups || []).flatMap((group) => (group.quotas || []).map(quota => ({ ...quota, account }))))
+          .flatMap((account) => visibleGroups(account).flatMap((group) => (group.quotas || []).map(quota => ({ ...quota, account }))))
           .filter((quota) => isPercent(quota.remainingPct))
-        const allowance = windows.filter((quota) => quota.horizon === 'long')
+        const allowance = windows.filter((quota) => windowKind(quota) === 'long')
         const candidates = allowance.length ? allowance : windows
 
         if (candidates.length > 0) {
-          const lowest = candidates.reduce((min, quota) => (quota.remainingPct < min.remainingPct ? quota : min), candidates[0])
+          const key = (account) => account.id || `${account.provider}:${account.fileName || account.account}`
+          const accountWindows = (accounts || []).filter(account => !account.error).map(account => {
+            const own = windows.filter(quota => quota.account === account)
+            const long = own.filter(quota => windowKind(quota) === 'long')
+            const pool = long.length ? long : own
+            return pool.length ? pool.reduce((min, quota) => quota.remainingPct < min.remainingPct ? quota : min) : null
+          }).filter(Boolean)
+          const tightest = candidates.reduce((min, quota) => quota.remainingPct < min.remainingPct ? quota : min, candidates[0])
+          let index = accountWindows.findIndex(quota => key(quota.account) === selectedKey)
+          if (index < 0) index = accountWindows.findIndex(quota => quota.account === tightest.account)
+          if (elapsed >= 6000) {
+            index = (index + Math.floor(elapsed / 6000)) % accountWindows.length
+            elapsed %= 6000
+          }
+          const lowest = accountWindows[index]
+          selectedKey = key(lowest.account)
           const percent = Math.round(lowest.remainingPct)
-          showWindow(lowest.remainingPct < 25 ? 'Low' : 'Available', lowest.label || 'Remaining quota', percent, ({ codex: 'ChatGPT', antigravity: 'Antigravity', xai: 'Grok' })[lowest.account.provider] || 'AI usage')
+          showWindow(lowest.remainingPct < 25 ? 'Low' : 'Available', lowest.label || 'Remaining quota', percent, PROVIDERS[lowest.account.provider] || 'AI usage')
+          const secondary = windows.filter(quota => quota.account === lowest.account && windowKind(quota) === 'short')
+            .reduce((min, quota) => !min || quota.remainingPct < min.remainingPct ? quota : min, null)
+          const pro = lowest.account.provider === 'codex' && /\bpro\b/i.test(lowest.account.plan || '')
+          const requiresBoth = !pro && ['codex', 'antigravity'].includes(lowest.account.provider)
+          const shortLabel = secondary?.label?.replace(/^(\d+(?:\.\d+)?)\s+hours? limit$/i, '$1h') || '5h'
+          text(secondaryNode, requiresBoth ? `${shortLabel} · ${secondary ? formatPercent(secondary.remainingPct) + ' remaining' : 'Unavailable'}` : '')
+          text(accountNode, lowest.account.account || 'Account identity unavailable')
+          text(positionNode, accountWindows.length > 1 ? `${index + 1} / ${accountWindows.length}` : '')
           return
         }
         // Accounts that returned no usable window are a count, never a reading.
@@ -329,7 +383,14 @@
         showWords('No data', '--%', 'Open to refresh')
       }
 
-      ctx.onTick(() => render())
+      ctx.onTick((now) => {
+        if (disposed) return
+        const time = typeof now?.getTime === 'function' ? now.getTime() : Date.now()
+        const paused = document.hidden || root.matchMedia?.('(prefers-reduced-motion: reduce)').matches || el.matches?.(':hover, :focus-within')
+        if (!paused) elapsed += Math.max(0, time - previousTick)
+        previousTick = time
+        render()
+      })
       render()
       // Read the shared source at mount rather than waiting for its minute tick.
       if (ctx.subscription.refresh) {

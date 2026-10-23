@@ -132,6 +132,14 @@ app.whenReady().then(async () => {
       groups: [{ title: 'Limits', quotas: [{ label: 'Weekly', remainingPct: value, resetAt: null }] }] }] } })),
     { state: 'available', snapshot: { accounts: [{ provider: 'unknown', fileName: 'Empty windows.json', groups: [] }, { provider: 'xai', error: 'Failed without groups' }] } }]
   for (const values of [[0, null, 12, 80], [null, 12, 80]]) states.push({ state: 'available', snapshot: { accounts: [{ ...live.snapshot.accounts[0], groups: [{ title:'Mixed windows', quotas:values.map(remainingPct=>({label:'Window',remainingPct})) }] }] } })
+  states.push({ state: 'available', snapshot: { accounts: [
+    { ...live.snapshot.accounts[0], provider: 'codex', plan: 'Pro', groups: [{ title: 'Limits', quotas: [
+      { label: '5 hour limit', horizon: 'short', remainingPct: 0 }, { label: 'Weekly limit', horizon: 'long', remainingPct: 80 },
+    ] }] },
+    { ...live.snapshot.accounts[0], provider: 'antigravity', groups: [{ title: 'Models', quotas: [
+      { label: '5 hour limit', horizon: 'short', remainingPct: 80 },
+    ] }] },
+  ] } })
   const baseline = []
   for (const phase of ['default', 'independent', 'restored']) {
     await publish(live)

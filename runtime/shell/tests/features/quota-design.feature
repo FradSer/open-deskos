@@ -1,4 +1,41 @@
 Feature: Read AI quotas with clear provenance and recovery
+  # Source: shared subscription snapshot; percentages mean remaining quota.
+  # Keep quota plugin identities, App entry, spans, themes, and cleanup ownership.
+  # Use provider headings without new icons; retain existing App provider icons.
+  # Verify 186px and 348px Cells, account identity, rotation, and App containment.
+  Scenario: Show quota windows for the account plan
+    Given Codex Pro, other Codex plans, and Antigravity accounts
+    When the Widget or App displays their quotas
+    Then Codex Pro hides the 5h window and retains Weekly
+    And other Codex plans display 5h and Weekly
+    And Antigravity displays 5h and Weekly for each model group
+    And missing Antigravity windows remain explicitly unavailable
+
+  Scenario: Account states describe the windows that are displayed
+    Given a Codex Pro account with exhausted 5h and healthy Weekly quota
+    When the App hides its 5h window
+    Then its account state remains Available
+    And an Antigravity account with a missing Weekly window states Quota unknown
+
+  Scenario: Retain a provider's actual short-window duration
+    Given an account with a 2 hour short window and a Weekly window
+    When the Widget displays its supporting reading
+    Then the supporting label retains the supplied 2 hour duration
+
+  Scenario: Read each connected account in the Home Widget
+    Given several accounts with known quota windows
+    When six visible seconds pass without hover or keyboard focus
+    Then the Widget advances to the next account and wraps after the last
+    And provider, account, quota, and position change together
+    And reduced motion keeps the current account visible
+    And the App lists all accounts with provider and email before authentication filenames
+
+  Scenario: Read multiple accounts in a compact Cell
+    Given a 186px Cell and three connected accounts
+    When each account is displayed under every theme
+    Then provider, state, percentage, account, and position remain at least 14px
+    And all readings fit inside the shared content inset
+
   Scenario: Hidden consumer acceptance uses its private profile on every host
     Given the parent supplies a private Electron profile
     When Electron includes command-line flags in its argument list
@@ -91,8 +128,8 @@ Feature: Read AI quotas with clear provenance and recovery
     And a reading below 25 percent remains low after display rounding
 
   Scenario: The Home Widget names the service that owns its quota
-    Given a ChatGPT account and an Antigravity account return quota windows
+    Given a Codex account and an Antigravity account return quota windows
     When the tightest known window changes between accounts
-    Then the Widget heading names ChatGPT or Antigravity for that window
+    Then the Widget heading names Codex or Antigravity for that window
     And it never presents CLIProxyAPI as a subscription name
     And missing configuration asks to connect an account without inventing a provider

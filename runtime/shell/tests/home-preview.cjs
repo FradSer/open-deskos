@@ -92,7 +92,7 @@ async function verifyWidgetGrid(win, pageId, theme, width, report) {
         if (!head || Math.abs(head.getBoundingClientRect().top - expectedTop) > 1 || Math.abs(head.getBoundingClientRect().left - expectedLeft) > 1) findings.push({ kind: 'unanchored-widget-heading', id: card.dataset.widget });
         if (heading && heading.getBoundingClientRect().bottom > card.querySelector('.widget-signal').getBoundingClientRect().top) findings.push({ kind: 'heading-overlaps-reading', id: card.dataset.widget });
       }
-      if (card.dataset.widget === 'odk.tile.quota' && heading?.textContent !== 'ChatGPT') findings.push({ kind: 'missing-service-heading', id: card.dataset.widget });
+      if (card.dataset.widget === 'odk.tile.quota' && heading?.textContent !== 'Codex') findings.push({ kind: 'missing-service-heading', id: card.dataset.widget });
       if (theme === 'liquid-glass') {
         if (card.dataset.widget === 'odk.tile.pi-sessions') {
           const capsule = card.querySelector('.pi-widget-live-tag').getBoundingClientRect();
