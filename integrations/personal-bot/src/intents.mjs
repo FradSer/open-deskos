@@ -125,7 +125,10 @@ export function createIntentRuntime({ store, memory, memoryVersion = undefined, 
       const keys = [...new Set([...entry.memoryKeys, ...['city', 'from', 'to'].filter(k => entry.ride[k] === undefined && entry.ride[`${k}MemoryKey`]).map(k => entry.ride[`${k}MemoryKey`])])]
       const version = memoryVersion?.(keys), revision = watch.interactionRevision
       const sources = entry.observations.map(o => [o.readingId, watch.sourceRevisions?.get(o.readingId) ?? 0])
-      const valid = () => !watch.closed && !signal?.aborted && watch.interactionRevision === revision && unchanged(entry) && (version === undefined || memoryVersion(keys) === version) && sources.every(([id, v]) => (watch.sourceRevisions?.get(id) ?? 0) === v)
+      let prepared = false
+      const contextValid = () => !watch.closed && !watch.controller.signal.aborted && unchanged(entry) && (version === undefined || memoryVersion(keys) === version) && sources.every(([id, v]) => (watch.sourceRevisions?.get(id) ?? 0) === v)
+      // The provider retains this callback with its read-only route handles.
+      const valid = () => contextValid() && (prepared || (!signal?.aborted && watch.interactionRevision === revision && ownerCurrent()))
       const notes = await memory()
       const route = Object.fromEntries(['city', 'from', 'to'].map(k => [k, entry.ride[k] ?? notes[entry.ride[`${k}MemoryKey`]]]))
       if (!['city', 'from', 'to'].every(k => bounded(route[k], k === 'city' ? 80 : 120)) || !valid() || !ownerCurrent()) throw Error('Current route data is unavailable or changed')
@@ -141,7 +144,7 @@ export function createIntentRuntime({ store, memory, memoryVersion = undefined, 
       p.ridePreview = preview; p.ruleVersion = JSON.stringify(rule(entry, manual)); p.evidence = evidence; p.status = 'pending'
       // This is an owner-requested read, not a new scheduled offer or a restored confirmation.
       p.offered = true; p.presented = true
-      watch.persist(); watch.emit()
+      watch.persist(); prepared = true; watch.emit()
       return { preview: structuredClone(preview), selectionRequired: true, message: 'Fresh search results have new handles. Select the actual endpoints again before requesting an interactive quote. No order confirmation was restored.' }
     },
     mute(id) { const entry = store.list().find(e => `intent-${e.id}` === id); if (!entry) throw Error('Intent unavailable'); return store.save({ ...entry, enabled: false }) },
@@ -181,7 +184,10 @@ export function createIntentRuntime({ store, memory, memoryVersion = undefined, 
         const notesVersion = memoryVersion?.(keys)
         const revision = watch.interactionRevision
         const sourceRevisions = entry.observations.map(o => [o.readingId, watch.sourceRevisions?.get(o.readingId) ?? 0])
-        const valid = () => (notesVersion === undefined || memoryVersion(keys) === notesVersion) && inWindow(entry, now()).date === clock.date && sourceRevisions.every(([id, v]) => (watch.sourceRevisions?.get(id) ?? 0) === v) && !watch.closed && !watch.controller.signal.aborted && watch.interactionRevision === revision && current(entry)
+        let prepared = false
+        const contextValid = () => (notesVersion === undefined || memoryVersion(keys) === notesVersion) && inWindow(entry, now()).date === clock.date && sourceRevisions.every(([id, v]) => (watch.sourceRevisions?.get(id) ?? 0) === v) && !watch.closed && !watch.controller.signal.aborted && current(entry)
+        // Owner interaction cancels preparation, not a completed read-only preview.
+        const valid = () => contextValid() && (prepared || watch.interactionRevision === revision)
         const discardCondition = () => {
           if (!watch.closed && !watch.controller.signal.aborted && current(entry) && inWindow(entry, now()).date === clock.date) {
             delete claim.contextHash
@@ -222,6 +228,7 @@ export function createIntentRuntime({ store, memory, memoryVersion = undefined, 
           const evidence = Object.entries(values).map(([f, value]) => ({ readingId: `intent.${entry.id}`, ruleId: rule(entry).id, field: f, value: String(value).slice(0, 256), measuredAt, state: 'live' }))
           ready.set(rule(entry).id, { entry, preview, evidence, valid, claim })
           update('ready')
+          prepared = true
         } catch {
           update(valid() ? 'failed' : 'superseded')
         }

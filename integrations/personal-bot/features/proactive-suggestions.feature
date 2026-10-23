@@ -53,6 +53,15 @@ Feature: Owner controlled proactive Personal Bot proposals
     And only a corrected candidate with advice and a next step can pass
     And two responses without advice fail without a generated fallback or new permission
 
+  Scenario: Useful feedback preserves a completed read-only Intent preview
+    Given the real Watch presents a completed Intent preview with current route handles
+    When the owner marks the recommendation useful or starts another owner turn
+    Then the recommendation remains pending and its route handles remain readable
+    And a completed manual preview retains the same read-only validity
+    And memory, source, Intent, time, expiry, or Watch lifecycle changes still invalidate it
+    And interaction during condition, discovery, refresh, or generation still cancels that unfinished work
+    And feedback never grants order or action permission
+
   Scenario: Presentation receipts recheck observation freshness
     Given offered routine recommendations have timestamped observations
     When a presentation receipt arrives after some observations expire

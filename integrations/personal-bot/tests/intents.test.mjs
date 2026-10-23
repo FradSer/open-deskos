@@ -165,3 +165,117 @@ test('ordinary model condition identity survives the same bounded Intent occurre
   assert.equal(watch.intentClaims[0].status,'ready');assert.equal(watch.intentClaims[0].model,'synthetic/model-v1')
   assert.equal(runtime.rules().length,1)
 })
+
+
+async function readyPreviewFixture(t, { conditionGate, discoveryGate, generationGate } = {}) {
+  const { ProactiveWatch } = await import('../src/proactive.mjs')
+  const { createRidePreview } = await import('../src/didi/preview.mjs')
+  const store = fixture(t), entry = store.save({ ...wish, observations: [{ readingId: 'owner.context', fields: ['available'] }] })
+  let clock = Date.parse(time), memoryRevision = 0
+  const calls = [], frames = []
+  const previews = createRidePreview({ now: () => clock, call: async (name, args) => {
+    calls.push(name)
+    if (name === 'maps_textsearch') { await discoveryGate?.(); return [{ display_name: args.keywords, city: args.city, location: { lng: 1, lat: 2 } }] }
+    assert.equal(name, 'taxi_estimate')
+    return { traceId: 'private-provider-trace', items: [{ productName: 'Fixture ride', productCategory: '1', priceText: '20' }] }
+  } })
+  const runtime = createIntentRuntime({ store, now: () => clock, memory: async () => ({ habit: 'Habit data only' }), memoryVersion: () => String(memoryRevision),
+    read: async id => ({ id, state: 'live', value: { available: true, measured_at: new Date(clock).toISOString() } }),
+    judge: async () => { await conditionGate?.(); return { model: 'jev-test', status: 'true' } }, previewRide: previews.search })
+  const watch = new ProactiveWatch({ config: { version: 2, pollMs: 60000, maxAgeMs: 300000, cooldownMs: 60000, maxCandidates: 8, maxPush: 3, rules: [], suppressed: [], snoozed: {} },
+    now: () => clock, intents: runtime, publish: frame => frames.push(frame), save: async () => assert.fail('No owner config write'),
+    generate: async ({ topics }) => { await generationGate?.(); return { suggestions: [{ topicId: topics[0].id, key: 'ride-preview', advice: '查看当前行程方案。', nextStep: '查看候选并选择起终点。', evidenceIds: topics[0].evidence.map(e => e.id) }] } },
+    judge: async ({ candidates }) => ({ model: 'jev-test', answers: Object.fromEntries(candidates.map(c => [c.id, { probability: .95, groundingProbability: .95, threshold: .8 }])) }),
+    read: async () => assert.fail('Intent owns evidence'), execute: async () => assert.fail('Preview never executes an action') })
+  t.after(() => watch.close())
+  const route = preview => previews.route({ handle: preview.handle, from: preview.from[0].handle, to: preview.to[0].handle })
+  return { watch, runtime, store, entry, calls, frames, route, changeMemory: () => { memoryRevision++ }, advance: ms => { clock += ms } }
+}
+
+test('Given Useful feedback, completed Intent and manual previews retain pending proposals and actual route handles', async t => {
+  const f = await readyPreviewFixture(t)
+  await f.watch.tick()
+  const proposal = f.watch.list()[0]
+  await f.watch.presented([proposal.id])
+  const oldPreview = f.runtime.details(proposal.ruleId)
+  await f.watch.respond(proposal.id, 'useful')
+  assert.equal(f.watch.list()[0].status, 'pending')
+  assert.equal(f.watch.list()[0].feedback, 'useful')
+  assert.equal(f.watch.intentClaims[0].status, 'ready')
+  assert.equal(f.runtime.rules().length, 1)
+  assert.equal(f.route(oldPreview).to_name, wish.ride.to)
+  await assert.rejects(f.watch.respond(proposal.id, 'accept'), /confirmation|action/i)
+  // Owner-requested refresh produces a new read-only preview through the same provider.
+  const owner = new AbortController()
+  await f.runtime.refreshPreview(oldPreview.handle, f.watch, `刷新行程 ${oldPreview.handle}`, owner.signal)
+  const refreshed = f.runtime.details(proposal.ruleId)
+  owner.abort()
+  f.watch.setBusy(true); f.watch.setBusy(false)
+  await f.watch.respond(proposal.id, 'useful')
+  assert.equal(f.watch.list()[0].status, 'pending')
+  assert.equal(f.route(refreshed).to_name, wish.ride.to)
+  assert.equal(f.watch.list()[0].action, null)
+  assert.equal(f.watch.list()[0].confirmation, '')
+  assert.deepEqual(f.calls, ['maps_textsearch', 'maps_textsearch', 'taxi_estimate', 'maps_textsearch', 'maps_textsearch', 'taxi_estimate'])
+})
+
+test('Given completed Intent previews, stable context changes still revoke proposals and route handles after Useful', async t => {
+  for (const boundary of ['memory', 'source', 'intent', 'window', 'expiry', 'close']) await t.test(boundary, async t => {
+    const f = await readyPreviewFixture(t)
+    await f.watch.tick()
+    const proposal = f.watch.list()[0], preview = f.runtime.details(proposal.ruleId)
+    await f.watch.presented([proposal.id]); await f.watch.respond(proposal.id, 'useful')
+    assert.equal(f.watch.list()[0].status, 'pending')
+    if (boundary === 'memory') f.changeMemory()
+    if (boundary === 'source') f.watch.push(['owner.context'])
+    if (boundary === 'intent') f.store.save({ ...f.entry, enabled: false })
+    if (boundary === 'window') f.advance(11 * 60000)
+    if (boundary === 'expiry') f.advance(120001)
+    if (boundary === 'close') await f.watch.close()
+    assert.equal(f.runtime.rules().length, 0)
+    assert.throws(() => f.route(preview), /changed|expired/)
+  })
+})
+
+test('Given unfinished Intent condition, discovery or generation, actual owner feedback still cancels late output', async t => {
+  for (const phase of ['condition', 'discovery', 'generation']) await t.test(phase, async t => {
+    let release, enter, armed = false
+    const entered = new Promise(resolve => { enter = resolve }), held = new Promise(resolve => { release = resolve })
+    const gate = async () => { if (armed) { enter(); await held } }
+    const f = await readyPreviewFixture(t, { [phase + 'Gate']: gate })
+    await f.watch.tick()
+    const existing = f.watch.list()[0]
+    await f.watch.presented([existing.id])
+    const previousCalls = f.calls.length, previousFrames = f.frames.length
+    f.store.save({ ...wish, observations: [{ readingId: 'owner.context', fields: ['available'] }] })
+    armed = true
+    const tick = f.watch.tick()
+    await entered; await f.watch.respond(existing.id, 'useful'); release(); await tick
+    assert.deepEqual(f.watch.list().map(p => [p.id, p.status]), [[existing.id, 'pending']])
+    assert.equal(f.frames.slice(previousFrames).some(frame => frame.popup), false)
+    if (phase === 'condition') assert.equal(f.calls.length, previousCalls)
+    if (phase === 'discovery') assert.deepEqual(f.calls.slice(previousCalls), ['maps_textsearch'])
+  })
+})
+
+test('Given an unfinished manual preview, changed owner context rejects late discovery without replacing prior handles', async t => {
+  for (const boundary of ['signal', 'feedback', 'owner-current']) await t.test(boundary, async t => {
+    let release, enter, armed = false, ownerCurrent = true
+    const entered = new Promise(resolve => { enter = resolve }), held = new Promise(resolve => { release = resolve })
+    const f = await readyPreviewFixture(t, { discoveryGate: async () => { if (armed) { enter(); await held } } })
+    await f.watch.tick()
+    const proposal = f.watch.list()[0], original = f.runtime.details(proposal.ruleId), owner = new AbortController()
+    await f.watch.presented([proposal.id])
+    armed = true
+    const refresh = f.runtime.refreshPreview(original.handle, f.watch, `刷新行程 ${original.handle}`, owner.signal, () => ownerCurrent)
+    await entered
+    if (boundary === 'signal') owner.abort()
+    if (boundary === 'feedback') await f.watch.respond(proposal.id, 'useful')
+    if (boundary === 'owner-current') ownerCurrent = false
+    release()
+    await assert.rejects(refresh, /abort|Intent changed|owner turn changed/i)
+    assert.equal(f.runtime.details(proposal.ruleId).handle, original.handle)
+    assert.equal(f.route(original).to_name, wish.ride.to)
+    assert.equal(f.calls.length, 4)
+  })
+})
