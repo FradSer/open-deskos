@@ -304,7 +304,7 @@ else
   fi
   $SUDO node "${RELEASE_DIR}/scripts/validate-release.js" "${RELEASE_DIR}"
   $SUDO chown -R root:root "${RELEASE_DIR}"
-  $SUDO chmod -R a-w "${RELEASE_DIR}"
+  $SUDO chmod -R a+rX,a-w "${RELEASE_DIR}"
   $SUDO ln -sfn "${RELEASE_DIR}" "${RUNTIME_ROOT}/current"
 fi
 run_as_target_user env ODK_RUNTIME_ROOT="${RUNTIME_ROOT}" ODK_KIOSK_USER="${TARGET_USER}" \

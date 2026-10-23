@@ -150,7 +150,7 @@ function kioskIdentity() {
 function sealRelease(releasePath) {
   const result = spawnSync('chown', ['-R', 'root:root', releasePath], { stdio: 'inherit' })
   if (result.status !== 0) return { ok: false, reason: 'could not assign release ownership to root' }
-  const sealed = spawnSync('chmod', ['-R', 'a-w', releasePath], { stdio: 'inherit' })
+  const sealed = spawnSync('chmod', ['-R', 'a+rX,a-w', releasePath], { stdio: 'inherit' })
   return sealed.status === 0 ? { ok: true } : { ok: false, reason: 'could not seal release files' }
 }
 

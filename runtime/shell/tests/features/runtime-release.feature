@@ -110,3 +110,10 @@ Feature: Immutable runtime release deployment
     When release command tests run
     Then the real CM5 process regression declares the missing prerequisite
     And the remaining release contract tests still run
+
+  Scenario: Sealed runtime code stays readable by the kiosk user
+    Given installed dependency files have owner-only read permissions
+    When the release becomes root-owned and immutable
+    Then every runtime file is readable by the kiosk user
+    And directories and existing executables retain traversal or execution permissions
+    And no release file or directory stays writable

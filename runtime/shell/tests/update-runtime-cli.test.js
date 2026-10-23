@@ -53,7 +53,8 @@ test('CM5 updater serializes transactions and preflights before activating a rel
   assert.match(updater, /runtime update must run as root/)
   assert.match(updater, /function sealRelease/)
   assert.match(updater, /chown', \['-R', 'root:root'/)
-  assert.match(updater, /chmod', \['-R', 'a-w'/)
+  assert.match(updater, /chmod', \['-R', 'a\+rX,a-w'/)
+  assert.match(installer, /chmod -R a\+rX,a-w/)
   assert.match(updater, /\['pnpm', 'preflight'\], kiosk/)
   assert.match(updater, /\['bash', 'scripts\/verify-release\.sh'\], kiosk/)
   // The sealed release cannot relink command shims, so the smoke never runs through pnpm.
@@ -244,4 +245,38 @@ test('release command supervision encloses runuser and fails closed when timeout
   assert.deepEqual(Array.from(calls[0][1].slice(0, 7)), ['--signal=KILL', '60s', 'runuser', '-u', 'kiosk', '--', 'env'])
   assert.ok(calls[0][1].includes('DISPLAY=:0'))
   assert.equal(calls[0][2].cwd, '/candidate')
+})
+
+
+test('sealing makes owner-private dependencies readable without granting write or new execute access', { skip: process.platform === 'win32' }, () => {
+  const os = require('node:os')
+  const vm = require('node:vm')
+  const { spawnSync } = require('node:child_process')
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-seal-permissions-'))
+  const nested = path.join(temporary, 'node_modules', 'electron')
+  const moduleFile = path.join(nested, 'index.js')
+  const executable = path.join(nested, 'electron')
+  fs.mkdirSync(nested, { recursive: true, mode: 0o700 })
+  fs.writeFileSync(moduleFile, 'module.exports = true\n', { mode: 0o600 })
+  fs.writeFileSync(executable, '#!/bin/sh\nexit 0\n', { mode: 0o700 })
+  const implementation = updater.match(/function sealRelease\(releasePath\) \{[\s\S]*?\n\}/)
+  assert.ok(implementation, 'exercise the actual production sealing function')
+  try {
+    const result = vm.runInNewContext(implementation[0] + '\nsealRelease(releasePath)', {
+      releasePath: temporary,
+      spawnSync: (file, args, options) => file === 'chown' ? { status: 0 } : spawnSync(file, args, options),
+    })
+    assert.equal(result.ok, true)
+    for (const file of [temporary, path.dirname(nested), nested, moduleFile, executable]) {
+      const mode = fs.statSync(file).mode & 0o777
+      assert.equal(mode & 0o444, 0o444, `${file} must remain readable after root takes ownership`)
+      assert.equal(mode & 0o222, 0, `${file} must remain immutable`)
+    }
+    assert.equal(fs.statSync(nested).mode & 0o111, 0o111)
+    assert.equal(fs.statSync(executable).mode & 0o111, 0o111)
+    assert.equal(fs.statSync(moduleFile).mode & 0o111, 0, 'source data must not become executable')
+  } finally {
+    spawnSync('chmod', ['-R', 'u+w', temporary])
+    fs.rmSync(temporary, { recursive: true, force: true })
+  }
 })
