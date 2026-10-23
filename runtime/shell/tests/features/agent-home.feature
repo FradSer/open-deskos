@@ -1,5 +1,13 @@
 Feature: Personal Agent home briefing
 
+  Scenario: Pi verification metadata cannot replace a useful report
+    Given Pi reports include task names, content, and verification metadata
+    When Overview selects facts or recovers from a generation failure
+    Then verification metadata remains available for analysis
+    And verification metadata cannot appear as a separate Overview fact
+    And report content keeps its reported attribution without raw verification codes
+    And terminal task states retain their verification qualifiers
+
   Scenario: Generation status stays inside the Overview indicator
     Given Overview can retain current source-bound readings
     When generation fails or current state cannot be confirmed

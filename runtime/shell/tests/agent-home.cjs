@@ -108,6 +108,16 @@ async function assertAllSourceOverview() {
       assert.match(result.coverage, /Read 7 of 7/)
       assert.equal(result.overflow, false, theme)
       if (theme === 'pixel') fs.writeFileSync(path.join(os.tmpdir(), 'odk-overview-generated.png'), await capturePaintedFrame())
+      const { compileHomeSelection, homeFactVariables, resolveHomeTemplate } = await import('../../../integrations/personal-bot/src/home-template.mjs')
+      const report = source('odk.remote.audit', 'Remote Pi report', 'sessions', { report: '**Permission gap** needs repair', verification: 'reported_unverified' })
+      const facts = homeFactVariables([report])
+      const raw = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':report'))] }] }, facts)
+      const bound = resolveHomeTemplate(raw, [report])
+      await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: bound.items.map(item => ({ text: item.text, segments: item.segments, sources: [{ id: report.id, label: report.label, state: report.state }] })) })
+      const rendered = await evaluate(`({ text: document.querySelector('#dash-narrative').textContent, strong: document.querySelector('#dash-narrative strong')?.textContent })`)
+      assert.equal(rendered.strong, 'Permission gap', theme)
+      assert.match(rendered.text, /reported: Permission gap needs repair/)
+      assert.doesNotMatch(rendered.text, /reported_unverified|verification:/)
     }
   } finally {
     home.close()
