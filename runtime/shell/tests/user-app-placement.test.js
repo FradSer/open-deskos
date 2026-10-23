@@ -281,6 +281,24 @@ test('geometry changes during verification cannot publish a newly invalid placem
   assert.deepEqual(await store.list(), [])
 })
 
+test('App to Widget conversion rechecks automatic placement after verification', async t => {
+  const { options, draft } = await setup(t)
+  let columns = 3
+  let shrink = false
+  const store = createUserAppStore({ ...options,
+    getDesktopGeometry: () => [{ id: 'home', columns, rows: 3, occupied: [{ id: 'clock', col: '1 / 3', row: '1 / 4' }] }],
+    verify: async () => { if (shrink) columns = 2; return true },
+  })
+  await draft('note', '1', 'app')
+  const original = await store.install('note')
+  assert.equal(original.ok, true)
+  await draft('note', '2', 'widget')
+  shrink = true
+  assert.deepEqual(await store.update('note'), { ok: false, error: 'invalid-placement' })
+  assert.deepEqual(await store.list(), [original.app])
+  assert.equal((await store.getContent('note')).html, '<p>1</p>')
+})
+
 test('geometry rejects malformed snapshots and retains the last valid measurement', () => {
   const state = require('../src/user-app-geometry').createDesktopGeometry()
   const pages = [{ id: 'reading', columns: 3, rows: 3, occupied: [{ id: 'book', col: '1 / 4', row: '1 / 4' }] }]

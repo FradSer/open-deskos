@@ -42,6 +42,13 @@ Feature: Verified widgets share desktop grids
     When its draft changes kind to Widget and is updated
     Then the Widget receives the first free grid cell
 
+  Scenario: An App conversion rechecks its new cell after verification
+    Given an installed App changes kind to Widget
+    And its first free cell is in the third column
+    When the grid shrinks to two columns during verification
+    Then the update fails with an invalid placement
+    And the installed App keeps its previous revision and content
+
   Scenario: Stored geometry survives a layout release
     Given a Widget's stored page or grid span is unavailable in the current layout
     When the Widget is updated or rolled back

@@ -359,7 +359,7 @@ function createUserAppStore({ workspace, stateDir, verify, waitForVerification, 
       : undefined
     if (!await verifyBundle(bundle)) return failure('verification-failed')
     // Verification may outlive a resize. Recheck explicit or newly selected placement before commit.
-    if (bundle.manifest.kind === 'widget' && (!previous || placement !== undefined)) choosePlacement(entries, id, target)
+    if (bundle.manifest.kind === 'widget' && (previous?.kind !== 'widget' || placement !== undefined)) choosePlacement(entries, id, target)
     const rollback = previous?.revision === bundle.revision ? previous.history[0] : previous?.revision
     return publish(entries, id, bundle, rollback, target)
   }
