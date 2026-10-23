@@ -259,6 +259,7 @@ html[data-theme="pixel"] .quota-card :is(.provider-quota-card, .provider-quota-m
 }
 
 .quota-tile-meter {
+  flex-shrink: 0;
   width: 100%;
   height: 6px;
   background: var(--odk-stroke);
@@ -320,7 +321,7 @@ html[data-theme="pixel"] .quota-card :is(.provider-quota-card, .provider-quota-m
 .quota-tile-account:empty, .quota-tile-position:empty { display: none; }
 
 @container (width < 240px) {
-  .quota-tile-value { font-size: 40px; }
+  html[data-theme] .widget.w-quota .quota-tile-value { font-size: 40px; }
 }
 
 .quota-app-host {

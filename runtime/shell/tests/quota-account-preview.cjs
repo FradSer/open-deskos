@@ -72,6 +72,7 @@ app.whenReady().then(async () => {
         document.fonts.ready;
       `)
       await win.webContents.executeJavaScript(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`)
+      await win.webContents.executeJavaScript(`Promise.all([...document.querySelectorAll('.preview-tile .quota-tile-meter-fill')].flatMap(fill=>fill.getAnimations().filter(animation=>animation.transitionProperty==='width'&&Number.isFinite(animation.effect?.getComputedTiming().endTime)).map(animation=>animation.finished)))`)
       const readings = await win.webContents.executeJavaScript(`(() => {
         const selectors=['.widget-heading','.quota-state','.quota-tile-value','.quota-tile-context','.quota-tile-secondary','.quota-tile-account','.quota-tile-position'];
         return [...document.querySelectorAll('.preview-tile')].map(tile=>{
@@ -85,7 +86,11 @@ app.whenReady().then(async () => {
             const computed=getComputedStyle(node);
             return [{selector,text:node.textContent,fontSize:parseFloat(computed.fontSize),visible:computed.visibility==='visible' && computed.display!=='none' && rects.length>0,contained:rects.length>0 && rects.every(inside)}];
           });
-          return {account:tile.querySelector('.quota-tile-account').textContent,value:tile.querySelector('.quota-tile-value').textContent,position:tile.querySelector('.quota-tile-position').textContent,nodes};
+          const meter=tile.querySelector('.quota-tile-meter'), fill=meter.querySelector('.quota-tile-meter-fill');
+          const meterBounds=meter.getBoundingClientRect(), fillBounds=fill.getBoundingClientRect();
+          const meterStyle=getComputedStyle(meter), fillStyle=getComputedStyle(fill);
+          const meterReading={hidden:meter.hidden,role:meter.getAttribute('role'),now:Number(meter.getAttribute('aria-valuenow')),min:meter.getAttribute('aria-valuemin'),max:meter.getAttribute('aria-valuemax'),label:meter.getAttribute('aria-label'),spoken:meter.getAttribute('aria-valuetext'),height:meterBounds.height,width:meterBounds.width,fillHeight:fillBounds.height,fillWidth:fillBounds.width,visible:meterStyle.display!=='none'&&meterStyle.visibility==='visible'&&fillStyle.display!=='none'&&fillStyle.visibility==='visible',contained:inside(meterBounds)&&inside(fillBounds)};
+          return {account:tile.querySelector('.quota-tile-account').textContent,value:tile.querySelector('.quota-tile-value').textContent,position:tile.querySelector('.quota-tile-position').textContent,nodes,meter:meterReading};
         });
       })()`)
       const record = { theme, cell, readings }
@@ -99,7 +104,16 @@ app.whenReady().then(async () => {
         const label = `${theme} ${cell} ${reading.position} ${node.selector}`
         if (!node.visible) widgetErrors.push(`${label} must remain visible`)
         if (node.fontSize < 14) widgetErrors.push(`${label} ${node.fontSize}px must be at least 14px`)
+        if (cell === 186 && node.selector === '.quota-tile-value' && node.fontSize !== 40) widgetErrors.push(`${label} compact primary percentage must remain 40px in every theme: ${node.fontSize}px`)
         if (!node.contained) widgetErrors.push(`${label} must fit the Widget content inset without clipping`)
+      }
+      for(const reading of readings){
+        const label=`${theme} ${cell} ${reading.position} meter`,meter=reading.meter;
+        if(meter.hidden||!meter.visible)widgetErrors.push(`${label} must remain visible`);
+        if(meter.role!=='meter'||meter.min!=='0'||meter.max!=='100'||meter.now!==Number.parseFloat(reading.value)||meter.label!==reading.nodes.find(node=>node.selector==='.quota-tile-context').text||meter.spoken!==reading.value+' remaining')widgetErrors.push(`${label} accessible reading must match its percentage`);
+        if(Math.abs(meter.height-6)>0.5||Math.abs(meter.fillHeight-6)>0.5)widgetErrors.push(`${label} track and fill must retain 6px height: ${meter.height}/${meter.fillHeight}`);
+        if(!meter.contained)widgetErrors.push(`${label} must remain inside the Widget content inset`);
+        if(meter.width<=0||Math.abs(meter.fillWidth-meter.width*meter.now/100)>1)widgetErrors.push(`${label} fill width must represent its percentage`);
       }
       fs.writeFileSync(path.join(output,`widget-${theme}-${cell}.png`),(await capturePaintedPage(win)).toPNG())
     }
