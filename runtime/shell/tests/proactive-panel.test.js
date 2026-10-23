@@ -551,3 +551,75 @@ test('a late uncertain receipt after reconnect warns the same reserved suggestio
   assert.equal(f.commands.length, 1)
   assert.ok(flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep).disabled)
 })
+
+for (const rawResult of [
+  `Saved SHA256 ${'a'.repeat(64)}`,
+  'b'.repeat(32),
+  ' { "target": "cm5", "project": "/workspace/example", "taskId": "fixture", "html": "<script>untrusted</script>" } ',
+  '[{"target":"cm5","status":"accepted"}]',
+]) {
+  test(`technical legacy results stay complete in Sources: ${rawResult.slice(0, 30)}`, () => {
+    const f = fixture(), p = { ...proposal(), status: 'unknown', result: rawResult }
+    f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+    const article = flatten(f.content).find(n => n.className === 'personal-bot-proposal')
+    const sources = flatten(article).find(n => n.className === 'personal-bot-proposal-sources')
+    assert.equal(sources.open, false)
+    const original = flatten(sources).find(n => n.textContent === rawResult)
+    assert.ok(original, 'Sources must retain the exact original result')
+    assert.equal(article.children.some(n => n.textContent === rawResult), false, 'Technical result cannot enter the primary card')
+    assert.equal(flatten(article).some(n => n.tagName === 'SCRIPT'), false)
+    sources.open = true
+    assert.equal(original.textContent, rawResult)
+    assert.ok(flatten(article).some(n => n.className === 'personal-bot-proposal-state' && n.textContent.startsWith('Outcome not confirmed')))
+    assert.equal(flatten(article).some(n => n.className === 'personal-bot-proposal-state' && n.textContent.startsWith('Completed')), false)
+  })
+}
+for (const rawResult of ['Memory updated.', 'The request was accepted; completion remains unconfirmed.', '"Saved a note."', '42', '{not valid JSON}']) {
+  test(`human-readable legacy result remains primary without inventing completion: ${rawResult}`, () => {
+    const f = fixture(), p = { ...proposal(), status: 'unknown', result: rawResult }
+    f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+    const article = flatten(f.content).find(n => n.className === 'personal-bot-proposal')
+    assert.ok(article.children.some(n => n.textContent === rawResult && n.attributes.role === 'status'))
+    assert.ok(flatten(article).some(n => n.className === 'personal-bot-proposal-state' && n.textContent.startsWith('Outcome not confirmed')))
+  })
+}
+
+for (const update of ['presented receipt', 'another suggestion']) {
+  test(`exact confirmation survives ${update} redraw without duplicate acceptance`, async () => {
+    const f = fixture(), p = { ...proposal(), nextStep: 'Save the watering note' }
+    f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+    await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep).click()
+    const original = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation)
+    assert.ok(original)
+    const proposals = update === 'presented receipt' ? [{ ...p, presented: true }] : [p, { ...p, id: '11111111-1111-4111-8111-111111111111', advice: 'An independent suggestion changed.' }]
+    f.render({ state: 'idle', proposals, proposalPopup: false })
+    const retained = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation)
+    assert.ok(retained, 'Unchanged authorized confirmation must survive metadata and peer redraws')
+    await retained.click()
+    await original.click()
+    await retained.click()
+    assert.equal(f.commands.length, 1)
+    assert.equal(f.commands[0].id, p.id)
+    assert.equal(f.commands[0].decision, 'accept')
+    assert.equal(f.commands[0].confirmation, p.confirmation)
+  })
+}
+for (const invalidation of ['confirmation changed', 'action changed', 'unavailable', 'read withdrawn', 'respond withdrawn', 'proposal removed', 'completed', 'unknown', 'expired', 'ignored']) {
+  test(`an earlier exact confirmation cannot execute after ${invalidation}`, async () => {
+    const f = fixture(), p = { ...proposal(), nextStep: 'Save the watering note', action: { tool: 'memory_update', params: { category: 'watering', value: 'Inspect soil.' } } }
+    f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+    await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep).click()
+    const earlier = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation)
+    let status = { state: 'idle', proposals: [p], proposalPopup: true }
+    if (invalidation === 'confirmation changed') status.proposals = [{ ...p, confirmation: '记住 watering：New confirmation.' }]
+    else if (invalidation === 'action changed') status.proposals = [{ ...p, action: { tool: 'memory_update', params: { category: 'watering', value: 'Changed action.' } } }]
+    else if (invalidation === 'unavailable') status = { state: 'unavailable' }
+    else if (invalidation === 'read withdrawn') status.proposalCapabilities = { read: false, respond: false, acknowledge: false }
+    else if (invalidation === 'respond withdrawn') status.proposalCapabilities = { read: true, respond: false, acknowledge: true }
+    else if (invalidation === 'proposal removed') status.proposals = []
+    else status.proposals = [{ ...p, status: invalidation }]
+    f.render(status)
+    await earlier.click()
+    assert.equal(f.commands.length, 0, 'A stale or detached confirmation cannot send a proposal acceptance')
+  })
+}

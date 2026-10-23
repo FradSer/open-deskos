@@ -394,3 +394,22 @@ Feature: Independent resident personal bot
     When the service reconnects with the same pending suggestion
     Then the execution reservation and warning remain
     And no automatic response replay occurs
+
+  Scenario: Earlier tool results keep technical details in Sources
+    Given an earlier plugin returns a technical result or a bounded JSON receipt
+    When the recommendation card opens
+    Then Sources keeps the complete original result as collapsed text
+    And natural-language results remain in the main card
+    And the result never replaces the authoritative proposal state
+
+  Scenario: Stable action confirmation survives unrelated status updates
+    Given the owner opens the exact confirmation for a pending action
+    When its visibility receipt or another suggestion changes the panel
+    Then the same authorized confirmation remains available
+    And repeated activation sends at most one acceptance
+
+  Scenario: A superseded confirmation cannot authorize an old action
+    Given the owner opens an exact action confirmation
+    When its action or confirmation changes, its proposal ends, or response capability is withdrawn
+    Then the earlier confirmation cannot send an acceptance
+    And a detached control cannot regain execution authority

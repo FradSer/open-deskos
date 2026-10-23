@@ -59,6 +59,7 @@
   let proposalCommandError = ''
   // Keep dispatched operations reserved until this ID has an authoritative terminal state.
   const executionAttempts = new Map()
+  const actionConfirmations = new Map()
   const renderedProposalIds = new Set()
   const uncertainActionWarning = 'Suggestion response was not delivered. Check the personal bot service; do not repeat an uncertain action.'
   let feedbackFocus
@@ -97,7 +98,7 @@
     if (!document.hidden) for (const node of observedAdvice.keys()) { visibility?.unobserve(node); visibility?.observe(node) }
   }
   document.addEventListener('visibilitychange', recheckVisibility)
-  window.addEventListener('pagehide', () => { visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear(); expandedDisclosures.clear(); document.removeEventListener('visibilitychange', recheckVisibility) })
+  window.addEventListener('pagehide', () => { visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear(); expandedDisclosures.clear(); actionConfirmations.clear(); document.removeEventListener('visibilitychange', recheckVisibility) })
 
   async function command(value) {
     const epoch = proposalEpoch
@@ -227,6 +228,7 @@
       suggestionCapabilities = { read: false, respond: false, acknowledge: false }
       proposalError = ''; proposalCommandError = ''; visibilityFailure = false; feedbackFocus = undefined
       expandedDisclosures.clear()
+      actionConfirmations.clear()
       if (proposals) { proposals.replaceChildren(); proposals.hidden = true }
       return
     }
@@ -241,6 +243,11 @@
       read: status.proposalCapabilities?.read === true,
       respond: status.proposalCapabilities?.respond === true,
       acknowledge: status.proposalCapabilities?.acknowledge === true,
+    }
+    const actionSignature = p => JSON.stringify([p.actionId, p.action, p.confirmation, p.nextStep])
+    for (const [id, confirmation] of actionConfirmations) {
+      const p = status.proposals.find(proposal => proposal?.id === id)
+      if (!suggestionCapabilities.respond || !p?.action || p.status !== 'pending' || p.snoozedUntil > Date.now() || executionAttempts.has(id) || actionSignature(p) !== confirmation.signature) actionConfirmations.delete(id)
     }
     if (!proposals) {
       if (!status.proposals.length) return
@@ -369,10 +376,20 @@
         }
         if (p.ridePreview) rideDetails(article, p, suggestionCapabilities.respond)
         if (p.result) {
+          let structuredResult = false
+          if (typeof p.result === 'string' && p.result.length <= 8192) {
+            try {
+              const parsed = JSON.parse(p.result)
+              structuredResult = parsed !== null && typeof parsed === 'object'
+            } catch { /* Human-readable operation results are not JSON receipts. */ }
+          }
           const result = document.createElement('p')
           result.textContent = p.result
           result.setAttribute('role', 'status')
-          article.append(result)
+          if (technicalText.test(p.result) || structuredResult) {
+            result.className = 'personal-bot-proposal-evidence personal-bot-proposal-original-result'
+            sources.append(result)
+          } else article.append(result)
         }
         if (current && suggestionCapabilities.respond) {
           const actions = document.createElement('div')
@@ -393,22 +410,39 @@
             actions.append(view)
           }
           if (executableAction) {
-            const accept = button(nextStep && !technicalAdvice ? nextStep : 'Run action', () => {
-              if (executionAttempts.has(p.id)) return
-              let submitted = false
-              actions.replaceChildren(button(p.confirmation, async () => {
-                if (submitted || executionAttempts.has(p.id)) return
-                submitted = true
+            const showConfirmation = confirmation => {
+              const isCurrent = () => proposals.contains(actions) && suggestionCapabilities.respond && actionConfirmations.get(p.id) === confirmation && !executionAttempts.has(p.id)
+              const confirm = button(p.confirmation, async () => {
+                if (!isCurrent()) return
+                actionConfirmations.delete(p.id)
                 executionAttempts.set(p.id, { uncertain: false })
                 for (const control of actions.children) control.disabled = true
                 await command({ type: 'proposal_respond', id: p.id, decision: 'accept', confirmation: p.confirmation })
-              }), button('Cancel', () => { proposalSnapshot = ''; renderProposals(status) }))
-            })
-            accept.className = 'personal-bot-proposal-primary'
-            accept.disabled = executionAttempts.has(p.id)
-            const later = response('Later', 'snooze')
-            later.disabled = accept.disabled
-            actions.append(accept, later)
+              })
+              confirm.dataset.proposalId = p.id; confirm.dataset.proposalAction = 'confirm'
+              const cancel = button('Cancel', () => {
+                if (!isCurrent()) return
+                actionConfirmations.delete(p.id)
+                proposalSnapshot = ''; renderProposals(status)
+              })
+              cancel.dataset.proposalId = p.id; cancel.dataset.proposalAction = 'cancel'
+              actions.replaceChildren(confirm, cancel)
+            }
+            const confirmation = actionConfirmations.get(p.id)
+            if (confirmation) showConfirmation(confirmation)
+            else {
+              const accept = button(nextStep && !technicalAdvice ? nextStep : 'Run action', () => {
+                if (!proposals.contains(accept) || !suggestionCapabilities.respond || executionAttempts.has(p.id)) return
+                const confirmation = { signature: actionSignature(p) }
+                actionConfirmations.set(p.id, confirmation)
+                showConfirmation(confirmation)
+              })
+              accept.className = 'personal-bot-proposal-primary'
+              accept.disabled = executionAttempts.has(p.id)
+              const later = response('Later', 'snooze')
+              later.disabled = accept.disabled
+              actions.append(accept, later)
+            }
           }
           const feedback = disclosure('Feedback', 'personal-bot-proposal-feedback-options', `${p.id}:feedback`)
           const choices = document.createElement('div')
