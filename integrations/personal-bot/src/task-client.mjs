@@ -7,6 +7,17 @@ import { isAbsolute, join, normalize, posix } from 'node:path'
 import { sshEnvironment } from './ssh-environment.mjs'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/** @type {WeakMap<object, {command: string, target: string, project: string, taskId: string, mutationId: string}>} */
+const unknownMutationReceipts = new WeakMap()
+
+/** Read transport-owned identities without trusting properties or error text.
+ * @param {unknown} error
+ */
+export function taskFailureReceipt(error) {
+  const receipt = error !== null && typeof error === 'object' ? unknownMutationReceipts.get(error) : undefined
+  return receipt ? { ...receipt } : undefined
+}
+
 const cleanPath = value => typeof value === 'string' && isAbsolute(value) && !/[\x00-\x1f\x7f]/.test(value)
 const developmentPath = value => {
   if (!cleanPath(value)) return false
@@ -101,9 +112,16 @@ export async function taskRequest(target, request, signal = undefined, timeout =
     ...(request.command === 'history' && request.position !== undefined ? { position: request.position } : {}),
   }
   const mutation = ['start', 'launch', 'prompt', 'cancel', 'end'].includes(request.command)
-  const failure = message => Error(mutation
-    ? `Task ${request.command} outcome unknown; do not retry automatically. target=${target.id} taskId=${payload.taskId} project=${request.project} mutationId=${mutationId}; use coding_task_status to reconcile`
-    : message)
+  const identity = { command: request.command, target: target.id, project: payload.project, taskId: payload.taskId, mutationId }
+  const failure = message => {
+    const error = Error(mutation
+      ? `Task ${identity.command} outcome unknown; do not retry automatically. target=${identity.target} taskId=${identity.taskId} project=${identity.project} mutationId=${mutationId}; use coding_task_status to reconcile`
+      : message)
+    if (mutation && UUID.test(identity.taskId ?? '') && UUID.test(identity.mutationId ?? '')) {
+      unknownMutationReceipts.set(error, { ...identity })
+    }
+    return error
+  }
   const input = `${JSON.stringify(payload)}\n`
   if (Buffer.byteLength(input) > 65_536) throw Error('Task request too large')
   const response = await exchange(command, input, signal, timeout, failure, target.host !== undefined)

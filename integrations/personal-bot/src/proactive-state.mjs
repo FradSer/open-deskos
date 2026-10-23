@@ -29,6 +29,8 @@ function validate(state) {
     if (['needKey', 'observationKey', 'occurrenceKey'].some(key => p[key] !== undefined && !/^[0-9a-f]{64}$/.test(p[key]))
       || (p.reason !== undefined && (typeof p.reason !== 'string' || p.reason.length > 600 || /[\x00-\x08]/.test(p.reason)))
       || (p.nextStep !== undefined && (typeof p.nextStep !== 'string' || !p.nextStep.trim() || p.nextStep.length > 240 || /[\x00-\x1f\x7f]/.test(p.nextStep)))
+      || (p.actionId !== undefined && (typeof p.actionId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(p.actionId) || p.action === null))
+      || (p.execution !== undefined && (!p.execution || Object.keys(p.execution).some(key => !['outcome', 'receipt'].includes(key)) || !['completed', 'accepted', 'unknown', 'failed'].includes(p.execution.outcome) || JSON.stringify(p.execution).length > 10000 || (p.execution.receipt !== undefined && (typeof p.execution.receipt !== 'object' || p.execution.receipt === null))))
       || (p.feedback !== undefined && !['done', 'snooze', 'useful', 'irrelevant', 'incorrect', 'ignore'].includes(p.feedback))
       || (p.snoozedUntil !== undefined && (!Number.isSafeInteger(p.snoozedUntil) || p.snoozedUntil < 0 || p.snoozedUntil > 8640000000000000))) throw Error('Invalid proposal occurrence or feedback')
     if (p.ridePreview !== undefined && (p.action !== null || !isIntentRuleId(p.ruleId) || !validRidePreview(p.ridePreview))) throw Error('Invalid read-only ride preview')

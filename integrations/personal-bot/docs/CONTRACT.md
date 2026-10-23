@@ -661,7 +661,11 @@ The file is read once; changes require separately authorized restart.
 Concurrent owner edits cause suppression writes to refuse overwrite.
 
 Use [proactive-goals.example.json](proactive-goals.example.json) for version 2.
-Owners select goals and bounded observation fields.
+Owners select goals, bounded observation fields, and approved action catalogs.
+Each ordinary topic can define 1–8 `actions`, each with `id`, `label`, `tool`, and exact `params`.
+The existing reviewed tool allowlist applies. The selected Agent must also support the action and its exact parameters.
+The optional runtime method `canExecuteProposal(action)` reports current capability. A missing method grants no execution capability.
+A topic without a currently supported approved action does not generate a new executable recommendation.
 An isolated in-memory Durable conversation generates zero or more candidates with the configured model.
 It has no tools, Skills, project context, owner memory, execution environment, or persisted transcript.
 It loads no operator or project extensions.
@@ -671,8 +675,11 @@ Provider errors are not retried.
 Timeout/cancellation ends waiting even if the provider ignores abort; late-created sessions are disposed.
 Agent and watch validate topic IDs, stable semantic keys, bounded text, and host-issued citation IDs.
 Invalid or invented evidence leaves generation unavailable.
-Each generated candidate contains `advice`, a required `nextStep`, and cited evidence IDs.
-Advice has at most 400 characters. The next step has at most 240 characters and names a concrete user action.
+Each ordinary generated candidate contains `advice`, a selected `actionId`, and cited evidence IDs.
+Generation receives only each action's ID and label. It cannot supply tool parameters, execution authority, or confirmation text.
+The host binds `nextStep` to the approved action label and retains its exact tool and parameters.
+Advice has at most 400 UTF-16 code units. Action labels have at most 240 UTF-16 code units.
+Trusted Intent preview topics retain their separate read-only `nextStep` format and existing endpoint selection flow.
 Next-step validation rejects control characters, including line breaks, tabs, and DEL, across generation, storage, and display hosts.
 Generation does not request or accept a `reason` field.
 Keep hashes, technical identifiers, tool parameters, and diagnostic values in evidence, outside advice and the next step.
@@ -690,7 +697,11 @@ Retain supported candidates independently of the presentation limit.
 Prioritize owner urgency and scheduled delivery, then deadlines, usefulness, creation time, and stable identity.
 Offer at most `maxPush` candidates during one presentation round.
 Selecting none is valid.
-Generated proposals retain `action: null`. Their next step describes a user action, without granting execution permission.
+Ordinary generated proposals retain the host-bound action, action ID, next step, and exact confirmation phrase.
+The host checks current capability before generation, publication, and confirmed execution.
+An action change, capability withdrawal, or changed observation prevents execution of the earlier binding.
+Historical read-only records never acquire an action from new generated text.
+Intent previews retain `action: null`; preview and quote selection do not authorize an order.
 No inference failure substitutes fixed advice or automatic action.
 
 | Configuration | Bounds/behavior |
@@ -776,7 +787,11 @@ These flags follow the selected Watch and grant no action authority.
 Unsupported displays must retain their own unavailable response controls.
 
 Each proposal retains durable ID, owner rule/subject, state, creation time, advice, action/confirmation, and evidence.
-New generated proposals also retain their required next step. Historical records can omit it.
+New executable proposals retain `actionId` and their host-bound `nextStep`. Historical records can omit both fields.
+Execution reserves durable state before the tool runs. A restarted reservation becomes `unknown` and cannot replay.
+Structured execution receipts use `completed`, `accepted`, `unknown`, or `failed` outcomes.
+Only `completed` proves completion. Other outcomes retain `unknown` proposal state and their bounded execution receipt.
+Legacy string execution results remain compatible with existing providers.
 Existing reasons remain compatible with private storage, but current answers and cards do not show them.
 Evidence contains `{readingId, field, value, state, measuredAt, ruleId}`.
 `pi-tasks:<target>:<taskId>` marks Hosted Pi evidence.
@@ -838,7 +853,9 @@ Historical advice with hashes or technical labels moves into this disclosure wit
 Its visible fallback offers source inspection without inventing a new recommendation.
 Feedback is separate from the next step and does not establish execution or provider success.
 Back/Close dismisses presentation.
-Generated suggestions support Done, Later, Useful, Not relevant, Incorrect, Ignore, and category suppression.
+Executable suggestions require explicit confirmation and support Later, Ignore, and category suppression.
+Historical read-only suggestions support Done, Later, Useful, Not relevant, Incorrect, Ignore, and category suppression.
+Feedback cannot complete or execute an executable suggestion.
 Done records owner feedback without tool execution or a provider-success claim.
 Later postpones that candidate; its due reminder retains quiet-hours and category suppression checks.
 Generated Ignore, Not relevant, and Incorrect handle one occurrence without muting its topic.

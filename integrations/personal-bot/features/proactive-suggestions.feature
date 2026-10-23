@@ -1,14 +1,48 @@
 Feature: Owner controlled proactive Personal Bot proposals
-  Proposals are read-only agent state, never plugin instructions or authorization.
+  Generated text never supplies action authority. Owner-approved catalogs define executable actions.
 
-  Scenario: Generated recommendations have a concrete next step
-    Given fresh observations support a current need
-    When the generator proposes a recommendation
-    Then the recommendation contains concise advice and a concrete next step
+  Scenario: A generated recommendation selects a currently executable owner action
+    Given the owner configures a bounded action catalog for a recommendation topic
+    And the selected Agent can execute one configured action
+    When the generator selects that action identifier
+    Then the host binds its label and exact parameters without model supplied permissions
+    And an unavailable action cannot create a new recommendation card
+    And execution requires presentation and the exact owner confirmation
+    And uncertain receipts and restarted execution cannot replay the action
+    And Intent previews remain read-only
+
+  Scenario: Stopping the Watch cancels a pending action confirmation read
+    Given a presented executable recommendation waits for a source read during confirmation
+    When the Watch stops before that read completes
+    Then no action executes after the source read returns
+    And no late presentation is published
+
+  Scenario: Dispatch rechecks the Watch after asynchronous confirmation work
+    Given a confirmed action waits for source reads or executor routing
+    When its source revision, selected capability, owner action, or Watch lifecycle changes
+    Then the actual tool dispatch refuses the obsolete action
+    And a reserved action retains an unknown result without replay
+
+  Scenario: Uncertain effects cannot be retried through changed model or owner labels
+    Given an owner action has an executing or unknown outcome
+    When generated keys, advice, observations, or owner rule versions change
+    Then the same tool and exact parameters cannot create another executable card
+    And an already pending duplicate cannot execute
+    And the original mutation receipt survives restart
+    And an independent approved action remains available
+
+  Scenario: Action selection requires explicit string identifiers
+    Given an ordinary owner action catalog or generated selection omits an action identifier
+    When the host validates that value
+    Then validation rejects the missing or non-string identifier
+
+  Scenario: Trusted Intent previews keep their read-only recommendation format
+    Given a ready Intent provides current preview observations
+    When its generator proposes read-only preview advice
+    Then the preview contains concise advice and a concrete owner next step
     And the generator does not return a reason field
     And source hashes remain in the cited observations
-    And advice without a next step cannot reach judgment or presentation
-    And a next step does not grant tool execution permission
+    And preview details do not grant an order or execution permission
 
   Scenario: Presentation receipts recheck observation freshness
     Given offered routine recommendations have timestamped observations

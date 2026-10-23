@@ -14,15 +14,15 @@ export async function evaluateProactiveReplay({ createWatch = options => new Pro
     const frames = []
     const config = { version: 2, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 60000, maxCandidates: 4, maxPush: 1,
       attentionCooldownMs: 0, generationIntervalMs: 300000, suppressed: [], snoozed: {}, rules: [
-        { id: 'parcels', goal: 'Handle pending parcels', delivery: 'immediate', urgent: false, observations: [{ readingId: 'parcels', fields: ['count'] }] },
+        { actions: [{ id: 'inspect', label: 'Inspect the pending item.', tool: 'memory_update', params: { category: 'note', value: 'Inspect pending item' } }], id: 'parcels', goal: 'Handle pending parcels', delivery: 'immediate', urgent: false, observations: [{ readingId: 'parcels', fields: ['count'] }] },
       ], ...overrides }
     const make = () => {
-      const watch = createWatch({ config, now: () => now,
+      const watch = createWatch({ canExecute: () => true, config, now: () => now,
         read: async id => ({ id, state: 'live', value: { count, measured_at: new Date(stale ? start - 1800001 : now).toISOString() } }),
         generate: async ({ topics }) => {
           calls.generation++
           return { suggestions: topics.filter(topic => topic.evidence[0].value > 0).map(topic => ({ topicId: topic.id, key: 'collect',
-            advice: 'Check pending parcels.', nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: [topic.evidence[0].id] })) }
+            advice: 'Check pending parcels.', actionId: 'inspect', evidenceIds: [topic.evidence[0].id] })) }
         },
         judge: async ({ candidates }) => {
           calls.judgment++
@@ -71,6 +71,8 @@ export async function evaluateProactiveReplay({ createWatch = options => new Pro
     await scenario('completion-survives-checkpoint-and-fact-change-creates-new-occurrence', async () => {
       const f = fixture(), watch = f.make()
       await watch.tick(); const first = watch.list()[0]
+      // Restore the historical read-only form before testing owner completion feedback.
+      Object.assign(watch.proposals.find(p => p.id === first.id), { action: null, confirmation: '' }); delete watch.proposals.find(p => p.id === first.id).actionId
       await watch.presented([first.id]); await watch.respond(first.id, 'done')
       await watch.close()
       f.clock(start + 300001)
@@ -84,6 +86,8 @@ export async function evaluateProactiveReplay({ createWatch = options => new Pro
     await scenario('cleared-need-can-recur-with-the-same-value', async () => {
       const f = fixture(), watch = f.make()
       await watch.tick(); const first = watch.list()[0]
+      // Restore the historical read-only form before testing owner completion feedback.
+      Object.assign(watch.proposals.find(p => p.id === first.id), { action: null, confirmation: '' }); delete watch.proposals.find(p => p.id === first.id).actionId
       await watch.presented([first.id]); await watch.respond(first.id, 'done')
       f.count(0); await watch.tick()
       await watch.close()

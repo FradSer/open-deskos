@@ -481,7 +481,8 @@ exports.create = async context => {
       if (reading.state !== 'live') { this.emit(); return }
       const evidence = observation.fields.map((field, i) => ({ id: 'e' + i, readingId: reading.id, field,
         value: reading.value[field], state: 'live', measuredAt: reading.value.measured_at, ruleId: rule.id }))
-      const topics = [{ id: rule.id, goal: rule.goal, evidence }]
+      const actions = rule.actions.filter(action => runtime.agent.canExecuteProposal?.({ tool: action.tool, params: action.params }) === true)
+      const topics = [{ id: rule.id, goal: rule.goal, evidence, actions: actions.map(({ id, label }) => ({ id, label })) }]
       let candidates
       try {
         const raw = await runtime.agent.generateProposals({ topics, maxCandidates: options.config.maxCandidates,
@@ -504,9 +505,13 @@ exports.create = async context => {
         const existing = proposals.find(p => p.subject === subject && p.status === 'pending')
         const judgment = { model: judged.model, ...c.answer, trigger: 'heartbeat', judgedAt: new Date(options.now()).toISOString() }
         if (existing) { existing.advice = c.advice; existing.evidence = c.evidence; existing.judgment = judgment }
-        else proposals.push({ id: randomUUID(), ruleId: rule.id, ruleVersion: JSON.stringify(rule), subject,
-          status: 'pending', evidence: c.evidence, advice: c.advice, action: null, confirmation: '', offered: false,
+        else {
+          const selected = actions.find(action => action.id === c.actionId)
+          proposals.push({ id: randomUUID(), ruleId: rule.id, ruleVersion: JSON.stringify(rule), subject,
+          status: 'pending', evidence: c.evidence, advice: c.advice, nextStep: selected.label, actionId: selected.id,
+          action: { tool: selected.tool, params: structuredClone(selected.params) }, confirmation: '记住 ' + selected.params.category + '：' + selected.params.value, offered: false,
           presented: false, createdAt: new Date(options.now()).toISOString(), result: '', judgment })
+        }
       }
       this.emit()
     },
@@ -526,10 +531,11 @@ exports.create = async context => {
   const config = { version: 2, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 60000,
     maxCandidates: 8, maxPush: 2, suppressed: [], snoozed: {}, rules: [{ id: 'deliveries',
       goal: 'Collect ready parcels.', observations: [{ readingId: 'parcels', fields: ['ready', 'count'] }],
-      delivery: 'immediate', urgent: false }] }
+      delivery: 'immediate', urgent: false,
+      actions: [{ id: 'save-collection', label: 'Save a collection note', tool: 'memory_update', params: { category: 'deliveries', value: 'Collect ready parcels' } }] }] }
   const batch = { suggestions: ['collect', 'count', 'rejected'].map((key, i) => ({ topicId: 'deliveries', key,
     advice: ['Collect ready parcels.', 'Check the parcel count.', 'Ignore this advice.'][i],
-    nextStep: 'Open the selected source and inspect the changed reading.', evidenceIds: ['e0', 'e1'] })) }
+    actionId: 'save-collection', evidenceIds: ['e0', 'e1'] })) }
   let defaultCheckpoint
   const reports = []
   for (const external of [false, true]) {
@@ -544,7 +550,7 @@ exports.create = async context => {
       requests.push(structuredClone({ ...input, signal: undefined }))
       if (fail) throw Error('private generated provider detail')
       return structuredClone(raw)
-    }, phraseProposal: () => assert.fail('generated advice cannot be rephrased after judgment'),
+    }, canExecuteProposal: action => action.tool === 'memory_update', phraseProposal: () => assert.fail('generated advice cannot be rephrased after judgment'),
     executeProposal: () => assert.fail('generated advice cannot execute'), abort() {}, close() {} } }
     provider.options = { config, now: () => Date.parse(stamp), validationModule: new URL('../src/proactive-generation.mjs', import.meta.url).href,
       read: async id => ({ id, state: live ? 'live' : 'unavailable', value: { ready: true, count: 2,
@@ -568,6 +574,7 @@ exports.create = async context => {
       createWatch() {
         assert.equal(external, false, 'selected generated Watch cannot construct default Watch')
         return new ProactiveWatch({ ...provider.options, generate: runtime.agent.generateProposals,
+          canExecute: action => runtime.agent.canExecuteProposal?.(action) === true,
           phrase: runtime.agent.phraseProposal, execute: runtime.agent.executeProposal, save: async () => {},
           publish: frame => service.propose(frame) })
       },
@@ -576,8 +583,8 @@ exports.create = async context => {
         current.attachWatch(value); context.onCleanup(() => current.attachWatch(undefined))
       },
     })
-    const normalize = () => service.status.proposals.map(({ advice, action, confirmation, evidence, judgment }) =>
-      ({ advice, action, confirmation, evidence, judgment }))
+    const normalize = () => service.status.proposals.map(({ advice, nextStep, actionId, action, confirmation, evidence, judgment }) =>
+      ({ advice, nextStep, actionId, action, confirmation, evidence, judgment }))
     try {
       await resident.start(); await watch.inflight
       assert.equal(requests.length, 0)
@@ -605,7 +612,7 @@ exports.create = async context => {
       assert.deepEqual(requests.at(-1).topics[0].evidence.map(e => e.field), ['ready', 'count'])
       assert.equal(JSON.stringify(requests).includes('privateInstruction'), false)
       const published = normalize(), ids = watch.list().map(p => p.id)
-      assert.ok(watch.list().every(p => p.action === null && p.confirmation === ''))
+      assert.ok(watch.list().every(p => p.action?.tool === 'memory_update' && p.actionId === 'save-collection' && p.nextStep === 'Save a collection note' && p.confirmation === '记住 deliveries：Collect ready parcels'))
       await service.proposalCommand({ type: 'proposal_presented', ids })
       await assert.rejects(service.proposalCommand({ type: 'proposal_respond', id: ids[0], decision: 'accept', confirmation: '' }), /confirmation/)
       await watch.tick()
@@ -647,7 +654,7 @@ exports.create = async context => {
         await service.proposalCommand({ type: 'proposal_presented', ids: watch.list().map(p => p.id) })
         await watch.tick()
         assert.equal(frames.at(-1).proposalPopup, false, policy.name + ' acknowledgement')
-        assert.ok(watch.list().every(p => p.action === null && p.confirmation === ''))
+        assert.ok(watch.list().every(p => p.action?.tool === 'memory_update' && p.actionId === 'save-collection' && p.confirmation === '记住 deliveries：Collect ready parcels'))
         deliveries.push({ name: policy.name, advice, automatic: policy.automatic, acknowledged: true })
       }
       reports.at(-1).deliveries = deliveries

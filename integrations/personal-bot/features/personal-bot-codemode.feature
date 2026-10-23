@@ -1,4 +1,31 @@
 Feature: Pi v1.2 codemode is the voice orchestration entry point
+  Scenario: Proposal execution checks available tools without inference
+    Given the resident has a reviewed action tool and configured targets
+    When a card checks its action availability
+    Then the resident validates the actual tool schema and target
+    And discovery does not call a tool, classifier, or model
+    And installation without a fixed destination has no executable card action
+
+  Scenario: Proposal receipts distinguish admission from completion
+    Given the owner confirms an available proposal action
+    When the existing tool returns its result
+    Then only a verified completed operation returns a completed receipt
+    And task admission returns its identity without claiming task completion
+    And tool errors and uncertain receipts cannot establish completion
+
+  Scenario: A delayed classifier cannot revive an invalid proposal action
+    Given a confirmed action is waiting for its selected intent
+    When its lifetime, source binding, or execution context expires
+    Then the resident refuses execution before calling the tool
+    And private memory remains unchanged
+
+  Scenario: Unknown task transport retains the original mutation identity
+    Given a task start reaches its configured helper
+    When the helper closes without a correlated receipt
+    Then the proposal retains the original task and mutation identities
+    And an error message cannot forge those transport-owned identities
+    And the resident does not retry the mutation
+
   Scenario: One model tool orchestrates a fixed reviewed surface
     Given a coding coordinator with readonly inspection and reviewed system capabilities
     When a Spoken Turn invokes codemode

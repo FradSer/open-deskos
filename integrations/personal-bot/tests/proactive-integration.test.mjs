@@ -20,13 +20,14 @@ const stamp = '2026-10-02T10:00:00.000Z'
 const config = () => ({ version: 1, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 3600000, rules: [{ id: 'dry', urgent: true, delivery: 'immediate', advice: '检查盆土。考虑浇水。', conditions: [{ readingId: 'plant', field: 'soil', op: 'lt', value: 20 }], action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土后浇水' } } }], suppressed: [], snoozed: {} })
 const goalConfig = () => ({ version: 2, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 60000,
   maxCandidates: 8, maxPush: 3, suppressed: [], snoozed: {},
-  rules: [{ id: 'deliveries', goal: '及时处理需要我领取的物品。', observations: [{ readingId: 'thirdparty.parcels', fields: ['count'] }], delivery: 'immediate', urgent: false }] })
+  rules: [{ id: 'deliveries', goal: '及时处理需要我领取的物品。', observations: [{ readingId: 'thirdparty.parcels', fields: ['count'] }], delivery: 'immediate', urgent: false,
+    actions: [{ id: 'save-collection', label: '记下取件事项', tool: 'memory_update', params: { category: 'deliveries', value: '领取待取物品' } }] }] })
 
 test('selected Agent preserves actual proactive generation, phrasing, and confirmed execution', async t => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-selected-proactive-')))
   t.after(() => rm(root, { recursive: true, force: true }))
   await isolateAgentDirectory(t, root)
-  const generated = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: ['e0'] }] }
+  const generated = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }] }
   for (const version of [1, 2]) {
     const reports = []
     for (const external of [false, true]) {
@@ -40,6 +41,7 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
         const memory = createMemoryStore(${JSON.stringify(memoryFile)})
         const runtime = { fail: true, agent: {
           generationModel: 'offline-fixture/fixture',
+          canExecuteProposal(action) { return action.tool === 'memory_update' },
           async generateProposals() {
             if (runtime.fail) throw Error('private proactive provider detail')
             return ${JSON.stringify(generated)}
@@ -51,7 +53,12 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
           async executeProposal(name, params, confirmation) {
             if (name !== 'memory_update') throw Error('unavailable action')
             memory.beginTurn(confirmation)
-            try { return await memory.update(params) } finally { memory.beginTurn('') }
+            try {
+              await memory.update(params)
+              const stored = JSON.parse(await memory.read())
+              if (stored[params.category] !== params.value) throw Error('readback failed')
+              return { outcome: 'completed', text: '已保存这条记忆。', receipt: { category: params.category } }
+            } finally { memory.beginTurn('') }
           }, abort() {}, close() {}
         } }
         return runtime
@@ -88,6 +95,7 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
             judge: version === 1 ? fixtureJudge : async ({ candidates }) => ({ model: 'jev-fixture',
               answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.95, threshold: 0.8, groundingProbability: 0.95 }])) }),
             generate: runtime.agent.generateProposals, phrase: runtime.agent.phraseProposal,
+            canExecute: action => runtime.agent.canExecuteProposal?.(action) === true,
             execute: (...args) => { executions++; return runtime.agent.executeProposal(...args) },
             publish: frame => service.propose(frame), save: async () => {},
           })
@@ -128,20 +136,16 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
         await assert.rejects(watch.respond(proposal.id, 'accept', proposal.confirmation), /presented/)
         await watch.presented([proposal.id])
         await assert.rejects(watch.respond(proposal.id, 'accept', '好的'), /confirmation/)
-        if (version === 1) {
-          await watch.respond(proposal.id, 'accept', proposal.confirmation)
-          assert.equal(watch.list()[0].status, 'completed')
-          assert.equal(executions, 1)
-          assert.deepEqual(JSON.parse(await readFile(memoryFile, 'utf8')), { watering: '检查盆土后浇水' })
-          await assert.rejects(watch.respond(proposal.id, 'accept', proposal.confirmation), /no longer pending/)
-          await assert.rejects(resident.port(BOT_PORTS.runtime).agent.executeProposal('memory_update', { category: 'bad', value: 'unauthorized' }, '好的'))
-        } else {
-          assert.equal(proposal.action, null)
-          assert.equal(proposal.confirmation, '')
-          await assert.rejects(watch.respond(proposal.id, 'accept', ''), /confirmation/)
-          await assert.rejects(readFile(memoryFile), { code: 'ENOENT' })
-          assert.equal(executions, 0)
+        await watch.respond(proposal.id, 'accept', proposal.confirmation)
+        assert.equal(watch.list()[0].status, 'completed')
+        assert.equal(executions, 1)
+        assert.deepEqual(JSON.parse(await readFile(memoryFile, 'utf8')), version === 1 ? { watering: '检查盆土后浇水' } : { deliveries: '领取待取物品' })
+        if (version === 2) {
+          assert.equal(proposal.nextStep, '记下取件事项')
+          assert.deepEqual(proposal.action, { tool: 'memory_update', params: { category: 'deliveries', value: '领取待取物品' } })
         }
+        await assert.rejects(watch.respond(proposal.id, 'accept', proposal.confirmation), /no longer pending/)
+        await assert.rejects(resident.port(BOT_PORTS.runtime).agent.executeProposal('memory_update', { category: 'bad', value: 'unauthorized' }, '好的'))
         const final = watch.list()[0]
         let uncertain
         if (version === 1) {
@@ -176,7 +180,7 @@ test('default and selected Agent disable cancel pending proactive consumers and 
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-proactive-cancel-')))
   t.after(() => rm(root, { recursive: true, force: true }))
   await isolateAgentDirectory(t, root)
-  const batch = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: ['e0'] }] }
+  const batch = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }] }
   for (const stage of ['phrasing', 'generation']) {
     const reports = []
     for (const external of [false, true]) {
@@ -201,6 +205,7 @@ test('default and selected Agent disable cancel pending proactive consumers and 
             } finally { signal.removeEventListener('abort', cancel) }
           }
           return { ready, get cancelled() { return cancelled }, late() { resolveWork?.() }, agent: {
+            canExecuteProposal(action) { return action.tool === 'memory_update' },
             generateProposals: ({ signal }) => run(${JSON.stringify(batch)}, signal),
             phraseProposal: ({ advice, signal }) => run(advice, signal),
             executeProposal: async () => { throw Error('no action') }, abort() {}, close() {}
@@ -252,6 +257,7 @@ test('default and selected Agent disable cancel pending proactive consumers and 
             read: async id => ({ id, state: 'live', value: stage === 'phrasing' ? { soil: 2, measured_at: stamp } : { count: 2, measured_at: stamp } }),
             judge: async ({ candidates }) => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.95, threshold: 0.8, groundingProbability: 0.95 }])) }),
             generate: runtime.agent.generateProposals, phrase: runtime.agent.phraseProposal, execute: runtime.agent.executeProposal,
+            canExecute: action => runtime.agent.canExecuteProposal?.(action) === true,
             publish: frame => service.propose(frame), save: async () => {},
           })
           return watch
@@ -289,13 +295,54 @@ test('default and selected Agent disable cancel pending proactive consumers and 
   }
 })
 
+test('an older selected Agent remains loadable without granting executable suggestion capability', async t => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-legacy-proposal-port-')))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const entry = join(root, 'agent.cjs'), selection = join(root, 'selection.json')
+  await writeFile(entry, `exports.create = () => ({ generations: 0, executions: 0, agent: {
+    async generateProposals() { throw Error('An unavailable executor must not start generation') },
+    async phraseProposal() { throw Error('No phrasing') },
+    async executeProposal() { throw Error('No execution') }, abort() {}, close() {}
+  } })`)
+  await writeFile(selection, JSON.stringify({ schemaVersion: 1, replacements: [{
+    manifest: { ...personalBotManifest('runtime'), version: '2.0.0' }, entry,
+  }] }))
+  const service = new PersonalBotService({ record: async () => assert.fail('no capture'), transcribe: async () => assert.fail('no transcription'), prompt: async () => assert.fail('no voice request') })
+  let watch, generations = 0, executions = 0
+  const resident = createPersonalBotComposition({
+    replacementPlugins: loadPersonalBotReplacements(selection, { trusted: true }),
+    createService: () => service, openChannel: () => ({ close() {} }),
+    initialize: () => assert.fail('The selected Agent cannot fall back to the default'),
+    createHome: () => ({ start() {}, close() {} }),
+    createWatch(runtime) {
+      return new ProactiveWatch({ config: goalConfig(), now: () => Date.parse(stamp),
+        canExecute: action => runtime.agent.canExecuteProposal?.(action) === true,
+        generate: (...args) => { generations++; return runtime.agent.generateProposals(...args) },
+        execute: (...args) => { executions++; return runtime.agent.executeProposal(...args) },
+        read: async id => ({ id, state: 'live', value: { count: 2, measured_at: stamp } }),
+        judge: async () => assert.fail('No executable candidate can reach judgment'),
+        publish: frame => service.propose(frame), save: async () => {},
+      })
+    },
+    onWatch(value, current, context) { watch = value; current.attachWatch(value); context.onCleanup(() => current.attachWatch(undefined)) },
+  })
+  try {
+    await resident.start(); await watch.inflight
+    assert.equal(resident.catalog().find(item => item.manifest.id === 'odk.personal-bot.runtime').manifest.version, '2.0.0')
+    assert.equal(typeof resident.port(BOT_PORTS.runtime).agent.canExecuteProposal, 'undefined')
+    assert.deepEqual(watch.list(), [])
+    assert.equal(generations, 0); assert.equal(executions, 0)
+    assert.equal(service.status.proposalPopup, false)
+  } finally { await resident.stop() }
+})
+
 test('real SDK generator has no tools, skills or durable memory and can return several candidates', async t => {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'odk-generator-sdk-')))
   t.after(() => rm(dir, { recursive: true, force: true }))
   await isolateAgentDirectory(t, dir)
   const optionsSeen = [], requests = []
   await writeFile(join(dir, 'memory.json'), JSON.stringify({ private: 'MUST_NOT_ENTER_GENERATION' }))
-  const suggestions = [1, 2].map(i => ({ topicId: 'packages', key: `item-${i}`, advice: `检查物品 ${i}。`, nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: ['e0'] }))
+  const suggestions = [1, 2].map(i => ({ topicId: 'packages', key: `item-${i}`, advice: `检查物品 ${i}。`, actionId: 'inspect-package', evidenceIds: ['e0'] }))
   const agent = await createPersonalBot({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') } }, {
     createIntentRouter: fixtureIntentRouter,
     createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getModel: () => fixtureModel }),
@@ -305,7 +352,7 @@ test('real SDK generator has no tools, skills or durable memory and can return s
     },
   })
   t.after(() => agent.close())
-  const result = await agent.generateProposals({ topics: [{ id: 'packages', goal: '领取物品', evidence: [{ id: 'e0', value: 2 }] }], maxCandidates: 8 })
+  const result = await agent.generateProposals({ topics: [{ id: 'packages', goal: '领取物品', actions: [{ id: 'inspect-package', label: '检查物品' }], evidence: [{ id: 'e0', value: 2 }] }], maxCandidates: 8 })
   assert.equal(result.suggestions.length, 2)
   assert.deepEqual(optionsSeen[1].tools, []); assert.deepEqual(optionsSeen[1].customTools, [])
   assert.equal(optionsSeen[1].sessionManager.getSessionFile(), undefined)
