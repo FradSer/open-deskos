@@ -72,7 +72,11 @@ try {
           candidates: payload.variables.map(({ selector, id, factId, serviceId, displayable, characters }) => ({ selector, id, factId, serviceId, displayable, characters })) }
         current.telemetry.push(telemetry)
         console.log(JSON.stringify({ modelRequest: requests, facts: payload.variables.length }))
-        for (const fact of payload.variables) { if (fact.id) current.seenSources.add(fact.id); if (fact.factId) current.seenFacts.add(fact.factId) }
+        for (const fact of payload.variables) {
+          if (fact.id) current.seenSources.add(fact.id)
+          if (fact.factId) current.seenFacts.add(fact.factId)
+          if (/(?:[:.])(?:verification(?:\.status)?|execution)$/.test(fact.factId)) assert.equal(fact.displayable, false, 'Verification flags are analysis-only')
+        }
         if (current.mutate) { const mutate = current.mutate; current.mutate = null; mutate() }
         return prompt(text, ...args)
       }
@@ -108,12 +112,13 @@ try {
         assert.ok(control.maxTokens <= 2048, 'Overview output budget must reach the provider')
         if (control.provider === 'bailian') {
           assert.equal(control.enableThinking, false)
-          assert.ok(current.telemetry.every(row => row.usage?.reasoning === 0), 'The provider must confirm zero reasoning tokens')
+          // Qwen owns enable_thinking semantics; a provider alias can also host other model families.
+          if (/^qwen/i.test(control.model)) assert.ok(current.telemetry.every(row => row.usage?.reasoning === 0), 'Qwen must confirm zero reasoning tokens')
         }
       }
       if (mutate) {
         assert.match(home.frame.items.map(item => item.text).join(' '), /finished/)
-        assert.match(home.frame.items.map(item => item.text).join(' '), /verification not_run/)
+        assert.match(home.frame.items.map(item => item.text).join(' '), /\(reported\)/)
       }
       assert.equal(home.frame.coverage.readSources, home.frame.coverage.totalSources)
       if (expected) {
@@ -126,6 +131,13 @@ try {
   }
   const makeReading = (id, label, icon, value) => ({ id, label, kind: 'app', state: 'live', updatedAt: Date.now(), value,
     home: { mode: 'required', priority: 99, icon, fields: Object.keys(value) } })
+  const reportReading = makeReading('odk.remote.verification-regression', 'Remote Pi report', 'sessions', {
+    report: '**Release audit** found a permission gap; waiting for repair.',
+    verification: 'reported_unverified', execution: 'reported_unverified',
+  })
+  await check('pi-report-content', { list: async () => [reportReading], read: async () => reportReading }, undefined, true)
+  assert.match(report.scenarios.at(-1).items.map(item => item.text).join(' '), /reported:.*Release audit/)
+  assert.doesNotMatch(report.scenarios.at(-1).items.map(item => item.text).join(' '), /reported_unverified|verification:/)
   for (const state of (process.env.ODK_OVERVIEW_LIVE_DEVICE_ONLY === '1' ? [] : ['failed', 'waiting', 'running'])) {
     const readings = [makeReading('portfolio', 'Portfolio', 'portfolio', { todayChangePercent: 0.1 }),
       makeReading('weather', 'Weather', 'weather', { temperatureC: 23, condition: 'clear' }),

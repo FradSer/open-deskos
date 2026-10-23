@@ -971,6 +971,10 @@ Remote Pi reports enter through the existing read-only conversation projection.
 The adapter reads every retained report page.
 Historical reports do not establish current execution.
 Reported completion does not establish independently verified completion.
+Verification and execution flags remain available for analysis.
+These flags cannot supply a separate Overview fact, including during source-only recovery.
+Report facts show attributed content without raw verification codes.
+Terminal task states retain their verification qualifiers.
 Source adapters do not expose control tokens, private roles, or execution authority.
 Futu remains a selectable signed daily percentage, with no mandatory position.
 

@@ -7,6 +7,53 @@ import { HomeBriefing } from '../src/home-briefing.mjs'
 const source = (id, icon, value) => ({ id, label: id, state: 'live', value, home: { mode: 'required', priority: 100, icon, fields: Object.keys(value) } })
 const template = (id, icon, text) => ({ items: [{ text, readingIds: [id], segments: [{ text, icon }] }] })
 
+test('Pi verification metadata informs analysis without becoming the displayed report', async () => {
+  const { fallbackHomeSelection } = await import('../src/home-template.mjs')
+  const readings = [source('odk.remote.audit', 'sessions', {
+    report: 'The worker found **two permission gaps**.', verification: 'reported_unverified',
+    tasks: [{ id: 'audit', name: 'Bridge security audit', reportedState: 'settled', verification: 'reported_unverified' }],
+  })]
+  const facts = homeFactVariables(readings)
+  for (const fact of facts.filter(fact => fact.factId.includes('verification'))) {
+    assert.equal(fact.displayable, false)
+    assert.throws(() => compileHomeSelection({ items: [{ sources: [facts.indexOf(fact)] }] }, facts), /analysis-only/i)
+  }
+  let seen
+  const raw = await generateHomeSelection(readings, { choose: async request => {
+    seen = request.variables
+    return { items: [{ sources: [request.variables.find(fact => fact.factId.endsWith(':report')).selector] }] }
+  } })
+  assert.equal(seen.length, facts.length, 'Verification context must still reach analysis')
+  assert.ok(seen.filter(fact => fact.factId.includes('verification')).every(fact => !fact.displayable))
+  const bound = resolveHomeTemplate(raw, readings)
+  assert.match(bound.items[0].text, /reported.*\*\*two permission gaps\*\*/)
+  assert.doesNotMatch(bound.items[0].text, /reported_unverified|verification:/)
+  const fallback = resolveHomeTemplate(fallbackHomeSelection(readings), readings)
+  assert.doesNotMatch(fallback.items.map(item => item.text).join(' '), /reported_unverified|verification:/)
+})
+
+test('nested verification status and execution flags stay analysis-only', async () => {
+  const { fallbackHomeSelection } = await import('../src/home-template.mjs')
+  const readings = [source('only-metadata', 'tasks', { verification: { status: 'not_run' }, execution: 'reported_unverified' })]
+  const facts = homeFactVariables(readings)
+  assert.equal(facts.length, 2)
+  assert.ok(facts.every(fact => fact.displayable === false))
+  assert.deepEqual(fallbackHomeSelection(readings), { items: [] })
+  await assert.rejects(generateHomeSelection(readings, { choose: async () => ({ items: [{ sources: [0] }] }) }), /analysis-only/i)
+})
+
+test('terminal local and reported states retain meaningful verification without raw absence flags', () => {
+  for (const field of ['state', 'reportedState']) for (const verification of [undefined, 'not_run', 'reported_unverified', 'passed', 'failed']) {
+    const readings = [source('pi', 'sessions', { tasks: [{ id: 'audit', name: 'Audit', [field]: 'settled', ...(verification ? { verification } : {}) }] })]
+    const facts = homeFactVariables(readings)
+    const raw = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(`:${'tasks.0.' + field}`))] }] }, facts)
+    const text = resolveHomeTemplate(raw, readings).items[0].text
+    if (['passed', 'failed'].includes(verification)) assert.ok(text.includes(`verification ${verification}`), text)
+    else assert.match(text, /\(reported\)/)
+    assert.doesNotMatch(text, /reported_unverified|not_run|verification unknown/)
+  }
+})
+
 test('semantic facts retain nested units and Agent goals, state, and verification', () => {
   const readings = [source('hydra', 'plants', { plants: [{ name: 'Fern', soilPercent: 8 }] }),
     source('pi', 'sessions', { sessions: [{ id: 'pi-1', project: 'Desk', goal: 'Review release', state: 'waiting', activity: 'Needs input' }] }),
@@ -18,7 +65,7 @@ test('semantic facts retain nested units and Agent goals, state, and verificatio
   const resolved = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [soil, waiting, finished] }] }, facts), readings)
   assert.match(resolved.items[0].text, /Fern.*8%/)
   assert.match(resolved.items[0].text, /Desk.*waiting/)
-  assert.match(resolved.items[0].text, /finished verification not_run/)
+  assert.match(resolved.items[0].text, /finished \(reported\)/)
   assert.ok(facts.some(fact => fact.factId === 'pi:sessions.0.goal'))
   assert.ok(facts.some(fact => fact.factId === 'pi:sessions.0.activity'))
   assert.deepEqual(facts[waiting].entities, [{ id: 'pi-1', project: 'Desk' }])
@@ -288,7 +335,7 @@ test('rebinding keeps complete current facts within the existing display budget'
   const raw = compileHomeSelection({ items: [{ sources: facts.map((_, index) => index) }] }, facts)
   const fresh = resolveHomeTemplate(rebindHomeSelection(raw, before, after), after)
   assert.ok(fresh.items.reduce((sum, item) => sum + item.text.length, 0) <= 240)
-  assert.match(fresh.items[0].text, /verification not_run/)
+  assert.match(fresh.items[0].text, /\(reported\)/)
   assert.doesNotMatch(fresh.items[0].text, /running/)
 })
 
