@@ -6,7 +6,7 @@ const VALIDATION_CORRECTIONS = Object.freeze({
   scope: 'Use only admission, completion, or derivation. Formatting or returning calculated output belongs to derivation, not external completion. Computation receipts can support derivation only. Cite underlying tool receipts for external completion or admission.',
   citation: 'Copy a short exact substring from an eligible successful nontruncated receipt. Preserve every quote, backslash, and space. Do not reconstruct or decode text. Use needs_review when evidence is insufficient.',
   computation_required: 'A passed derivation check must cite at least one successful nontruncated computation receipt. A method read alone cannot prove computation.',
-  unresolved: 'Overall status must be needs_review when a check needs review or receipt evidence is truncated. Do not convert insufficient evidence into success.',
+  unresolved: 'Overall status must be needs_review when a requested check lacks eligible evidence. Truncated receipts cannot support a passed check. Do not convert insufficient evidence into success.',
   lesson_schema: 'Return exactly an object with a lessons array of at most four entries. Every lesson needs exactly title, body, and evidence. Return an empty array when no lesson is supported.',
   lesson_text: 'Use bounded nonempty procedural lesson titles and bodies. Exclude credentials, personal data, sensitive identifiers, and unsupported claims. Return no lesson when it cannot be retained safely.',
 })
@@ -44,6 +44,7 @@ export const completionInstructions = [
   'Return only JSON with exactly this shape: {"status":"passed","summary":"brief explanation in the request language","checks":[{"requirement":"the requested outcome","scope":"completion","status":"passed","evidence":[{"id":"exact receipt id","quote":"short exact substring of receipt text"}]}]}.',
   'Both status fields permit only passed or needs_review. The scope field permits only admission, completion, or derivation. Include every unmet requirement as needs_review. Overall status must be needs_review when any requested outcome lacks evidence.',
   'Use admission only for an explicitly requested launch or prompt delivery. An admissionOnly receipt cannot prove downstream completion. Accepted, queued, running, unknown, or unsupported worker claims cannot prove completed work.',
+  'An unreferenced truncated receipt does not invalidate independent complete evidence. Every requested outcome still requires its own eligible evidence. Never cite a truncated receipt.',
   'A successful system installation receipt and matching catalog readback can establish installation of the same revision. Reinstalling a ready draft does not require a new version or revision. Do not add unrequested downstream outcomes.',
   'Use completion for externally observed outcomes, including package installation. Cite underlying tool receipts. Computation receipts cannot support admission or completion. A launch receipt proves launch only when that is the requested outcome.',
   'Use derivation only for calculations or transformations of supplied data. It never establishes external facts, admission, or effects. Compare actual executed source against the current request input, method, and result. Check that all requested inputs and the applicable supplied or cited method match the execution and answer.',
@@ -79,7 +80,7 @@ export function validateCompletion(value, receipts) {
       if (check.scope === 'derivation' && !check.evidence.some(citation => receipts.find(receipt => receipt.id === citation.id)?.kind === 'computation')) throw new AgentValidationError('computation_required')
     } else if (!Array.isArray(check.evidence) || check.evidence.length > 4) throw new AgentValidationError('check_schema')
   }
-  if (value.status === 'passed' && (value.checks.some(check => check.status !== 'passed') || receipts.some(receipt => receipt.truncated))) throw new AgentValidationError('unresolved')
+  if (value.status === 'passed' && value.checks.some(check => check.status !== 'passed')) throw new AgentValidationError('unresolved')
   return value
 }
 
