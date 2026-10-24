@@ -308,3 +308,15 @@ test('suggestion schema correction identifies missing advice without disclosing 
     }
   }
 })
+
+test('generation and correction lead with concise advice while retaining stored compatibility', () => {
+  for (const instructions of [generationInstructions, generatedFormatCorrection(new SyntaxError())]) {
+    assert.match(instructions, /one short sentence/)
+    assert.match(instructions, /itemized quotes/)
+    assert.match(instructions, /cited observations/)
+  }
+  const topics = [{ id: 'deliveries', actions: [approved], evidence: [{ id: 'e0' }] }]
+  const retained = suggestion('retained', '查'.repeat(400))
+  assert.equal(validateGeneratedBatch({ suggestions: [retained] }, topics, 1)[0].advice, retained.advice)
+  assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...retained, why: 'Obsolete explanation' }] }, topics, 1))
+})

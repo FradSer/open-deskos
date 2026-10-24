@@ -513,3 +513,10 @@ Feature: Owner controlled proactive Personal Bot proposals
     And readiness does not acknowledge presentation
     And quiet, busy, routine, snooze and dismissal policies remain effective
     And diagnostic status queries do not request recovery
+
+  Scenario: Generated advice leads with one concise recommendation
+    Given the topic includes detailed observations and an approved next action
+    When ordinary generation or schema correction requests a suggestion
+    Then advice requests one short sentence focused on what the owner should do
+    And detailed source values and itemized quotes remain available in the cited observations
+    And existing stored advice retains its original length and evidence validation
