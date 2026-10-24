@@ -405,3 +405,33 @@ test('the opaque bootstrap shares the detector and accepts Home capability only 
   root.dispatchEvent(new Event('pagehide')); pinch()
   assert.equal(returns().length, 1, 'disposal removes the detector')
 })
+
+// Native lifecycle acceptance runs with the existing Electron verifier checks.
+for (const [name, html, expectedCode] of [
+  ['visible content', '<body><p>Verifier lifecycle regression</p></body>', 0],
+  ['script failure', '<body><p>Verifier lifecycle regression</p><script>throw Error("controlled lifecycle failure")</script></body>', 1],
+]) {
+  test(`native verifier normally closes within its default eight-second deadline: ${name}`, { timeout: 25000 }, async t => {
+    let closed
+    let stderr = ''
+    const events = []
+    const began = performance.now()
+    const verifier = createUserAppVerifier({ electronPath: require('electron'), spawnProcess(file, args, options) {
+      const child = require('node:child_process').spawn(file, args, options)
+      child.stdout.on('data', chunk => {
+        if (chunk.toString().includes('"ok":')) events.push({ phase: 'reported', elapsedMs: Math.round(performance.now() - began) })
+      })
+      child.stderr.on('data', chunk => { stderr = (stderr + chunk.toString()).slice(-4000) })
+      child.once('exit', (code, signal) => events.push({ phase: 'exit', code, signal, elapsedMs: Math.round(performance.now() - began) }))
+      child.once('close', (code, signal) => { closed = { code, signal }; events.push({ phase: 'close', ...closed, elapsedMs: Math.round(performance.now() - began) }) })
+      return child
+    } })
+    t.after(() => verifier.close())
+    const result = await verifier.verify({ html })
+    await verifier.close()
+    t.diagnostic(JSON.stringify({ result, events, stderr }))
+    assert.deepEqual(closed, { code: expectedCode, signal: null }, 'A verdict requires the actual normal child close')
+    assert.equal(result.ok, expectedCode === 0)
+    if (expectedCode === 1) assert.match(result.error, /controlled lifecycle failure/)
+  })
+}

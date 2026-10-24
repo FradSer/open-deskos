@@ -4,6 +4,36 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { EventEmitter } = require('node:events')
 const { createUserAppVerifier, MAX_OUTPUT_BYTES } = require('../src/user-app-verifier')
+const fs = require('node:fs')
+const path = require('node:path')
+const vm = require('node:vm')
+
+for (const platform of ['darwin', 'linux', 'win32']) {
+  test(`verifier launch policy delays only macOS best-effort work: ${platform}`, async () => {
+    const isolated = { exports: {} }
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/user-app-verifier.js'), 'utf8'), {
+      module: isolated, require, __dirname: path.join(__dirname, '../src'),
+      process: { ...process, platform }, Buffer, setTimeout, clearTimeout,
+    })
+    let argumentsSeen
+    const verifier = isolated.exports.createUserAppVerifier({ spawnProcess(_file, args) {
+      argumentsSeen = args
+      const child = new EventEmitter()
+      child.stdout = new EventEmitter()
+      child.stderr = new EventEmitter()
+      queueMicrotask(() => {
+        fs.writeFileSync(args[3], '{"ok":true}')
+        child.emit('close', 0, null)
+      })
+      return child
+    } })
+    assert.equal((await verifier.verify({ html: '<body>Fixture</body>' })).ok, true)
+    await verifier.close()
+    assert.equal(argumentsSeen.filter(value => value === '--disable-best-effort-tasks').length, platform === 'darwin' ? 1 : 0)
+    assert.equal(argumentsSeen.some(value => value === '--no-sandbox' || value === '--single-process'), false)
+    assert.equal(argumentsSeen.length, platform === 'darwin' ? 6 : 5)
+  })
+}
 
 for (const mode of ['timeout', 'abort', 'output-limit', 'abort-during-spawn']) {
   test(`verifier release retains the child after ${mode} until actual close`, async () => {

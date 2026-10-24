@@ -1,5 +1,14 @@
 Feature: Sandboxed self-contained user applications
 
+  Scenario: Bound native macOS verification without optional background maintenance
+    Given a candidate has visible content or a controlled script failure
+    When the isolated macOS verifier starts
+    Then its initial process arguments delay best-effort tasks until shutdown
+    And other platforms keep their original process arguments
+    And sandbox, permissions, and network restrictions stay active
+    And the child closes normally within the unchanged eight-second deadline
+    And its exit code agrees with its final verdict
+
   Scenario: The selected catalog owns installed runtime availability
     Given the installed runtime uses a selected package catalog
     When that catalog is disabled or fails to start
