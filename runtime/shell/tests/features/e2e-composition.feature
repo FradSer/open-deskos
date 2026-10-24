@@ -1,4 +1,11 @@
 Feature: E2E validates the current declarative desktop
+  Scenario: Disposable macOS fixtures defer optional background maintenance
+    Given the parent owns each isolated fixture profile
+    When it launches a macOS Electron fixture
+    Then the initial process arguments delay best-effort tasks until shutdown
+    And Linux and Windows retain their original arguments
+    And the fixture retains its assertions, deadline, sandbox, and normal exit gate
+
   Scenario: Hidden comparisons have an active render target
     Given Appearance and Hydra checks retain real Main, preload, and comparison assertions
     When they run without a visible desktop window

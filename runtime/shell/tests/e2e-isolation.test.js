@@ -4,7 +4,33 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 const { createRequire } = require('node:module')
-const { runFixture } = require('./helpers/electron-fixture')
+const { runFixture, isolatedElectronArgs } = require('./helpers/electron-fixture')
+
+for (const platform of ['darwin', 'linux', 'win32']) {
+  test(`isolated fixture launch defers only macOS best-effort work: ${platform}`, () => {
+    const original = ['fixture.cjs', '--theme=pixel']
+    const actual = isolatedElectronArgs(original, platform)
+    assert.deepEqual(original, ['fixture.cjs', '--theme=pixel'])
+    assert.deepEqual(actual, platform === 'darwin' ? [...original, '--disable-best-effort-tasks'] : original)
+    assert.deepEqual(isolatedElectronArgs(actual, platform), actual)
+    assert.equal(actual.some(value => value === '--no-sandbox' || value === '--single-process'), false)
+    runFixture('widget-density.cjs', ['--theme=pixel'], { platform, timeout: 1234, spawn(_executable, args, options) {
+      assert.equal(path.basename(args[0]), 'electron-fixture-runner.cjs')
+      assert.equal(args[2], path.join(__dirname, 'widget-density.cjs'))
+      assert.equal(args[3], '--theme=pixel')
+      assert.equal(options.timeout, 1234)
+      assert.equal(args.includes('--disable-best-effort-tasks'), platform === 'darwin')
+      return { status: 0, signal: null }
+    } })
+  })
+}
+
+test('App Manager uses the isolated initial argv policy without changing command execution', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'app-manager-electron.test.js'), 'utf8')
+  assert.match(source, /runCommand\(require\('electron'\), isolatedElectronArgs\(/)
+  assert.match(source, /timeout: 35000/)
+  assert.match(source, /fixtureRejection\(error,/)
+})
 
 test('geometry includes isolated connection and gamepad status replacements', () => {
   const { scripts } = require('../package.json')

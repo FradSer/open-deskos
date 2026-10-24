@@ -6,6 +6,7 @@ const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 const { runCommand, fixtureRejection } = require('./helpers/hydra-wire-lifecycle')
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 for (const mode of ['signed', 'development']) for (const invalid of [false, true]) {
   test(`${mode} App Manager browser ${invalid ? 'rejects omitted rollback' : 'preserves navigation and recovery'}`, { timeout: 45000 }, async t => {
@@ -17,7 +18,7 @@ for (const mode of ['signed', 'development']) for (const invalid of [false, true
       XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
     delete env.ELECTRON_RUN_AS_NODE
     try {
-      const running = runCommand(require('electron'), [`--user-data-dir=${root}`, fixture],
+      const running = runCommand(require('electron'), isolatedElectronArgs([`--user-data-dir=${root}`, fixture]),
         { env, signal: t.signal, timeout: 35000, maxBuffer: 1024 * 1024 })
       if (invalid) await assert.rejects(running,
         error => fixtureRejection(error, /App Manager recovery did not restore prior running state/))

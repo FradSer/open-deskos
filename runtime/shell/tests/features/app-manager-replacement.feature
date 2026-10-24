@@ -1,6 +1,14 @@
 Feature: Independent App Manager replacement
   The public manager contract preserves navigation and lifecycle behavior.
 
+  Scenario: Isolated macOS navigation checks release their native process
+    Given a signed or development manager uses a parent-owned browser profile
+    When the browser validates navigation or rejects an omitted rollback
+    Then optional best-effort maintenance is deferred by the initial process arguments
+    And the original assertions and thirty-five-second deadline remain active
+    And successful checks exit normally with zero
+    And rejected rollback checks exit normally with one
+
   Scenario: Independent signed navigation owns its algorithm
     Given an App Manager bundle with its own state transitions and static catalog
     When the actual CLI installs it and the Host selects its captured modules
