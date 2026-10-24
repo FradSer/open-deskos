@@ -76,3 +76,36 @@ Feature: Voice feedback status transport
     And ambiguous endpoints require explicit selection before requesting a current quote
     And an expired preview cannot request a quote
     And a current quote request uses the existing owner text channel through Jev
+
+  Scenario: A prepared recommendation exposes its executable next action
+    Given a pending ride preview with exactly one actual pickup and destination
+    When the Personal Bot renders the recommendation card
+    Then Get current quote is a primary button outside collapsed ride details
+    And clicking it enters the existing Agent channel with the captured preview and place handles
+    And source inspection is secondary to the executable action
+
+  Scenario: Ambiguous ride places remain explicit before execution
+    Given a pending ride preview with multiple possible pickup places
+    When the user clicks Get current quote without choosing a pickup
+    Then the ride details open and the missing pickup receives focus
+    And no Agent turn starts until both actual places are selected
+
+  Scenario: Long recommendation text keeps the next action nearby
+    Given a recommendation with long English or CJK text
+    When the recommendation card renders at a compact size
+    Then its complete text remains in a named keyboard-readable scroll region
+    And the user can reach the final character with keyboard input
+    And its executable next action remains outside that text region
+
+  Scenario: A quote request has an uncertain delivery outcome
+    Given a prepared recommendation with actual place handles
+    When the next-action request loses its delivery receipt
+    Then the card shows the uncertainty outside collapsed source details
+    And the submitted button remains disabled
+    And the card does not claim that a quote or order completed
+
+  Scenario: Malformed preview handles cannot become executable controls
+    Given a recommendation with an invalid preview handle
+    When the card renders
+    Then the card offers source inspection instead of a quote or refresh action
+    And no malformed handle reaches the Agent channel

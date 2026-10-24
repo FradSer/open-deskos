@@ -177,32 +177,57 @@
       select.value = choices.length === 1 ? choices[0].handle : ''
       label.append(select); panel.append(label); selectors.push(select)
     }
-    if (canRespond && current()) panel.append(button('Get current quote', async function () {
-      const handles = [preview.handle, ...selectors.map(select => select.value)]
-      if (!current() || !handles.every(value => typeof value === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(value)) || !selectors.every((select, index) => preview[index === 0 ? 'from' : 'to'].some(p => p.handle === select.value))) {
-        note.textContent = 'Choose both actual places. If the preview expired, ask the Agent to search again.'
-        return
-      }
-      for (const control of [...selectors, quoteButton]) control.disabled = true
-      try {
-        const receipt = await window.odkPersonalBot.sendText(`${rideQuotePrefix} ${handles.join(' ')}`)
-        if (!receipt?.accepted) throw Error('Unavailable')
-      } catch {
-        note.textContent = 'Quote request delivery is uncertain. Check the Agent conversation before trying again. No order confirmation was sent.'
-      }
-    }))
-    const quoteButton = panel.children[panel.children.length - 1]
-    if (canRespond && typeof preview.handle === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(preview.handle) && ['pending', 'expired'].includes(proposal.status)) {
+    const actions = document.createElement('div')
+    actions.className = 'personal-bot-proposal-actions personal-bot-ride-actions'
+    const requestStatus = document.createElement('p')
+    requestStatus.className = 'personal-bot-proposal-request-status'
+    requestStatus.setAttribute('role', 'status')
+    let quoteButton
+    const validPreviewHandle = typeof preview.handle === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(preview.handle)
+    if (canRespond && validPreviewHandle && current()) {
+      quoteButton = button('Get current quote', async function () {
+        const handles = [preview.handle, ...selectors.map(select => select.value)]
+        if (!current() || !handles.every(value => typeof value === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(value)) || !selectors.every((select, index) => preview[index === 0 ? 'from' : 'to'].some(p => p.handle === select.value))) {
+          note.textContent = 'Choose both actual places. If the preview expired, ask the Agent to search again.'
+          panel.hidden = false
+          opening.setAttribute('aria-expanded', 'true')
+          const missing = selectors.find(select => !select.value)
+          if (missing) missing.focus()
+          return
+        }
+        for (const control of [...selectors, quoteButton]) control.disabled = true
+        requestStatus.textContent = 'Sending quote request…'
+        try {
+          const receipt = await window.odkPersonalBot.sendText(`${rideQuotePrefix} ${handles.join(' ')}`)
+          if (!receipt?.accepted) throw Error('Unavailable')
+          requestStatus.textContent = 'Quote request sent. Follow its result in the Agent conversation.'
+        } catch {
+          requestStatus.textContent = 'Quote request delivery is uncertain. Check the Agent conversation before trying again. No order confirmation was sent.'
+        }
+      })
+      quoteButton.className = 'personal-bot-proposal-primary'
+      quoteButton.dataset.proposalId = proposal.id
+      quoteButton.dataset.proposalAction = 'ride-quote'
+      actions.append(quoteButton)
+    }
+    if (canRespond && validPreviewHandle && ['pending', 'expired'].includes(proposal.status)) {
       const refresh = button('Refresh preview', async () => {
         refresh.disabled = true
+        requestStatus.textContent = 'Sending preview refresh…'
         try {
           const receipt = await window.odkPersonalBot.sendText(`${rideRefreshPrefix} ${preview.handle}`)
           if (!receipt?.accepted) throw Error('Unavailable')
-        } catch { note.textContent = 'Preview refresh delivery is uncertain. Check the Agent conversation before trying again.' }
+          requestStatus.textContent = 'Preview refresh sent. Follow its result in the Agent conversation.'
+        } catch { requestStatus.textContent = 'Preview refresh delivery is uncertain. Check the Agent conversation before trying again.' }
       })
-      panel.append(refresh)
+      refresh.dataset.proposalId = proposal.id
+      refresh.dataset.proposalAction = 'ride-refresh'
+      if (!quoteButton) refresh.className = 'personal-bot-proposal-primary'
+      else panel.append(refresh)
+      if (!quoteButton) actions.append(refresh)
     }
-    article.append(opening, panel)
+    article.append(actions, requestStatus, opening, panel)
+    return actions.children.length > 0
   }
   const expandedDisclosures = new Set()
   function disclosure(label, className, id = '') {
@@ -312,6 +337,12 @@
         if (!executableAction) state.textContent += p.ridePreview || readOnlyStep ? ' · Read-only preview' : ' · Earlier suggestion · No executable action'
         else if (!nextStep || technicalAdvice) state.textContent += ' · Earlier suggestion'
         advice.textContent = technicalAdvice ? 'Review the earlier suggestion in Sources.' : p.advice
+        if (!technicalAdvice && p.advice.length > 180) {
+          advice.dataset.long = 'true'
+          advice.setAttribute('tabindex', '0')
+          advice.setAttribute('role', 'region')
+          advice.setAttribute('aria-label', 'Full recommendation; scroll to read')
+        }
         article.append(state, advice)
         if ((executableAction || readOnlyStep) && nextStep && !technicalAdvice) {
           const next = document.createElement('div')
@@ -374,7 +405,7 @@
           execution.textContent = `Execution receipt: ${JSON.stringify(p.execution).slice(0, 16384)}`
           sources.append(execution)
         }
-        if (p.ridePreview) rideDetails(article, p, suggestionCapabilities.respond)
+        const hasRideAction = p.ridePreview ? rideDetails(article, p, suggestionCapabilities.respond) : false
         if (p.result) {
           let structuredResult = false
           if (typeof p.result === 'string' && p.result.length <= 8192) {
@@ -403,7 +434,7 @@
             control.dataset.proposalId = p.id; control.dataset.proposalAction = decision
             return control
           }
-          if (!executableAction || !nextStep || technicalAdvice) {
+          if ((!executableAction || !nextStep || technicalAdvice) && !hasRideAction) {
             const view = button('View sources', () => { sources.open = true; expandedDisclosures.add(`${p.id}:sources`); sources.children[0].focus({ preventScroll: true }) })
             view.className = 'personal-bot-proposal-primary'
             view.dataset.proposalId = p.id; view.dataset.proposalAction = 'view-sources'

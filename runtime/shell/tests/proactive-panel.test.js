@@ -663,3 +663,83 @@ for (const invalidation of ['confirmation changed', 'action changed', 'unavailab
     assert.equal(f.commands.length, 0, 'A stale or detached confirmation cannot send a proposal acceptance')
   })
 }
+
+test('prepared ride quote is primary and reachable before collapsed details or feedback', async () => {
+  const f = fixture(), turns = []
+  f.window.odkPersonalBot.sendText = async text => { turns.push(text); return { accepted: true } }
+  const p = { ...proposal(), action: null, confirmation: '', advice: 'Go to the gym.', ridePreview: { handle: 'preview-handle', expiresAt: Date.now() + 60000, measuredAt: new Date().toISOString(), from: [{ handle: 'from-a', name: 'Office' }], to: [{ handle: 'to-a', name: 'Gym' }] } }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const article = f.content.querySelector('.personal-bot-proposal')
+  const details = f.content.querySelector('.personal-bot-ride-details')
+  const quote = flatten(article).find(n => n.tagName === 'BUTTON' && n.textContent === 'Get current quote')
+  assert.equal(details.hidden, true)
+  assert.equal(details.contains(quote), false, 'The next action cannot require discovering a disclosure')
+  assert.equal(quote.className, 'personal-bot-proposal-primary')
+  assert.equal(flatten(article).some(n => n.tagName === 'BUTTON' && n.textContent === 'View sources'), false)
+  await quote.click()
+  assert.deepEqual(turns, ['查看报价 preview-handle from-a to-a'])
+  assert.equal(quote.disabled, true)
+})
+
+test('quote action opens ambiguous place selection without dispatching a turn', async () => {
+  const f = fixture(), turns = []
+  f.window.odkPersonalBot.sendText = async text => { turns.push(text); return { accepted: true } }
+  const p = { ...proposal(), action: null, confirmation: '', advice: 'Go to the gym.', ridePreview: { handle: 'preview-handle', expiresAt: Date.now() + 60000, measuredAt: new Date().toISOString(), from: [{ handle: 'from-a', name: 'Office A' }, { handle: 'from-b', name: 'Office B' }], to: [{ handle: 'to-a', name: 'Gym' }] } }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Get current quote').click()
+  assert.equal(turns.length, 0)
+  assert.equal(f.content.querySelector('.personal-bot-ride-details').hidden, false)
+  assert.equal(flatten(f.content).find(n => n.tagName === 'SELECT').focused, true)
+})
+
+test('long recommendation remains complete in a keyboard-readable scroll region', () => {
+  const f = fixture(), advice = '请带好运动装备，准备去健身房。'.repeat(30)
+  f.render({ state: 'idle', proposals: [{ ...proposal(), advice }], proposalPopup: true })
+  const text = f.content.querySelector('.personal-bot-proposal-advice')
+  assert.equal(text.textContent, advice)
+  assert.equal(text.dataset.long, 'true')
+  assert.equal(text.attributes.tabindex, '0')
+  assert.equal(text.attributes['aria-label'], 'Full recommendation; scroll to read')
+})
+
+test('quote delivery failure is visible outside collapsed details without claiming success', async () => {
+  const f = fixture()
+  f.window.odkPersonalBot.sendText = async () => { throw Error('Transport lost') }
+  const p = { ...proposal(), action: null, confirmation: '', advice: 'Go to the gym.', ridePreview: { handle: 'preview-handle', expiresAt: Date.now() + 60000, measuredAt: new Date().toISOString(), from: [{ handle: 'from-a', name: 'Office' }], to: [{ handle: 'to-a', name: 'Gym' }] } }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const quote = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Get current quote')
+  await quote.click()
+  const status = f.content.querySelector('.personal-bot-proposal-request-status')
+  assert.match(status.textContent, /delivery is uncertain.*Check the Agent conversation/)
+  assert.equal(status.attributes.role, 'status')
+  assert.equal(f.content.querySelector('.personal-bot-ride-details').contains(status), false)
+  assert.equal(quote.disabled, true)
+})
+
+test('read-only ride previews expose no quote or refresh action', () => {
+  const f = fixture()
+  const p = { ...proposal(), action: null, confirmation: '', ridePreview: { handle: 'preview-handle', expiresAt: Date.now() + 60000, from: [{ handle: 'from-a', name: 'Office' }], to: [{ handle: 'to-a', name: 'Gym' }] } }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
+  assert.equal(flatten(f.content).some(n => n.tagName === 'BUTTON' && ['Get current quote', 'Refresh preview'].includes(n.textContent)), false)
+})
+
+test('expired ride preview exposes refresh as the primary recovery action', async () => {
+  const f = fixture(), turns = []
+  f.window.odkPersonalBot.sendText = async text => { turns.push(text); return { accepted: true } }
+  const p = { ...proposal(), status: 'expired', action: null, confirmation: '', ridePreview: { handle: 'preview-handle', expiresAt: 0, from: [], to: [] } }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const refresh = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Refresh preview')
+  assert.equal(refresh.className, 'personal-bot-proposal-primary')
+  assert.equal(f.content.querySelector('.personal-bot-ride-details').contains(refresh), false)
+  await refresh.click()
+  assert.deepEqual(turns, ['刷新行程 preview-handle'])
+})
+
+test('malformed preview cannot hide source inspection behind an unusable quote button', () => {
+  const f = fixture()
+  const p = { ...proposal(), action: null, confirmation: '', ridePreview: { handle: 'invalid handle', expiresAt: Date.now() + 60000, from: [], to: [] } }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const buttons = flatten(f.content).filter(n => n.tagName === 'BUTTON')
+  assert.equal(buttons.some(n => ['Get current quote', 'Refresh preview'].includes(n.textContent)), false)
+  assert.equal(buttons.some(n => n.textContent === 'View sources'), true)
+})

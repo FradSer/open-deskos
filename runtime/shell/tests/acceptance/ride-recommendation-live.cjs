@@ -208,7 +208,9 @@ app.whenReady().then(async () => {
   }
   expectedOwnerText = `查看报价 ${preview.handle} ${preview.from[0].handle} ${preview.to[0].handle}`
   phase = 'quote_click'
-  await evaluate(`(() => { const card = [...document.querySelectorAll('.personal-bot-proposal')].find(node => node.dataset.proposalId === ${JSON.stringify(proposal.id)}); const panel = card?.querySelector('.personal-bot-ride-details'); if (!panel?.checkVisibility()) throw Error(); const button = [...panel.querySelectorAll('button')].find(node => node.textContent === 'Get current quote'); if (!button || button.disabled) throw Error(); button.scrollIntoView({ block: 'center' }); button.click(); return true })()`)
+  await evaluate(`(() => { const card = [...document.querySelectorAll('.personal-bot-proposal')].find(node => node.dataset.proposalId === ${JSON.stringify(proposal.id)}); const panel = card?.querySelector('.personal-bot-ride-details'); const details = [...card.querySelectorAll('button')].find(node => node.textContent === 'View ride details'); if (!panel || !details) throw Error(); if (!panel.hidden) details.click(); const button = card.querySelector('.personal-bot-ride-actions [data-proposal-action="ride-quote"]'); if (!panel.hidden || !button || button.disabled || !button.checkVisibility()) throw Error(); button.scrollIntoView({ block: 'center' }); return true })()`)
+  await screenshot('ride-action.png')
+  await evaluate(`(() => { const card = [...document.querySelectorAll('.personal-bot-proposal')].find(node => node.dataset.proposalId === ${JSON.stringify(proposal.id)}); const button = card?.querySelector('.personal-bot-ride-actions [data-proposal-action="ride-quote"]'); if (!button || button.disabled || !button.checkVisibility()) throw Error(); button.click(); return true })()`)
   await until(() => ownerTurns.length === 1, 'owner_quote_turn')
   step('owner_quote_turn')
   await until(() => Boolean(observedReply), 'reply_observed')
@@ -216,7 +218,7 @@ app.whenReady().then(async () => {
   await until(() => evaluate('(' + replyVisibility.toString() + ')(' + JSON.stringify(observedReply.message) + ')'), 'reply_visible')
   await screenshot('ride-reply.png')
   step('reply_observed')
-  write('result.json', { phase: 'reply_observed', passed: true, providerReceiptVerified: false, noOrderConfirmationSent: true, ownerTurnCount: ownerTurns.length, feedbackCommandCount: feedbackCommands.length, proposalId: proposal.id, theme, screenshotFiles: ['ride-recommendation.png', 'ride-feedback.png', 'ride-details.png', 'ride-reply.png'], note: 'UI evidence only. Verify actual MCP calls, quote receipt, phase, route, price and persisted useful feedback independently in the remote helper.' })
+  write('result.json', { phase: 'reply_observed', passed: true, providerReceiptVerified: false, noOrderConfirmationSent: true, ownerTurnCount: ownerTurns.length, feedbackCommandCount: feedbackCommands.length, proposalId: proposal.id, theme, screenshotFiles: ['ride-recommendation.png', 'ride-feedback.png', 'ride-details.png', 'ride-action.png', 'ride-reply.png'], note: 'UI evidence only. Verify actual MCP calls, quote receipt, phase, route, price and persisted useful feedback independently in the remote helper.' })
   await close(0)
 }).catch(async () => {
   write('failure.json', { phase, ownerTurnCount: ownerTurns.length, feedbackCommandCount: feedbackCommands.length, providerReceiptVerified: false })
