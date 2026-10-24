@@ -189,3 +189,17 @@ Feature: Widget continuations in the right desk pane
     And Linux uses isolated software rendering before window creation
     And any phase error, signal, or nonzero exit fails the default fixture
     And the aggregate reports both actual phase statuses
+
+  Scenario: Native keyboard scrolling reaches the complete recommendation
+    Given a focused long recommendation in an isolated native fixture
+    When the fixture sends the real End key
+    Then keyboard focus stays on that recommendation
+    And it waits for the actual scroll end within a bounded readiness deadline
+    And it does not set the scroll position or extend the fixture deadline
+
+  Scenario: Resident recording controls follow the current Agent input contract
+    Given the user has closed a recommendation card
+    When the Agent enters recording
+    Then the reminder remains closed and the desktop remains interactive
+    And the Agent shows Listening... with its recording feedback
+    And the hidden microphone does not replace Send voice request

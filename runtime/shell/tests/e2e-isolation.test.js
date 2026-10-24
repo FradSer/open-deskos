@@ -639,3 +639,23 @@ test('ambiguous or missing opaque frame targets reject before touch input', asyn
     await assert.rejects(runOpaqueTouch(targets), /one actual counter iframe target/)
   }
 })
+
+function adviceEndWait() {
+  const source = fs.readFileSync(path.join(__dirname, 'proactive-panel.cjs'), 'utf8')
+  const start = source.indexOf('async function waitForAdviceEnd(')
+  const end = source.indexOf('async function waitForTechnicalAdvicePresentation(', start)
+  assert.ok(start >= 0 && end > start, 'long advice waits on observed native key and scroll state')
+  return vm.runInNewContext(source.slice(start, end) + '\nwaitForAdviceEnd', { performance, setTimeout, assert })
+}
+
+test('native End readiness does not mistake an intermediate scroll frame for the end', async () => {
+  let calls = 0
+  await adviceEndWait()(async () => ({ focused: true, atEnd: ++calls > 1 }), 200)
+  assert.equal(calls, 2)
+})
+
+test('native End readiness rejects lost focus or an unfinished scroll', async () => {
+  for (const incomplete of [{ focused: false, atEnd: true }, { focused: true, atEnd: false }]) {
+    await assert.rejects(adviceEndWait()(async () => incomplete, 0), /Native End did not reach/)
+  }
+})

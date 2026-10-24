@@ -14,6 +14,22 @@ app.on('will-quit', () => { try { fs.rmSync(profile, { recursive: true, force: t
 const reconnectOnly = process.argv.includes('--reconnect-only')
 const timer = setTimeout(() => app.exit(1), reconnectOnly ? 120000 : 60000)
 const delay = () => new Promise(resolve => setTimeout(resolve, 100))
+async function waitForAdviceEnd(run, timeoutMs = 2000) {
+  const deadline = performance.now() + timeoutMs
+  let observed
+  do {
+    observed = await run(`(() => {
+      const body = document.querySelector('.personal-bot-proposal-advice')
+      return { focused: document.activeElement === body && document.hasFocus(),
+        atEnd: body.scrollTop + body.clientHeight >= body.scrollHeight - 2,
+        top: body.scrollTop, height: body.clientHeight, extent: body.scrollHeight }
+    })()`)
+    if (observed.focused && observed.atEnd) return
+    if (performance.now() >= deadline) break
+    await new Promise(resolve => setTimeout(resolve, 20))
+  } while (true)
+  assert.fail('Native End did not reach the complete recommendation: ' + JSON.stringify(observed))
+}
 async function waitForTechnicalAdvicePresentation(run, commands, id, timeoutMs = 5000) {
   const deadline = performance.now() + timeoutMs
   await run(`(async () => {
@@ -84,7 +100,7 @@ app.whenReady().then(async () => {
     await run(`document.querySelector('.personal-bot-proposal-advice').focus()`)
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'End' })
     win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'End' })
-    await delay()
+    await waitForAdviceEnd(run)
     assert.equal(await run(`(() => { const body = document.querySelector('.personal-bot-proposal-advice'); return body.scrollTop + body.clientHeight >= body.scrollHeight - 2 })()`), true, 'Keyboard reaches the end of the complete recommendation')
     assert.ok(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(long.id)), 'Visible long advice must be acknowledged even when less than half of the entire paragraph fits')
     const before = commands.length
@@ -294,8 +310,11 @@ app.whenReady().then(async () => {
   await send({ state: 'recording' })
   assert.equal(await run(`document.getElementById('personal-bot-status').dataset.proactive`), 'false')
   assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), true)
-  assert.equal(await run(`document.querySelector('.agent-state').textContent`), 'Listening…')
-  assert.equal(await run(`document.querySelector('.agent-mic').getAttribute('aria-label')`), 'Stop recording')
+  assert.equal(await run(`document.querySelector('.agent-state').textContent`), 'Listening...')
+  assert.equal(await run(`document.querySelector('.agent-mic').hidden`), true)
+  assert.equal(await run(`document.querySelector('.agent-recording-feedback').hidden`), false)
+  assert.equal(await run(`document.querySelector('.agent-send').getAttribute('aria-label')`), 'Send voice request')
+  assert.equal(await run(`document.querySelector('.agent-send').disabled`), false)
   assert.equal(await run(`document.getElementById('pages-viewport').inert || document.getElementById('home-desk').inert`), false)
   console.log('PROACTIVE_PANEL_CM5_ISOLATED_PASS: 4 themes, 3 sizes, 5 proposal states, focus, touch confirmation, literal untrusted text, service error recovery, uncertain delivery, read-only ride details explicit owner quote selection, viewport visibility acknowledgements, candidate feedback, read-only capabilities, provider withdrawal and keyboard disclosures')
   clearTimeout(timer); win.destroy(); app.exit(0)
