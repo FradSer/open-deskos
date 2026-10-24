@@ -22,7 +22,7 @@ export const INTENTS = Object.freeze({
   coding_work: 'Start a new coding task or delegate source changes other than user Widget/App work.',
   agent_work: {
     covers: 'Start a general non-coding task or delegate work to a temporary child or an existing saved child identity. A child can use a Skill, MCP connector or reviewed capability: naming its connector describes the delegated task, not a direct parent connector call. Also continue an inactive DeskOS child.',
-    excludes: 'Creating or editing identity fields is agent_identity. Direct connector calls without child delegation are extension. Existing Hosted Pi sessions, coding work, ordinary discussion and current desk readings have their own workflows.',
+    excludes: 'Creating or editing identity fields is agent_identity. Direct connector calls without child delegation are extension. Direct independent XFCE desktop tasks use desktop_work. Existing Hosted Pi sessions, coding work, ordinary discussion and current desk readings have their own workflows.',
     examples: ['Ask the saved analyst to read the sales connector and compare monthly totals.', '让已有固化子代理分析连接器中的报告。', 'Use a temporary child to research the supplied question.'],
   },
   agent_identity: {
@@ -88,7 +88,7 @@ const CORE_TOOLS = new Set([...COMMON, ...Object.values(ROUTE_TOOLS).flat()])
 export const isExtensionTool = tool => !CORE_TOOLS.has(tool.name) && !isReviewedCapabilityTool(tool.name)
 
 function ownerRequestHistory(items) {
-  const workIntents = ['agent_work', 'coding_work', 'session_continue', 'task_query', 'session_control', 'widget_create', 'app_create', 'app_query', 'app_manage']
+  const workIntents = ['agent_work', 'coding_work', 'session_continue', 'task_query', 'session_control', 'widget_create', 'app_create', 'app_query', 'app_manage', 'desktop_work']
   const history = (Array.isArray(items) ? items : [])
     .filter(item => typeof item?.text === 'string' && item.text.trim() && workIntents.includes(item.intent))
     .slice(-6)

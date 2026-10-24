@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Private desktop handoff</title>
+<style>body{font:16px/1.5 system-ui;margin:24px;color:#17212b;background:#f5f6f7}input,button{font:inherit;padding:10px;margin:4px}button{cursor:pointer}#display{width:100%;height:75vh;background:#20262d}#notice{padding:12px;background:#fff2ca}label{display:block}pre{white-space:pre-wrap}</style>
+<h1>Private desktop handoff</h1>
+<p id="notice">The agent pauses before private input. Private frames and keyboard input are not saved as task evidence.</p>
+<form id="authenticate"><label>Operator access token <input id="token" type="password" autocomplete="off" required></label><button>Unlock operator controls</button></form>
+<section id="controls" hidden><label>Task ID <input id="task" size="40" autocomplete="off"></label><button id="refresh">Read status</button><button id="pause">Take private control</button><button id="connect">Show private desktop</button><button id="resume">Private input finished; resume task</button><button id="cancel">Cancel task</button></section>
+<pre id="status"></pre><div id="display"></div>
+<script type="module" src="/operator/app.js"></script>
+</html>
