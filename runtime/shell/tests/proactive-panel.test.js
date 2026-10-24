@@ -13,7 +13,7 @@ class Element {
   setAttribute(name, value) { this.attributes[name] = value }
   contains(node) { return this === node || this.children.some(child => child.contains(node)) }
   focus() { this.focused = true }
-  querySelector(selector) { return this.selectors?.[selector] ?? this.children.find(child => child.className?.split(/\s+/).includes(selector.slice(1))) ?? this.children.map(child => child.querySelector(selector)).find(Boolean) ?? null }
+  querySelector(selector) { const action = /^\[data-proposal-action="([^"]+)"\]$/.exec(selector); return this.selectors?.[selector] ?? this.children.find(child => action ? child.dataset.proposalAction === action[1] : child.className?.split(/\s+/).includes(selector.slice(1))) ?? this.children.map(child => child.querySelector(selector)).find(Boolean) ?? null }
   remove() { if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1) }
   scrollBy() {}
   async click() { await this.events.click?.() }
@@ -342,6 +342,7 @@ test('read-only suggestion capabilities keep evidence and hide every response co
   const labels = flatten(f.content).filter(n => n.tagName === 'BUTTON').map(n => n.textContent)
   for (const label of ['Accept', 'Run action', p.nextStep, 'Done', 'Later', 'Useful', 'Not relevant', 'Incorrect', 'Ignore', 'Never suggest this category']) assert.ok(!labels.includes(label), label)
   assert.ok(flatten(f.content).some(n => n.textContent.includes('read-only on this device')))
+  assert.equal(flatten(f.content).find(n => n.className === 'personal-bot-proposal-next-step').textContent, p.nextStep)
 })
 
 
@@ -479,11 +480,15 @@ test('concrete execution requires exact confirmation and dispatches only once un
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
   const execute = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep)
   assert.ok(execute, 'The concrete next step must be the execution control')
+  assert.equal(execute.className, 'personal-bot-proposal-primary')
+  assert.ok(!flatten(f.content).some(n => n.className === 'personal-bot-proposal-next-step'), 'The current execution button must carry the next step without a duplicate caption')
   await execute.click()
   assert.equal(f.commands.length, 0)
   let settle
   f.window.odkPersonalBot.proposalCommand = cmd => { f.commands.push(cmd); return new Promise(resolve => { settle = resolve }) }
   const confirm = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation)
+  assert.equal(confirm.className, 'personal-bot-proposal-primary')
+  assert.equal(confirm.focused, true)
   const pending = confirm.click()
   await confirm.click()
   assert.equal(f.commands.length, 1)
@@ -498,13 +503,27 @@ test('concrete execution requires exact confirmation and dispatches only once un
   }
 })
 
-test('cancel returns to the concrete action without sending a plugin command', async () => {
-  const f = fixture(), p = { ...proposal(), nextStep: 'Save the watering note' }
-  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
-  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep).click()
-  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Cancel').click()
-  assert.equal(f.commands.length, 0)
-  assert.ok(flatten(f.content).some(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep))
+for (const nextStep of ['Save the watering note', '']) {
+  test(`cancel returns to the concrete action without sending a plugin command (${nextStep || 'legacy action'})`, async () => {
+    const f = fixture(), p = { ...proposal(), nextStep }
+    f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+    await flatten(f.content).find(n => n.dataset.proposalAction === 'execute').click()
+    const cancel = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Cancel')
+    assert.equal(cancel.className, 'personal-bot-proposal-secondary')
+    await cancel.click()
+    assert.equal(f.commands.length, 0)
+    assert.equal(flatten(f.content).find(n => n.dataset.proposalAction === 'execute').focused, true)
+    assert.ok(!flatten(f.content).some(n => n.dataset.proposalAction === 'view-sources' && n.focused))
+  })
+}
+
+test('historical and snoozed actions retain readable next-step context without an execution button', () => {
+  for (const update of [{ status: 'completed' }, { status: 'unknown' }, { snoozedUntil: Date.now() + 60000 }]) {
+    const f = fixture(), p = { ...proposal(), nextStep: 'Save the watering note', ...update }
+    f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+    assert.equal(flatten(f.content).find(n => n.className === 'personal-bot-proposal-next-step').textContent, p.nextStep)
+    assert.ok(!flatten(f.content).some(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep))
+  }
 })
 
 test('an action without exact confirmation cannot masquerade as an executable next step', () => {
@@ -635,6 +654,7 @@ for (const update of ['presented receipt', 'another suggestion']) {
     f.render({ state: 'idle', proposals, proposalPopup: false })
     const retained = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation)
     assert.ok(retained, 'Unchanged authorized confirmation must survive metadata and peer redraws')
+    assert.equal(retained.className, 'personal-bot-proposal-primary')
     await retained.click()
     await original.click()
     await retained.click()

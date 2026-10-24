@@ -344,7 +344,7 @@
           advice.setAttribute('aria-label', 'Full recommendation; scroll to read')
         }
         article.append(state, advice)
-        if ((executableAction || readOnlyStep) && nextStep && !technicalAdvice) {
+        if ((readOnlyStep || (executableAction && !current)) && nextStep && !technicalAdvice) {
           const next = document.createElement('div')
           next.className = 'personal-bot-proposal-next'
           const caption = document.createElement('p')
@@ -450,14 +450,18 @@
                 for (const control of actions.children) control.disabled = true
                 await command({ type: 'proposal_respond', id: p.id, decision: 'accept', confirmation: p.confirmation })
               })
+              confirm.className = 'personal-bot-proposal-primary'
               confirm.dataset.proposalId = p.id; confirm.dataset.proposalAction = 'confirm'
               const cancel = button('Cancel', () => {
                 if (!isCurrent()) return
                 actionConfirmations.delete(p.id)
                 proposalSnapshot = ''; renderProposals(status)
+                for (const card of proposals.children) if (card.dataset.proposalId === p.id) card.querySelector('[data-proposal-action="execute"]')?.focus({ preventScroll: true })
               })
+              cancel.className = 'personal-bot-proposal-secondary'
               cancel.dataset.proposalId = p.id; cancel.dataset.proposalAction = 'cancel'
               actions.replaceChildren(confirm, cancel)
+              if (proposals.contains(confirm)) confirm.focus({ preventScroll: true })
             }
             const confirmation = actionConfirmations.get(p.id)
             if (confirmation) showConfirmation(confirmation)
@@ -469,8 +473,10 @@
                 showConfirmation(confirmation)
               })
               accept.className = 'personal-bot-proposal-primary'
+              accept.dataset.proposalId = p.id; accept.dataset.proposalAction = 'execute'
               accept.disabled = executionAttempts.has(p.id)
               const later = response('Later', 'snooze')
+              later.className = 'personal-bot-proposal-secondary'
               later.disabled = accept.disabled
               actions.append(accept, later)
             }

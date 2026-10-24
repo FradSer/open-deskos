@@ -344,6 +344,11 @@ Feature: Independent resident personal bot
     When the nonmodal card opens
     Then advice has visual priority over metadata
     And the concrete execution button precedes source and feedback disclosures
+    And a current executable card does not repeat its button label as a separate next step
+    And read-only and historical cards retain readable next-step context
+    And execution and exact confirmation retain the primary action style
+    And confirmation receives focus and Cancel returns focus to the execution button
+    And secondary actions remain quieter without losing their touch targets
     And source and feedback disclosures are closed by default
     And no Why now explanation appears
     And source values remain complete when the owner opens Sources
