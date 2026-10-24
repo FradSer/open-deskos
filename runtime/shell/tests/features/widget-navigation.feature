@@ -167,9 +167,25 @@ Feature: Widget continuations in the right desk pane
     When the renderer paints a temporary frame marker and removes it
     Then the capture uses the new paint event image
     And no frame marker remains in the captured document
+    And a stale native frame cannot acknowledge marker removal
+    And the marker cannot receive input or expose accessible content
+    And forced colors retain the marker pixels without changing document colors
+    And timeout, destruction, and renderer errors remove the marker and release listeners
+    And native capture errors remain failures without retries
 
   Scenario: An installed App returns through its owned frame
     Given an active installed App has the Shell bootstrap and a ready owned frame
     When two fingers pinch inward inside that App
     Then the Shell returns to Home through its existing return control
+    And native fixture touch targets the unique owned iframe session
+    And touch coordinates use that iframe viewport
     And Widgets, foreign windows, old tokens, inactive Apps, and modal owners cannot request that return
+
+  Scenario: The complete navigation matrix retains bounded independent phases
+    Given native continuations cover all themes before responsive stress layouts
+    When the default navigation fixture runs
+    Then it runs continuations and responsive checks in separate private profiles
+    And each phase retains the original 60 second deadline and all assertions
+    And Linux uses isolated software rendering before window creation
+    And any phase error, signal, or nonzero exit fails the default fixture
+    And the aggregate reports both actual phase statuses

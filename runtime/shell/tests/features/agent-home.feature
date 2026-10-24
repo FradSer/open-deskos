@@ -185,6 +185,8 @@ Feature: Personal Agent home briefing
     When a native screenshot compares the top fade with an unmasked conversation
     Then each mask state reaches two renderer frames before native capture
     And the computed mask matches the state under test
+    And native capture also completes while forced colors are active
+    And no capture marker remains in the document
     And the original pixel difference threshold remains required
 
   Scenario: Normal design previews contain consistent populated readings

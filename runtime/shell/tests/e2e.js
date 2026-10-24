@@ -986,7 +986,8 @@ async function main() {
   if (oneeFlow.error) console.error(`FAIL  Agent animation flow: ${oneeFlow.error.message}`)
   const lazyHistoryRuns = ['--lazy-history-only', '--lazy-history-retention-only', '--short-history-only'].map(flag => runFixture('agent-home.cjs', [flag]))
   for (const result of lazyHistoryRuns) if (result.error) console.error(`FAIL  Agent lazy history: ${result.error.message}`)
-  const navigation = runFixture('widget-navigation.cjs')
+  // Two complete navigation phases each retain their original 60-second gate.
+  const navigation = runFixture('widget-navigation.cjs', [], { timeout: 140000 })
   if (navigation.error) console.error(`FAIL  Widget continuations: ${navigation.error.message}`)
   const interiors = runFixture('widget-app-styles.cjs')
   if (interiors.error) console.error(`FAIL  interior checks: ${interiors.error.message}`)

@@ -448,7 +448,7 @@ for (const [name, file] of [['Weather', 'weather-plugin-electron.cjs'], ['WeRead
   }
 }
 
-for (const [name, file] of [['Weather layout', 'weather-layout.cjs'], ['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs'], ['Pi Widget', 'pi-tile-surface-electron.cjs'], ['Pi App and Page', 'pi-plugin-electron.cjs'], ['Widget and App interiors', 'widget-app-styles.cjs']]) {
+for (const [name, file] of [['Weather layout', 'weather-layout.cjs'], ['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs'], ['Pi Widget', 'pi-tile-surface-electron.cjs'], ['Pi App and Page', 'pi-plugin-electron.cjs'], ['Widget and App interiors', 'widget-app-styles.cjs'], ['Agent', 'agent-home.cjs'], ['Widget navigation', 'widget-navigation.cjs']]) {
   for (const platform of ['linux', 'win32', 'darwin']) {
     test(`${name} comparison selects software rendering only on ${platform}`, () => {
       const source = fs.readFileSync(path.join(__dirname, file), 'utf8')
@@ -561,4 +561,81 @@ test('composition startup rejection exits unsuccessfully with its diagnostic', a
   })
   assert.deepEqual(exits, [1])
   assert.equal(errors.some(args => args.includes(failure)), true)
+})
+
+function runNavigationCli(results, argv = []) {
+  const source = fs.readFileSync(path.join(__dirname, 'widget-navigation.cjs'), 'utf8')
+  const requests = [], exits = [], logs = []
+  const localRequire = createRequire(path.join(__dirname, 'widget-navigation.cjs'))
+  const app = { exit(code) { exits.push(code) } }
+  const load = name => {
+    if (name === 'electron') return { app }
+    if (name === './helpers/electron-fixture') return { runFixture(file, args, options) { requests.push({ file, args, options }); return results[requests.length - 1] } }
+    if (name === 'node:fs') return { mkdtempSync() { throw Error('default navigation must orchestrate before profile access') } }
+    return localRequire(name)
+  }
+  vm.runInNewContext('(function(require,process,console){' + source + '\n})', {}, { filename: 'widget-navigation.cjs' })(load, { argv: ['electron', 'widget-navigation.cjs', ...argv], platform: 'linux' }, { log(...args) { logs.push(args.join(' ')) }, error() {} })
+  return { requests, exits, logs }
+}
+
+test('default navigation runs both complete phases and retains every phase result', () => {
+  const actual = runNavigationCli([{ status: 0 }, { status: 0 }])
+  assert.deepEqual(actual.requests.map(request => [request.file, ...request.args]), [
+    ['widget-navigation.cjs', '--navigation-phase=continuations'],
+    ['widget-navigation.cjs', '--navigation-phase=responsive'],
+  ])
+  assert.ok(actual.requests.every(request => request.options.timeout === 65000))
+  assert.deepEqual(actual.exits, [0])
+  assert.ok(actual.logs.some(line => line === 'WIDGET_NAVIGATION_PHASE_STATUS: [0,0]'))
+})
+
+test('navigation aggregate rejects child errors, signals, and incomplete exits', () => {
+  for (const rejected of [{ status: 1 }, { status: null }, { status: 0, signal: 'SIGTERM' }, { status: 0, error: Error('ETIMEDOUT') }]) {
+    const actual = runNavigationCli([rejected, { status: 0 }])
+    assert.equal(actual.requests.length, 2, 'a failed first phase does not omit later coverage')
+    assert.deepEqual(actual.exits, [1])
+  }
+})
+
+test('unknown navigation phases fail before profile access', () => {
+  assert.throws(() => runNavigationCli([], ['--navigation-phase=typo']), /Unknown navigation phase/)
+})
+
+async function runOpaqueTouch(targets) {
+  const source = fs.readFileSync(path.join(__dirname, 'user-app-desktop.cjs'), 'utf8')
+  const start = source.indexOf('  const { targetInfos }')
+  const end = source.indexOf("  await clickDot('installed:counter')", start)
+  assert.ok(start > 0 && end > start, 'native input must bind its owned frame before dispatch')
+  const calls = []
+  const url = 'odk-user-app://app/counter/r1?token=fixture'
+  const debuggerApi = { async sendCommand(method, parameters, session) {
+    calls.push({ method, parameters, session })
+    if (method === 'Target.getTargets') return { targetInfos: targets ?? [{ type: 'iframe', targetId: 'other', url: 'about:blank' }, { type: 'iframe', targetId: 'owned', url }] }
+    if (method === 'Target.attachToTarget') return { sessionId: 'owned-session' }
+    return {}
+  } }
+  await vm.runInNewContext('(async()=>{' + source.slice(start, end) + 'await touchApp()})()', {
+    win: { webContents: { debugger: debuggerApi } },
+    appFrame: { url, async executeJavaScript() { return { x: 550, y: 500 } } },
+    assert, delay: async () => {}, js() { throw Error('iframe input must not use parent viewport coordinates') },
+  })
+  return calls
+}
+
+test('opaque native touch binds the owned iframe session and local viewport', async () => {
+  const calls = await runOpaqueTouch()
+  assert.equal(calls.find(call => call.method === 'Target.attachToTarget').parameters.targetId, 'owned')
+  const touches = calls.filter(call => call.method === 'Input.dispatchTouchEvent')
+  assert.deepEqual(touches.map(call => call.parameters.type), ['touchStart', 'touchMove', 'touchEnd'])
+  assert.ok(touches.every(call => call.session === 'owned-session'))
+  assert.equal(touches[0].parameters.touchPoints[0].x, 430)
+  assert.equal(touches[0].parameters.touchPoints[1].x, 670)
+  assert.equal(touches[1].parameters.touchPoints[0].x, 490)
+})
+
+test('ambiguous or missing opaque frame targets reject before touch input', async () => {
+  const owned = { type: 'iframe', targetId: 'first', url: 'odk-user-app://app/counter/r1?token=fixture' }
+  for (const targets of [[], [owned, { ...owned, targetId: 'second' }]]) {
+    await assert.rejects(runOpaqueTouch(targets), /one actual counter iframe target/)
+  }
 })

@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
+if (process.platform === 'linux') app.disableHardwareAcceleration()
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -1269,6 +1270,11 @@ app.whenReady().then(async () => {
     assert.ok(statusLayout.height>=44&&statusLayout.height<=84,JSON.stringify(statusLayout))
     assert.ok(statusLayout.label.includes(statusLayout.name)&&statusLayout.label.includes(statusLayout.status),JSON.stringify(statusLayout))
     assert.equal(statusLayout.detail,undefined,'full service details do not restore an editor')
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'forced-colors',value:'active'}]})
+    assert.equal(await evaluate(`matchMedia('(forced-colors: active)').matches`),true)
+    assert.equal((await capturePaintedPage(win)).isEmpty(),false,'native capture observes the forced-color document')
+    assert.equal(await evaluate(`document.querySelector('[id^="odk-native-capture-"]')===null`),true,'native capture leaves no marker')
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]})
     console.log('AGENT_REFERENCE_PASS')
     finish(0)
     return
