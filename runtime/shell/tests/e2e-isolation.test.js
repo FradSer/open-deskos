@@ -517,6 +517,29 @@ for (const [name, file] of [['Weather layout', 'weather-layout.cjs'], ['Weather'
 }
 
 
+for (const [name, externalViews, capturedViews, env, expected] of [
+  ['default comparison', undefined, false, {}, [false, true]],
+  ['captured comparison', undefined, true, {}, [false, true]],
+  ['captured missing Page', undefined, true, { ODK_PI_CAPTURED_VIEWS_DEFAULT: '1' }, [true]],
+  ['unused captured mutation', undefined, false, { ODK_PI_CAPTURED_VIEWS_DEFAULT: '1' }, [false, true]],
+  ['development comparison', 'development', true, {}, [false, true]],
+  ['native comparison', 'native', true, {}, [false, true]],
+  ['development missing Page', 'development', true, { ODK_PI_EXTERNAL_MISSING_PAGE: '1' }, [true]],
+  ['native missing Page', 'native', true, { ODK_PI_EXTERNAL_MISSING_PAGE: '1' }, [true]],
+]) {
+  test(`Pi view phase selection: ${name}`, () => {
+    const fixture = fs.readFileSync(path.join(__dirname, 'pi-plugin-electron.cjs'), 'utf8')
+    const start = fixture.indexOf('  const missingExternalPage = ')
+    const end = fixture.indexOf('    phase = ', start)
+    assert.ok(start >= 0 && end > start)
+    const phases = []
+    vm.runInNewContext(fixture.slice(start, end) + 'phases.push(signed) }', {
+      externalViews, capturedViews, process: { env }, phases,
+    })
+    assert.deepEqual(phases, expected)
+  })
+}
+
 for (const [platform, arch] of [['linux', 'arm64'], ['linux', 'x64'], ['darwin', 'arm64'], ['win32', 'x64']]) {
   test(`Pi view matrix retains bounded deadlines on ${platform} ${arch}`, () => {
     const { viewTimeouts } = require('./helpers/pi-view-selection')

@@ -31,6 +31,8 @@ test('Pi App isolation check rejects delegation to the selected page', { timeout
     await assert.rejects(execFile(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, path.join(__dirname, 'pi-plugin-electron.cjs'), profile]),
       { env, timeout: timeouts.guardChild }), error => {
       assert.equal(error.code, 1)
+      assert.equal(error.signal, null)
+      assert.equal(error.killed, false)
       assert.match(error.stderr, /Pi App must open independently of the selected page/)
       return true
     })
@@ -59,7 +61,11 @@ test('Pi captured factory guard rejects fallback to the packaged Page', { timeou
     await assert.rejects(execFile(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, path.join(__dirname, 'pi-plugin-electron.cjs')]),
       { env, timeout: timeouts.guardChild }), error => {
       assert.equal(error.code, 1)
+      assert.equal(error.signal, null)
+      assert.equal(error.killed, false)
       assert.match(error.stderr, /Captured Pi views must not call packaged mounts/)
+      assert.match(error.stderr, /PI_CAPTURED_GUARD_PHASE:signed/)
+      assert.doesNotMatch(error.stderr, /PI_CAPTURED_GUARD_PHASE:default/)
       return true
     })
   } finally { await fs.rm(profile, { recursive: true, force: true }) }
@@ -89,6 +95,8 @@ for (const mode of ['development', 'native']) {
       await assert.rejects(execFile(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, path.join(__dirname, 'pi-plugin-electron.cjs')]),
         { env, timeout: timeouts.externalGuardChild }), error => {
         assert.equal(error.code, 1)
+        assert.equal(error.signal, null)
+        assert.equal(error.killed, false)
         assert.match(error.stderr, /Captured Pi views must not call packaged mounts/)
         assert.match(error.stderr, /PI_EXTERNAL_GUARD_PHASE:signed/)
         assert.doesNotMatch(error.stderr, /PI_EXTERNAL_GUARD_PHASE:default/)

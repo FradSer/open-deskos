@@ -70,3 +70,23 @@ test('App Manager omitted rollback requires its own normal failure exit', async 
     code: 1, killed: false, signal: null, stderr: 'Other boundary',
   })), { code: 'ERR_ASSERTION' })
 })
+
+for (const [name, index, stderr] of [
+  ['App delegation', 0, 'Pi App must open independently of the selected page'],
+  ['captured Page', 1, 'Captured Pi views must not call packaged mounts\nPI_CAPTURED_GUARD_PHASE:signed'],
+  ['development Page', 2, 'Captured Pi views must not call packaged mounts\nPI_EXTERNAL_GUARD_PHASE:signed'],
+  ['native Page', 2, 'Captured Pi views must not call packaged mounts\nPI_EXTERNAL_GUARD_PHASE:signed'],
+]) {
+  test(`Pi ${name} negative guard requires normal failure even with matching stderr`, () => {
+    const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm')
+    const source = fs.readFileSync(path.join(__dirname, 'pi-electron.test.js'), 'utf8')
+    const validators = [...source.matchAll(/error => \{([\s\S]*?)\n\s*return true\n\s*\}/g)]
+    assert.equal(validators.length, 3, 'Exercise all actual Pi guard validators')
+    const validate = vm.runInNewContext(`(${validators[index][0]})`, { assert })
+    const ordinary = { code: 1, signal: null, killed: false, stderr }
+    assert.equal(validate(ordinary), true)
+    for (const outcome of [{ signal: 'SIGTERM' }, { signal: 'SIGKILL' }, { killed: true }]) {
+      assert.throws(() => validate({ ...ordinary, ...outcome }), { code: 'ERR_ASSERTION' })
+    }
+  })
+}
