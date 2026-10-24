@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -43,7 +44,7 @@ test('signed Hydra surface revisions preserve rendered consumers across separate
       const childEnv = { ...env, ODK_HYDRA_SURFACE_PROFILE: profile, ODK_HYDRA_SURFACE_NATIVE: '1',
         ODK_HYDRA_SURFACE_REVISION: version, ODK_HYDRA_SURFACE_CONSUMERS: consumers }
       delete childEnv.ELECTRON_RUN_AS_NODE
-      const operation = execute(require('electron'), [`--user-data-dir=${profile}`, '--force-device-scale-factor=1', path.join(__dirname, 'hydra-surface-electron.cjs')],
+      const operation = execute(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, '--force-device-scale-factor=1', path.join(__dirname, 'hydra-surface-electron.cjs')]),
         { env: childEnv, signal: t.signal, timeout: childTimeout, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 })
       const closed = new Promise(resolve => operation.child.once('close', resolve))
       try {

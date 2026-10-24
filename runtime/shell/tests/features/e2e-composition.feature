@@ -6,6 +6,13 @@ Feature: E2E validates the current declarative desktop
     And Linux and Windows retain their original arguments
     And the fixture retains its assertions, deadline, sandbox, and normal exit gate
 
+  Scenario: Automated isolated native fixtures use the shared launch contract
+    Given automated Node checks own temporary browser profiles or isolated fixture state
+    When they start Electron through any native command helper
+    Then each initial argument list uses the shared isolated launch policy
+    And business assertions, options, environment, and deadlines remain unchanged
+    And runtime capability probes, production verifier consumers, and manual live acceptance retain their launch contracts
+
   Scenario: Hidden comparisons have an active render target
     Given Appearance and Hydra checks retain real Main, preload, and comparison assertions
     When they run without a visible desktop window

@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
@@ -16,7 +17,7 @@ for (const mode of ['programmatic', 'development', 'native']) for (const fault o
   try {
     if (mode !== 'programmatic') await installBuiltinViews(profile, env, { mode, invalid, signal: t.signal })
     const renderingArgs = process.platform === 'linux' ? ['--disable-gpu'] : []
-    const running = runCommand(require('electron'), [...renderingArgs, `--user-data-dir=${profile}`, path.join(__dirname, 'builtin-view-replacement.cjs')],
+    const running = runCommand(require('electron'), isolatedElectronArgs([...renderingArgs, `--user-data-dir=${profile}`, path.join(__dirname, 'builtin-view-replacement.cjs')]),
       { env, signal: t.signal, timeout: builtinViewTimeouts(mode).child, maxBuffer: 1024 * 1024 })
     if (fault !== 'none') await assert.rejects(running, error => fixtureRejection(error, invalid ? /independent year reading changed/ : /Keyboard focus marker absent/))
     else {

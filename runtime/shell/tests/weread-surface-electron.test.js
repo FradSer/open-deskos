@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -25,7 +26,7 @@ for (const mode of ['development', 'native']) test(`${mode} independent WeRead s
     } else await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'link', directory, '--trust', '--replace'],
       { env: { ...env, ELECTRON_RUN_AS_NODE: '1' }, signal: t.signal, timeout: 10000 })
     delete env.ELECTRON_RUN_AS_NODE
-    const result = await runCommand(require('electron'), [`--user-data-dir=${profile}`, path.join(__dirname, 'weread-plugin-electron.cjs')],
+    const result = await runCommand(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, path.join(__dirname, 'weread-plugin-electron.cjs')]),
       { env, signal: t.signal, timeout: surfaceTimeouts().child, maxBuffer: 1024 * 1024 })
     assert.deepEqual(JSON.parse(result.stdout.trim().split('\n').pop()), {
       ok: true, actualPreload: true, signedIndependent: true, themes: 3, sizes: 5, decodedCovers: true,

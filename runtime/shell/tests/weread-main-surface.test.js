@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -43,7 +44,7 @@ test('actual Main jointly starts signed WeRead source and surface across revisio
       const childEnv = { ...env, ODK_WEREAD_BOOTSTRAP_PROFILE: profile,
         ODK_WEREAD_BOOTSTRAP_VERSION: '2.0.0', ODK_WEREAD_BOOTSTRAP_SURFACE_VERSION: version }
       delete childEnv.ELECTRON_RUN_AS_NODE
-      const operation = execFile(require('electron'), [`--user-data-dir=${profile}`, path.join(__dirname, 'weread-main-bootstrap.cjs')],
+      const operation = execFile(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, path.join(__dirname, 'weread-main-bootstrap.cjs')]),
         { env: childEnv, signal: t.signal, timeout: 55000, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 })
       const closed = new Promise(resolve => operation.child.once('close', resolve))
       try {

@@ -6,6 +6,34 @@ const vm = require('node:vm')
 const { createRequire } = require('node:module')
 const { runFixture, isolatedElectronArgs } = require('./helpers/electron-fixture')
 
+// Automated private browser fixtures opt in explicitly. Capability probes and production
+// verifier consumers keep their own contracts; manual live acceptance is outside this inventory.
+const nativeLaunchExceptions = new Set(['runtime-dependencies.test.js', 'plugin-cli-management.test.js', 'user-app-runtime.test.js'])
+const nativeLaunchFiles = [
+  ...fs.readdirSync(__dirname).filter(file => file.endsWith('.test.js')).map(file => path.join(__dirname, file)),
+  path.join(__dirname, 'acceptance/agent-task-pipeline.test.cjs'),
+]
+for (const file of nativeLaunchFiles) {
+  const source = fs.readFileSync(file, 'utf8')
+  if (nativeLaunchExceptions.has(path.basename(file))) continue
+  const aliases = [...source.matchAll(/\b(?:const|let)\s+([\w$]+)\s*=\s*require\(['"]electron['"]\)/g)].map(match => match[1])
+  const electronArgument = ["require\\(['\"]electron['\"]\\)", ...aliases].join('|')
+  const calls = [...source.matchAll(new RegExp(`\\b(?:runCommand|execute|execFile|run|spawn|spawnSync)\\(\\s*(?:${electronArgument})\\s*,\\s*`, 'g'))]
+  if (!calls.length) continue
+  test(`isolated native launch opts into shared policy: ${path.relative(__dirname, file)}`, () => {
+    for (const call of calls) {
+      assert.ok(source.slice(call.index + call[0].length).startsWith('isolatedElectronArgs('),
+        `${path.relative(__dirname, file)} must bind the policy in its initial process arguments`)
+    }
+  })
+}
+
+test('generic commands and actual runtime capability probes retain their original policy', () => {
+  for (const file of ['helpers/hydra-wire-lifecycle.js', 'runtime-dependencies.test.js']) {
+    assert.doesNotMatch(fs.readFileSync(path.join(__dirname, file), 'utf8'), /isolatedElectronArgs|disable-best-effort-tasks/)
+  }
+})
+
 for (const platform of ['darwin', 'linux', 'win32']) {
   test(`isolated fixture launch defers only macOS best-effort work: ${platform}`, () => {
     const original = ['fixture.cjs', '--theme=pixel']

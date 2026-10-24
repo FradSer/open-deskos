@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
@@ -21,7 +22,7 @@ for (const mode of ['programmatic', 'development']) for (const invalid of [false
       await fs.writeFile(entry, 'window.piTileEntryExecutions=(window.piTileEntryExecutions||0)+1;\n' + source)
       await runCommand(process.execPath, [path.join(__dirname, '../scripts/odk-plugin-cli.js'), 'link', directory, '--trust', '--replace'], { env, signal: t.signal, timeout: 10000 })
     }
-    const running = runCommand(require('electron'), [`--user-data-dir=${profile}`, path.join(__dirname, 'pi-tile-surface-electron.cjs')], { env, signal: t.signal, timeout: 35000, maxBuffer: 1024 * 1024 })
+    const running = runCommand(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, path.join(__dirname, 'pi-tile-surface-electron.cjs')]), { env, signal: t.signal, timeout: 35000, maxBuffer: 1024 * 1024 })
     if (invalid) await assert.rejects(running, error => /Pi Widget did not settle/.test(error.stderr || ''))
     else assert.deepEqual(JSON.parse((await running).stdout.trim().split('\n').pop()), {
       actualPreload: true, mode, externalEntry: mode === 'development', discoveryReleased: true, themes: 3, sizes: 2, states: 7, comparisons: 84, retainedPlacement: true, subscriptionsReleased: true,

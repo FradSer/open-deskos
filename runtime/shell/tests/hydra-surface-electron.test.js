@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -29,9 +30,9 @@ test.describe('independent Hydra surface modes', { concurrency: surfaceConcurren
         env.ODK_NATIVE_KEYRING = prepared.keyring
       } else await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'link', directory, '--trust', '--replace'],
         { env: { ...env, ELECTRON_RUN_AS_NODE: '1' }, signal: t.signal, timeout: 10000 })
-      const operation = execute(require('electron'), [`--user-data-dir=${root}`,
+      const operation = execute(require('electron'), isolatedElectronArgs([`--user-data-dir=${root}`,
         ...(mode === 'runtime-development-scale-override' ? ['--force-device-scale-factor=2'] : []),
-        '--force-device-scale-factor=1', path.join(__dirname, 'hydra-surface-electron.cjs')],
+        '--force-device-scale-factor=1', path.join(__dirname, 'hydra-surface-electron.cjs')]),
         { env, signal: t.signal, timeout: hydraSurfaceTimeouts(runtime).child, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 })
       const closed = new Promise(resolve => operation.child.once('close', resolve))
       try {

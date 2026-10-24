@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -73,7 +74,7 @@ for (const { emptyStartup, rejectPackage } of [{ emptyStartup: false, rejectPack
           : '<!doctype html><html><body><button id="counter">0</button><script>counter.onclick=()=>counter.textContent=Number(counter.textContent)+1</script></body></html>')
         if (!emptyStartup) await execute(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'),
           'native', 'install', env.ODK_APPEARANCE_FIRST, '--trust', '--keyring', env.ODK_NATIVE_KEYRING], { env, signal: t.signal })
-        const operation = execute(require('electron'), [`--user-data-dir=${env.ODK_APPEARANCE_PROFILE}`, fixture],
+        const operation = execute(require('electron'), isolatedElectronArgs([`--user-data-dir=${env.ODK_APPEARANCE_PROFILE}`, fixture]),
           { env, cwd: path.resolve(__dirname, '..'), signal: t.signal, timeout: appearanceChildTimeout, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 })
         const closed = new Promise(resolve => operation.child.once('close', resolve))
         try {

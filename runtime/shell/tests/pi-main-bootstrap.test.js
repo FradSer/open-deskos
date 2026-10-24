@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -81,7 +82,7 @@ for (const omitPage of [false, true]) {
           const profile = await fs.mkdtemp(path.join(root, 'electron-'))
           const childEnv = { ...env, ODK_PI_BOOTSTRAP_PROFILE: profile, ODK_PI_BOOTSTRAP_VERSION: version }
           delete childEnv.ELECTRON_RUN_AS_NODE
-          const operation = execFile(require('electron'), [`--user-data-dir=${profile}`, fixture], {
+          const operation = execFile(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, fixture]), {
             env: childEnv, timeout: 55000, killSignal: 'SIGKILL', signal: t.signal, maxBuffer: 1024 * 1024,
           })
           const closed = new Promise(resolve => operation.child.once('close', resolve))

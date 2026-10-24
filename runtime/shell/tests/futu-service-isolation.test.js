@@ -1,3 +1,4 @@
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
@@ -13,7 +14,7 @@ test('Futu Electron timeout cleans its profile, signed store and connected publi
   delete env.ELECTRON_RUN_AS_NODE
   let failure
   try {
-    await execFile(require('electron'), [`--user-data-dir=${profile}`, path.join(__dirname, 'futu-service-electron.cjs'), '--timeout-after-connect'], { env, timeout: 10000, killSignal: 'SIGKILL' })
+    await execFile(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, path.join(__dirname, 'futu-service-electron.cjs'), '--timeout-after-connect']), { env, timeout: 10000, killSignal: 'SIGKILL' })
   } catch (error) { failure = error }
   finally { await fs.rm(profile, { recursive: true, force: true }) }
   assert.ok(failure, 'timeout fixture must fail')

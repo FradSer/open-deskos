@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -51,7 +52,7 @@ test('signed independent Weather surface update rollback and removal preserve se
         ODK_WEATHER_PERSISTENT_CACHE: cacheFile, ODK_WEATHER_CACHE_OFFLINE: offline ? '1' : '0' }
       delete childEnv.ELECTRON_RUN_AS_NODE
       try {
-        const result = await runCommand(require('electron'), [`--user-data-dir=${profile}`, path.join(__dirname, 'weather-plugin-electron.cjs')],
+        const result = await runCommand(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, path.join(__dirname, 'weather-plugin-electron.cjs')]),
           { env: childEnv, signal: t.signal, timeout: surfaceTimeouts().child, maxBuffer: 1024 * 1024 })
         const report = JSON.parse(result.stdout.trim().split('\n').pop())
         assert.equal(report.surfaceProcessRestart, true)

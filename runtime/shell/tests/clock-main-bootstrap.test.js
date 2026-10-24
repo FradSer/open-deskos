@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -90,8 +91,8 @@ globalThis.clockSelectedControlEntry=true;
           await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'link', directory, '--trust', '--replace',
             ...plugin.manifest.permissions.flatMap(permission => ['--grant', permission])], { env, signal: t.signal, timeout: 10000 })
         }
-        const launch = runCommand(require('electron'), [`--user-data-dir=${path.join(root, 'profile')}`, '--force-device-scale-factor=1',
-          path.join(__dirname, 'clock-main-bootstrap.cjs')], { env, signal: t.signal, timeout: clockMainTimeouts(mode).child, maxBuffer: 1024 * 1024 })
+        const launch = runCommand(require('electron'), isolatedElectronArgs([`--user-data-dir=${path.join(root, 'profile')}`, '--force-device-scale-factor=1',
+          path.join(__dirname, 'clock-main-bootstrap.cjs')]), { env, signal: t.signal, timeout: clockMainTimeouts(mode).child, maxBuffer: 1024 * 1024 })
         if (control === 'missing-bridge') await assert.rejects(launch, error => fixtureRejection(error, /Selected Renderer bridge missing/))
         else if (control === 'missing') await assert.rejects(launch, error => fixtureRejection(error, /Selected Renderer control missing/))
         else if (mode === 'missing-tick') await assert.rejects(launch, error => fixtureRejection(error, /Clock Tick subscription changed/))

@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -29,7 +30,7 @@ test('actual Main bootstrap preserves independent Quota revisions and all preloa
         const profile = await fs.mkdtemp(path.join(root, 'electron-'))
         const childEnv = { ...env, ODK_QUOTA_BOOTSTRAP_PROFILE: profile, ODK_QUOTA_BOOTSTRAP_VERSION: version }
         delete childEnv.ELECTRON_RUN_AS_NODE
-        const operation = execFile(require('electron'), [`--user-data-dir=${profile}`, fixture], {
+        const operation = execFile(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, fixture]), {
           env: childEnv, timeout: 55000, killSignal: 'SIGKILL', signal: t.signal, maxBuffer: 1024 * 1024,
         })
         const closed = new Promise(resolve => operation.child.once('close', resolve))
@@ -128,7 +129,7 @@ test('actual Main jointly selects Quota source and page and preserves authentica
           await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'native', 'install', folder, '--keyring', env.ODK_NATIVE_KEYRING, '--trust'],
             { env, signal: t.signal, timeout: 10000 })
         }
-        const running = runCommand(require('electron'), [`--user-data-dir=${profile}`, path.join(__dirname, 'quota-main-bootstrap.cjs')],
+        const running = runCommand(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, path.join(__dirname, 'quota-main-bootstrap.cjs')]),
           { env, signal: t.signal, timeout: 55000, maxBuffer: 1024 * 1024 })
         if (mode === 'incorrect') await assert.rejects(running, /Production Quota page reading changed/)
         else if (mode === 'missing') await assert.rejects(running, /Production Quota page fallback guard triggered/)

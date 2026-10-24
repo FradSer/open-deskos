@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -28,7 +29,7 @@ for (const mode of ['development', 'native']) test(`${mode} independent Weather 
         [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'link', directory, '--trust', '--replace'],
         { env: { ...env, ELECTRON_RUN_AS_NODE: '1' }, signal: t.signal, timeout: 10000 })
     }
-    const operation = run(require('electron'), [`--user-data-dir=${profile}`, path.join(__dirname, 'weather-plugin-electron.cjs')], {
+    const operation = run(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, path.join(__dirname, 'weather-plugin-electron.cjs')]), {
       env, timeout: surfaceTimeouts().child, killSignal: 'SIGKILL', signal: t.signal, maxBuffer: 1024 * 1024,
     })
     const closed = new Promise(resolve => operation.child.once('close', resolve))
