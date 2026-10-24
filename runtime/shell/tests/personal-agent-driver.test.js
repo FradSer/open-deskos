@@ -214,15 +214,15 @@ test('cross-capability parity preserves busy and unavailable control boundaries'
       requestState: state, panel: box, identity: { box, name: 'Agent', state, label: state },
       composer: { box, placeholder: 'Message…', insidePanel: true, mode: voiceInput ? 'voice' : 'keyboard' },
       voiceInput, controls: {
-        mic: { box, hidden: false, disabled: !voiceInput || (busy && state !== 'recording'), label: 'Voice control' },
-        send: { box, hidden: voiceInput, disabled: busy || state === 'unavailable' },
+        mic: { box, hidden: voiceInput && state === 'recording', disabled: !voiceInput || busy || state === 'unavailable', label: 'Voice control' },
+        send: { box, hidden: false, disabled: !voiceInput || state !== 'recording' },
       }, empty: '', messages: [], children: [], statusPanel: { visible: false }, overflow: [],
       conversation: { scrollHeight: 100, clientHeight: 100 },
     })
     const speaking = reading(true), silent = reading(false)
     assert.deepEqual(compareParity(speaking, silent), [], state)
     assert.deepEqual(compareParity(silent, speaking), [], `${state}: capability order is symmetric`)
-    for (const [host, control] of [['voice', 'mic'], ['silent', 'send']]) {
+    for (const [host, control] of [['voice', 'mic'], ['voice', 'send'], ['silent', 'send']]) {
       const one = structuredClone(speaking), other = structuredClone(silent)
       const mutated = host === 'voice' ? one : other
       mutated.controls[control].disabled = !mutated.controls[control].disabled

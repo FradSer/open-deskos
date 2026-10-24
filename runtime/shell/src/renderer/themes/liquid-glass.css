@@ -51,7 +51,7 @@ html[data-theme='liquid-glass'] #liquid-glass-backdrop {
 
 /* Controls and the read-only Agent capsule share the frame material.
    Integrated fields inherit the composer frame. Widget hit targets and page marks stay transparent. */
-html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summary, [role='button'], .agent-composer, .agent-capsule):not(:where(.widget-launch, .dot, .agent-session-open, .agent-composer textarea, input[type='checkbox'], input[type='radio'], input[type='range'])) {
+html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summary, [role='button'], .agent-composer, .agent-capsule):not(:where(.widget-launch, .dot, .agent-session-open, .agent-composer textarea, .agent-composer button, input[type='checkbox'], input[type='radio'], input[type='range'])) {
   border: 1px solid var(--odk-control-stroke, var(--odk-stroke));
   background-color: var(--odk-glass-control-fill);
   background-image: var(--odk-glass-control-material);
@@ -113,17 +113,12 @@ html[data-theme='liquid-glass'] input:is([type='checkbox'], [type='radio'], [typ
   accent-color: var(--odk-primary);
 }
 
-html[data-theme='liquid-glass'] .agent-composer[data-mode='voice'] .agent-mic {
-  background-color: var(--odk-glass-control-fill);
-  background-image: var(--odk-glass-control-material);
-}
-
-html[data-theme='liquid-glass'] #personal-agent .agent-mic.lg-surface {
+html[data-theme='liquid-glass'] #personal-agent .agent-composer.lg-surface {
   visibility: inherit;
   border-radius: var(--odk-radius-pill) !important;
 }
 
-html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #personal-agent .agent-mic.lg-surface {
+html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #personal-agent .agent-composer.lg-surface {
   background: transparent;
   box-shadow: inset 0 0.5px 0 rgba(246, 250, 255, 0.12);
   backdrop-filter: none;
@@ -256,3 +251,8 @@ html[data-theme='liquid-glass'] .w-weread .weread-text {
   }
   html[data-theme='liquid-glass'] body { background: Canvas; }
 }
+
+html[data-theme='liquid-glass'] #personal-agent .agent-composer .agent-send { background: var(--odk-primary); color: var(--odk-bg); box-shadow: none; backdrop-filter: none; }
+html[data-theme='liquid-glass'] #personal-agent .agent-composer .agent-send:hover:not(:disabled) { background: color-mix(in srgb, var(--odk-primary) 86%, var(--odk-bg)); color: var(--odk-bg); }
+html[data-theme='liquid-glass'] #personal-agent .agent-composer .agent-send:active:not(:disabled) { background: color-mix(in srgb, var(--odk-primary) 78%, var(--odk-bg)); color: var(--odk-bg); }
+html[data-theme='liquid-glass'] #personal-agent .agent-composer .agent-send:disabled { opacity: 1; background: var(--odk-button); color: var(--odk-secondary-strong); }

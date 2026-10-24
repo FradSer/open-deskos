@@ -404,8 +404,8 @@ Feature: Personal Agent home briefing
 
   Scenario: The resident microphone stops and starts voice turns
     Given the Agent is recording a voice request
-    When the user selects Stop recording
-    Then the Shell invokes the existing recording control once
+    When the user selects Send voice request
+    Then the Shell submits the recording through the existing recording control once
     And the next microphone action can start another voice turn
 
   Scenario: App account values remain readable beside the Agent
@@ -701,3 +701,53 @@ Scenario: Hidden previews capture the current native viewport
     Then the status appears below the name with one short capsule animation
     And an unchanged status does not restart that animation
     And hidden documents, reduced motion, and released pages stop capsule animation
+
+  # Input contract: odk.page.personal-agent uses authoritative Personal Bot snapshots.
+  # Preserve identity, Onee, history, task references, semantic tokens, and all four themes.
+  # One composer owns its frame. Recording owns Cancel, measured input level, and Send.
+  # Release removes listeners and observers. No preview data enters the product.
+  Scenario: Voice and keyboard share three main feedback states
+    Given the resident Agent has voice input
+    When recording, transcription, and streaming states arrive
+    Then the name capsule shows Listening... during recording
+    And it shows only the text Thinking... during processing and streaming
+    And the composer does not repeat the status
+    And no empty reply bubble appears before the first response text
+    And the capsule has no arrow or edit action
+
+  Scenario: Recording has separate cancel and send actions
+    Given the Agent is recording with a retained keyboard draft
+    When the user selects Cancel recording or presses Escape
+    Then the recording is discarded without transcription or a new message
+    And the original input mode, draft, and focus return after cancellation acknowledgement
+    When the user selects Send voice request
+    Then the recording is submitted once
+    And input switching remains unavailable until recording ends
+
+  Scenario: Keyboard drafts remain usable while the Agent thinks
+    Given the keyboard composer is empty
+    Then Send is disabled
+    When the user writes a multiline draft
+    Then the field expands upwards to four lines and then scrolls
+    And Send keeps its fixed position and 44-pixel minimum target
+    And Enter sends while Shift+Enter inserts a newline
+    And selecting an IME candidate does not send
+    When the request is pending
+    Then Thinking... appears only below the Agent name
+    And the keyboard stays editable but cannot send another request
+    When the request completes
+    Then the next draft remains available and Send becomes enabled
+
+  Scenario: Unconfirmed delivery preserves drafts without replay
+    Given a text request has no confirmed outcome
+    When the connection drops and returns with an unrelated idle snapshot
+    Then the draft stays editable and duplicate submission stays blocked
+    And Check status reads the current status without sending the request again
+    When the matching request has a confirmed terminal result
+    Then the next draft can be sent
+
+  Scenario: Malformed text receipts cannot permit replay
+    Given a sent text request receives a receipt without a boolean acceptance
+    When the client reports the delivery result
+    Then the result remains unknown rather than refused
+    And the composer retains its draft and duplicate submission guard

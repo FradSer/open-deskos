@@ -18,8 +18,9 @@ test('voice preload exposes bounded control and status separately from monitorin
     }),
   })
   await exposed.odkPersonalBot.toggle()
+  await exposed.odkPersonalBot.cancelRecording()
   await exposed.odkPersonalBot.getStatus()
-  assert.deepEqual(calls, ['odk-personal-bot-toggle', 'odk-personal-bot-status'])
+  assert.deepEqual(calls, ['odk-personal-bot-toggle', 'odk-personal-bot-cancel', 'odk-personal-bot-status'])
   let state
   const unsubscribe = exposed.odkPersonalBot.subscribe((update) => { state = update.state })
   listeners.get('odk-personal-bot-status')(null, { state: 'recording' })

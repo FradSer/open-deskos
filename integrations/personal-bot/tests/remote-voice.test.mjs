@@ -124,3 +124,56 @@ test('the aggregate audio ceiling and a blocked permission deadline fail before 
  await g.handle({type:'voice_start'},g.client,()=>new Promise(()=>{}))
  assert.equal(g.service.status.state,'error');assert.equal(g.audio.length,0)
 })
+
+
+test('central cancellation waits for display cleanup before releasing its recording slot', async t => {
+ const f=await fixture(t);let display,release,records=0,cleanups=0
+ const cleanupGate=new Promise(resolve=>{release=resolve})
+ const recording={done:new Promise(()=>{}),stop:async()=>{throw Error('Cancelled audio must not upload')},cleanup:async()=>{cleanups++;await cleanupGate}}
+ const outbound=async frame=>{f.frames.push(frame);display.onFrame(frame)}
+ display=createDisplayVoice({send:command=>f.voice.handle(f.client,command,outbound).then(()=>{}),record:async()=>{records++;return recording}})
+ t.after(()=>display.close());const unsubscribe=f.service.subscribe(status=>display.onFrame({v:1,type:'status',...status}));t.after(unsubscribe)
+ display.onFrame({v:1,type:'status',state:'idle'});await display.toggle();await new Promise(setImmediate)
+ const cancellation=f.service.cancelRecording();await new Promise(setImmediate)
+ assert.equal(f.service.status.state,'recording','central ownership survives pending physical cleanup')
+ assert.equal(await display.toggle(),false);assert.equal(records,1);assert.equal(cleanups,1)
+ release();assert.equal(await cancellation,true);await new Promise(setImmediate)
+ assert.equal(f.service.status.state,'idle');assert.equal(f.audio.length,0);assert.equal(f.prompts.length,0)
+ assert.equal(await display.toggle(),true);await new Promise(setImmediate);assert.equal(records,2)
+})
+
+test('central cancellation cannot report success or acquire again after display cleanup fails', async t => {
+ const f=await fixture(t);let display,records=0,failed=true,cleanups=0
+ const recording={done:new Promise(()=>{}),stop:async()=>{throw Error('Cancelled audio must not upload')},cleanup:async()=>{cleanups++;if(failed)throw Error('Controlled cleanup failure')}}
+ const outbound=async frame=>{f.frames.push(frame);display.onFrame(frame)}
+ display=createDisplayVoice({send:command=>f.voice.handle(f.client,command,outbound).then(()=>{}),record:async()=>{records++;return recording}})
+ t.after(()=>display.close());const unsubscribe=f.service.subscribe(status=>display.onFrame({v:1,type:'status',...status}));t.after(unsubscribe)
+ display.onFrame({v:1,type:'status',state:'idle'});await display.toggle();await new Promise(setImmediate)
+ let settled=false;const cancellation=f.service.cancelRecording().then(value=>{settled=true;return value});await new Promise(setImmediate);await new Promise(setImmediate)
+ assert.equal(f.service.status.state,'recording');assert.equal(settled,false)
+ assert.equal(await display.toggle(),false);assert.equal(records,1);assert.equal(cleanups,1)
+ failed=false;await display.close();await f.voice.close(f.client);await cancellation
+ assert.equal(f.service.status.state,'error');assert.equal(cleanups,2);assert.equal(f.audio.length,0)
+})
+
+test('a late start acknowledgement cannot overwrite a central cancellation reservation', async t => {
+ const f=await fixture(t);let release
+ const starting=f.handle({type:'voice_start'},f.client,frame=>{f.frames.push(frame);return frame.type==='voice_started'?new Promise(resolve=>{release=resolve}):Promise.resolve()})
+ const lease=f.frames[0].leaseId,cancellation=f.service.cancelRecording()
+ await new Promise(setImmediate);release();await starting
+ await f.chunk(lease,wav());await f.handle({type:'voice_end',leaseId:lease,seq:1});await new Promise(setImmediate)
+ assert.equal(f.service.status.state,'recording');assert.equal(f.audio.length,0)
+ await f.handle({type:'voice_cancel',leaseId:lease});assert.equal(await cancellation,true)
+ assert.equal(f.service.status.state,'idle')
+})
+
+test('cancellation refuses completed audio handoff without leaving an unresolved request', async t => {
+ const f=await fixture(t),lease=await f.start();await f.chunk(lease,wav());let release
+ const ending=f.handle({type:'voice_end',leaseId:lease,seq:1},f.client,()=>new Promise(resolve=>{release=resolve}))
+ t.after(()=>release())
+ let settled=false,result
+ const cancellation=f.service.cancelRecording().then(value=>{settled=true;result=value})
+ await new Promise(setImmediate);assert.equal(settled,true);assert.equal(result,false)
+ release();await ending;await new Promise(setImmediate);await f.service.pending;await cancellation
+ assert.equal(f.audio.length,1);assert.equal(f.prompts.length,1);assert.equal(f.service.status.state,'idle')
+})

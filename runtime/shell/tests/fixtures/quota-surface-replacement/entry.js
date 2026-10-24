@@ -43,10 +43,24 @@
     row.append(make('div', 'provider-quota-reset', value.description || (value.resetAt ? `Resets ${reset(value.resetAt)}` : 'Reset time unavailable')))
     return row
   }
+  function groupsFor(account) {
+    const kind = value => value.horizon || (/5\s*(hour|h)\b/i.test(value.label || '') ? 'short' : /week/i.test(value.label || '') ? 'long' : null)
+    const pro = account.provider === 'codex' && /\bpro\b/i.test(account.plan || '')
+    return (account.groups || []).map(source => {
+      const group = { ...source, quotas: source.quotas.filter(value => !pro || kind(value) !== 'short') }
+      if (account.provider === 'antigravity') {
+        for (const [horizon, label] of [['short', '5 hour limit'], ['long', 'Weekly limit']]) {
+          if (!group.quotas.some(value => kind(value) === horizon)) group.quotas.push({ label, horizon, remainingPct: null })
+        }
+      }
+      return group
+    }).filter(group => group.quotas.length)
+  }
   function card(account) {
     const title = account.fileName || 'Authentication file'
     const provider = providers[account.provider] || 'AI provider'
-    const windows = account.error ? [] : account.groups.flatMap(group => group.quotas)
+    const groups = groupsFor(account)
+    const windows = account.error ? [] : groups.flatMap(group => group.quotas)
     const readings = windows.map(window => window.remainingPct).filter(valid)
     let state = ['available', 'Available']
     if (account.error) state = ['unavailable', 'Unavailable']
@@ -56,16 +70,16 @@
     const article = make('article', `provider-quota-card is-${state[0]}`, undefined, { 'aria-label': title })
     const head = make('header', 'provider-quota-card-head')
     const icon = make('span', 'provider-quota-icon'); icon.innerHTML = artwork[account.provider] || artwork.codex
-    const identity = make('div', 'provider-quota-identity'); identity.append(make('strong', '', title))
+    const identity = make('div', 'provider-quota-identity'); identity.append(make('strong', '', provider), make('p', 'provider-quota-account', account.account || 'Account identity unavailable'))
     head.append(icon, identity)
     const body = make('div', 'provider-quota-card-body')
     const context = make('div', 'provider-quota-context')
     if (account.plan) context.append(make('p', 'provider-plan', `${provider} · ${account.plan}`))
-    context.append(make('p', 'provider-quota-account', account.account || provider), make('p', 'provider-quota-availability', state[1]))
+    context.append(make('p', 'provider-quota-availability', state[1]))
     body.append(context)
     if (account.error) body.append(make('p', 'provider-quota-error', account.error))
-    else if (!account.groups.length) body.append(make('p', 'provider-quota-error', 'No quota windows were returned.'))
-    else for (const group of account.groups) {
+    else if (!groups.length) body.append(make('p', 'provider-quota-error', 'No quota windows were returned.'))
+    else for (const group of groups) {
       const section = make('section', 'provider-quota-group')
       const heading = make('header', 'provider-quota-group-head'); heading.append(make('h3', '', group.title))
       if (group.description) heading.append(make('p', '', group.description))

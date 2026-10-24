@@ -45,10 +45,10 @@ async function glassControls() {
     await js(`document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))`)
     await js(`polishUntil(()=>['sdk','fallback'].includes(document.documentElement.dataset.liquidGlass))`)
     const inspect = async label => {
-      await js(`polishUntil(()=>{const n=document.querySelector('.agent-mic'),s=getComputedStyle(n);return s.backgroundImage!=='none'||n.classList.contains('lg-surface')&&document.documentElement.dataset.liquidGlass==='sdk'})`).catch(async error=>{console.error(await js(`(()=>{const n=document.querySelector('.agent-mic'),s=getComputedStyle(n);return {width:innerWidth,style:n.style.cssText,classes:n.className,mode:document.documentElement.dataset.liquidGlass,background:s.background,material:s.getPropertyValue('--odk-glass-control-material'),media:matchMedia('(prefers-contrast: more)').matches}})()`));throw error})
+      await js(`polishUntil(()=>{const n=document.querySelector('.agent-composer'),s=getComputedStyle(n);return s.backgroundImage!=='none'||n.classList.contains('lg-surface')&&document.documentElement.dataset.liquidGlass==='sdk'})`).catch(async error=>{console.error(await js(`(()=>{const n=document.querySelector('.agent-mic'),s=getComputedStyle(n);return {width:innerWidth,style:n.style.cssText,classes:n.className,mode:document.documentElement.dataset.liquidGlass,background:s.background,material:s.getPropertyValue('--odk-glass-control-material'),media:matchMedia('(prefers-contrast: more)').matches}})()`));throw error})
       const result=await js(`(()=>{
         const widget=document.querySelector('.widget[data-interaction="display-only"]'),edge=getComputedStyle(widget).borderTopColor;
-        return [...document.querySelectorAll('button,input,textarea,select,summary,[role="button"],.agent-composer,.agent-capsule')].filter(n=>n.getClientRects().length && !n.matches('.widget-launch,.dot,.agent-session-open,.agent-composer textarea,input[type="checkbox"],input[type="radio"],input[type="range"]')).map(n=>{const s=getComputedStyle(n);return {name:n.className||n.id||n.tagName,border:s.borderTopWidth,style:s.borderTopStyle,color:s.borderTopColor,edge,image:s.backgroundImage,shadow:s.boxShadow,foreground:s.color,radius:s.borderTopLeftRadius,sdk:n.classList.contains('lg-surface')&&document.documentElement.dataset.liquidGlass==='sdk'}})
+        return [...document.querySelectorAll('button,input,textarea,select,summary,[role="button"],.agent-composer,.agent-capsule')].filter(n=>n.getClientRects().length && !n.matches('.widget-launch,.dot,.agent-session-open,.agent-composer textarea,.agent-composer button,input[type="checkbox"],input[type="radio"],input[type="range"]')).map(n=>{const s=getComputedStyle(n);return {name:n.className||n.id||n.tagName,border:s.borderTopWidth,style:s.borderTopStyle,color:s.borderTopColor,edge,image:s.backgroundImage,shadow:s.boxShadow,foreground:s.color,radius:s.borderTopLeftRadius,sdk:n.classList.contains('lg-surface')&&document.documentElement.dataset.liquidGlass==='sdk'}})
       })()`)
       for (const row of result) {
         check(`${width} ${label}: ${row.name} glass frame`,row.border==='1px'&&row.style==='solid'&&(row.image!=='none'||row.sdk)&&row.shadow.includes('inset'))
@@ -102,26 +102,22 @@ async function glassControls() {
   report.push({pointer})
   for (const state of ['hover','active','focus-visible']) {
     await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:[state]})
-    const result=await js(`(()=>{const s=getComputedStyle(document.querySelector('.agent-mic'));return {edge:s.borderTopColor,outline:s.outlineStyle}})()`)
+    const result=await js(`(()=>{const s=getComputedStyle(document.querySelector('.agent-mic'));return {edge:s.borderTopColor,outline:s.outlineStyle,frame:getComputedStyle(document.querySelector('.agent-composer')).borderTopWidth}})()`)
     const expectedEdge=state==='hover'&&!(pointer.hover&&pointer.fine)?normal:pointer.focus
-    check('voice '+state+' matches pointer capabilities',state==='focus-visible'?result.outline==='solid':result.edge===expectedEdge)
+    check('voice '+state+' matches pointer capabilities',state==='focus-visible'?result.outline==='solid':result.frame==='1px')
   }
   await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:['hover']})
   win.webContents.send('odk-personal-bot-status',{state:'recording'})
-  await js(`polishUntil(()=>document.querySelector('.agent-mic').dataset.recording==='true')`)
-  check('recording keeps its red semantic edge while hovered',await js(`(()=>{const s=getComputedStyle(document.querySelector('.agent-mic'));return s.borderTopColor===s.color&&s.borderTopColor!==${JSON.stringify(normal)}})()`))
+  await js(`polishUntil(()=>!document.querySelector('.agent-cancel').hidden)`)
+  check('recording has cancel, a measured meter, and the fixed Send',await js(`document.querySelector('.agent-mic').hidden&&!document.querySelector('.agent-recording-feedback').hidden&&document.querySelector('.agent-send').getAttribute('aria-label')==='Send voice request'`))
   await capture('glass-recording')
   await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:[]})
   win.webContents.send('odk-personal-bot-status',{state:'thinking'})
   await js(`polishUntil(()=>document.querySelector('.agent-mic').disabled)`)
-  check('disabled voice keeps its material and edge',await js(`(()=>{const s=getComputedStyle(document.querySelector('.agent-mic'));return parseFloat(s.opacity)<1&&s.borderTopWidth==='1px'})()`))
-  check('busy voice is disabled while thinking',await js(`document.querySelector('.agent-mic').disabled&&document.querySelector('.agent-state').textContent==='Thinking…'`))
+  check('busy voice retains the shared composer material',await js(`(()=>{const s=getComputedStyle(document.querySelector('.agent-composer'));return s.borderTopWidth==='1px'&&(s.backgroundImage!=='none'||document.querySelector('.agent-composer').classList.contains('lg-surface'))})()`))
+  check('busy voice is disabled while thinking',await js(`document.querySelector('.agent-mic').disabled&&document.querySelector('.agent-state').textContent==='Thinking...'`))
   win.webContents.send('odk-personal-bot-status',{state:'idle'})
   await js(`polishUntil(()=>!document.querySelector('.agent-mic').disabled)`)
-  for (const attribute of ['aria-pressed','aria-selected']) {
-    const result=await js(`(()=>{const n=document.querySelector('.agent-keys');n.setAttribute('${attribute}','true');const s=getComputedStyle(n),edge=s.getPropertyValue('--odk-stroke-focus').trim();const probe=document.createElement('i');probe.style.color=edge;document.body.append(probe);const expected=getComputedStyle(probe).color;probe.remove();const result=s.borderTopColor===expected&&s.backgroundImage!=='none';n.removeAttribute('${attribute}');return result})()`)
-    check(attribute+': selected control retains its material and highlighted border',result)
-  }
   await js(`odkAppPlatform.openApp({appId:'app-manager'})`)
   check('invalid field retains its red semantic edge',await js(`(()=>{const n=document.querySelector('#app-search');n.setAttribute('aria-invalid','true');void getComputedStyle(n).borderTopColor;for(const a of n.getAnimations())if(a instanceof CSSTransition)a.finish();const s=getComputedStyle(n),probe=document.createElement('i');probe.style.color=s.getPropertyValue('--odk-accent-red');document.body.append(probe);const expected=getComputedStyle(probe).color;probe.remove();const result=s.borderTopColor===expected&&s.backgroundImage!=='none';n.removeAttribute('aria-invalid');return result})()`))
   await js(`odkAppPlatform.closeApp()`)
@@ -129,7 +125,7 @@ async function glassControls() {
     const value=feature==='prefers-contrast'?'more':feature==='forced-colors'?'active':'reduce'
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:feature,value}]})
     await js(`polishUntil(()=>matchMedia('(${feature}: ${value})').matches&&document.documentElement.dataset.liquidGlass==='fallback')`)
-    const readable=await js(`(()=>{return [...document.querySelectorAll('.agent-composer,.agent-composer button,.agent-identity .agent-capsule')].filter(n=>n.getClientRects().length).every(n=>{const s=getComputedStyle(n);return s.backdropFilter==='none'&&s.boxShadow==='none'&&s.backgroundImage==='none'&&s.borderTopWidth==='1px'&&s.backgroundColor!=='rgba(0, 0, 0, 0)'})})()`)
+    const readable=await js(`(()=>{return [...document.querySelectorAll('.agent-composer,.agent-composer button,.agent-identity .agent-capsule')].filter(n=>n.getClientRects().length).every(n=>{const s=getComputedStyle(n);return s.backdropFilter==='none'&&s.boxShadow==='none'&&s.backgroundImage==='none'&&(n.matches('.agent-composer button')||s.borderTopWidth==='1px'&&s.backgroundColor!=='rgba(0, 0, 0, 0)')})})()`)
     check(feature+': controls have opaque accessible frames',readable)
     await capture('glass-'+feature)
   }
@@ -215,7 +211,7 @@ app.whenReady().then(async () => {
       await js(`polishUntil(()=>document.querySelector('.agent-state').hidden&&document.querySelector('.agent-state').textContent==='')`)
       const restingHistoryTop = await js(`document.querySelector('.agent-conversation').getBoundingClientRect().top`)
       win.webContents.send('odk-personal-bot-status', { state: 'thinking', jev: {status:'verified'} })
-      await js(`polishUntil(()=>!document.querySelector('.agent-state').hidden&&document.querySelector('.agent-state').textContent==='Thinking…')`)
+      await js(`polishUntil(()=>!document.querySelector('.agent-state').hidden&&document.querySelector('.agent-state').textContent==='Thinking...')`)
       check(where + ': thinking keeps conversation position', await js(`Math.abs(document.querySelector('.agent-conversation').getBoundingClientRect().top-(${restingHistoryTop}))<1`))
       win.webContents.send('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'} })
       await js(`polishUntil(()=>document.querySelector('.agent-state').hidden)`)

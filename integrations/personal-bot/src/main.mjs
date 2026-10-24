@@ -181,7 +181,7 @@ async function main() {
       }
       if (typeof service.reserveRemoteRecording === 'function') {
         const originalReserve = service.reserveRemoteRecording.bind(service)
-        service.reserveRemoteRecording = (recording, requestStop) => Boolean(runtime && !runtime.stt.unavailable) && originalReserve(recording, requestStop)
+        service.reserveRemoteRecording = (...args) => Boolean(runtime && !runtime.stt.unavailable) && originalReserve(...args)
       }
       return service
     },

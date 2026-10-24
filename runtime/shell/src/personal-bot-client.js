@@ -49,12 +49,12 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
   const listeners = new Set()
   const diagnoses = new Map()
   const textRequests = new Map()
-  function finishText(id, accepted) {
+  function finishText(id, accepted, delivery = accepted ? 'accepted' : 'unknown') {
     const request = textRequests.get(id)
     if (!request) return
     textRequests.delete(id)
     clearTimeout(request.timer)
-    request.resolve(accepted)
+    request.resolve({ accepted, delivery })
   }
   const unavailable = reason => ({ host: 'personal-agent', instance: 'resident', state: 'unavailable', reason, plugins: [] })
   function finishDiagnosis(id, runtime) {
@@ -105,6 +105,23 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
     return sent
   }
 
+  function requestText(text, replyTo) {
+    const reference = replyTo === undefined ? undefined : parseReplyTo(replyTo)
+    if (reference === null || (reference && status.replyInput !== true)) return Promise.resolve({accepted:false,delivery:'refused'})
+    const context = reference ? { replyTo: reference } : {}
+    if (typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 3000
+      || status.textInput !== true || textRequests.size || !['idle', 'error'].includes(status.state)) return Promise.resolve({accepted:false,delivery:'refused'})
+    const requestId = randomUUID()
+    if (Buffer.byteLength(JSON.stringify({ v: 1, type: 'text', text, requestId, ...context })) > 4095) return Promise.resolve({accepted:false,delivery:'refused'})
+    return new Promise(resolve => {
+      const timer = setTimeout(() => finishText(requestId, false), 5000)
+      textRequests.set(requestId, { resolve, timer })
+      try { if (!write('text', { text, requestId, ...context })) finishText(requestId, false, 'refused') }
+      catch { finishText(requestId, false) }
+    })
+  }
+
+
   function connect() {
     if (!running) return
     const active = net.createConnection(socketPath)
@@ -134,7 +151,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
         if (Buffer.byteLength(line) > MAX_STATUS_BYTES) return active.destroy()
         let record
         try { record = JSON.parse(line) } catch { continue }
-        if (record?.v === 1 && record.type === 'text_receipt') { finishText(record.requestId, record.accepted === true); continue }
+        if (record?.v === 1 && record.type === 'text_receipt') { finishText(record.requestId, record.accepted === true, record.accepted === true ? 'accepted' : record.accepted === false ? 'refused' : 'unknown'); continue }
         if (record?.v === 1 && record.type === 'runtime_diagnosis') {
           if (!diagnoses.has(record.requestId)) continue
           const runtime = record.runtime
@@ -171,6 +188,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
           state: record.state,
           ...(parseVoiceFailure(record) ? {voiceFailure:parseVoiceFailure(record)} : {}),
           textInput: record.textInput === true,
+          cancelInput: record.cancelInput === true,
           replyInput: record.replyInput === true,
           message: typeof record.message === 'string' ? record.message.slice(0, MAX_MESSAGE_CHARACTERS) : '',
           transcript,
@@ -248,21 +266,9 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
       return diagnosisReady && write('status', { proposalConsumerReady: id })
     },
     toggle: () => write('toggle'),
-    sendText(text, replyTo) {
-      const reference = replyTo === undefined ? undefined : parseReplyTo(replyTo)
-      if (reference === null || (reference && status.replyInput !== true)) return Promise.resolve(false)
-      const context = reference ? { replyTo: reference } : {}
-      if (typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 3000
-        || status.textInput !== true || textRequests.size || !['idle', 'error'].includes(status.state)) return Promise.resolve(false)
-      const requestId = randomUUID()
-      if (Buffer.byteLength(JSON.stringify({ v: 1, type: 'text', text, requestId, ...context })) > 4095) return Promise.resolve(false)
-      return new Promise(resolve => {
-        const timer = setTimeout(() => finishText(requestId, false), 5000)
-        textRequests.set(requestId, { resolve, timer })
-        try { if (!write('text', { text, requestId, ...context })) finishText(requestId, false) }
-        catch { finishText(requestId, false) }
-      })
-    },
+    cancelRecording: () => status.state === 'recording' && status.cancelInput === true && write('cancel_recording'),
+    sendText: async (text, replyTo) => (await requestText(text, replyTo)).accepted,
+    sendTextReceipt: requestText,
     servicePush,
     proposalCommand: ({ type, ...payload }) => ['proposal_respond', 'proposal_list', 'proposal_presented'].includes(type) && write(type, payload),
     snapshot: () => ({ ...status }),

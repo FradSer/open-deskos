@@ -306,3 +306,25 @@ test('legacy composition cannot admit a consumer readiness request without a fra
   await f.host.start()
   assert.deepEqual(f.handlers.get('odk-personal-bot-consumer-ready')({}, '11111111-1111-4111-8111-111111111111'), { accepted: false })
 })
+
+
+test('recording cancellation blocks duplicate input until cleanup acknowledgement', async () => {
+  const f = fixture()
+  f.bot.cancelRecording = () => { f.calls.push('cancel'); return true }
+  f.bot.snapshot = () => ({state:'recording',cancelInput:true})
+  await f.host.start()
+  const cancel = f.handlers.get('odk-personal-bot-cancel')
+  assert.equal(typeof cancel, 'function')
+  assert.deepEqual(cancel(), {accepted:true})
+  assert.deepEqual(cancel(), {accepted:false})
+  assert.deepEqual(f.handlers.get('odk-personal-bot-toggle')(), {accepted:false})
+  const count = f.broadcasts.length
+  f.callbacks.get('bot')({state:'recording',cancelInput:true})
+  assert.equal(f.broadcasts.length, count, 'stale recording cannot clear cancellation')
+  f.bot.snapshot = () => ({state:'idle',cancelInput:true})
+  f.callbacks.get('bot')({state:'idle',cancelInput:true})
+  assert.deepEqual(cancel(), {accepted:false})
+  assert.deepEqual(f.handlers.get('odk-personal-bot-toggle')(), {accepted:true})
+  assert.equal(f.calls.filter(x => x === 'cancel').length, 1)
+  await f.host.stop()
+})

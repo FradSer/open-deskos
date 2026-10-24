@@ -7,7 +7,7 @@ import { statusFrames } from '../src/socket.mjs'
 const reading = (value = 2) => ({ id: 'odk.tile.pi-sessions', label: 'Pi Sessions', kind: 'tile', state: 'live', updatedAt: 1000, value: { count: value } })
 const output = { items: [{ text: 'Two sessions are visible.', readingIds: ['odk.tile.pi-sessions'] }] }
 
-test('Pi activity bursts update selected identities without another model call inside five minutes', async t => {
+test('Pi activity bursts update selected identities without another model call inside fifteen minutes', async t => {
   const { compileHomeSelection, homeFactVariables } = await import('../src/home-template.mjs')
   let now = 1000, calls = 0
   let task = { taskId: 'build', name: 'Build', state: 'running', activity: 'Starting' }
@@ -32,9 +32,28 @@ test('Pi activity bursts update selected identities without another model call i
   assert.equal(frames.filter(frame => frame.state === 'loading').length, 1)
   assert.match(home.frame.items[0].text, /Build finished.*\(reported\)/)
   assert.doesNotMatch(home.frame.items[0].text, /running|reported_unverified/)
-  now = 1000 + 5 * 60000 - 1; await home.refresh(); assert.equal(calls, 1)
+  now = 1000 + 15 * 60000 - 1; await home.refresh(); assert.equal(calls, 1)
   now++; await home.refresh(); assert.equal(calls, 2)
   assert.equal(home.frame.state, 'live')
+})
+
+for (const fail of [false, true]) test(`fifteen-minute cooldown starts when a ${fail ? 'failed' : 'successful'} attempt finishes`, async t => {
+  let now = 1000, calls = 0, count = 2
+  const home = new HomeBriefing({ now: () => now, list: async () => [reading(count)], read: async () => reading(count),
+    generate: async () => {
+      calls++; now += 2 * 60000
+      if (fail) throw Error('synthetic failure')
+      return output
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  const completedAt = now
+  for (const elapsed of [5 * 60000, 14 * 60000 + 59000, 15 * 60000 - 1]) {
+    now = completedAt + elapsed; count++; home.invalidate(); await home.refresh()
+    assert.equal(calls, 1, `no retry ${elapsed} ms after completion`)
+  }
+  now = completedAt + 15 * 60000; home.invalidate(); await home.refresh()
+  assert.equal(calls, 2)
 })
 
 test('generation failures back off across pushes and keep current error facts without loading churn', async t => {
@@ -55,13 +74,13 @@ test('generation failures back off across pushes and keep current error facts wi
   assert.equal(home.frame.state, 'error'); assert.equal(home.frame.generatedAt, 0)
   assert.match(home.frame.items[0].text, /21/)
   assert.equal(frames.filter(frame => frame.state === 'loading').length, 1)
-  for (const [at, expected] of [[5, 2], [14, 2], [15, 3], [34, 3], [35, 4], [64, 4], [65, 5], [94, 5]]) {
+  for (const [at, expected] of [[14, 1], [15, 2], [44, 2], [45, 3], [74, 3], [75, 4], [104, 4], [105, 5], [134, 5]]) {
     now = 1000 + at * 60000; home.invalidate(); await home.refresh(); assert.equal(calls, expected, `minute ${at}`)
   }
-  fail = false; now = 1000 + 95 * 60000; await home.refresh()
+  fail = false; now = 1000 + 135 * 60000; await home.refresh()
   assert.equal(calls, 6); assert.equal(home.frame.state, 'live')
   now += 15 * 60000; fail = true; await home.refresh(); assert.equal(calls, 7)
-  now += 5 * 60000; await home.refresh(); assert.equal(calls, 8, 'success resets exponential backoff')
+  now += 15 * 60000; await home.refresh(); assert.equal(calls, 8, 'success resets exponential backoff')
 })
 
 test('cooldown never retains a selected fact after its source becomes hidden', async t => {
@@ -88,7 +107,7 @@ test('automatic push and minute timers share the failed generation cooldown', as
     generate: async () => { calls++; throw Error('provider unavailable') }, publish: frame => frames.push(frame) })
   t.after(() => home.close())
   home.start(); await home.pending
-  for (let second = 1; second < 300; second++) {
+  for (let second = 1; second < 900; second++) {
     home.invalidate(); t.mock.timers.tick(1000); await home.pending
   }
   assert.equal(calls, 1)
@@ -144,7 +163,7 @@ test('waiting Agent changes trigger selection even when field types do not chang
   t.after(() => home.close())
   await home.refresh(); waiting = 7; await home.refresh()
   assert.equal(calls, 1)
-  now += 5 * 60000; await home.refresh()
+  now += 15 * 60000; await home.refresh()
   assert.equal(calls, 2)
   assert.match(home.frame.items[0].text, /7 waiting/)
 })
@@ -233,7 +252,7 @@ test('time approaching a declared event triggers selection without a source upda
   t.after(() => home.close())
   await home.refresh(); now += 2 * 60000; await home.refresh()
   assert.equal(calls, 1)
-  now += 3 * 60000; await home.refresh()
+  now += 13 * 60000; await home.refresh()
   assert.equal(calls, 2)
 })
 
@@ -252,7 +271,7 @@ test('retained Overview items keep their own coverage when the inventory shrinks
   t.after(() => { release(); home.close() })
   await home.refresh()
   assert.equal(home.frame.coverage.selectedSources, 2)
-  now += 5 * 60000
+  now += 15 * 60000
   sources = sources.slice(0, 1)
   const pending = home.refresh()
   await ready
@@ -307,7 +326,7 @@ test('home generates from current readings and skips unchanged snapshots', async
   await home.refresh()
   assert.equal(calls, 1)
   value = 3
-  now += 5 * 60000
+  now += 15 * 60000
   await home.refresh()
   assert.equal(calls, 2)
   home.close()
@@ -329,7 +348,7 @@ test('source changes invalidate an in-flight answer and regenerate fresh data', 
   release()
   await first
   assert.equal(frames.some(f => f.state === 'live'), false)
-  now += 5 * 60000
+  now += 15 * 60000
   await home.refresh()
   assert.equal(frames.at(-1).items[0].sources[0].state, 'live')
   assert.equal(calls, 2)
@@ -366,7 +385,7 @@ test('a source push during confirmation cannot publish captured old data as live
   }, generate: async () => { home.invalidate(); return output }, publish: f => frames.push(f) })
   await home.refresh()
   assert.equal(frames.some(f => f.state === 'live'), false)
-  now += 5 * 60000
+  now += 15 * 60000
   await home.refresh()
   assert.equal(frames.at(-1).state, 'live')
   home.close()
@@ -381,7 +400,7 @@ test('a newly connected error source participates and updates coverage', async (
     generate: async () => { calls++; return output }, publish: f => frames.push(f) })
   await home.refresh()
   large = true
-  now += 5 * 60000
+  now += 15 * 60000
   home.invalidate()
   await home.refresh()
   assert.equal(frames.at(-1).omittedSources, 0)
@@ -400,7 +419,7 @@ test('generation failure retains stale content, never a fixed fallback', async (
     onFailure: failure => failures.push(failure), publish: f => frames.push(f) })
   await home.refresh()
   fail = true
-  now += 5 * 60000
+  now += 15 * 60000
   home.invalidate()
   await home.refresh()
   assert.equal(frames.at(-1).state, 'stale')
@@ -469,7 +488,7 @@ test('temperature and Pi count changes replace the prior sentence from fresh rea
     }, publish: frame => frames.push(frame) })
   await home.refresh()
   temperature = 29; count = 4
-  now += 5 * 60000
+  now += 15 * 60000
   await home.refresh()
   assert.equal(inputs[1].previous[0].text, '25°C in Taipei and 1 Pi sessions')
   assert.equal(frames.at(-1).items[0].text, '29°C in Taipei and 4 Pi sessions')
@@ -571,7 +590,7 @@ test('an excluded plugin becoming required invalidates pending coverage', async 
   }, publish: frame => frames.push(frame) })
   await home.refresh()
   assert.equal(frames.some(frame => frame.state === 'live'), false)
-  now += 5 * 60000
+  now += 15 * 60000
   await home.refresh()
   assert.equal(home.frame.state, 'live')
   assert.equal(calls, 2)
@@ -628,7 +647,7 @@ test('a source-only confirmation invalidated during pending reads is scheduled a
   release(); await home.pending
   await new Promise(resolve=>setTimeout(resolve,1100)); await home.pending
   assert.equal(calls,1); assert.equal(home.frame.state,'error')
-  now += 5 * 60000; await home.refresh()
+  now += 15 * 60000; await home.refresh()
   assert.equal(calls,2);assert.equal(home.frame.state,'live')
 })
 
@@ -668,13 +687,13 @@ test('a retained template cannot clear failure cooldown without another successf
   t.after(() => home.close())
   await home.refresh(); const modelItems = structuredClone(home.frame.items)
   sources = []; await home.refresh(); assert.equal(home.frame.state, 'empty')
-  sources = [source(true)]; now += 5 * 60000; fail = true; await home.refresh()
+  sources = [source(true)]; now += 15 * 60000; fail = true; await home.refresh()
   assert.equal(home.frame.state, 'error')
   sources = [source(false)]; await home.refresh()
   assert.equal(home.frame.state, 'error'); assert.equal(home.frame.generatedAt, 0); assert.equal(calls, 2)
-  now += 5 * 60000; fail = false; await home.refresh()
+  now += 15 * 60000; fail = false; await home.refresh()
   assert.equal(home.frame.state, 'live'); assert.deepEqual(home.frame.items, modelItems); assert.equal(calls, 3)
-  sources = [source(true)]; now += 5 * 60000; fail = true; await home.refresh()
+  sources = [source(true)]; now += 15 * 60000; fail = true; await home.refresh()
   assert.equal(home.frame.state, 'error'); assert.match(home.frame.items[0].text, /2 Synthetic sessions/)
 })
 
@@ -704,7 +723,7 @@ test('busy Pi activity publishes current bound facts and reselects with new comp
   assert.doesNotMatch(home.frame.items[0].text, /running|Checking/)
   await home.refresh()
   assert.equal(calls, 1, 'Changed context waits for the generation cooldown')
-  now += 5 * 60000; await home.refresh()
+  now += 15 * 60000; await home.refresh()
   assert.equal(calls, 2, 'Changed context is reselected after the cooldown')
 })
 

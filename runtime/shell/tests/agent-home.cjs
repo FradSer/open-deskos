@@ -3,6 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
+const { execFileSync } = require('node:child_process')
 const { capturePaintedPage } = require('./helpers/native-page-capture')
 const { installGeometryFixtures, personalAgentIdentityScript } = require('./helpers/live-fixtures')
 
@@ -16,9 +17,13 @@ ipcMain.handle('odk-personal-bot-status', () => initial)
 let win
 let micToggles = 0
 let micAccepted = true
+let micCancels = 0
+let cancelAccepted = true
+ipcMain.handle('odk-personal-bot-cancel', () => { micCancels++;if(cancelAccepted)publishStatus({state:'idle',cancelInput:true});return {accepted:cancelAccepted} })
 let sentText = []
 let sentReplyTo = []
 let textAccepted = true
+let textDelivery = 'refused'
 let completeBeforeReceipt = false
 ipcMain.handle('odk-personal-bot-text', async (_event, text, replyTo) => {
   sentText.push(text);sentReplyTo.push(replyTo)
@@ -27,11 +32,14 @@ ipcMain.handle('odk-personal-bot-text', async (_event, text, replyTo) => {
     publishStatus({ state: 'idle', transcript: text, message: 'Already completed' })
     await new Promise(resolve => setTimeout(resolve, 20))
   }
-  return { accepted: textAccepted }
+  return { accepted: textAccepted, delivery: textAccepted ? 'accepted' : textDelivery }
 })
 ipcMain.handle('odk-personal-bot-toggle', () => { micToggles++; return { accepted: micAccepted } })
 const timer = setTimeout(() => finish(1), 60000)
-const evaluate = script => win.webContents.executeJavaScript(script)
+const evaluate = async script => {
+  try { return await win.webContents.executeJavaScript(script) }
+  catch (error) { console.error('Agent fixture script failed:', script); throw error }
+}
 function finish(code) {
   clearTimeout(timer)
   if (win && !win.webContents.isDestroyed() && win.webContents.debugger.isAttached()) win.webContents.debugger.detach()
@@ -289,7 +297,7 @@ async function assertSimpleConversation() {
   assert.equal(await evaluate(`document.querySelector('.agent-child-avatar svg')!==null`),true)
   assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage, .agent-history-earlier')`),null)
   publishStatus({...frame,state:'thinking'});await evaluate('new Promise(r=>setTimeout(r,20))')
-  assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Thinking…')
+  assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Thinking...')
   assert.equal(await evaluate(`document.querySelector('.agent-state').hidden`),false)
   publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,20))')
   assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${item.id}"] .agent-session-reply').length`),1,'single and multiple sources use one Reply per task row')
@@ -348,9 +356,9 @@ async function assertSimpleConversation() {
     assert.equal(accessible,true,theme+': high-contrast task labels retain full readable emphasis')
   }
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]})
-  for(const [voiceFailure,failure] of Object.entries({microphone:'Microphone unavailable',timeout:'Recording timed out. Try again.',unavailable:'Recording connection lost. Try again.',protocol:'Recording transfer failed. Try again.',invalid_audio:'Recording audio is invalid. Try again.',cleanup:'Recording cleanup failed'})) {
+  for(const [voiceFailure,failure] of Object.entries({microphone:'Microphone unavailableRecord again',timeout:'Recording timed out.Record again',unavailable:'Recording connection lost.Record again',protocol:'Recording transfer failed.Record again',invalid_audio:'Recording audio is invalid.Record again',cleanup:'Recording cleanup failedCheck status'})) {
     publishStatus({...frame,state:'error',transcript:'',voiceFailure,message:'Updated owner wording'});await evaluate('new Promise(r=>setTimeout(r,20))')
-    assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),failure,'voice failures retain their actual safe cause')
+    assert.equal(await evaluate(`document.querySelector('.agent-input-notice').textContent`),failure,'voice failures retain their actual safe cause')
   }
   publishStatus({...frame,state:'idle',transcript:'',message:''});await evaluate('new Promise(r=>setTimeout(r,20))')
   assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'','cancelled voice returns to a quiet ready header')
@@ -399,7 +407,7 @@ async function assertCapsuleStack() {
     assert.ok(r.front&&r.nameClear&&r.below&&r.contained,theme+' '+width+': avatar in front, name clear, status below '+JSON.stringify(r))
     const centered=await evaluate(`(()=>{const pill=document.querySelector('.agent-identity .agent-capsule').getBoundingClientRect(),name=document.querySelector('.agent-name').getBoundingClientRect(),state=document.querySelector('.agent-state').getBoundingClientRect();return {horizontal:Math.abs(name.x+name.width/2-pill.x-pill.width/2),vertical:Math.abs((name.top+state.bottom)/2-pill.y-pill.height/2)}})()`)
     assert.ok(centered.horizontal<=0.5&&centered.vertical<=0.5,theme+' '+width+': visible title group centers in its capsule '+JSON.stringify(centered))
-    assert.equal(r.caption,'Thinking…');assert.equal(r.motion,0,'reduced motion remains static')
+    assert.equal(r.caption,'Thinking...');assert.equal(r.motion,0,'reduced motion remains static')
     publishStatus({state:'idle'});await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))')
     assert.equal(await evaluate(`document.querySelector('.agent-state').hidden`),true,'idle hides redundant status')
     const idleCenter=await evaluate(`(()=>{const pill=document.querySelector('.agent-identity .agent-capsule').getBoundingClientRect(),name=document.querySelector('.agent-name').getBoundingClientRect();return {horizontal:Math.abs(name.x+name.width/2-pill.x-pill.width/2),vertical:Math.abs(name.y+name.height/2-pill.y-pill.height/2)}})()`)
@@ -516,7 +524,7 @@ async function assertThreadProjectionUpdate() {
   assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${item.id}"]').length`),1)
   assert.equal(await evaluate(`document.querySelector('textarea').value`),'Keep alias draft')
   assert.equal(await evaluate(`document.querySelector('[data-reply-id="${oldReply.id}"]').hidden`),false,'an earlier owner reply follows its exact source projection for display')
-  await evaluate(`document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
+  await evaluate(`document.querySelector('textarea').dispatchEvent(new Event('input'));document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
   const reference={messageId:item.id,sourceKey:source.key,sourceRevision:source.revision}
   assert.deepEqual(sentReplyTo.at(-1),reference,'thread projection never changes the immutable wire reference')
   const reply={id:'23456789-1234-4123-8123-123456789abc',threadId:canonical.threadId,sessionId:source.sessionId,text:'Keep alias draft',replyTo:reference,status:'delivered',at:8000}
@@ -570,7 +578,7 @@ async function assertSessionReplies({ geometry = true } = {}) {
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true)
   await evaluate(`document.querySelector('[data-remote-id="${item.id}"] [data-source-key="${first.key}"]').click()`)
   textAccepted=false
-  await evaluate(`document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
+  await evaluate(`document.querySelector('textarea').dispatchEvent(new Event('input'));document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
   const expected={messageId:item.id,sourceKey:first.key,sourceRevision:first.revision}
   assert.deepEqual(sentReplyTo.at(-1),expected)
   assert.equal(await evaluate(`document.querySelector('textarea').value`),'Keep this draft')
@@ -579,7 +587,7 @@ async function assertSessionReplies({ geometry = true } = {}) {
   assert.equal(await evaluate(`document.querySelector('.agent-send').disabled`),true)
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),false)
   textAccepted=true;publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,20))')
-  await evaluate(`document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
+  await evaluate(`document.querySelector('textarea').dispatchEvent(new Event('input'));document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
   assert.deepEqual(sentReplyTo.at(-1),expected)
   assert.equal(await evaluate(`document.querySelector('textarea').value`),'')
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true)
@@ -601,10 +609,129 @@ async function assertSessionReplies({ geometry = true } = {}) {
       fs.writeFileSync(path.join(os.tmpdir(),`odk-session-reply-${theme}-${width}.png`),(await capturePaintedPage(win)).toPNG())
     }
   }
-  await evaluate(`document.querySelector('.agent-reply-cancel').click();document.querySelector('.agent-thread-all').click();document.querySelector('textarea').value='Ordinary after reply';document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
+  await evaluate(`document.querySelector('.agent-reply-cancel').click();document.querySelector('.agent-thread-all').click();document.querySelector('textarea').value='Ordinary after reply';document.querySelector('textarea').dispatchEvent(new Event('input'));document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
   assert.equal(sentReplyTo.at(-1),undefined,'ordinary sends never inherit the old reference')
-  assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Waiting for response…','an accepted unbound receipt without a status push keeps its waiting caption')
+  assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Thinking...','an accepted unbound receipt without a status push keeps its Thinking... caption')
+  publishStatus({state:'thinking',transcript:'Ordinary after reply'});publishStatus({state:'idle',transcript:'Ordinary after reply',message:'Completed ordinary reply'});await evaluate('new Promise(r=>setTimeout(r,30))')
   await resize(1920,1280)
+}
+
+async function assertComposerInputs() {
+  const settle = () => evaluate('new Promise(r=>setTimeout(r,30))')
+  for (const theme of ['instrument','pixel','border-beam','liquid-glass']) {
+    await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
+    for (const [width,height] of [[1920,1280],[960,640],[480,854],[320,480]]) {
+      await resize(width,height)
+      publishStatus({state:'idle',cancelInput:true});await settle()
+      await evaluate(`document.querySelector('.agent-keys').click();document.querySelector('textarea').value='';document.querySelector('textarea').dispatchEvent(new Event('input'))`)
+      assert.equal(await evaluate(`document.querySelector('.agent-send').disabled`),true,'blank input cannot send')
+      await evaluate(`document.querySelector('textarea').value='Draft 中文\\nSecond line';document.querySelector('textarea').dispatchEvent(new Event('input'))`)
+      assert.equal(await evaluate(`document.querySelector('.agent-send').disabled`),false)
+      const before = micToggles
+      await evaluate(`document.querySelector('.agent-mic').click()`);await settle()
+      assert.equal(micToggles,before+1)
+      publishStatus({state:'recording',level:0.65,cancelInput:true});await settle()
+      const recording=await evaluate(`(()=>{const q=s=>document.querySelector(s),b=q('.agent-send').getBoundingClientRect();return{mode:q('.agent-composer').dataset.mode,hidden:q('textarea').hidden,keys:q('.agent-keys').hidden,cancel:q('.agent-cancel').hidden,send:q('.agent-send').getAttribute('aria-label'),caption:q('.agent-state').textContent,meter:q('.agent-input-level').getAttribute('aria-valuenow'),x:b.x,y:b.y,width:b.width,height:b.height,count:q('.agent-conversation').children.length}})()`)
+      assert.equal(recording.mode,'keyboard');assert.equal(recording.hidden,true);assert.equal(recording.keys,true);assert.equal(recording.cancel,false)
+      assert.equal(recording.send,'Send voice request');assert.equal(recording.caption,'Listening...');assert.equal(recording.meter,'65')
+      assert.ok(recording.width>=44&&recording.height>=44)
+      const cancelled=micCancels
+      assert.equal(await evaluate(`document.activeElement===document.querySelector('.agent-cancel')`),true,'a recording started here moves focus to Cancel')
+      win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Escape'});await settle()
+      assert.equal(micCancels,cancelled+1)
+      assert.equal(await evaluate(`document.querySelector('textarea').value`),'Draft 中文\nSecond line')
+      assert.equal(await evaluate(`document.activeElement===document.querySelector('textarea')`),true)
+      assert.equal(await evaluate(`document.querySelector('.agent-conversation').children.length`),recording.count)
+      const sent=sentText.length
+      await evaluate(`document.querySelector('textarea').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',isComposing:true,bubbles:true}))`);await settle()
+      assert.equal(sentText.length,sent,'IME candidate selection never submits')
+      await evaluate(`document.querySelector('textarea').focus()`)
+      win.webContents.sendInputEvent({type:'keyDown',keyCode:'Enter'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Enter'});await settle()
+      assert.equal(sentText.length,sent+1)
+      publishStatus({state:'thinking',transcript:'Draft 中文\nSecond line'});await settle()
+      await evaluate(`document.querySelector('textarea').value='Next draft';document.querySelector('textarea').dispatchEvent(new Event('input'))`)
+      assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Thinking...')
+      assert.equal(await evaluate(`document.querySelector('.agent-state').children.length`),0)
+      assert.equal(await evaluate(`Array.from(document.querySelectorAll('.agent-message-assistant')).filter(n=>!n.querySelector('.agent-message-body').textContent&&n.getBoundingClientRect().height>0).length`),0,'Thinking has no empty reply bubble')
+      assert.equal(await evaluate(`document.querySelector('.agent-composer').textContent.includes('Thinking')`),false)
+      assert.equal(await evaluate(`document.querySelector('.agent-send').disabled`),true)
+      publishStatus({state:'idle',transcript:'Draft 中文\nSecond line',message:'Actual fixture answer'});await settle()
+      assert.equal(await evaluate(`document.querySelector('textarea').value`),'Next draft')
+      assert.equal(await evaluate(`document.querySelector('.agent-send').disabled`),false)
+      const final=await evaluate(`(()=>{const q=s=>document.querySelector(s),s=q('.agent-send').getBoundingClientRect(),c=q('.agent-composer').getBoundingClientRect(),p=q('.agent-panel').getBoundingClientRect();return{x:s.x,y:s.y,width:s.width,height:s.height,overflow:q('.agent-conversation').scrollWidth-q('.agent-conversation').clientWidth,fits:c.right<=p.right&&c.bottom<=p.bottom}})()`)
+      assert.equal(final.x,recording.x);assert.equal(final.y,recording.y);assert.equal(final.width,recording.width);assert.ok(final.fits&&final.overflow<=1)
+      await evaluate(`document.querySelector('textarea').value='Long line 中文\\n'.repeat(12);document.querySelector('textarea').dispatchEvent(new Event('input'))`)
+      const long=await evaluate(`(()=>{const n=document.querySelector('textarea'),s=getComputedStyle(n);return{height:n.clientHeight,max:parseFloat(s.lineHeight)*4+parseFloat(s.paddingTop)+parseFloat(s.paddingBottom),scroll:n.scrollHeight>n.clientHeight,overflow:s.overflowY}})()`)
+      assert.ok(long.height<=long.max+1&&long.scroll,JSON.stringify({theme,width,...long}));assert.equal(long.overflow,'auto')
+    }
+  }
+  // A stale idle reconnect cannot release an uncertain request or replay it.
+  await resize(1280,800)
+  publishStatus({state:'idle',cancelInput:true});await settle()
+  await evaluate(`document.querySelector('.agent-keys').click();document.querySelector('textarea').value='Unconfirmed unique request';document.querySelector('textarea').dispatchEvent(new Event('input'))`)
+  textAccepted=false;textDelivery='unknown'
+  await evaluate(`document.querySelector('.agent-composer').requestSubmit()`);await settle()
+  textAccepted=true;textDelivery='refused'
+  const attempts=sentText.length
+  publishStatus({state:'unavailable'});await settle()
+  await evaluate(`window.recoveryControl=document.querySelector('.agent-input-notice button');recoveryControl.focus()`);publishStatus({state:'unavailable'});await settle()
+  assert.equal(await evaluate(`document.activeElement===recoveryControl&&recoveryControl.isConnected`),true,'repeated snapshots preserve recovery focus')
+  publishStatus({state:'idle'});await settle()
+  assert.equal(await evaluate(`document.querySelector('textarea').value`),'Unconfirmed unique request')
+  assert.equal(await evaluate(`document.querySelector('.agent-send').disabled`),true)
+  await evaluate(`document.querySelector('.agent-composer').requestSubmit()`);await settle()
+  assert.equal(sentText.length,attempts,'reconnect never replays the request')
+  publishStatus({state:'thinking',transcript:'Unconfirmed unique request'});publishStatus({state:'idle',transcript:'Unconfirmed unique request',message:'Confirmed result'});await settle()
+  assert.equal(await evaluate(`document.querySelector('.agent-send').disabled`),false)
+  const beforeLimit=sentText.length
+  await evaluate(`document.querySelector('textarea').value='中'.repeat(1001);document.querySelector('textarea').dispatchEvent(new Event('input'));document.querySelector('.agent-composer').requestSubmit()`);await settle()
+  assert.equal(sentText.length,beforeLimit,'oversized CJK input fails locally without entering uncertain delivery')
+  assert.match(await evaluate(`document.querySelector('.agent-input-notice').textContent`),/Shorten/)
+  await evaluate(`document.querySelector('textarea').value='Two lines';document.querySelector('textarea').dispatchEvent(new Event('input'));document.querySelector('textarea').focus()`)
+  win.webContents.sendInputEvent({type:'keyDown',keyCode:'Enter',modifiers:['shift']});win.webContents.sendInputEvent({type:'char',keyCode:'\r',modifiers:['shift']});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Enter',modifiers:['shift']});await settle()
+  assert.equal(sentText.length,beforeLimit)
+  assert.ok((await evaluate(`document.querySelector('textarea').value`)).includes('\n'),'native Shift+Enter inserts a newline')
+  publishStatus({state:'recording',cancelInput:true});await settle();cancelAccepted=false
+  await evaluate(`document.querySelector('.agent-cancel').click()`);await settle()
+  assert.equal(await evaluate(`document.querySelector('.agent-cancel').disabled`),false,'an explicitly refused cancellation leaves Cancel available')
+  assert.equal(await evaluate(`document.querySelector('.agent-send').disabled`),false,'an explicitly refused cancellation leaves Send available')
+  cancelAccepted=true;await evaluate(`document.querySelector('.agent-cancel').click()`);await settle()
+  console.log('COMPOSER_INPUT_PASS: four themes x four sizes, keyboard/IME, real Enter/Escape dispatch, fixed Send, cancellation, drafts and multiline bounds')
+}
+
+async function captureComposerInputs() {
+  const directory=process.argv.find(arg=>arg.startsWith('--capture-dir='))?.slice('--capture-dir='.length)
+  assert.ok(directory,'capture requires an explicit output directory')
+  fs.mkdirSync(directory,{recursive:true})
+  const records=[]
+  for(const theme of ['instrument','pixel','border-beam','liquid-glass']) for(const [width,height] of [[1280,800],[480,854]]) {
+    await resize(width,height)
+    await evaluate(`(async()=>{await odkRendererRuntime.setEnabled('odk.page.personal-agent',false);await odkRendererRuntime.setEnabled('odk.page.personal-agent',true);await odkTheme.set('${theme}');await document.fonts.ready})()`)
+    await evaluate('new Promise(r=>setTimeout(r,40))')
+    const prompt='今天有哪些任务需要我继续处理？'
+    const reply='界面优化还可以继续。我可以先整理输入交互，再检查窄屏布局。'
+    const frame={state:'idle',transcript:prompt,message:reply,cancelInput:true}
+    publishStatus(frame)
+    const shot=async key=>{
+      await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))')
+      const bounds=await evaluate(`(()=>{const n=document.querySelector('#personal-agent'),r=n.getBoundingClientRect();return{x:Math.ceil(r.x),y:Math.ceil(r.y),width:Math.floor(r.width),height:Math.floor(r.height)}})()`)
+      const name=theme+'-'+width+'-'+key
+      fs.writeFileSync(path.join(directory,name+'.png'),(await capturePaintedPage(win)).toPNG())
+      fs.writeFileSync(path.join(directory,name+'-panel.png'),(await capturePaintedPage(win,bounds)).toPNG())
+      records.push({theme,width,height,state:key,bounds,synthetic:true})
+    }
+    await shot('voice-idle')
+    publishStatus({state:'recording',level:0.72,cancelInput:true});await shot('listening')
+    publishStatus(frame);await evaluate(`new Promise(r=>setTimeout(r,30))`)
+    await evaluate(`document.querySelector('.agent-keys').click()`);await shot('keyboard-empty')
+    await evaluate(`document.querySelector('textarea').value='帮我把语音和键盘输入统一起来。';document.querySelector('textarea').dispatchEvent(new Event('input'))`);await shot('keyboard-draft')
+    publishStatus({state:'thinking',transcript:'帮我把语音和键盘输入统一起来。',message:''})
+    await evaluate(`document.querySelector('textarea').value='下一步，检查窄屏下的输入体验。';document.querySelector('textarea').dispatchEvent(new Event('input'))`);await shot('keyboard-thinking')
+    publishStatus({state:'idle',transcript:'帮我把语音和键盘输入统一起来。',message:'我会保留 Thinking...，统一发送入口，并为录音提供明确的取消操作。'});await shot('keyboard-ready')
+    publishStatus({state:'unavailable'});await shot('keyboard-offline')
+  }
+  fs.writeFileSync(path.join(directory,'report.json'),JSON.stringify({base:execFileSync('git',['rev-parse','HEAD'],{cwd:path.resolve(__dirname,'../../..'),encoding:'utf8'}).trim(),synthetic:true,realMicrophone:false,realModel:false,deviceAcceptance:false,records},null,2))
+  console.log('COMPOSER_CAPTURE_PASS '+directory)
 }
 
 app.whenReady().then(async () => {
@@ -614,6 +741,10 @@ app.whenReady().then(async () => {
     assert.ok(original.includes('  supportsReplyTo: true,'))
     selectedPreload = path.join(profile,'legacy-single-argument-preload.cjs')
     fs.writeFileSync(selectedPreload,original.replace('  supportsReplyTo: true,\n','').replace("sendText: (text, replyTo) => replyTo === undefined ? ipcRenderer.invoke('odk-personal-bot-text', text) : ipcRenderer.invoke('odk-personal-bot-text', text, replyTo)","sendText: text => ipcRenderer.invoke('odk-personal-bot-text', text)"),{mode:0o600,flag:'wx'})
+  }
+  if (process.argv.includes('--composer-text-only')) {
+    const original=fs.readFileSync(selectedPreload,'utf8');selectedPreload=path.join(profile,'text-only-preload.cjs')
+    fs.writeFileSync(selectedPreload,original.replace("contextBridge.exposeInMainWorld('odkPersonalBot', {","contextBridge.exposeInMainWorld('odkPersonalBot', { supportsVoiceInput: false,"))
   }
   win = new BrowserWindow({ width: 1920, height: 1280, show: false, frame: false, useContentSize: true,
     webPreferences: { preload: selectedPreload, sandbox: true, contextIsolation: true,
@@ -630,6 +761,18 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('#home-summary').closest('[data-page-id="home"]')?.parentElement.id`), 'pages-track', 'Overview belongs to the first paged canvas')
   assert.equal(await evaluate(`document.querySelector('#dots').closest('#status-bar')`), null, 'dots stay below Widgets')
   assert.equal(await evaluate(`document.querySelectorAll('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]').length`), 0, 'separate time and date Widgets are removed')
+  if (process.argv.includes('--composer-capture-only')) { await captureComposerInputs();finish(0);return }
+  if (process.argv.includes('--composer-text-only')) {
+    for (const state of ['idle','thinking','recording','unavailable']) {
+      publishStatus({state});await evaluate('new Promise(r=>setTimeout(r,30))')
+      assert.equal(await evaluate(`document.querySelector('.agent-composer').dataset.mode`),'keyboard')
+      assert.equal(await evaluate(`document.querySelector('.agent-mic').disabled`),true)
+      assert.equal(await evaluate(`document.querySelector('textarea').hidden`),false)
+      assert.equal(await evaluate(`document.querySelector('.agent-cancel').hidden`),true)
+    }
+    console.log('TEXT_ONLY_COMPOSER_PASS');finish(0);return
+  }
+  if (process.argv.includes('--composer-input-only')) { await assertComposerInputs(); finish(0); return }
   if (process.argv.includes('--short-history-only')) {
     await resize(1920,5000)
     const replies=Array.from({length:26},(_,i)=>({id:`${String(i).padStart(8,'0')}-1111-4111-8111-111111111111`,at:i+1,threadId:'a'.repeat(64),sessionId:'short-session',text:`Request ${i}`,answer:`Answer ${i}`,status:'answered',replyTo:{messageId:'b'.repeat(64),sourceKey:'source',sourceRevision:'c'.repeat(64)}}))
@@ -958,7 +1101,7 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate(`document.querySelector('.agent-session-reply').disabled`),true,'an old single-argument bridge cannot reply')
     assert.equal(await evaluate(`document.querySelector('.agent-session-reply').disabled`),true,'the shared task-row Reply refuses an old bridge')
     await evaluate(`document.querySelector('.agent-session-reply').dispatchEvent(new MouseEvent('click'))`)
-    await evaluate(`document.querySelector('.agent-session-reply').dispatchEvent(new MouseEvent('click'));document.querySelector('textarea').value='Ordinary legacy request';document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
+    await evaluate(`document.querySelector('.agent-session-reply').dispatchEvent(new MouseEvent('click'));document.querySelector('textarea').value='Ordinary legacy request';document.querySelector('textarea').dispatchEvent(new Event('input'));document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
     assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true)
     assert.deepEqual(sentText,['Ordinary legacy request']);assert.deepEqual(sentReplyTo,[undefined])
     console.log('PASS legacy single-argument host never silently drops a reply reference');finish(0);return
@@ -1005,19 +1148,19 @@ app.whenReady().then(async () => {
       await until(`document.querySelector('.agent-avatar').dataset.phase==='${phase}'`, 'Onee '+phase)
       await until(`oneePaths()!==${JSON.stringify(before)}`, 'Onee geometry animates '+phase)
       assert.equal(await evaluate(`document.querySelector('.agent-avatar svg')===oneeSvg`),true,'service frames preserve the live Onee scene')
-      if(state==='thinking')assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Thinking…','thinking has its own caption and pose')
-      if(state==='thinking')assert.equal(await evaluate(`document.querySelector('.agent-mic-label').textContent`),'Thinking…','voice field shares the dedicated thinking phase')
+      if(state==='thinking')assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Thinking...','thinking has its own caption and pose')
+      if(state==='thinking')assert.equal(await evaluate(`document.querySelector('.agent-mic-label').textContent`),'Tap to talk','voice field does not repeat Thinking...')
     }
     publishStatus({state:'thinking',message:'Synthetic streaming reply'})
     await until(`document.querySelector('.agent-avatar').dataset.phase==='replying'`, 'Onee follows streamed output')
-    assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Replying…','streaming caption and avatar follow the same phase')
-    assert.equal(await evaluate(`document.querySelector('.agent-mic-label').textContent`),'Replying…','voice field shares the same reply phase')
+    assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Thinking...','streaming caption and avatar follow the same phase')
+    assert.equal(await evaluate(`document.querySelector('.agent-mic-label').textContent`),'Tap to talk','voice field does not repeat reply progress')
     publishStatus({state:'idle',message:'Synthetic completed reply'})
     await until(`document.querySelector('.agent-avatar').dataset.phase==='complete'`, 'completion reaction starts')
     await until(`document.querySelector('.agent-avatar').dataset.phase==='idle'`, 'completion reaction returns to idle')
     publishStatus({state:'idle',agents:{state:'live',tasks:[{taskId:'synthetic',identity:{name:'Synthetic checker',avatar:'code'},state:'running'}]}})
     await until(`document.querySelector('.agent-avatar').dataset.phase==='working'`, 'running child keeps the working pose')
-    assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Working…','running child caption matches the working avatar')
+    assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Thinking...','running child caption matches the working avatar')
     publishStatus({state:'idle'})
     await until(`document.querySelector('.agent-avatar').dataset.phase==='idle'`, 'idle returns when the child finishes')
     assert.equal(await evaluate(`document.querySelector('.agent-state').hidden`),true,'idle stays quiet when no child is running')
@@ -1039,7 +1182,7 @@ app.whenReady().then(async () => {
     publishStatus({state:'idle'});await until(`document.querySelector('.agent-avatar').dataset.phase==='idle'`, 'idle before rejected microphone')
     micAccepted=false;await evaluate(`document.querySelector('.agent-composer .agent-mic').click()`);await until(`document.querySelector('.agent-avatar').dataset.phase==='error'`, 'microphone rejection ends preparing animation');micAccepted=true
     publishStatus({state:'idle',message:''});await until(`document.querySelector('.agent-avatar').dataset.phase==='idle'`, 'idle before ordinary text')
-    textAccepted=false;await evaluate(`document.querySelector('.agent-keys').click();document.querySelector('.agent-composer textarea').value='Synthetic refused request';document.querySelector('.agent-composer').requestSubmit()`)
+    textAccepted=false;await evaluate(`document.querySelector('.agent-keys').click();document.querySelector('.agent-composer textarea').value='Synthetic refused request';document.querySelector('textarea').dispatchEvent(new Event('input'));document.querySelector('.agent-composer').requestSubmit()`)
     await until(`document.querySelector('.agent-avatar').dataset.phase==='error'`, 'ordinary rejected receipt ends sending animation')
     assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').value`),'Synthetic refused request','rejected send preserves draft');textAccepted=true
     assert.deepEqual(await evaluate('oneePolicyErrors'),[],'animation does not weaken or violate CSP')
@@ -1368,9 +1511,9 @@ app.whenReady().then(async () => {
       }
       publishStatus({ state: 'error', message: '' })
       await evaluate(`new Promise(r => setTimeout(r, 30))`)
-      assert.ok(await evaluate(`parseFloat(getComputedStyle(document.querySelector('.agent-state')).fontSize) >= 14`), 'Agent recovery feedback clears the text floor')
-      assert.equal(await evaluate(`document.querySelector('.agent-state').getAttribute('role')`), 'status')
-      assert.match(await evaluate(`document.querySelector('.agent-state').textContent`), /try again/)
+      assert.ok(await evaluate(`parseFloat(getComputedStyle(document.querySelector('.agent-input-notice')).fontSize) >= 14`), 'Agent recovery feedback clears the text floor')
+      assert.equal(await evaluate(`document.querySelector('.agent-input-notice').getAttribute('role')`), 'status')
+      assert.match(await evaluate(`document.querySelector('.agent-input-notice').textContent`), /Request failed.*Check status/)
       console.log(`PASS Agent home: ${theme} ${width}x${height} literal text, no metadata controls, availability, wrapping`)
     }
   }
@@ -1435,34 +1578,38 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-name, .agent-caption, .agent-message time, .agent-message-avatar').length`), 0, 'name is shown once and messages have no timestamps or avatars')
   assert.equal(await evaluate(`document.querySelectorAll('.agent-avatar').length===1 && !!document.querySelector('.agent-avatar .bs-avatar svg') && !document.querySelector('.agent-input-avatar')`), true,'one live avatar stays in the header')
   assert.equal(await evaluate(`document.querySelector('#personal-bot-status').hidden && !document.querySelector('#home-desk').inert`), true)
-  await evaluate(`document.querySelector('.agent-composer textarea').value = 'Typed question'; document.querySelector('.agent-composer').requestSubmit(); new Promise(r => setTimeout(r, 30))`)
+  await evaluate(`document.querySelector('.agent-keys').click();document.querySelector('.agent-composer textarea').value = 'Typed question'; document.querySelector('textarea').dispatchEvent(new Event('input'));document.querySelector('.agent-composer').requestSubmit(); new Promise(r => setTimeout(r, 30))`)
   assert.deepEqual(sentText, ['Typed question'])
   assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').value`), '')
+  publishStatus({state:'thinking',transcript:'Typed question'});publishStatus({state:'idle',transcript:'Typed question',message:'Complete'});await evaluate('new Promise(r=>setTimeout(r,30))')
   completeBeforeReceipt = true
-  await evaluate(`document.querySelector('.agent-composer textarea').value = 'Fast turn'; document.querySelector('.agent-composer').requestSubmit(); new Promise(r => setTimeout(r, 80))`)
+  await evaluate(`document.querySelector('.agent-composer textarea').value = 'Fast turn'; document.querySelector('textarea').dispatchEvent(new Event('input'));document.querySelector('.agent-composer').requestSubmit(); new Promise(r => setTimeout(r, 80))`)
   assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`), '', 'receipt cannot overwrite a completed status')
   completeBeforeReceipt = false
   textAccepted = false
-  await evaluate(`document.querySelector('.agent-composer textarea').value = 'Keep draft'; document.querySelector('.agent-composer').requestSubmit(); new Promise(r => setTimeout(r, 30))`)
+  await evaluate(`document.querySelector('.agent-composer textarea').value = 'Keep draft'; document.querySelector('textarea').dispatchEvent(new Event('input'));document.querySelector('.agent-composer').requestSubmit(); new Promise(r => setTimeout(r, 30))`)
   assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').value`), 'Keep draft')
-  assert.match(await evaluate(`document.querySelector('.agent-state').textContent`), /not confirmed/)
+  assert.match(await evaluate(`document.querySelector('.agent-state').textContent`), /^$/)
+  assert.match(await evaluate(`document.querySelector('.agent-input-notice').textContent`),/not sent/)
+  publishStatus({state:'thinking',transcript:'Keep draft'});publishStatus({state:'idle',transcript:'Keep draft',message:'Settled'});await evaluate('new Promise(r=>setTimeout(r,30))')
   publishStatus({ state: 'recording', message: '' })
   await evaluate(`new Promise(r => setTimeout(r, 30));`)
-  await evaluate(`document.querySelector('.agent-mic').click(); new Promise(r => setTimeout(r, 30))`)
+  await evaluate(`document.querySelector('.agent-send').click(); new Promise(r => setTimeout(r, 30))`)
   assert.equal(micToggles, 1, 'the voice field stops the active recording')
   publishStatus({ state: 'idle', transcript: 'Question 中文', message: 'Final response' })
   await evaluate(`new Promise(r => setTimeout(r, 30));`)
-  assert.equal(await evaluate(`document.querySelector('.agent-composer').dataset.mode`), 'voice', 'the composer keeps the voice field')
-  await evaluate(`document.querySelector('.agent-mic').click(); new Promise(r => setTimeout(r, 30))`)
-  assert.equal(micToggles, 1, 'a second tap on the idle voice field opens the keyboard instead of recording')
-  assert.equal(await evaluate(`document.querySelector('.agent-composer').dataset.mode`), 'keyboard', 'the second tap switches the composer to the keyboard')
-  assert.equal(await evaluate(`document.activeElement===document.querySelector('.agent-composer textarea')`), true, 'the keyboard takes focus')
-  assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').hidden`), false, 'the text field becomes the visible field')
-  assert.equal(await evaluate(`document.querySelector('.agent-composer .agent-keys').hidden`), true, 'the keyboard control leaves the voice field')
-  await evaluate(`document.querySelector('.agent-mic').click(); new Promise(r => setTimeout(r, 30))`)
-  assert.equal(micToggles, 2, 'the microphone of the keyboard starts the next voice turn')
-  assert.equal(await evaluate(`document.querySelector('.agent-composer').dataset.mode`), 'voice', 'the microphone returns to the voice field')
-  assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').hidden`), true)
+  assert.equal(await evaluate(`document.querySelector('.agent-composer').dataset.mode`), 'keyboard', 'the composer keeps the original keyboard mode')
+  assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').hidden`), false, 'the completed voice request restores the original keyboard')
+  assert.equal(await evaluate(`document.querySelector('.agent-keys').hidden`), true)
+  await evaluate(`document.querySelector('.agent-mic').click();new Promise(r=>setTimeout(r,30))`)
+  assert.equal(micToggles,2,'the keyboard microphone starts a fresh voice request')
+  assert.equal(await evaluate(`document.querySelector('.agent-composer').dataset.mode`),'keyboard','voice recording preserves the selected input mode')
+  publishStatus({state:'recording',level:0.5,cancelInput:true});await evaluate('new Promise(r=>setTimeout(r,30))')
+  assert.equal(await evaluate(`document.querySelector('textarea').hidden`),true,'only actual recording replaces the keyboard')
+  await evaluate(`document.querySelector('.agent-send').click();new Promise(r=>setTimeout(r,30))`)
+  assert.equal(micToggles,3,'the fixed Send submits that recording')
+  publishStatus({state:'idle'});await evaluate('new Promise(r=>setTimeout(r,30))')
+  assert.equal(await evaluate(`document.querySelector('textarea').hidden`),false,'completion returns to the original keyboard')
   const identity = await evaluate(`document.querySelector('.agent-name').textContent`)
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
     await resize(320, 480)

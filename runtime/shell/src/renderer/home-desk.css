@@ -73,11 +73,11 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 .agent-message-body a { color: var(--odk-primary); text-decoration: underline; }
 .agent-message-user { margin-left: 8%; padding: 14px 20px; background: var(--odk-surface); border-radius: 28px; width: fit-content; max-width: 92%; justify-self: end; }
 .agent-state { flex: 0 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 1.5; color: var(--odk-secondary-strong); }
-.agent-composer { grid-column: 1; flex: none; display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--odk-stroke); border-radius: 32px; background: var(--odk-surface); box-shadow: 0 4px 16px color-mix(in srgb, var(--odk-bg) 20%, transparent); }
-.agent-composer textarea { min-width: 0; flex: 1; max-height: 120px; resize: none; padding: 8px 12px; font: inherit; font-size: clamp(20px, calc(18px + 0.5cqw), 22px); color: var(--odk-primary); background: transparent; border: 0; }
+.agent-message-assistant:has(.agent-message-body:empty):not(:has(.agent-history-state)) { display: none; }
+.agent-composer { grid-column: 1; flex: none; display: flex; align-items: flex-end; gap: 8px; padding: 8px; border: 1px solid var(--odk-stroke); border-radius: 32px; background: var(--odk-surface); box-shadow: 0 4px 16px color-mix(in srgb, var(--odk-bg) 20%, transparent); }
+.agent-composer textarea { min-width: 0; flex: 1; min-height: 46px; height: 46px; max-height: none; resize: none; padding: 8px; scrollbar-width: thin; font: inherit; font-size: clamp(20px, calc(18px + 0.5cqw), 22px); line-height: 1.5; color: var(--odk-primary); background: transparent; border: 0; }
 .agent-composer textarea::placeholder { color: var(--odk-secondary-strong); }
-.agent-composer button, .agent-latest { min-width: 44px; min-height: 44px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: 14px; cursor: pointer; }
-.agent-send { padding-inline: 12px; }
+.agent-latest { min-width: 44px; min-height: 44px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: 14px; cursor: pointer; }
 .agent-latest { position: absolute; z-index: 1; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); padding-inline: 16px; pointer-events: auto; }
 .agent-panel button:disabled { opacity: 0.5; cursor: default; }
 .agent-panel :is(button, input, textarea, select, summary):focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
@@ -109,16 +109,21 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 
 .agent-composer button svg, .agent-latest svg { width: 24px; height: 24px; flex: none; }
 .agent-latest { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.agent-composer button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; width: 46px; height: 46px; min-width: 46px; min-height: 46px; border: 0; border-radius: var(--odk-radius-pill); padding: 0; background: transparent; color: var(--odk-secondary-strong); font: inherit; cursor: pointer; }
+.agent-composer :is(.agent-mic, .agent-keys, .agent-cancel):hover:not(:disabled) { background: var(--odk-elevated); color: var(--odk-primary); }
 .agent-composer .agent-send { background: var(--odk-primary); color: var(--odk-bg); padding: 0; }
-.agent-composer .agent-mic, .agent-composer .agent-keys { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-.agent-composer .agent-mic { border-color: transparent; background: transparent; }
-.agent-mic-label { display: none; font-size: 16px; color: var(--odk-primary); }
-/* Voice is the default composer: the field itself is the voice control, and the
-   keyboard is the explicit alternative beside it. */
-.agent-composer[data-mode="voice"] .agent-mic { flex: 1; min-height: 44px; padding-inline: 16px; border-color: var(--odk-stroke); background: var(--odk-elevated); }
+.agent-composer .agent-send:hover:not(:disabled) { background: color-mix(in srgb, var(--odk-primary) 86%, var(--odk-bg)); color: var(--odk-bg); }
+.agent-composer .agent-send:active:not(:disabled) { background: color-mix(in srgb, var(--odk-primary) 78%, var(--odk-bg)); color: var(--odk-bg); }
+.agent-composer .agent-send:disabled { opacity: 1; background: var(--odk-button); color: var(--odk-secondary-strong); }
+.agent-mic-label { display: none; font-size: 16px; color: inherit; }
+.agent-composer[data-mode="voice"] .agent-mic { flex: 1; width: auto; min-width: 0; padding-inline: 8px; color: var(--odk-primary); }
 .agent-composer[data-mode="voice"] .agent-mic-label { display: inline; }
-.agent-composer[data-mode="voice"] .agent-mic[data-recording="true"] { border-color: var(--odk-accent-red); }
-.agent-mic[data-recording="true"] { color: var(--odk-accent-red); border-color: var(--odk-accent-red); }
+.agent-recording-feedback { flex: 1; min-width: 0; height: 46px; display: flex; align-items: center; justify-content: center; }
+.agent-input-level { width: min(100%, 150px); height: 6px; overflow: hidden; border-radius: var(--odk-radius-pill); background: var(--odk-stroke); }
+.agent-input-level span { display: block; width: var(--agent-input-level, 0%); height: 100%; background: var(--odk-accent-red); }
+.agent-input-notice { grid-column: 1; margin: 0; padding-inline: 8px; color: var(--odk-secondary-strong); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.agent-input-notice button { min-height: 44px; border: 0; padding: 0 6px; background: transparent; color: var(--odk-primary); font: inherit; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+@media (forced-colors: active) { .agent-input-level { border: 1px solid CanvasText; } .agent-input-level span { background: CanvasText; } .agent-composer .agent-send { border: 1px solid ButtonText; } }
 .agent-message-user { margin-inline-start: auto; }
 .sb-peripheral { align-items: center; }
 

@@ -36,6 +36,34 @@ test('subscription cards communicate actionable states without merging percentag
   }
 })
 
+test('Widget cycles account identity together with its quota every six seconds', () => {
+  const status = windows([['Weekly limit', 58], ['Weekly limit', 80]])
+  status.snapshot.accounts[0].account = 'fradser@gmail.com'
+  status.snapshot.accounts[1].account = 'work@example.com'
+  const tile = mountTile(status)
+  assert.equal(tile.text('.quota-tile-account'), 'fradser@gmail.com')
+  tile.tick(Date.now() + 6100)
+  assert.equal(tile.text('.quota-tile-account'), 'work@example.com')
+  assert.equal(tile.text('.quota-tile-value'), '80%')
+  assert.equal(tile.text('.quota-tile-position'), '2 / 2')
+  tile.tick(Date.now() + 12200)
+  assert.equal(tile.text('.quota-tile-account'), 'fradser@gmail.com')
+})
+
+test('Codex Pro hides 5h while Plus and Antigravity retain both windows', async () => {
+  for (const [provider, plan, shortVisible] of [['codex', 'Pro', false], ['codex', 'Plus', true], ['antigravity', 'Pro', true]]) {
+    const item = { ...account(58), provider, plan, account: 'fradser@gmail.com' }
+    item.groups[0].quotas.push({ label: '5 hour limit', horizon: 'short', remainingPct: 86 })
+    const status = { state: 'available', snapshot: { accounts: [item] } }
+    const page = mount(status); await page.settle()
+    const html = page.nodes.get('#quota-metrics').innerHTML
+    assert.equal(html.includes('5 hour limit'), shortVisible)
+    assert.match(html, /Weekly limit/)
+    const tile = mountTile(status)
+    assert.equal(tile.text('.quota-tile-secondary').includes('5h'), shortVisible)
+  }
+})
+
 test('subscription count includes failed accounts and does not invent zero before retrieval', async () => {
   const page = mount({ state: 'unconfigured' }); await page.settle()
   assert.equal(page.el.querySelector('#quota-count').textContent, 'Subscriptions unavailable')
@@ -43,10 +71,28 @@ test('subscription count includes failed accounts and does not invent zero befor
   assert.equal(page.el.querySelector('#quota-count').textContent, '2 subscriptions')
 })
 
+test('account state follows plan-filtered and explicitly missing visible windows', async () => {
+  const pro = account(80)
+  pro.groups[0].quotas.push({ label: '5 hour limit', horizon: 'short', remainingPct: 0 })
+  const page = mount({ state: 'available', snapshot: { accounts: [pro] } }); await page.settle()
+  assert.match(page.nodes.get('#quota-metrics').innerHTML, /provider-quota-availability">Available</)
+  assert.doesNotMatch(page.nodes.get('#quota-metrics').innerHTML, /Exhausted window|5 hour limit/)
+  const missing = { ...account(80), provider: 'antigravity' }
+  missing.groups[0].quotas = [{ label: '5 hour limit', horizon: 'short', remainingPct: 80 }]
+  page.update({ state: 'available', snapshot: { accounts: [missing] } })
+  assert.match(page.nodes.get('#quota-metrics').innerHTML, /provider-quota-availability">Quota unknown</)
+  assert.match(page.nodes.get('#quota-metrics').innerHTML, /Weekly limit/)
+})
+
+test('Widget secondary readings preserve a supplied non-five-hour duration', () => {
+  const tile = mountTile(statedWindows([['Weekly limit', 80, 'long'], ['2 hour limit', 36, 'short']]))
+  assert.equal(tile.text('.quota-tile-secondary'), '2h · 36% remaining')
+})
+
 test('provider hierarchy and remaining semantics preserve account provenance', async () => {
   const page = mount(live(58)); await page.settle()
   const html = page.nodes.get('#quota-metrics').innerHTML
-  assert.match(html, /<strong>work-account.json<\/strong>/)
+  assert.match(html, /<strong>Codex<\/strong>/)
   assert.match(html, /<p class="provider-plan">Codex · Pro<\/p>/)
   assert.match(html, /58%<\/span>\s*<span[^>]*>remaining/)
   assert.match(html, /aria-valuetext="58% remaining"/)
@@ -83,7 +129,7 @@ test('partial failures and unauthorized snapshots cannot claim fresh data', asyn
 // The Home Widget reads the same service. It states one reading and owns no
 // control, so these cases assert the text, the meter, and the silence of an
 // unchanged reading.
-function mountTile(status, refresh) {
+function mountTile(status, refresh, environment = {}) {
   const nodes = new Map()
   const cleanups = []
   const writes = []
@@ -111,18 +157,29 @@ function mountTile(status, refresh) {
     nodes.set(key, created)
     return created
   }
-  const el = { innerHTML: '', querySelector(key) { return node(key) } }
+  const visibleRect = { left: 0, top: 0, right: 348, bottom: 348, width: 348, height: 348 }
+  const el = { innerHTML: '', querySelector(key) { return node(key) }, matches() { return Boolean(environment.paused) },
+    getBoundingClientRect() { return environment.offscreen ? { ...visibleRect, left: 2000, right: 2348 } : visibleRect },
+    closest(selector) {
+      if (selector === '#pages-viewport') return { getBoundingClientRect: () => ({ left: 0, top: 0, right: 1920, bottom: 1280, width: 1920, height: 1280 }) }
+      return (environment.hiddenAncestor || environment.inertAncestor || environment.ariaHiddenAncestor) ? {} : null
+    },
+  }
   const registered = []
   let tick
-  vm.runInNewContext(source, { document: { createElement: () => ({ textContent: '', get innerHTML() { return this.textContent } }) },
-    window: { odkPlugins: { register(value) { registered.push(value) } } } })
+  vm.runInNewContext(source, {
+    Date: class extends Date { static now() { return environment.now ?? Date.now() } },
+    document: { get hidden() { return Boolean(environment.hidden) }, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent } }) },
+    window: { innerWidth: 1920, innerHeight: 1280, matchMedia: () => ({ matches: Boolean(environment.reducedMotion) }), odkPlugins: { register(value) { registered.push(value) } } },
+  })
   const plugin = registered.find(value => value.id === 'odk.tile.quota')
   assert.ok(plugin, 'odk.tile.quota must be registered')
   const subscription = { status: () => status, refresh }
   plugin.mount(el, { trackCleanup(fn) { cleanups.push(fn) }, subscription, onTick(fn) { tick = fn } })
   const meter = () => nodes.get('.quota-tile-meter')
   return { plugin, el, nodes, writes, cleanups,
-    update(next) { status = next; tick(new Date()) },
+    tick(now) { tick(new Date(now)) },
+    update(next) { status = next; tick(new Date(environment.now ?? Date.now())) },
     text: (key) => nodes.get(key)?.textContent,
     attr: (key, name) => nodes.get(key)?.getAttribute(name),
     // The meter is the one place this Widget could invent a reading, so every
@@ -147,6 +204,36 @@ const statedWindows = (quotas, index = 0) => ({ state: 'available', snapshot: { 
   provider: 'codex', fileName: `account-${index}.json`,
   groups: [{ title: 'Codex limits', quotas: quotas.map(([label, remainingPct, horizon]) => ({ label, remainingPct, resetAt: null, horizon })) }],
 }] } })
+
+test('account rotation excludes hidden, offscreen, obscured, hovered, focused, and reduced-motion ticks', () => {
+  for (const pause of ['hidden', 'paused', 'reducedMotion', 'offscreen', 'hiddenAncestor', 'inertAncestor', 'ariaHiddenAncestor']) {
+    const environment = { now: 0 }
+    const status = windows([['Weekly limit', 58], ['Weekly limit', 80]])
+    status.snapshot.accounts.forEach((account, index) => { account.account = `account-${index}@example.test` })
+    const tile = mountTile(status, undefined, environment)
+    tile.tick(3000)
+    environment[pause] = true
+    tile.tick(9000)
+    tile.tick(12000)
+    assert.equal(tile.text('.quota-tile-account'), 'account-0@example.test', pause)
+    environment[pause] = false
+    tile.tick(15000)
+    assert.equal(tile.text('.quota-tile-account'), 'account-1@example.test', pause)
+  }
+})
+
+test('account refresh preserves selected identity when account order changes', () => {
+  const status = windows([['Weekly limit', 58], ['Weekly limit', 80]])
+  status.snapshot.accounts.forEach((account, index) => { account.account = `account-${index}@example.test` })
+  const environment = { now: 0 }, tile = mountTile(status, undefined, environment)
+  tile.tick(6000)
+  status.snapshot.accounts.reverse()
+  environment.now = 7000
+  tile.update(status)
+  assert.equal(tile.text('.quota-tile-account'), 'account-1@example.test')
+  assert.equal(tile.text('.quota-tile-value'), '80%')
+  assert.equal(tile.text('.quota-tile-position'), '1 / 2')
+})
 
 test('the AI usage Widget reports the allowance its subscription states', () => {
   const status = statedWindows([['Weekly limit', 58, 'long'], ['5 hour limit', 12, 'short']])
@@ -264,12 +351,12 @@ test('the usage Widget requests its initial shared reading and ignores completio
 
 
 test('the quota Widget identifies the service that owns its reported window', () => {
-  const status = windows([['Weekly', 58], ['5 hour', 12]])
+  const status = windows([['Weekly', 58], ['Weekly', 12]])
   status.snapshot.accounts[1].provider = 'antigravity'
   const tile = mountTile(status)
   assert.equal(tile.text('.widget-heading'), 'Antigravity')
   tile.update(windows([['Weekly', 58]]))
-  assert.equal(tile.text('.widget-heading'), 'ChatGPT')
+  assert.equal(tile.text('.widget-heading'), 'Codex')
   tile.update({ state: 'unconfigured' })
   assert.equal(tile.text('.widget-heading'), 'AI usage')
   assert.equal(tile.text('.quota-tile-context'), 'Connect an account')

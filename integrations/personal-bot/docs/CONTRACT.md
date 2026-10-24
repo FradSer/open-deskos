@@ -998,9 +998,9 @@ Ordinary numeric changes bind into the retained template.
 Changes to goals, activity, lifecycle states, waiting counts, and attention thresholds queue another selection.
 Time-sensitive fields also participate in attention checks.
 Templates expire after 15 minutes.
-Model generation has a minimum interval of five minutes after the preceding attempt finishes.
+Model generation has a minimum interval of fifteen minutes after the preceding attempt finishes.
 Source pushes and periodic checks cannot bypass this interval.
-Consecutive failures delay retries by five, ten, twenty, and at most thirty minutes.
+Consecutive failures delay retries by fifteen minutes, then thirty minutes for each later failure.
 Successful generation resets this retry delay.
 During a cooldown, compatible selected facts bind to current source identities and values.
 Removed or incompatible facts use current bounded source facts instead.

@@ -173,17 +173,18 @@ function compareParity(electron, android) {
     const speaking = electron.voiceInput ? electron : android
     const silent = electron.voiceInput ? android : electron
     differences.push(difference('composer.mode.voiceHost', speaking.composer.mode, 'voice'))
-    differences.push(difference('controls.mic.hidden.voiceHost', speaking.controls.mic.hidden, false))
+    differences.push(difference('controls.mic.hidden.voiceHost', speaking.controls.mic.hidden, speaking.requestState === 'recording'))
     const busy = state => ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(state)
-    differences.push(difference('controls.mic.disabled.voiceHost', speaking.controls.mic.disabled, busy(speaking.requestState) && speaking.requestState !== 'recording'))
+    differences.push(difference('controls.mic.disabled.voiceHost', speaking.controls.mic.disabled, busy(speaking.requestState) || speaking.requestState === 'unavailable'))
     differences.push(difference('controls.mic.label.voiceHost', speaking.controls.mic.label.length > 0, true))
-    differences.push(difference('controls.send.hidden.voiceHost', speaking.controls.send.hidden, true))
+    differences.push(difference('controls.send.hidden.voiceHost', speaking.controls.send.hidden, false))
+    differences.push(difference('controls.send.disabled.voiceHost', speaking.controls.send.disabled, speaking.requestState !== 'recording'))
     differences.push(difference('composer.mode.silentHost', silent.composer.mode, 'keyboard'))
     differences.push(difference('controls.mic.hidden.silentHost', silent.controls.mic.hidden, false))
     differences.push(difference('controls.mic.disabled.silentHost', silent.controls.mic.disabled, true))
     differences.push(difference('controls.mic.label.silentHost', silent.controls.mic.label.length > 0, true))
     differences.push(difference('controls.send.hidden.silentHost', silent.controls.send.hidden, false))
-    differences.push(difference('controls.send.disabled.silentHost', silent.controls.send.disabled, busy(silent.requestState) || silent.requestState === 'unavailable'))
+    differences.push(difference('controls.send.disabled.silentHost', silent.controls.send.disabled, true))
   }
   differences.push(difference('empty', electron.empty, android.empty))
   differences.push(difference('messageCount', electron.messages.length, android.messages.length))

@@ -15,13 +15,20 @@ The registry owns cleanup registered through `ctx.trackCleanup()`.
 The surface does not read credentials, files, or providers directly.
 
 The Widget reads the same subscription service without owning a refresh action.
-It shows the tightest known window, or the honest unconfigured, unavailable, unauthorized, or empty state.
+It starts with the tightest known weekly window, or the tightest known window when no weekly reading exists.
+It advances between readable accounts every six visible seconds, unless hover, keyboard focus, or reduced motion pauses rotation.
+Provider, account identity, remaining quota, and account position change together.
+Each account prefers its weekly reading and retains the provider's actual short-window duration as supporting text.
+Unconfigured, unavailable, unauthorized, and empty states remain distinct.
 A Widget press opens the App, which owns the refresh action and every disclosure.
 
 Provider names, account identity, plan, quota windows, reset times, and optional credits retain their existing meaning.
 Only finite numeric percentages between zero and 100 produce numeric readings and accessible meters.
 Zero remains an exhausted reading; missing, invalid, and string percentages remain unavailable.
 Account errors precede other states.
+Codex Pro hides short windows. Other Codex plans retain their reported windows.
+Each Antigravity model group shows short and weekly windows; missing windows remain unavailable.
+Account state uses these displayed windows, including unavailable placeholders and excluding hidden windows.
 Exhausted windows precede low readings; low readings precede unknown windows.
 Unknown providers retain the default provider label and icon fallback.
 Untrusted provider strings remain inert text.
@@ -68,7 +75,7 @@ No independent entry replaces `odk.app.quota` or `odk.tile.quota`, so their inde
 The App-view acceptance in [the Electron consumer check](../tests/quota-electron.test.js) opens the App through the shared App manager and reads the same surface.
 Subscription observation starts before initial mounting and checks the first actual consumer before adding a comparison consumer.
 Three themes and two viewport sizes compare actual and comparison consumers across default, independent, and restored phases.
-Nineteen state cases include mixed priorities, partial errors, unknown providers, malformed percentages, and inert markup text.
+Twenty state cases include plan-filtered windows, mixed priorities, partial errors, unknown providers, malformed percentages, and inert markup text.
 Held and rejected refreshes use a controlled subscription facade; ordinary reads still pass through actual preload and Main IPC.
 Cleanup failures remain injected until an explicit retry; late callbacks and pending completion cannot update released nodes.
 The keyboard check uses browser input dispatch with emulated focus and no foreground window request.

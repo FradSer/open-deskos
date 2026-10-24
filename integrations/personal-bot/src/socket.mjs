@@ -159,7 +159,7 @@ export async function listen(path, service, options = {}) {
         if (!options.remoteVoice || !await options.remoteVoice.handle(client, command, frame => writeFrame(client, frame), applications.binding)) client.destroy()
         return
       }
-        if (command?.v !== 1 || !['runtime_diagnose', 'text', 'toggle', 'status', 'proactive_event', 'proposal_presented', 'proposal_list', 'proposal_respond'].includes(command.type)) return client.destroy()
+        if (command?.v !== 1 || !['runtime_diagnose', 'text', 'toggle', 'cancel_recording', 'status', 'proactive_event', 'proposal_presented', 'proposal_list', 'proposal_respond'].includes(command.type)) return client.destroy()
         if (command.type === 'status' && command.runtimeDiagnosis === 1) diagnosisClients.add(client)
         if (command.type === 'status' && command.proposalConsumerReady !== undefined) {
           const id = command.proposalConsumerReady
@@ -211,6 +211,9 @@ export async function listen(path, service, options = {}) {
           void service.proposalCommand(command).then(() => sendStatus(client, service.status), () => {
             sendStatus(client, { ...service.status, proposalError: 'Suggestion response refused; check confirmation, source freshness and service availability.' })
           })
+        } else if (command.type === 'cancel_recording') {
+          if (Object.keys(command).some(key => !['v', 'type'].includes(key))) return client.destroy()
+          void service.cancelRecording().then(() => sendStatus(client, service.status), () => sendStatus(client, service.status))
         } else if (command.type === 'toggle') {
           void service.toggle().then(
             () => sendStatus(client, service.status),
