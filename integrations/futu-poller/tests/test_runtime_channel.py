@@ -13,7 +13,7 @@ class Connection:
 
 def link():
     target = poller.Target(endpoint="/tmp/controlled-runtime.sock", parsed=poller.parse_endpoint("/tmp/controlled-runtime.sock"), label="controlled")
-    runtime = poller.create_poller({})
+    runtime = poller.create_poller({"ODK_FUTU_SOCKET": "/tmp/odk-fixture-unbound.sock"})
     peer = poller.ShellLink(target, "futu-poller", "dev", runtime_report=runtime.diagnose)
     peer.conn = Connection()
     return peer
@@ -68,9 +68,9 @@ def test_default_poll_loop_wait_uses_the_owned_publisher(monkeypatch):
         waits.append(seconds)
         raise KeyboardInterrupt()
     monkeypatch.setattr(poller.LinkSet, "wait", wait)
-    runtime = poller.create_poller({"FUTU_INTERVAL": "23"})
+    runtime = poller.create_poller({"FUTU_INTERVAL": "23", "ODK_FUTU_SOCKET": "/tmp/odk-fixture-unbound.sock"})
     runtime.run()
-    assert waits == [23]
+    assert waits == [0.05]
     assert all(item["state"] == "stopped" for item in runtime.catalog())
 
 

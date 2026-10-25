@@ -33,6 +33,7 @@ Usage:
   odk plugin native inspect <id> --keyring <file>
   odk plugin native list --keyring <file>
   odk plugin native remove <id>
+  odk plugin service [--state-dir <directory>] <command> [arguments]
 
 list includes Main plugins and installed Widget/App packages.
 Runtime snapshots are reported separately when their channels are available.
@@ -45,6 +46,7 @@ add installs verified local HTML Widget/App packages.
 link selects trusted local Main code, renderer entries, or appearance declarations on the next startup.
 Trusted development code has process authority and is not sandboxed.
 native manages signed local revision selections without executing plugin entries.
+service manages independent Python or Docker service revisions with explicit native trust.
 activate applies a selected signed revision to an existing Main or Renderer plugin without saving preferences.
 restore-default applies a captured built-in Main or Renderer implementation without changing the saved selection.
 URL installation is not available.
@@ -104,6 +106,66 @@ function validateManifest(manifestPath) {
   return validatePluginManifest(JSON.parse(content))
 }
 
+async function manageService(args, { env, spawn = require('node:child_process').spawn }) {
+  const launcher = [
+    path.resolve(__dirname, '../../../integrations/service-runtime/service_runtime.py'),
+    path.resolve(__dirname, '../integrations/service-runtime/service_runtime.py'),
+    path.resolve(__dirname, '../../integrations/service-runtime/service_runtime.py'),
+  ].find(candidate => fs.existsSync(candidate))
+  if (!launcher) {
+    console.error('Service runtime is unavailable in this installation.')
+    return 1
+  }
+  const environment = Object.fromEntries(Object.entries(env).filter(([key]) => !key.startsWith('PYTHON') && !key.startsWith('UV_')
+    && !key.startsWith('DYLD_') && !['LD_PRELOAD', 'LD_LIBRARY_PATH', 'VIRTUAL_ENV', 'NODE_OPTIONS'].includes(key)))
+  return new Promise(resolve => {
+    let child, settled = false, output = '', bytes = 0, terminationTimer, failed = false
+    const forward = signal => {
+      if (!child || settled) return
+      try {
+        if (process.platform !== 'win32') process.kill(-child.pid, signal)
+        else child.kill(signal)
+      } catch {}
+      if (!terminationTimer) terminationTimer = setTimeout(() => {
+        try {
+          if (process.platform !== 'win32') process.kill(-child.pid, 'SIGKILL')
+          else child.kill('SIGKILL')
+        } catch {}
+      }, 310000).unref()
+    }
+    const terminate = () => forward('SIGTERM')
+    const interrupt = () => forward('SIGINT')
+    const finish = code => {
+      if (settled) return
+      settled = true
+      clearTimeout(terminationTimer)
+      process.removeListener('SIGTERM', terminate)
+      process.removeListener('SIGINT', interrupt)
+      if (failed) code = 1
+      if (code === 0) {
+        if (output.trim()) console.log(output.trimEnd())
+      } else console.error('Service command failed. Check the package, configuration, and service runtime.')
+      resolve(Number.isInteger(code) && code >= 0 && code <= 255 ? code : 1)
+    }
+    try {
+      process.on('SIGTERM', terminate)
+      process.on('SIGINT', interrupt)
+      child = spawn(env.ODK_SERVICE_RUNTIME_PYTHON || 'python3', [launcher, ...args.slice(1)], {
+        env: environment, stdio: ['ignore', 'pipe', 'pipe'], shell: false, detached: process.platform !== 'win32',
+      })
+      child.stdout.setEncoding?.('utf8')
+      child.stdout.on('data', chunk => {
+        bytes += Buffer.byteLength(chunk)
+        if (bytes > 1024 * 1024) { failed = true; forward('SIGTERM') }
+        else output += chunk
+      })
+      child.stderr.on('data', () => {})
+      child.once('error', () => finish(1))
+      child.once('close', code => finish(code))
+    } catch { finish(1) }
+  })
+}
+
 function manageImplementation(args, { env }) {
   if (args.length !== 3 || args[2] !== '--runtime' || !/^odk\.[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(args[1] || '')) {
     throw Error(`${args[0]} requires a valid Open DeskOS plugin id and --runtime`)
@@ -112,6 +174,7 @@ function manageImplementation(args, { env }) {
 }
 
 const COMMAND_HANDLERS = {
+  service: manageService,
   activate: manageImplementation,
   'restore-default': manageImplementation,
   native(args, context) { return require('../src/native-plugin-cli').manageNative(args, context) },
@@ -264,6 +327,7 @@ function main(args = process.argv.slice(2), env = process.env) {
   }
 
   try {
+    if (command === 'service') return handler(args, { env })
     const configPath = resolveConfigPath(env)
     const config = command === 'restore-default' ? undefined : readConfig(configPath)
     return handler(args, { config, configPath, env })
@@ -282,6 +346,7 @@ if (require.main === module) {
 
 module.exports = {
   main,
+  manageService,
   readConfig,
   resolveConfigPath,
   validateManifest,

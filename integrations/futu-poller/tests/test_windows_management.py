@@ -233,6 +233,7 @@ def test_windows_composition_selects_pipe_and_authenticates_before_lifecycle(tmp
     api = Api()
     token = tmp_path / "token"
     token.write_text("correct\n")
+    token.chmod(0o600)
     channel_type = WindowsManagementChannel
     monkeypatch.setattr(management_channel, "WindowsManagementChannel", lambda *args, **options: channel_type(*args, **options, api=api))
     class Publisher:
@@ -255,6 +256,7 @@ def test_native_windows_pipe_with_actual_node_client(tmp_path):
     endpoint = r"\\.\pipe\odk-futu-test-" + uuid.uuid4().hex
     token = tmp_path / "token"
     token.write_text("controlled-token\n")
+    token.chmod(0o600)
     calls = []
     channel = WindowsManagementChannel(endpoint, lambda request: calls.append(request) or {"ok": True, "scope": "python-agent"},
                                        token="controlled-token")
@@ -290,8 +292,10 @@ def test_native_windows_management_preserves_composition_lifecycle(tmp_path):
     endpoint = prefix + "futu-plugin-control"
     token = tmp_path / "token"
     token.write_text("controlled-token\n")
+    token.chmod(0o600)
     wrong_token = tmp_path / "wrong-token"
     wrong_token.write_text("incorrect-token\n")
+    token.chmod(0o600)
     preferences = tmp_path / "preferences.json"
     preferences.write_text('{"version":1,"plugins":{}}')
     events = []

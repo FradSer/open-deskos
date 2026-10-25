@@ -44,8 +44,11 @@ import ntpath
 import re
 import socket
 import select
+import signal
+import stat
 import sys
 import time
+from threading import Event, current_thread, main_thread
 import urllib.parse
 from typing import Callable, Mapping
 
@@ -158,9 +161,32 @@ def _parse_tcp(value):
 
 
 def read_token_file(path):
-    """Return the token in a file, trimmed. An empty file yields an empty token."""
-    with open(path, "r", encoding="utf-8") as handle:
-        return handle.read().strip()
+    """Read one bounded private regular token without exposing file diagnostics."""
+    descriptor = None
+    try:
+        if not os.path.isabs(path) or os.path.realpath(path) != os.path.abspath(path):
+            raise ValueError()
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > 1024:
+            raise ValueError()
+        if os.name != "nt" and (info.st_uid != os.getuid() or info.st_mode & 0o077):
+            raise ValueError()
+        if os.name == "nt":
+            import subprocess
+            script = "$a=Get-Acl -LiteralPath $env:ODK_TOKEN_CHECK; $s=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; if(-not $a.AreAccessRulesProtected){exit 1}; foreach($r in $a.Access){$i=$r.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value; if($r.AccessControlType -eq 'Allow' -and $i -notin @($s,'S-1-5-18','S-1-5-32-544')){exit 1}}"
+            subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+                           env={**os.environ, "ODK_TOKEN_CHECK": path}, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, check=True, timeout=5)
+        token = os.read(descriptor, 1025).decode("utf-8").strip()
+        if not token or len(token.encode()) > 1024 or any(ord(char) < 33 or ord(char) == 127 for char in token):
+            raise ValueError()
+        return token
+    except Exception:
+        raise ValueError("Channel token file is unavailable or unsafe.") from None
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
 
 
 class PipeConnection:
@@ -435,8 +461,8 @@ class ShellLink:
             return None
         try:
             token = read_token_file(path)
-        except OSError as exc:
-            self._warn_once("cannot read token file %s: %s" % (path, exc))
+        except (OSError, ValueError):
+            self._warn_once("channel token file is unavailable or unsafe")
             return None
         if not token:
             self._warn_once("token file %s is empty" % path)
@@ -454,17 +480,19 @@ class ShellLink:
 
 
 class LinkSet:
-    """Fan one record out to every configured desk, or to stdout when none is."""
+    """Fan records to desks; an explicit injected stream is only for controlled use."""
 
     def __init__(self, links, service, stdout=None):
         self.links = links
         self.service = service
-        self.stdout = stdout if stdout is not None else sys.stdout
+        self.stdout = stdout
         self._closed_links = set()
 
     def send(self, record):
         record.update({"v": 1, "service": self.service})
         if not self.links:
+            if self.stdout is None:
+                raise ValueError("No valid desk targets configured.")
             self.stdout.write(json.dumps(record) + "\n")
             self.stdout.flush()
             return
@@ -706,8 +734,16 @@ class FutuGateway:
         settings = context.capability("futu.credentials")
         self.trade_pwd = settings["password"]
         context.on_cleanup(self.close)
-        from futu import (OpenSecTradeContext, RET_OK, SecurityFirm,
-                          SysConfig, TrdMarket)
+        # SDK import installs an immediate-exit SIGINT handler on the main thread.
+        # Retain the supervisor handler so interrupts still release resources.
+        on_main_thread = current_thread() is main_thread()
+        interrupt_handler = signal.getsignal(signal.SIGINT) if on_main_thread else None
+        try:
+            from futu import (OpenSecTradeContext, RET_OK, SecurityFirm,
+                              SysConfig, TrdMarket)
+        finally:
+            if on_main_thread:
+                signal.signal(signal.SIGINT, interrupt_handler)
         self.ret_ok = RET_OK
         if settings["rsa_file"]:
             SysConfig.enable_proto_encrypt(True)
@@ -753,26 +789,65 @@ class PollLoop:
         self.clock = context.capability("poll.clock")
         self.signal = context.signal
 
+    def _stopped(self) -> bool:
+        stop = self.settings.get("stop")
+        return self.signal.is_set() or bool(stop is not None and stop.is_set())
+
     def run(self) -> None:
-        while not self.signal.is_set():
+        while not self._stopped():
             if not self.settings["authenticated"]:
                 self.publisher.send({"type": "auth-required",
                                      "secrets": ["futu-trade-password"]})
             else:
                 try:
                     snapshot = self.gateway.snapshot()
+                    if self._stopped():
+                        return
                     snapshot["updatedAt"] = int(self.clock() * 1000)
+                    if self._stopped():
+                        return
                     self.publisher.send({"type": "data", "snapshot": snapshot})
                 except Exception as exc:
+                    if self._stopped():
+                        return
                     self.publisher.send({"type": "error", "code": "poll-failed",
                                          "message": "%s: %s" % (type(exc).__name__, exc)})
+            if self._stopped():
+                return
             self.wait(self.settings["interval"])
 
 
+class _StopEvent:
+    """Combine ordinary event requests with lock-free signal requests."""
+    def __init__(self) -> None:
+        self._event = Event()
+        self._signal_requested = False
+
+    def request_signal_stop(self) -> None:
+        # Signal handlers can interrupt Event.wait/set with its lock held.
+        self._signal_requested = True
+
+    def set(self) -> None:
+        self._event.set()
+
+    def is_set(self) -> bool:
+        return self._signal_requested or self._event.is_set()
+
+    def wait(self, timeout: float | None = None) -> bool:
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while not self.is_set():
+            remaining = None if deadline is None else deadline - time.monotonic()
+            if remaining is not None and remaining <= 0:
+                return self.is_set()
+            self._event.wait(0.05 if remaining is None else min(remaining, 0.05))
+        return True
+
+
 class PollerRuntime:
-    def __init__(self, host: PluginHost, errors: list) -> None:
+    def __init__(self, host: PluginHost, errors: list, stop_event: _StopEvent | None = None) -> None:
         self.host = host
         self._errors = errors
+        self.stop_event = stop_event if stop_event is not None else _StopEvent()
 
     def start(self) -> list[dict]:
         self.host.require_owner_thread()
@@ -790,7 +865,7 @@ class PollerRuntime:
         self.host.require_owner_thread()
         try:
             self.start()
-            while True:
+            while not self.stop_event.is_set():
                 loop = self.host.get(PORTS["loop"])
                 generation = self.host.generation("odk.futu.loop")
                 if loop is not None:
@@ -806,7 +881,7 @@ class PollerRuntime:
                     break
                 # A stopped or normally returned loop must not restart itself.
                 # Only a lifecycle transition may select another generation.
-                while self.host.generation("odk.futu.loop") is generation:
+                while not self.stop_event.is_set() and self.host.generation("odk.futu.loop") is generation:
                     control.poll(0.1)
         except KeyboardInterrupt:
             pass
@@ -869,10 +944,11 @@ def create_poller(
     targets = {key: env[key] for key in (TARGETS_ENV, "ODK_FUTU_SOCKET", TOKEN_ENV) if key in env}
     control_endpoint, control_token_file = management_settings(env, platform)
     errors = []
+    stop_event = _StopEvent()
     def wait_for_publication(seconds: float) -> object:
         publisher = host.get(PORTS["publisher"])
         control = host.get(CONTROL_PORT)
-        if control is not None:
+        if control is not None or wait is time.sleep:
             if seconds < 0:
                 raise ValueError("sleep length must be non-negative")
             selected_generation = host.generation("odk.futu.loop")
@@ -885,7 +961,10 @@ def create_poller(
                 control.poll(0)
                 return result
             while True:
-                control.poll(0)
+                if stop_event.is_set():
+                    return None
+                if control is not None:
+                    control.poll(0)
                 if host.generation("odk.futu.loop") is not selected_generation:
                     return None
                 remaining = deadline - time.monotonic()
@@ -894,15 +973,13 @@ def create_poller(
                 if publisher_factory is None and isinstance(publisher, LinkSet):
                     publisher.wait(min(remaining, 0.05))
                 else:
-                    control.poll(remaining)
-        if wait is time.sleep and publisher_factory is None and isinstance(publisher, LinkSet):
-            return publisher.wait(seconds)
+                    stop_event.wait(min(remaining, 0.05)) if control is None else control.poll(min(remaining, 0.05))
         return wait(seconds)
 
     host = PluginHost(disabled=disabled, capabilities={
         "desk.targets": targets, "desk.identity": (service, revision),
         "futu.credentials": credentials,
-        "poll.settings": {"interval": interval, "authenticated": bool(credentials["password"])},
+        "poll.settings": {"interval": interval, "authenticated": bool(credentials["password"]), "stop": stop_event},
         "poll.wait": wait_for_publication, "poll.clock": clock,
     }, on_error=lambda identity, error: errors.append(error))
 
@@ -914,8 +991,7 @@ def create_poller(
         def create_control(context):
             token = ""
             if control_token_file:
-                with open(control_token_file, encoding="utf-8") as token_file:
-                    token = token_file.read().strip()
+                token = read_token_file(control_token_file)
             if platform == "win32" and not PIPE_PATTERN.match(control_endpoint):
                 raise ValueError("Windows management requires a named pipe")
             channel_type = WindowsManagementChannel if PIPE_PATTERN.match(control_endpoint) else ManagementChannel
@@ -930,6 +1006,8 @@ def create_poller(
     def default_publisher(context):
         identity, version = context.capability("desk.identity")
         links = create_links(context.capability("desk.targets"), identity, version, _warn)
+        if not links:
+            raise ValueError("No valid desk targets configured.")
         transport = context.get(PORTS["transport"])
         for link in links:
             link.connector = transport.connect
@@ -954,6 +1032,8 @@ def create_poller(
             if name == "gateway" and not credentials["password"]:
                 factory = lambda context: object()
         def create(context):
+            if name == "gateway" and credentials["password"] and publisher_factory is None and not load_targets(targets, _warn):
+                raise ValueError("No valid desk targets configured.")
             resource = require_synchronous(factory(context))
             cleanup = getattr(resource, "close", None)
             if cleanup is not None:
@@ -980,7 +1060,21 @@ def create_poller(
     unknown = set(disabled) - known
     if unknown:
         raise ValueError("unknown disabled plugin: " + ", ".join(sorted(unknown)))
-    return PollerRuntime(host, errors)
+    return PollerRuntime(host, errors, stop_event)
+
+
+def run_supervised(runtime: PollerRuntime) -> None:
+    """Signals request owner-thread cleanup after synchronous SDK calls return."""
+    previous = {}
+    def request_stop(_signum, _frame):
+        runtime.stop_event.request_signal_stop()
+    try:
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            previous[signum] = signal.signal(signum, request_stop)
+        runtime.run()
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -1041,7 +1135,7 @@ def main(argv: list[str] | None = None) -> None:
         print(json.dumps({"host": "python-agent", "scope": "declarations",
                           "validated": arguments.plugins == "validate", "plugins": runtime.catalog()}))
         return
-    runtime.run()
+    run_supervised(runtime)
 
 
 if __name__ == "__main__":

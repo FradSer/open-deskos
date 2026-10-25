@@ -13,6 +13,8 @@ EnvironmentFile=-%h/.config/odk/runtime.env
 ExecStart=%h/.venv/futu/bin/python __ODK_FUTU_POLLER_DIR__/poller.py
 Restart=always
 RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=20
 UMask=0077
 NoNewPrivileges=true
 

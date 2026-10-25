@@ -198,3 +198,12 @@ Feature: Immutable runtime release deployment
     And composition validation rejects any private input before sealing
     And newly created private inputs after preflight also prevent sealing
     And only root and the kiosk group can read sealed runtime code
+
+  Scenario: The optional service manager seals only declared source files
+    Given integrations contains the manager launcher and declared standard-library modules
+    And manager development state includes environments, tests, credentials, and temporary files
+    When either source staging or immutable installation copies integrations
+    Then the manager contains only its launcher and declared modules
+    And a missing or symlinked declared source fails before the integration copy
+    And the other integrations remain available with existing private-file exclusions
+    And this copy does not install uv or Docker or activate an external service

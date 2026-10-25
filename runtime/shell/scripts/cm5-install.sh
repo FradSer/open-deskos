@@ -214,7 +214,11 @@ if [ "$(CDPATH= cd -- "${DIR}" >/dev/null && pwd -P)" != "$(CDPATH= cd -- "${REL
   echo "== sealing staged peripheral and experiment sources into the release =="
   for tree in peripherals integrations experiments .agents; do
     if [ -d "${REPOSITORY_ROOT}/${tree}" ]; then
-      copy_release_input "${REPOSITORY_ROOT}/${tree}/" "${RELEASE_DIR}/${tree}/"
+      if [ "${tree}" = integrations ]; then
+        copy_integrations_release_input "${REPOSITORY_ROOT}/${tree}/" "${RELEASE_DIR}/${tree}/"
+      else
+        copy_release_input "${REPOSITORY_ROOT}/${tree}/" "${RELEASE_DIR}/${tree}/"
+      fi
     fi
   done
   run_as_target_user mkdir -p "${RELEASE_DIR}/android/app/src"

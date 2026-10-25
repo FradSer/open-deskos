@@ -194,8 +194,7 @@ def create(context):
 ''')
     env = {**os.environ, "XDG_RUNTIME_DIR": str(tmp_path), "XDG_STATE_HOME": str(tmp_path),
            "ODK_CONFIG_DIR": str(tmp_path / "config"), "FUTU_TRADE_PWD": "",
-           "ODK_FUTU_TARGETS_FILE": str(tmp_path / "absent.json")}
-    env.pop("ODK_FUTU_SOCKET", None)
+           "ODK_FUTU_TARGETS_FILE": str(tmp_path / "absent.json"), "ODK_FUTU_SOCKET": "/tmp/odk-fixture-unbound.sock"}
     args = [sys.executable, poller.__file__, "--plugin-directory", str(directory), "--trust-plugins"]
     for capability in manifest["permissions"]:
         args += ["--grant-plugin", "odk.futu.loop:" + capability]
@@ -228,17 +227,29 @@ def create(context):
 
 
 def test_operational_cli_disables_and_recovers_polling_without_preferences(tmp_path):
+    import time
+    from test_transport import unix_server
+    server = unix_server(tmp_path / "publication.sock")
+    published = 0
     root = Path(poller.__file__).resolve().parents[2]
     cli = root / "runtime/shell/scripts/odk-plugin-cli.js"
     env = {**os.environ, "XDG_RUNTIME_DIR": str(tmp_path), "XDG_STATE_HOME": str(tmp_path),
            "ODK_CONFIG_DIR": str(tmp_path / "config"), "FUTU_INTERVAL": "60",
-           "FUTU_TRADE_PWD": "", "ODK_FUTU_TARGETS_FILE": str(tmp_path / "no-targets.json")}
-    env.pop("ODK_FUTU_SOCKET", None)
+           "FUTU_TRADE_PWD": "", "ODK_FUTU_TARGETS_FILE": str(tmp_path / "no-targets.json"),
+           "ODK_FUTU_SOCKET": str(tmp_path / "publication.sock")}
     process = subprocess.Popen([sys.executable, poller.__file__], env=env, text=True,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     def publication():
-        assert select.select([process.stdout], [], [], 5)[0], "poller did not publish"
-        return json.loads(process.stdout.readline())
+        nonlocal published
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            records = [json.loads(item) for item in server.snapshot() if json.loads(item).get("type") == "auth-required"]
+            if len(records) > published:
+                record = records[published]
+                published += 1
+                return record
+            time.sleep(0.01)
+        pytest.fail("poller did not publish to configured desk")
     def command(action, name):
         result = subprocess.run(["node", str(cli), action, "odk.futu." + name, "--runtime"],
                                 env=env, text=True, capture_output=True, timeout=5)
@@ -269,6 +280,7 @@ def test_operational_cli_disables_and_recovers_polling_without_preferences(tmp_p
             process.kill()
             process.communicate()
             raise
+        server.close()
     assert process.returncode == 0, stderr
     assert not endpoint.exists()
 
@@ -327,7 +339,7 @@ def test_manager_reads_do_not_restart_publication_deadline(tmp_path, monkeypatch
         waits.append(seconds)
         now[0] += seconds
     monkeypatch.setattr(poller.LinkSet, "wait", wait)
-    runtime = poller.create_poller({"XDG_RUNTIME_DIR": str(tmp_path), "ODK_FUTU_TARGETS_FILE": str(tmp_path / "absent.json")})
+    runtime = poller.create_poller({"XDG_RUNTIME_DIR": str(tmp_path), "ODK_FUTU_TARGETS_FILE": str(tmp_path / "absent.json"), "ODK_FUTU_SOCKET": "/tmp/odk-fixture-unbound.sock"})
     runtime.start()
     control = runtime.host.get(poller.CONTROL_PORT)
     def poll(seconds=0):

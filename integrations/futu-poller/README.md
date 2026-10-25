@@ -182,7 +182,7 @@ Capability declarations do not sandbox them or authorize third-party native code
 
 The default loop retains protocol v1 records, market order, authentication requests, and polling intervals.
 An absent trade password does not load the SDK.
-The command and service unit remain unchanged.
+The service unit uses the pinned virtual environment and a 20-second shutdown timeout.
 Install `plugin_host.py`, `plugin_config.py`, `plugin_control.py`, and `management_channel.py` beside `poller.py`.
 [Plugin scenarios](features/futu-poller.feature) define the compatibility checks.
 The [shared gateway checks](tests/test_gateway_parity.py) compare the default gateway with an independently loaded replacement module.
@@ -303,12 +303,18 @@ Log the reason after three consecutive failed polls; routine reconnects remain q
 
 ## Deploy on the CM5
 
+Python 3.12.11 and `uv.lock` define the worker environment.
+`requirements.txt` is a generated compatibility export from that lock.
+Run installation commands from the repository root.
+Use absolute paths in environment files; these files do not expand `$HOME` or shell variables.
+Adapt example usernames, paths, and UIDs to the selected host.
+
 These commands change device configuration/services and require operational authorization; transport tests below are isolated.
 
 ```sh
 # 1. environment
-uv venv ~/.venv/futu
-uv pip install --python ~/.venv/futu/bin/python -r requirements.txt
+# Legacy unit only: place its locked environment at the unit-selected path.
+UV_PROJECT_ENVIRONMENT="$HOME/.venv/futu" uv sync --project integrations/futu-poller --locked --no-dev
 
 # 2. gateway RSA key (client copy; treat as a secret, mode 0600).
 #    Source: frad-nas:/mnt/user/appdata/futuopend/config/rsa_private.pem
@@ -318,7 +324,7 @@ install -m 600 rsa_private.pem ~/.config/odk/futu-rsa.pem
 cat > ~/.config/odk/futu-poller.env <<'EOF'
 FUTU_HOST=10.10.0.195
 FUTU_PORT=11111
-FUTU_RSA_FILE=$HOME/.config/odk/futu-rsa.pem
+FUTU_RSA_FILE=/home/orangepi/.config/odk/futu-rsa.pem
 FUTU_TRADE_PWD=<trade-unlock-password>
 FUTU_INTERVAL=60
 SERVICE_ID=futu-poller
@@ -351,20 +357,104 @@ Without `FUTU_TRADE_PWD` the poller reports `auth-required` to every desk and th
 
 ## systemd user unit
 
-`odk-futu-poller.service` is the resident unit.
+`odk-futu-poller.service` is the standalone unit template.
 It runs the venv python against `poller.py`, loads `futu-poller.env` and `runtime.env`, and restarts always with `RestartSec=5`.
+SIGTERM and SIGINT request cooperative cleanup on the resource owner thread.
+The signal handler sets a stop flag without acquiring an event lock.
+The SDK temporarily replaces SIGINT during import.
+The worker restores the prior handler after import, including import failure.
+SIGINT during that import window can still invoke the SDK's immediate-exit handler.
+Waiting stops promptly; an active synchronous SDK call must return before cleanup starts.
+The supervisor owns the 20-second final shutdown deadline.
+Forced termination cannot establish SDK cleanup completion.
 The unit is a template: the installer substitutes `__ODK_FUTU_POLLER_DIR__` with the installed integration path, the same pattern the other integration units use.
 A manual install is:
 
 ```sh
 mkdir -p ~/.config/systemd/user
-sed "s|__ODK_FUTU_POLLER_DIR__|$PWD|g" \
+sed "s|__ODK_FUTU_POLLER_DIR__|$PWD/integrations/futu-poller|g" \
   integrations/futu-poller/odk-futu-poller.service \
   > ~/.config/systemd/user/odk-futu-poller.service
 systemctl --user daemon-reload
 systemctl --user enable --now odk-futu-poller.service
 journalctl --user -u odk-futu-poller.service -f
 ```
+
+## External service package
+
+Use the [external service runtime](../service-runtime/README.md) for install, update, enable, disable, rollback, and removal.
+Its contract owns the manager commands and private operator bindings.
+The standalone unit above remains a manual deployment path.
+Do not run both supervisors for the same worker.
+
+Build a source snapshot from the repository root:
+
+```sh
+uv run --project integrations/futu-poller --locked python integrations/futu-poller/build_package.py /absolute/new/futu-package
+```
+
+The builder copies a fixed runtime allowlist and generates hashed `service.json` entries.
+It excludes credentials, configuration, caches, test fixtures, and virtual environments.
+The generic service manager prepares a separate locked environment for each installed revision.
+Keep configuration and secrets outside the installed source snapshot.
+Do not load the worker into the Shell process.
+Python component grants remain trusted native access, without a sandbox.
+
+The readiness command probes the running local management channel:
+
+```sh
+uv run --project integrations/futu-poller --locked python integrations/futu-poller/healthcheck.py
+```
+
+Set `ODK_FUTU_CONTROL` to the worker's private Unix management socket.
+Readiness establishes control-channel availability, not authenticated gateway access or current holdings.
+The service package allows sixty seconds for SDK startup, target connections, and control-channel readiness.
+Docker uses the same sixty-second startup period.
+The service manager stops a worker that exceeds its readiness deadline.
+The readiness command currently supports Unix hosts.
+
+### Optional Docker backend
+
+Build the image locally before generating its service package:
+
+```sh
+docker build --platform linux/arm64 -t odk-futu-worker:local integrations/futu-poller
+docker image inspect --format '{{.Id}}' odk-futu-worker:local
+uv run --project integrations/futu-poller --locked python integrations/futu-poller/build_package.py /absolute/new/futu-docker-package --backend docker --image sha256:REPLACE_WITH_ACTUAL_IMAGE_ID --platform linux/arm64
+```
+
+Use the actual immutable image ID or a registry digest.
+The image pins Python, uv, and base image digests.
+It installs the same locked production dependencies as the Python backend.
+Its default user is UID 1000 and GID 1000.
+The service manager must select the host's required UID and GID.
+The image forwards SIGTERM directly to the Python process.
+
+Mount only required private configuration, token files, RSA files, and runtime directories.
+Mount secret files read-only.
+Use container paths for `FUTU_RSA_FILE`, target files, token paths, and `ODK_FUTU_CONTROL`.
+Give the worker write access to its private management directory.
+Give the SDK a private writable home directory through `HOME` and an explicit writable state mount.
+The pinned SDK creates `.com.futunn.FutuOpenD/Log` under `HOME`, including during import.
+Match the Shell user's UID when sharing Unix socket directories.
+The container needs network access to the configured external FutuOpenD gateway and desktop TCP targets.
+TCP uses a token handshake without TLS; use a protected network.
+Docker packaging does not install or start FutuOpenD.
+
+### Publication and credential boundaries
+
+The default publisher fails when no valid desk target exists.
+It never falls back to logging private holdings on stdout.
+An explicit injected output stream remains available for controlled tests.
+The control channel can remain available after publication startup fails.
+Valid targets with unreachable listeners retain the existing reconnect behavior.
+
+Channel token files must be canonical absolute regular files with one link and at most 1024 bytes.
+POSIX tokens require service-user ownership and mode 0600 or stricter.
+Windows tokens require protected ACLs limited to the current user, Administrators, and SYSTEM.
+Empty tokens and embedded whitespace are refused before connection.
+Token errors do not expose contents or private paths.
+Gateway passwords and RSA keys remain operator-provisioned secrets.
 
 ## Shell side (tracer bootstrap)
 
@@ -379,7 +469,7 @@ The poller handshake and Shell expectation share that revision instead of separa
 The transport tests drive the real client against a socket server started in the test; no gateway and no futu SDK are needed:
 
 ```sh
-uv run --with pytest pytest integrations/futu-poller/tests -q
+uv run --project integrations/futu-poller --locked python -m pytest integrations/futu-poller/tests -q
 ```
 
 They cover Unix sockets, TCP handshakes, and missing/empty tokens.

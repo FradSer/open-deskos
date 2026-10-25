@@ -3,6 +3,52 @@
 
 RELEASE_PRIVATE_EXCLUDES=(--exclude '.env*' --exclude '*.env' --exclude 'auth.json' --exclude '.pi')
 
+
+# This optional manager uses only these standard-library source modules.
+SERVICE_RUNTIME_RELEASE_FILES=(
+  service_runtime.py
+  odk_service_runtime/__init__.py
+  odk_service_runtime/__main__.py
+  odk_service_runtime/cli.py
+  odk_service_runtime/docker_backend.py
+  odk_service_runtime/manifest.py
+  odk_service_runtime/manager.py
+  odk_service_runtime/python_backend.py
+  odk_service_runtime/systemd_controller.py
+)
+SERVICE_RUNTIME_RELEASE_FILTERS=(--include '/service-runtime/' --include '/service-runtime/odk_service_runtime/')
+for service_runtime_file in "${SERVICE_RUNTIME_RELEASE_FILES[@]}"; do
+  SERVICE_RUNTIME_RELEASE_FILTERS+=(--include "/service-runtime/${service_runtime_file}")
+done
+SERVICE_RUNTIME_RELEASE_FILTERS+=(--exclude '/service-runtime/***')
+unset service_runtime_file
+
+validate_service_runtime_source() {
+  local base="${1%/}" source="${1%/}/service-runtime" entry canonical
+  if [ ! -e "${source}" ] && [ ! -L "${source}" ]; then return 0; fi
+  canonical="$(CDPATH= cd -- "${base}" && pwd -P)" || return 1
+  if [ "${canonical}" != "${base}" ]; then
+    echo "Service runtime source must use a canonical integration directory" >&2
+    return 1
+  fi
+  if [ ! -d "${source}" ] || [ -L "${source}" ] ||
+     [ ! -d "${source}/odk_service_runtime" ] || [ -L "${source}/odk_service_runtime" ]; then
+    echo "Service runtime source must use regular directories" >&2
+    return 1
+  fi
+  for entry in "${SERVICE_RUNTIME_RELEASE_FILES[@]}"; do
+    if [ ! -f "${source}/${entry}" ] || [ -L "${source}/${entry}" ]; then
+      echo "Service runtime declared source is missing or not a regular file" >&2
+      return 1
+    fi
+  done
+}
+
+copy_integrations_release_input() {
+  validate_service_runtime_source "$1" || return 1
+  run_as_target_user rsync -a "${SERVICE_RUNTIME_RELEASE_FILTERS[@]}" "${RELEASE_PRIVATE_EXCLUDES[@]}" "$@"
+}
+
 copy_release_input() {
   run_as_target_user rsync -a "${RELEASE_PRIVATE_EXCLUDES[@]}" "$@"
 }

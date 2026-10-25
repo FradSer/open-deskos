@@ -1,0 +1,12 @@
+*
+!Dockerfile
+!pyproject.toml
+!uv.lock
+!.python-version
+!poller.py
+!plugin_host.py
+!plugin_config.py
+!plugin_control.py
+!management_channel.py
+!development_plugins.py
+!healthcheck.py

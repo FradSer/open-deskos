@@ -1,4 +1,44 @@
 Feature: Futu poller Open DeskOS Links
+  Scenario: Missing targets do not publish private holdings to logs
+    Given no valid desk target is configured
+    When the default publisher starts
+    Then it fails before the gateway opens
+    And stdout contains no account or holdings records
+
+  Scenario: Supervisor termination releases cooperative resources
+    Given the poller is waiting between synchronous SDK calls
+    When its supervisor sends SIGTERM or SIGINT
+    Then the owner stops polling and closes its resources
+    And a blocking SDK call finishes before cleanup
+    And a completed SDK call cannot publish data or errors after the stop request
+    And shutdown skips the next publication wait
+    And the supervisor owns the final shutdown timeout
+    And signals during an event critical section cannot deadlock owner cleanup
+
+  Scenario: SDK import preserves supervisor interrupt cleanup
+    Given the supervisor has installed its interrupt handler
+    When the SDK import replaces that handler or fails after replacement
+    Then gateway startup restores the supervisor handler
+
+  Scenario: Channel tokens use bounded private regular files
+    Given a target requires a channel token
+    When the file is public, linked, oversized, nonregular, or invalid
+    Then the poller refuses it before connecting
+    And diagnostics exclude token contents
+
+  Scenario: Build an isolated repeatable worker package
+    Given the worker has a pinned Python version and complete dependency lock
+    When its source package is built
+    Then only approved runtime files enter the package
+    And configuration, credentials, caches, and virtual environments are excluded
+
+  Scenario: Service admission includes synchronous owner startup
+    Given SDK startup and existing target connections delay control readiness beyond ten seconds
+    When the service manager enables the packaged worker
+    Then it admits control readiness within sixty seconds
+    And it stops the worker if control readiness exceeds that bounded budget
+    And Docker grants the same sixty-second startup period
+
   Scenario: Windows management uses authenticated overlapped pipe operations
     Given a Windows management listener has the shared channel token
     When clients submit bounded newline-delimited commands

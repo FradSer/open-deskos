@@ -106,3 +106,119 @@ test('CLI enables and disables plugins in config', t => {
   const config2 = readConfig(resolveConfigPath(env))
   assert.equal(config2.plugins['odk.test.clock'].enabled, false)
 })
+
+// Exercise the actual unified entry with only an owned, harmless runner.
+function serviceFixture(t, { layout = 0, missing = false, real = false, fail = false, code = 0, output = '{"services":[]}', hold = false } = {}) {
+  const { EventEmitter } = require('node:events'), { createRequire } = require('node:module'), vm = require('node:vm')
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-service-cli-'))
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }))
+  const directory = path.join(temp, 'repo/runtime/shell/scripts')
+  const launchers = ['../../../integrations/service-runtime/service_runtime.py', '../integrations/service-runtime/service_runtime.py', '../../integrations/service-runtime/service_runtime.py'].map(p => path.resolve(directory, p))
+  if (!missing) {
+    fs.mkdirSync(path.dirname(launchers[layout]), { recursive: true })
+    fs.writeFileSync(launchers[layout], `console.log(JSON.stringify({args:process.argv.slice(2),unsafe:Object.keys(process.env).filter(key=>key.startsWith('PYTHON')||key.startsWith('UV_')||key.startsWith('DYLD_')||['LD_PRELOAD','LD_LIBRARY_PATH','VIRTUAL_ENV','NODE_OPTIONS'].includes(key))}))`)
+  }
+  const config = path.join(temp, 'not-a-config-directory'); fs.writeFileSync(config, 'Must not read plugin config')
+  const filename = path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), local = createRequire(filename)
+  const logs = [], errors = [], runs = [], kills = [], timers = [], cleared = []
+  const owner = Object.assign(new EventEmitter(), { platform: process.platform, argv: [], env: {}, kill(pid, signal) { kills.push([pid, signal]) } })
+  let child
+  const spawn = (executable, args, options) => {
+    runs.push({ executable, args, options })
+    if (real) return (child = require('node:child_process').spawn(executable, args, options))
+    if (fail) throw Error('PRIVATE_SPAWN_DIAGNOSTIC')
+    child = Object.assign(new EventEmitter(), { pid: 424242, stdout: Object.assign(new EventEmitter(), { setEncoding() {} }), stderr: new EventEmitter(), kill(signal) { kills.push([this.pid, signal]) } })
+    if (!hold) queueMicrotask(() => { child.stdout.emit('data', output); child.stderr.emit('data', 'PRIVATE_PROVIDER_STDERR'); child.emit('close', code) })
+    return child
+  }
+  const module = { exports: {} }
+  function requireFixture(name) { return name === 'node:child_process' ? { spawn } : local(name) }
+  requireFixture.main = {}
+  vm.runInNewContext(fs.readFileSync(filename, 'utf8'), {
+    module, exports: module.exports, require: requireFixture, __dirname: directory, process: owner, Buffer,
+    console: { log: (...a) => logs.push(a.join(' ')), error: (...a) => errors.push(a.join(' ')) },
+    setTimeout(callback, delay) { const timer = { callback, delay, unref() { return this } }; timers.push(timer); return timer },
+    clearTimeout(timer) { cleared.push(timer) },
+  }, { filename })
+  const env = { PATH: process.env.PATH, ODK_CONFIG_DIR: config, ODK_SERVICE_RUNTIME_PYTHON: process.execPath, PYTHONPATH: 'PRIVATE_OVERRIDE', UV_PROJECT: 'PRIVATE_OVERRIDE', DYLD_INSERT_LIBRARIES: 'PRIVATE_OVERRIDE', LD_PRELOAD: 'PRIVATE_OVERRIDE', LD_LIBRARY_PATH: 'PRIVATE_OVERRIDE', VIRTUAL_ENV: 'PRIVATE_OVERRIDE', NODE_OPTIONS: '--invalid-private-option' }
+  return { main: args => module.exports.main(args, env), launchers, logs, errors, runs, kills, timers, cleared, owner, get child() { return child } }
+}
+
+test('unified service commands work before plugin config reads in all three source/release layouts', async t => {
+  for (let layout = 0; layout < 3; layout++) {
+    const f = serviceFixture(t, { layout })
+    assert.equal(await f.main(['service', '--state-dir', '/fixture/state', 'list']), 0)
+    assert.equal(f.runs.length, 1)
+    assert.equal(f.runs[0].args[0], f.launchers[layout])
+    assert.deepEqual(Array.from(f.runs[0].args.slice(1)), ['--state-dir', '/fixture/state', 'list'])
+    assert.equal(f.logs.at(-1), '{"services":[]}')
+  }
+})
+
+test('service preserves exact argv, suppresses interpreter injection and uses no command shell', async t => {
+  const f = serviceFixture(t), args = ['service', 'install', '/fixture/package with spaces', '--config', '/fixture/private bindings.json', '--trust']
+  assert.equal(await f.main(args), 0)
+  const r = f.runs[0]
+  assert.equal(r.executable, process.execPath)
+  assert.deepEqual(Array.from(r.args.slice(1)), args.slice(1))
+  assert.equal(r.options.shell, false)
+  assert.deepEqual(Array.from(r.options.stdio), ['ignore', 'pipe', 'pipe'])
+  for (const key of ['PYTHONPATH','UV_PROJECT','DYLD_INSERT_LIBRARIES','LD_PRELOAD','LD_LIBRARY_PATH','VIRTUAL_ENV','NODE_OPTIONS']) assert.equal(Object.hasOwn(r.options.env, key), false, key)
+  assert.equal(r.options.env.PATH, process.env.PATH)
+})
+
+test('absent optional manager fails before spawning or reading startup configuration', async t => {
+  const f = serviceFixture(t, { missing: true })
+  assert.equal(await f.main(['service', 'list']), 1)
+  assert.equal(f.runs.length, 0)
+  assert.match(f.errors.join('\n'), /Service runtime is unavailable/)
+})
+
+test('service spawn and process failure never disclose private output or diagnostics', async t => {
+  for (const setup of [{ fail: true }, { code: 9, output: 'PRIVATE_PROVIDER_OUTPUT' }]) {
+    const f = serviceFixture(t, setup)
+    assert.equal(await f.main(['service', 'inspect', 'odk.fixture.service']), setup.code || 1)
+    assert.equal(f.logs.length, 0)
+    assert.doesNotMatch(f.errors.join('\n'), /PRIVATE_/)
+    assert.match(f.errors.join('\n'), /Service command failed/)
+    assert.equal(f.owner.listenerCount('SIGTERM'), 0)
+    assert.equal(f.owner.listenerCount('SIGINT'), 0)
+  }
+})
+
+test('oversized service output fails closed and requests bounded owned-runner cleanup', async t => {
+  const f = serviceFixture(t, { output: 'x'.repeat(1024 * 1024 + 1) })
+  assert.equal(await f.main(['service', 'list']), 1)
+  assert.equal(f.logs.length, 0)
+  assert.equal(f.kills[0][1], 'SIGTERM')
+  assert.equal(f.timers[0].delay, 310000)
+  assert.ok(f.cleared.includes(f.timers[0]))
+})
+
+test('foreground service cancellation forwards signals and waits for owned runner closure', async t => {
+  const f = serviceFixture(t, { hold: true })
+  let finished = false
+  const operation = f.main(['service', 'run', 'odk.fixture.service']).then(code => { finished = true; return code })
+  assert.equal(f.runs.length, 1)
+  f.owner.emit('SIGTERM'); f.owner.emit('SIGINT')
+  assert.equal(finished, false)
+  const pid = process.platform === 'win32' ? 424242 : -424242
+  assert.deepEqual(f.kills, [[pid, 'SIGTERM'], [pid, 'SIGINT']])
+  assert.equal(f.timers.length, 1)
+  assert.equal(f.timers[0].delay, 310000)
+  f.timers[0].callback(); assert.deepEqual(f.kills.at(-1), [pid, 'SIGKILL'])
+  f.child.emit('close', null)
+  assert.equal(await operation, 1)
+  assert.equal(f.owner.listenerCount('SIGTERM'), 0)
+  assert.equal(f.owner.listenerCount('SIGINT'), 0)
+})
+
+test('actual service CLI starts an isolated harmless interpreter child with exact argv and clean overrides', async t => {
+  const f = serviceFixture(t, { real: true })
+  assert.equal(await f.main(['service', '--state-dir', '/fixture/state', 'list']), 0)
+  const result = JSON.parse(f.logs.at(-1))
+  assert.deepEqual(result.args, ['--state-dir', '/fixture/state', 'list'])
+  assert.deepEqual(result.unsafe, [])
+  assert.equal(f.owner.listenerCount('SIGTERM'), 0)
+  assert.equal(f.owner.listenerCount('SIGINT'), 0)
+})

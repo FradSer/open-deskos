@@ -196,7 +196,7 @@ def test_failed_reenable_retains_original_error_and_closes_publisher():
 
 
 @pytest.mark.parametrize("management", ["off", "available", "occupied"])
-def test_copied_cli_keeps_stdout_protocol_without_loading_sdk(tmp_path, management):
+def test_copied_cli_refuses_stdout_fallback_without_loading_sdk(tmp_path, management):
     import json
     import os
     import pathlib
@@ -209,11 +209,16 @@ def test_copied_cli_keeps_stdout_protocol_without_loading_sdk(tmp_path, manageme
     targets = tmp_path / "targets.json"
     targets.write_text('{"targets": []}', encoding="utf-8")
     code = """
-import runpy, time
-from pathlib import Path
-def stop(_interval): raise KeyboardInterrupt
-time.sleep = stop
-runpy.run_path(str(Path('poller.py').resolve()), run_name='__main__')
+import poller, threading, signal, os
+original_run = poller.PollerRuntime.run
+def supervised_run(self):
+    # The supervisor installs signal handlers before calling runtime.run.
+    timer = threading.Timer(0.2, lambda: os.kill(os.getpid(), signal.SIGTERM))
+    timer.daemon = True
+    timer.start()
+    original_run(self)
+poller.PollerRuntime.run = supervised_run
+poller.main()
 """
     env = {"PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path), "ODK_FUTU_TARGETS_FILE": str(targets), "SERVICE_ID": "fixture-service"}
     if management != "off":
@@ -227,8 +232,9 @@ runpy.run_path(str(Path('poller.py').resolve()), run_name='__main__')
         env=env,
         timeout=10, check=False,
     )
-    assert result.returncode == 0, result.stderr
-    assert result.stderr == ""
-    assert json.loads(result.stdout) == {"v": 1, "service": "fixture-service", "type": "auth-required", "secrets": ["futu-trade-password"]}
+    assert result.returncode == (0 if management == "available" else 1), result.stderr
+    assert result.stdout == ""
+    if management != "available":
+        assert "No valid desk targets" in result.stderr
     if management == "occupied":
         assert (directory / "control.sock").read_text() == "preserved"

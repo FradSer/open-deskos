@@ -22,6 +22,8 @@ STAGING_ID="${ODK_STAGING_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$-$RANDOM}"
 STAGING_DIR="${REMOTE_ROOT}/staging/${STAGING_ID}"
 STAGING_ROOT="${STAGING_DIR}/repo"
 
+validate_service_runtime_source "${ROOT}/integrations"
+
 cleanup() {
   ssh "${TARGET}" "rm -rf -- '${STAGING_DIR}'" >/dev/null 2>&1 || true
 }
@@ -33,7 +35,7 @@ rsync -a --delete --exclude node_modules --exclude .DS_Store --exclude 'native/o
   "${ROOT}/runtime/shell/" "${TARGET}:${STAGING_ROOT}/runtime/shell/"
 rsync -a --delete --exclude .DS_Store "${RELEASE_PRIVATE_EXCLUDES[@]}" \
   "${ROOT}/runtime/android/app/src/main/" "${TARGET}:${STAGING_ROOT}/runtime/android/app/src/main/"
-rsync -a --delete --exclude .DS_Store --exclude 'node_modules' "${RELEASE_PRIVATE_EXCLUDES[@]}" \
+rsync -a --delete --exclude .DS_Store --exclude 'node_modules' "${SERVICE_RUNTIME_RELEASE_FILTERS[@]}" "${RELEASE_PRIVATE_EXCLUDES[@]}" \
   "${ROOT}/integrations/" "${TARGET}:${STAGING_ROOT}/integrations/"
 rsync -a --delete --exclude .DS_Store "${RELEASE_PRIVATE_EXCLUDES[@]}" \
   "${ROOT}/experiments/" "${TARGET}:${STAGING_ROOT}/experiments/"

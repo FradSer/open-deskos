@@ -15,6 +15,7 @@ class Connection:
 def test_replacement_transport_opens_each_endpoint_without_default_factory(monkeypatch, tmp_path, endpoint):
     token = tmp_path / "token"
     token.write_text("controlled-token")
+    token.chmod(0o600)
     calls = []
     connection = Connection()
     class Transport:

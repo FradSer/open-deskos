@@ -39,7 +39,7 @@ def test_loader_is_lazy_and_runtime_preserves_replacement_metadata(tmp_path, cap
     root, marker, grants = package(tmp_path)
     replacements = load_replacements([root], contracts(), trusted=True, grants=grants)
     assert not marker.exists()
-    runtime = poller.create_poller({}, replacement_plugins=replacements)
+    runtime = poller.create_poller({"ODK_FUTU_SOCKET": "/tmp/odk-fixture-unbound.sock"}, replacement_plugins=replacements)
     runtime.host.validate()
     assert not marker.exists()
     manifest = next(item["manifest"] for item in runtime.catalog() if item["manifest"]["id"] == "odk.futu.loop")
@@ -77,7 +77,7 @@ def test_invalid_packages_do_not_execute_entry(tmp_path, change):
 def test_excluded_factories_never_import(tmp_path, component):
     root, marker, grants = package(tmp_path, component)
     replacements = load_replacements([root], contracts(), trusted=True, grants=grants)
-    runtime = poller.create_poller({}, replacement_plugins=replacements,
+    runtime = poller.create_poller({"ODK_FUTU_SOCKET": "/tmp/odk-fixture-unbound.sock"}, replacement_plugins=replacements,
                                   disabled=("odk.futu.loop",) if component == "loop" else ())
     runtime.start()
     assert not marker.exists()
@@ -95,7 +95,7 @@ def test_cli_inspection_and_operational_selection(tmp_path):
     assert next(item["manifest"]["version"] for item in report["plugins"] if item["manifest"]["id"] == "odk.futu.loop") == "2.0.0"
     assert not marker.exists()
     ran = subprocess.run(args, capture_output=True, text=True, timeout=10,
-                         env={"PATH": str(Path(sys.executable).parent), "FUTU_INTERVAL": "60"})
+                         env={"PATH": str(Path(sys.executable).parent), "FUTU_INTERVAL": "60", "ODK_FUTU_SOCKET": "/tmp/odk-fixture-unbound.sock"})
     assert ran.returncode == 0, ran.stderr
     assert marker.exists()
     assert "replacement ran" in ran.stdout
@@ -133,8 +133,8 @@ def test_selected_entry_bytes_are_stable_and_module_generations_are_distinct(tmp
     first = load_replacements([root], contracts(), trusted=True, grants=grants)
     second = load_replacements([root], contracts(), trusted=True, grants=grants)
     (root / "entry.py").write_text("raise AssertionError('changed entry executed')")
-    one = poller.create_poller({}, replacement_plugins=first)
-    two = poller.create_poller({}, replacement_plugins=second)
+    one = poller.create_poller({"ODK_FUTU_SOCKET": "/tmp/odk-fixture-unbound.sock"}, replacement_plugins=first)
+    two = poller.create_poller({"ODK_FUTU_SOCKET": "/tmp/odk-fixture-unbound.sock"}, replacement_plugins=second)
     try:
         one.start()
         two.start()
@@ -151,11 +151,11 @@ def test_invalid_graph_and_duplicate_factory_selection_do_not_import(tmp_path):
     manifest["requires"] = [{"interface": poller.PORTS["loop"]}]
     (root / "manifest.json").write_text(json.dumps(manifest))
     replacements = load_replacements([root], contracts(), trusted=True, grants=grants)
-    runtime = poller.create_poller({}, replacement_plugins=replacements)
+    runtime = poller.create_poller({"ODK_FUTU_SOCKET": "/tmp/odk-fixture-unbound.sock"}, replacement_plugins=replacements)
     with pytest.raises(ValueError, match="cycle"):
         runtime.host.validate()
     with pytest.raises(ValueError, match="duplicate"):
-        poller.create_poller({}, replacement_plugins=replacements, loop_factory=lambda context: object())
+        poller.create_poller({"ODK_FUTU_SOCKET": "/tmp/odk-fixture-unbound.sock"}, replacement_plugins=replacements, loop_factory=lambda context: object())
     assert not marker.exists()
 
 
@@ -245,7 +245,7 @@ def test_external_entries_supply_each_component_port(tmp_path, component, operat
         "    def connect(self, endpoint): return endpoint\n"
         "def create(context): return Component()\n"))
     replacements = load_replacements([root], contracts(), trusted=True, grants=grants)
-    runtime = poller.create_poller({"FUTU_TRADE_PWD": "synthetic"} if component == "gateway" else {},
+    runtime = poller.create_poller({"FUTU_TRADE_PWD": "synthetic", "ODK_FUTU_SOCKET": "/tmp/odk-fixture-unbound.sock"} if component == "gateway" else {"ODK_FUTU_SOCKET": "/tmp/odk-fixture-unbound.sock"},
                                   replacement_plugins=replacements)
     try:
         runtime.start()
@@ -312,7 +312,7 @@ def test_operational_cli_fails_and_releases_selected_entry(tmp_path, entry, expe
     for grant in grants:
         args.extend(["--grant-plugin", grant])
     result = subprocess.run(args, capture_output=True, text=True, timeout=10,
-                            env={"PATH": str(Path(sys.executable).parent)})
+                            env={"PATH": str(Path(sys.executable).parent), "ODK_FUTU_SOCKET": "/tmp/odk-fixture-unbound.sock"})
     assert result.returncode != 0
     assert expected in result.stderr
     assert released.exists() == cleanup

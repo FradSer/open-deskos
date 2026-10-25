@@ -185,6 +185,7 @@ def test_a_tcp_target_sends_the_handshake_before_hello(monkeypatch, tmp_path):
     server, port = tcp_server()
     token_file = tmp_path / "handheld-channel.token"
     token_file.write_text("handheld-secret\n", encoding="utf-8")
+    token_file.chmod(0o600)
     targets_file = write_targets(tmp_path, [
         {"name": "handheld", "endpoint": "tcp://127.0.0.1:%d" % port,
          "tokenFile": str(token_file)},
@@ -209,6 +210,7 @@ def test_a_tcp_target_falls_back_to_the_shared_token_file(monkeypatch, tmp_path)
     server, port = tcp_server()
     token_file = tmp_path / "local-channel.token"
     token_file.write_text("shared-token\n", encoding="utf-8")
+    token_file.chmod(0o600)
     targets_file = write_targets(tmp_path, [
         {"name": "handheld", "endpoint": "tcp://127.0.0.1:%d" % port},
     ])
@@ -246,7 +248,8 @@ def test_a_missing_token_file_is_refused_instead_of_sending_a_bad_handshake(
 
     err = capsys.readouterr().err
     assert "handheld" in err
-    assert str(missing) in err
+    assert "unavailable or unsafe" in err
+    assert str(missing) not in err
 
 
 def test_an_empty_token_file_is_refused_instead_of_sending_a_bad_handshake(
@@ -255,6 +258,7 @@ def test_an_empty_token_file_is_refused_instead_of_sending_a_bad_handshake(
     server, port = tcp_server()
     token_file = tmp_path / "handheld-channel.token"
     token_file.write_text("  \n", encoding="utf-8")
+    token_file.chmod(0o600)
     targets_file = write_targets(tmp_path, [
         {"name": "handheld", "endpoint": "tcp://127.0.0.1:%d" % port,
          "tokenFile": str(token_file)},
@@ -271,7 +275,7 @@ def test_an_empty_token_file_is_refused_instead_of_sending_a_bad_handshake(
 
     err = capsys.readouterr().err
     assert "handheld" in err
-    assert "empty" in err
+    assert "unavailable or unsafe" in err
 
 
 def test_a_token_endpoint_with_no_token_configured_is_refused_by_name(
@@ -297,6 +301,7 @@ def test_two_targets_receive_the_same_records_and_a_refused_one_does_not_stop_th
     handheld_server, port = tcp_server()
     token_file = tmp_path / "handheld-channel.token"
     token_file.write_text("handheld-secret\n", encoding="utf-8")
+    token_file.chmod(0o600)
 
     targets_file = write_targets(tmp_path, [
         # First on purpose: a refusal here must not cost the healthy desks.

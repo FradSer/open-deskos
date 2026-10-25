@@ -56,10 +56,12 @@ Feature: 64-bit Windows as a Shell Host
     Then the endpoint is a named pipe
     And a Unix host keeps the runtime-directory socket path
 
-  Scenario: The external control endpoint is absent on a Windows host
+  Scenario: The external control endpoint uses authenticated Windows transport
     Given a Windows Shell Host
     When the user-application system starts
-    Then the external control endpoint is not provisioned
+    Then the external control endpoint uses the user-app-control named pipe
+    And the host channel token authenticates the connection before package control reads a byte
+    And a missing or invalid token closes the connection
     And Shell-side Widget and App control remains available
 
   Scenario Outline: Windows sessions are recognized across launch forms
