@@ -4,7 +4,61 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 const { createRequire } = require('node:module')
-const { runFixture } = require('./helpers/electron-fixture')
+const { runFixture, isolatedElectronArgs } = require('./helpers/electron-fixture')
+
+// Automated private browser fixtures opt in explicitly. Capability probes and production
+// verifier consumers keep their own contracts; manual live acceptance is outside this inventory.
+const nativeLaunchExceptions = new Set(['runtime-dependencies.test.js', 'plugin-cli-management.test.js', 'user-app-runtime.test.js'])
+const nativeLaunchFiles = [
+  ...fs.readdirSync(__dirname).filter(file => file.endsWith('.test.js')).map(file => path.join(__dirname, file)),
+  path.join(__dirname, 'acceptance/agent-task-pipeline.test.cjs'),
+]
+for (const file of nativeLaunchFiles) {
+  const source = fs.readFileSync(file, 'utf8')
+  if (nativeLaunchExceptions.has(path.basename(file))) continue
+  const aliases = [...source.matchAll(/\b(?:const|let)\s+([\w$]+)\s*=\s*require\(['"]electron['"]\)/g)].map(match => match[1])
+  const electronArgument = ["require\\(['\"]electron['\"]\\)", ...aliases].join('|')
+  const calls = [...source.matchAll(new RegExp(`\\b(?:runCommand|execute|execFile|run|spawn|spawnSync)\\(\\s*(?:${electronArgument})\\s*,\\s*`, 'g'))]
+  if (!calls.length) continue
+  test(`isolated native launch opts into shared policy: ${path.relative(__dirname, file)}`, () => {
+    for (const call of calls) {
+      assert.ok(source.slice(call.index + call[0].length).startsWith('isolatedElectronArgs('),
+        `${path.relative(__dirname, file)} must bind the policy in its initial process arguments`)
+    }
+  })
+}
+
+test('generic commands and actual runtime capability probes retain their original policy', () => {
+  for (const file of ['helpers/hydra-wire-lifecycle.js', 'runtime-dependencies.test.js']) {
+    assert.doesNotMatch(fs.readFileSync(path.join(__dirname, file), 'utf8'), /isolatedElectronArgs|disable-best-effort-tasks/)
+  }
+})
+
+for (const platform of ['darwin', 'linux', 'win32']) {
+  test(`isolated fixture launch defers only macOS best-effort work: ${platform}`, () => {
+    const original = ['fixture.cjs', '--theme=pixel']
+    const actual = isolatedElectronArgs(original, platform)
+    assert.deepEqual(original, ['fixture.cjs', '--theme=pixel'])
+    assert.deepEqual(actual, platform === 'darwin' ? [...original, '--disable-best-effort-tasks'] : original)
+    assert.deepEqual(isolatedElectronArgs(actual, platform), actual)
+    assert.equal(actual.some(value => value === '--no-sandbox' || value === '--single-process'), false)
+    runFixture('widget-density.cjs', ['--theme=pixel'], { platform, timeout: 1234, spawn(_executable, args, options) {
+      assert.equal(path.basename(args[0]), 'electron-fixture-runner.cjs')
+      assert.equal(args[2], path.join(__dirname, 'widget-density.cjs'))
+      assert.equal(args[3], '--theme=pixel')
+      assert.equal(options.timeout, 1234)
+      assert.equal(args.includes('--disable-best-effort-tasks'), platform === 'darwin')
+      return { status: 0, signal: null }
+    } })
+  })
+}
+
+test('App Manager uses the isolated initial argv policy without changing command execution', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'app-manager-electron.test.js'), 'utf8')
+  assert.match(source, /runCommand\(require\('electron'\), isolatedElectronArgs\(/)
+  assert.match(source, /timeout: 35000/)
+  assert.match(source, /fixtureRejection\(error,/)
+})
 
 test('geometry includes isolated connection and gamepad status replacements', () => {
   const { scripts } = require('../package.json')
@@ -131,6 +185,32 @@ test('child launcher isolates profiles and cleans them after completion, timeout
     assert.equal(fs.existsSync(profile), false)
   }
   assert.equal(new Set(profiles).size, profiles.length)
+})
+
+for (const outcome of [
+  { status: 0, signal: null, error: Object.assign(Error('child deadline elapsed'), { code: 'ETIMEDOUT' }) },
+  { status: 0, signal: 'SIGTERM' },
+  { status: null, signal: 'SIGKILL' },
+  { status: null, error: Object.assign(Error('spawn failed'), { code: 'ENOENT' }) },
+]) test(`child failure reaches the E2E result despite status ${outcome.status}: ${outcome.error?.code || outcome.signal}`, () => {
+  let profile
+  const result = runFixture('widget-density.cjs', [], { spawn(_executable, args) {
+    profile = args[1]
+    assert.equal(fs.existsSync(profile), true)
+    return outcome
+  } })
+  assert.notEqual(result.status, 0)
+  assert.equal(result.error, outcome.error)
+  assert.equal(result.signal, outcome.signal)
+  assert.equal(fs.existsSync(profile), false)
+  const source = fs.readFileSync(path.join(__dirname, 'e2e.js'), 'utf8')
+  const exitStatus = source.split('\n').find(line => line.trimStart().startsWith('process.exitCode = Object.entries(subStatuses)'))
+  assert.ok(exitStatus)
+  for (const subStatuses of [{ child: result.status }, { children: [0, result.status, 0] }]) {
+    const context = { process: {}, subStatuses }
+    vm.runInNewContext(exitStatus, context)
+    assert.equal(context.process.exitCode, 1)
+  }
 })
 
 test('child runner sets its profile and hides the dock before loading fixture code', () => {
@@ -422,7 +502,7 @@ for (const [name, file] of [['Weather', 'weather-plugin-electron.cjs'], ['WeRead
   }
 }
 
-for (const [name, file] of [['Weather layout', 'weather-layout.cjs'], ['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs'], ['Pi Widget', 'pi-tile-surface-electron.cjs'], ['Pi App and Page', 'pi-plugin-electron.cjs']]) {
+for (const [name, file] of [['Weather layout', 'weather-layout.cjs'], ['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs'], ['Pi Widget', 'pi-tile-surface-electron.cjs'], ['Pi App and Page', 'pi-plugin-electron.cjs'], ['Widget and App interiors', 'widget-app-styles.cjs'], ['Agent', 'agent-home.cjs'], ['Widget navigation', 'widget-navigation.cjs']]) {
   for (const platform of ['linux', 'win32', 'darwin']) {
     test(`${name} comparison selects software rendering only on ${platform}`, () => {
       const source = fs.readFileSync(path.join(__dirname, file), 'utf8')
@@ -436,6 +516,29 @@ for (const [name, file] of [['Weather layout', 'weather-layout.cjs'], ['Weather'
   }
 }
 
+
+for (const [name, externalViews, capturedViews, env, expected] of [
+  ['default comparison', undefined, false, {}, [false, true]],
+  ['captured comparison', undefined, true, {}, [false, true]],
+  ['captured missing Page', undefined, true, { ODK_PI_CAPTURED_VIEWS_DEFAULT: '1' }, [true]],
+  ['unused captured mutation', undefined, false, { ODK_PI_CAPTURED_VIEWS_DEFAULT: '1' }, [false, true]],
+  ['development comparison', 'development', true, {}, [false, true]],
+  ['native comparison', 'native', true, {}, [false, true]],
+  ['development missing Page', 'development', true, { ODK_PI_EXTERNAL_MISSING_PAGE: '1' }, [true]],
+  ['native missing Page', 'native', true, { ODK_PI_EXTERNAL_MISSING_PAGE: '1' }, [true]],
+]) {
+  test(`Pi view phase selection: ${name}`, () => {
+    const fixture = fs.readFileSync(path.join(__dirname, 'pi-plugin-electron.cjs'), 'utf8')
+    const start = fixture.indexOf('  const missingExternalPage = ')
+    const end = fixture.indexOf('    phase = ', start)
+    assert.ok(start >= 0 && end > start)
+    const phases = []
+    vm.runInNewContext(fixture.slice(start, end) + 'phases.push(signed) }', {
+      externalViews, capturedViews, process: { env }, phases,
+    })
+    assert.deepEqual(phases, expected)
+  })
+}
 
 for (const [platform, arch] of [['linux', 'arm64'], ['linux', 'x64'], ['darwin', 'arm64'], ['win32', 'x64']]) {
   test(`Pi view matrix retains bounded deadlines on ${platform} ${arch}`, () => {
@@ -535,4 +638,101 @@ test('composition startup rejection exits unsuccessfully with its diagnostic', a
   })
   assert.deepEqual(exits, [1])
   assert.equal(errors.some(args => args.includes(failure)), true)
+})
+
+function runNavigationCli(results, argv = []) {
+  const source = fs.readFileSync(path.join(__dirname, 'widget-navigation.cjs'), 'utf8')
+  const requests = [], exits = [], logs = []
+  const localRequire = createRequire(path.join(__dirname, 'widget-navigation.cjs'))
+  const app = { exit(code) { exits.push(code) } }
+  const load = name => {
+    if (name === 'electron') return { app }
+    if (name === './helpers/electron-fixture') return { runFixture(file, args, options) { requests.push({ file, args, options }); return results[requests.length - 1] } }
+    if (name === 'node:fs') return { mkdtempSync() { throw Error('default navigation must orchestrate before profile access') } }
+    return localRequire(name)
+  }
+  vm.runInNewContext('(function(require,process,console){' + source + '\n})', {}, { filename: 'widget-navigation.cjs' })(load, { argv: ['electron', 'widget-navigation.cjs', ...argv], platform: 'linux' }, { log(...args) { logs.push(args.join(' ')) }, error() {} })
+  return { requests, exits, logs }
+}
+
+test('default navigation runs both complete phases and retains every phase result', () => {
+  const actual = runNavigationCli([{ status: 0 }, { status: 0 }])
+  assert.deepEqual(actual.requests.map(request => [request.file, ...request.args]), [
+    ['widget-navigation.cjs', '--navigation-phase=continuations'],
+    ['widget-navigation.cjs', '--navigation-phase=responsive'],
+  ])
+  assert.ok(actual.requests.every(request => request.options.timeout === 65000))
+  assert.deepEqual(actual.exits, [0])
+  assert.ok(actual.logs.some(line => line === 'WIDGET_NAVIGATION_PHASE_STATUS: [0,0]'))
+})
+
+test('navigation aggregate rejects child errors, signals, and incomplete exits', () => {
+  for (const rejected of [{ status: 1 }, { status: null }, { status: 0, signal: 'SIGTERM' }, { status: 0, error: Error('ETIMEDOUT') }]) {
+    const actual = runNavigationCli([rejected, { status: 0 }])
+    assert.equal(actual.requests.length, 2, 'a failed first phase does not omit later coverage')
+    assert.deepEqual(actual.exits, [1])
+  }
+})
+
+test('unknown navigation phases fail before profile access', () => {
+  assert.throws(() => runNavigationCli([], ['--navigation-phase=typo']), /Unknown navigation phase/)
+})
+
+async function runOpaqueTouch(targets) {
+  const source = fs.readFileSync(path.join(__dirname, 'user-app-desktop.cjs'), 'utf8')
+  const start = source.indexOf('  const { targetInfos }')
+  const end = source.indexOf("  await clickDot('installed:counter')", start)
+  assert.ok(start > 0 && end > start, 'native input must bind its owned frame before dispatch')
+  const calls = []
+  const url = 'odk-user-app://app/counter/r1?token=fixture'
+  const debuggerApi = { async sendCommand(method, parameters, session) {
+    calls.push({ method, parameters, session })
+    if (method === 'Target.getTargets') return { targetInfos: targets ?? [{ type: 'iframe', targetId: 'other', url: 'about:blank' }, { type: 'iframe', targetId: 'owned', url }] }
+    if (method === 'Target.attachToTarget') return { sessionId: 'owned-session' }
+    return {}
+  } }
+  await vm.runInNewContext('(async()=>{' + source.slice(start, end) + 'await touchApp()})()', {
+    win: { webContents: { debugger: debuggerApi } },
+    appFrame: { url, async executeJavaScript() { return { x: 550, y: 500 } } },
+    assert, delay: async () => {}, js() { throw Error('iframe input must not use parent viewport coordinates') },
+  })
+  return calls
+}
+
+test('opaque native touch binds the owned iframe session and local viewport', async () => {
+  const calls = await runOpaqueTouch()
+  assert.equal(calls.find(call => call.method === 'Target.attachToTarget').parameters.targetId, 'owned')
+  const touches = calls.filter(call => call.method === 'Input.dispatchTouchEvent')
+  assert.deepEqual(touches.map(call => call.parameters.type), ['touchStart', 'touchMove', 'touchEnd'])
+  assert.ok(touches.every(call => call.session === 'owned-session'))
+  assert.equal(touches[0].parameters.touchPoints[0].x, 430)
+  assert.equal(touches[0].parameters.touchPoints[1].x, 670)
+  assert.equal(touches[1].parameters.touchPoints[0].x, 490)
+})
+
+test('ambiguous or missing opaque frame targets reject before touch input', async () => {
+  const owned = { type: 'iframe', targetId: 'first', url: 'odk-user-app://app/counter/r1?token=fixture' }
+  for (const targets of [[], [owned, { ...owned, targetId: 'second' }]]) {
+    await assert.rejects(runOpaqueTouch(targets), /one actual counter iframe target/)
+  }
+})
+
+function adviceEndWait() {
+  const source = fs.readFileSync(path.join(__dirname, 'proactive-panel.cjs'), 'utf8')
+  const start = source.indexOf('async function waitForAdviceEnd(')
+  const end = source.indexOf('app.whenReady().then(async () => {', start)
+  assert.ok(start >= 0 && end > start, 'long advice waits on observed native key and scroll state')
+  return vm.runInNewContext(source.slice(start, end) + '\nwaitForAdviceEnd', { performance, setTimeout, assert })
+}
+
+test('native End readiness does not mistake an intermediate scroll frame for the end', async () => {
+  let calls = 0
+  await adviceEndWait()(async () => ({ focused: true, atEnd: ++calls > 1 }), 200)
+  assert.equal(calls, 2)
+})
+
+test('native End readiness rejects lost focus or an unfinished scroll', async () => {
+  for (const incomplete of [{ focused: false, atEnd: true }, { focused: true, atEnd: false }]) {
+    await assert.rejects(adviceEndWait()(async () => incomplete, 0), /Native End did not reach/)
+  }
 })

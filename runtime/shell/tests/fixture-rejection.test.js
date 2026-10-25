@@ -45,3 +45,48 @@ for (const [control, mode, message] of [['missing', 'built-in', 'Selected Render
       { code: 'ERR_ASSERTION' })
   })
 }
+
+
+test('App Manager omitted rollback requires its own normal failure exit', async () => {
+  const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm')
+  const source = fs.readFileSync(path.join(__dirname, 'app-manager-electron.test.js'), 'utf8')
+  const start = source.indexOf('      if (invalid) await assert.rejects(running,')
+  const end = source.indexOf('      else {', start)
+  assert.ok(start >= 0 && end > start)
+  const message = 'App Manager recovery did not restore prior running state'
+  const run = error => vm.runInNewContext(`(async()=>{${source.slice(start, end)}})()`, {
+    invalid: true, running: Promise.reject(error), assert, fixtureRejection,
+  })
+  await run(Object.assign(Error(message), { code: 1, killed: false, signal: null, stderr: message }))
+  for (const outcome of [
+    { code: null, killed: true, signal: 'SIGKILL' },
+    { code: null, killed: true, signal: 'SIGTERM' },
+    { code: 'ABORT_ERR', killed: false, signal: null },
+  ]) {
+    await assert.rejects(run(Object.assign(Error(message), { ...outcome, stderr: message })),
+      { code: 'ERR_ASSERTION' })
+  }
+  await assert.rejects(run(Object.assign(Error('Other boundary'), {
+    code: 1, killed: false, signal: null, stderr: 'Other boundary',
+  })), { code: 'ERR_ASSERTION' })
+})
+
+for (const [name, index, stderr] of [
+  ['App delegation', 0, 'Pi App must open independently of the selected page'],
+  ['captured Page', 1, 'Captured Pi views must not call packaged mounts\nPI_CAPTURED_GUARD_PHASE:signed'],
+  ['development Page', 2, 'Captured Pi views must not call packaged mounts\nPI_EXTERNAL_GUARD_PHASE:signed'],
+  ['native Page', 2, 'Captured Pi views must not call packaged mounts\nPI_EXTERNAL_GUARD_PHASE:signed'],
+]) {
+  test(`Pi ${name} negative guard requires normal failure even with matching stderr`, () => {
+    const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm')
+    const source = fs.readFileSync(path.join(__dirname, 'pi-electron.test.js'), 'utf8')
+    const validators = [...source.matchAll(/error => \{([\s\S]*?)\n\s*return true\n\s*\}/g)]
+    assert.equal(validators.length, 3, 'Exercise all actual Pi guard validators')
+    const validate = vm.runInNewContext(`(${validators[index][0]})`, { assert })
+    const ordinary = { code: 1, signal: null, killed: false, stderr }
+    assert.equal(validate(ordinary), true)
+    for (const outcome of [{ signal: 'SIGTERM' }, { signal: 'SIGKILL' }, { killed: true }]) {
+      assert.throws(() => validate({ ...ordinary, ...outcome }), { code: 'ERR_ASSERTION' })
+    }
+  })
+}

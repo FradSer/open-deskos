@@ -111,8 +111,12 @@ Feature: Widget continuations in the right desk pane
 
   Scenario: App and Widget use the same frame
     Given a supported theme and a Widget App
-    When the App opens
+    And the visible source Widget has completed its surface setup
+    When the App opens and completes its visible surface setup
     Then the App card has the same border width, color, and radius as its source Widget
+    And comparison uses the visible source snapshot and each surface's effective clipped radius
+    And a hidden source Widget does not define the comparison after its SDK surface is released
+    And surface setup waits remain bounded by the existing acceptance deadline
     And all eight Widgets use the same Shell-owned frame material in each theme
     And no extra active outline or nested runtime border surrounds the App
     And Liquid Glass uses one continuous SDK edge without a second CSS border or inset shadow
@@ -163,9 +167,39 @@ Feature: Widget continuations in the right desk pane
     When the renderer paints a temporary frame marker and removes it
     Then the capture uses the new paint event image
     And no frame marker remains in the captured document
+    And a stale native frame cannot acknowledge marker removal
+    And the marker cannot receive input or expose accessible content
+    And forced colors retain the marker pixels without changing document colors
+    And timeout, destruction, and renderer errors remove the marker and release listeners
+    And native capture errors remain failures without retries
 
   Scenario: An installed App returns through its owned frame
     Given an active installed App has the Shell bootstrap and a ready owned frame
     When two fingers pinch inward inside that App
     Then the Shell returns to Home through its existing return control
+    And native fixture touch targets the unique owned iframe session
+    And touch coordinates use that iframe viewport
     And Widgets, foreign windows, old tokens, inactive Apps, and modal owners cannot request that return
+
+  Scenario: The complete navigation matrix retains bounded independent phases
+    Given native continuations cover all themes before responsive stress layouts
+    When the default navigation fixture runs
+    Then it runs continuations and responsive checks in separate private profiles
+    And each phase retains the original 60 second deadline and all assertions
+    And Linux uses isolated software rendering before window creation
+    And any phase error, signal, or nonzero exit fails the default fixture
+    And the aggregate reports both actual phase statuses
+
+  Scenario: Native keyboard scrolling reaches the complete recommendation
+    Given a focused long recommendation in an isolated native fixture
+    When the fixture sends the real End key
+    Then keyboard focus stays on that recommendation
+    And it waits for the actual scroll end within a bounded readiness deadline
+    And it does not set the scroll position or extend the fixture deadline
+
+  Scenario: Resident recording controls follow the current Agent input contract
+    Given the user has closed a recommendation card
+    When the Agent enters recording
+    Then the reminder remains closed and the desktop remains interactive
+    And the Agent shows Listening... with its recording feedback
+    And the hidden microphone does not replace Send voice request

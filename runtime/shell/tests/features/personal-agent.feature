@@ -1,4 +1,30 @@
 Feature: Independent resident Personal Agent
+  # The Personal Agent page owns suggestions inside its existing composer.
+  # Resident proposal state owns identity, freshness, feedback, and action authority.
+  # Four Shell themes retain readable advice, 44px controls, and input drafts.
+  Scenario: Recommendations stay inside the Personal Agent composer
+    Given a pending recommendation arrives while the owner types a draft
+    When the Personal Agent receives the current proposal snapshot
+    Then the recommendation and executable action appear inside the input composer
+    And no recommendation popup opens or takes focus
+    And the draft, input mode, and selection remain unchanged
+    And Sources and details, technical receipts, and Why are absent
+    And Feedback remains available for executable and read-only recommendations
+
+  Scenario: Feedback starts asynchronous memory refinement
+    Given a current recommendation has an available Feedback control
+    When the owner marks the recommendation useful, irrelevant, or incorrect
+    Then the resident saves the feedback without waiting for Pi inference
+    And a tool-free Pi job refines only related recommendation preference memory
+    And future recommendations consume the saved preference memory
+    And saved personal facts and action authority remain unchanged
+
+  Scenario: Technical historical advice stays private
+    Given an earlier suggestion contains a technical hash
+    When its unavailable placeholder enters the composer viewport
+    Then no Sources or Details disclosure appears
+    And the hidden original advice remains unacknowledged
+
   Scenario: Remote microphone asks the renderer before controlling recording
     Given the CM5 Personal Agent service is connected and no interaction has been activated
     When the Remote sends mic
@@ -302,18 +328,22 @@ Feature: Independent resident Personal Agent
     And local focus and Shell navigation remain available
 
   Scenario: Feedback describes the outcome of one suggestion
-    Given a current read-only suggestion contains advice and its evidence-based reason
-    When the owner selects Done, Later, Useful, Not relevant, or Incorrect
+    Given an earlier actionless suggestion contains concise advice and stored next-step text
+    When the owner opens Feedback and selects Done, Later, Useful, Not relevant, or Incorrect
     Then the response identifies only that suggestion and decision
     And Done does not execute the suggested action
-    And the main content keeps the advice and reason visible
-    And technical sources and previous suggestions use keyboard-accessible disclosures
+    And the main content states that no executable action is available
+    And the resident retains the earlier next-step text
+    And no reason or Why now explanation appears
+    And previous suggestions use a keyboard-accessible disclosure
     And controls retain 44-pixel touch targets across themes and compact sizes
 
   Scenario: Android reads suggestions without acquiring response authority
     Given the desk publishes suggestions through the authenticated Personal Agent link
     When the Android host projects the status
-    Then advice, reason, source evidence, and suggestion state remain readable
+    Then advice, the next step, source evidence, and suggestion state remain readable
+    And the desk projection preserves bounded next-step text and excludes the retired reason
+    And a current next step is labelled as a read-only preview instead of an earlier suggestion
     And the frame explicitly declares read-only suggestion capabilities
     And the renderer shows no response, execution, or ride quote control
     And no suggestion acknowledgement or response crosses the read-only link
@@ -377,3 +407,135 @@ Feature: Independent resident Personal Agent
     And the navigation request later fails or reports that it did not open
     Then the old sign-in URL cannot enter the current form status
     And the current configuration state remains unchanged
+  Scenario: Recommendation cards emphasize the next action
+    Given a suggestion contains concise advice and an authorized plugin action
+    And its source evidence contains complete SHA256 values
+    When the recommendation appears inside the input composer
+    Then advice has visual priority over metadata
+    And the concrete execution button precedes the Feedback control
+    And a current executable card does not repeat its button label as a separate next step
+    And read-only and historical cards retain readable next-step context
+    And execution and exact confirmation retain the primary action style
+    And confirmation receives focus and Cancel returns focus to the execution button
+    And secondary actions remain quieter without losing their touch targets
+    And Feedback is closed by default
+    And no Why now explanation appears
+    And source values remain private in resident state
+
+  Scenario: Technical recommendation content remains in resident state
+    Given an earlier stored suggestion contains a SHA256 value in its advice
+    When the Personal Agent renders its input recommendations
+    Then it requests an updated suggestion without exposing the hash
+    And no source inspection control appears
+    And the resident retains the original private record
+
+  Scenario: Native acceptance requires actual visible recommendation text
+    Given a recommendation is below the composer viewport
+    When another recommendation becomes visible
+    Then only the visible recommendation receives a presentation acknowledgement
+    And a technical placeholder cannot acknowledge its original private text
+
+  Scenario: A long recommendation supports keyboard navigation
+    Given the focused recommendation has a scrollable text region
+    When the owner presses End without a modifier key
+    Then the region scrolls to the complete recommendation end
+    When the owner presses Home without a modifier key
+    Then the region scrolls to its start
+    And text input and modified key shortcuts retain their normal behavior
+
+  Scenario: The next step starts an authorized plugin operation
+    Given a pending suggestion has an owner-authorized action and exact confirmation
+    When the owner selects its concrete next-step button
+    Then the card requests a separate exact confirmation without executing yet
+    When the owner confirms twice before the host replies
+    Then only one proposal acceptance reaches the plugin
+    And completion appears only after the host reports completion
+    And executing and uncertain outcomes offer no repeat execution
+
+  Scenario: Earlier suggestions cannot imply executable authority
+    Given an earlier suggestion has text for a next step but no authorized action
+    When the card opens
+    Then it states that no executable action is available
+    And the earlier text remains private in resident state
+    And Done is available only as historical feedback
+
+  Scenario: An incomplete action remains non-executable
+    Given an earlier suggestion has an action but no exact confirmation
+    When the card opens
+    Then no executable next-step control appears
+    And the resident retains the earlier action details
+
+  Scenario: Execution receipts remain private
+    Given an accepted operation has a structured execution receipt
+    When the recommendation appears inside the composer
+    Then its authoritative state remains visible
+    And no technical receipt, source disclosure, or execution parameter appears
+    And receipt presence does not assert completion
+
+  Scenario: An uncertain action stays reserved across card redraw and reconnect
+    Given a confirmed action has no authoritative execution outcome
+    When another suggestion changes and the panel redraws
+    Then the first suggestion cannot execute again
+    And its uncertain-action warning remains visible
+    When the service reconnects with the same pending suggestion
+    Then the execution reservation and warning remain
+    And no automatic response replay occurs
+
+  Scenario: Technical tool results stay outside the input recommendation
+    Given an earlier plugin returns a technical result or a bounded JSON receipt
+    When the Personal Agent renders the recommendation
+    Then the input area shows its recorded operation status
+    And the original result stays in resident state
+    And natural-language results remain readable
+    And the result never replaces the authoritative proposal state
+
+  Scenario: Stable action confirmation survives unrelated status updates
+    Given the owner opens the exact confirmation for a pending action
+    When its visibility receipt or another suggestion changes the panel
+    Then the same authorized confirmation remains available
+    And repeated activation sends at most one acceptance
+
+  Scenario: A superseded confirmation cannot authorize an old action
+    Given the owner opens an exact action confirmation
+    When its action or confirmation changes, its proposal ends, or response capability is withdrawn
+    Then the earlier confirmation cannot send an acceptance
+    And a detached control cannot regain execution authority
+
+  Scenario: Live ride acceptance uses the installed canonical Agent channel
+    Given the live acceptance entry receives isolated fixture arguments
+    When the entry loads its channel before native startup
+    Then it loads the installed Personal Agent client
+    And it does not start a window or connect to a service
+
+  Scenario: A real ride recommendation opens a fresh interactive quote
+    Given the resident publishes a recommendation from actual Memory and reviewed DiDi results
+    When the owner selects actual returned places in the inline route chooser
+    And the owner activates Get current quote
+    Then the actual owner text channel reaches the Agent's ride workflow
+    And a new MCP estimate appears in the rendered response and controller readback
+    And a preview price does not become order confirmation
+    And no order or cancellation is sent
+
+  Scenario: A real ride recommendation records usefulness feedback before its next step
+    Given the owner can read a naturally generated ride recommendation
+    When the owner opens Feedback and activates Useful
+    Then the authenticated channel records useful feedback for that same recommendation
+    And the recommendation stays pending for its read-only next step
+    And the persisted checkpoint retains the feedback after a fresh quote
+    And feedback cannot create an order or authorize another operation
+
+  Scenario: Inline recommendations use the canonical Personal Agent channel
+    Given the Shell exposes the canonical Personal Agent bridge
+    When the inline recommendation controller mounts without an explicit bridge
+    Then readiness and proposal requests use that canonical bridge
+    And a retired Personal Bot bridge cannot replace it
+    And releasing the controller withdraws its readiness
+
+  Scenario: Live ride acceptance uses the current inline route and quote controls
+    Given the actual inline controller renders a pending ride preview
+    And the preview has one actual pickup and one actual destination
+    When the live acceptance entry checks the route and activates its visible quote action
+    Then it reads the actual route summary and exact returned place handles
+    And it sends one ordinary owner quote request without an obsolete details control
+    And duplicate clicks, wrong routes, and missing or disabled actions cannot send another request
+    And Useful feedback and independent MCP receipt checks remain separate gates

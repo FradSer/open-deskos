@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
@@ -12,8 +13,8 @@ test('default and signed independent Quota preserve the actual Electron App cons
   delete env.ELECTRON_RUN_AS_NODE
   try {
     await fs.access(path.join(__dirname, 'quota-plugin-electron.cjs'))
-    const result = await execFile(require('electron'), [`--user-data-dir=${profile}`,
-      path.join(__dirname, 'quota-plugin-electron.cjs')], { env, timeout: 55000 })
+    const result = await execFile(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`,
+      path.join(__dirname, 'quota-plugin-electron.cjs')]), { env, timeout: 55000 })
     const report = JSON.parse(result.stdout.trim().split('\n').pop())
     assert.deepEqual(report, { ok: true, actualPreload: true, signedIndependent: true, themes: 3, sizes: 2 })
   } finally { await fs.rm(profile, { recursive: true, force: true }) }

@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -44,7 +45,7 @@ test('actual Main jointly starts signed Weather source and surface across revisi
         ODK_WEATHER_BOOTSTRAP_VERSION: '2.0.0', ODK_WEATHER_BOOTSTRAP_SURFACE_VERSION: version }
       delete childEnv.ELECTRON_RUN_AS_NODE
       try {
-        const result = await runCommand(require('electron'), [`--user-data-dir=${profile}`, path.join(__dirname, 'weather-main-bootstrap.cjs')],
+        const result = await runCommand(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, path.join(__dirname, 'weather-main-bootstrap.cjs')]),
           { env: childEnv, signal: t.signal, timeout: 55000, maxBuffer: 1024 * 1024 })
         const report = JSON.parse(result.stdout.trim().split('\n').pop())
         assert.equal(report.productionMain, true)

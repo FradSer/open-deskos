@@ -604,3 +604,6 @@ research/esp32-p4-c6-deskos/apple/OpenDeskOS/Resources/plugins/wispr/bun
 runtime/android/.gradle/
 runtime/android/.kotlin/
 runtime/android/local.properties
+
+# Local package-manager cache.
+/.pnpm-store/

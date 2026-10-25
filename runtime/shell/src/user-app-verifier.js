@@ -127,7 +127,11 @@ function createUserAppVerifier({ electronPath = process.execPath, timeoutMs = TI
         const childClosed = () => { children.delete(closure); releaseChild() }
         try {
           const runnerPath = path.join(__dirname, 'user-app-verifier-runner.js')
-          child = spawnProcess(electronPath, [`--user-data-dir=${profilePath}`, runnerPath, bundlePath, resultPath, profilePath], {
+          // A disposable macOS verifier does not need background maintenance.
+          // Chromium reads this switch when its thread pool starts, before JS.
+          const args = [`--user-data-dir=${profilePath}`, runnerPath, bundlePath, resultPath, profilePath]
+          if (process.platform === 'darwin') args.push('--disable-best-effort-tasks')
+          child = spawnProcess(electronPath, args, {
             stdio: ['ignore', 'pipe', 'pipe'],
             detached: process.platform !== 'win32',
             env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined },

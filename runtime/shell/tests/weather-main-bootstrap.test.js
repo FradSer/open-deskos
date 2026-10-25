@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -30,7 +31,7 @@ test('actual Main bootstrap preserves signed Weather update rollback and restore
       const childEnv = { ...env, ODK_WEATHER_BOOTSTRAP_PROFILE: profile, ODK_WEATHER_BOOTSTRAP_VERSION: version }
       delete childEnv.ELECTRON_RUN_AS_NODE
       try {
-        const running = execFile(require('electron'), [`--user-data-dir=${profile}`, fixture], {
+        const running = execFile(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, fixture]), {
           env: childEnv, signal: t.signal, killSignal: 'SIGKILL', timeout: 55000, maxBuffer: 1024 * 1024,
         })
         const closed = new Promise(resolve => running.child.once('close', resolve))

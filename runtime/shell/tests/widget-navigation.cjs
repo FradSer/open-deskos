@@ -1,5 +1,17 @@
 'use strict'
 const { app, BrowserWindow, ipcMain, session, nativeImage } = require('electron')
+const phase = process.argv.find(argument => argument.startsWith('--navigation-phase='))?.split('=')[1]
+const phases = ['continuations', 'responsive']
+if (phase && !phases.includes(phase)) throw Error('Unknown navigation phase: ' + phase)
+if (!phase && !process.argv.includes('--weread-compare')) {
+  const { runFixture } = require('./helpers/electron-fixture')
+  const results = phases.map(name => runFixture('widget-navigation.cjs', ['--navigation-phase=' + name], { timeout: 65000 }))
+  console.log('WIDGET_NAVIGATION_PHASE_STATUS: ' + JSON.stringify(results.map(result => result.status)))
+  for (const result of results) if (result.error) console.error(result.error)
+  app.exit(results.every(result => result.status === 0 && !result.error && !result.signal) ? 0 : 1)
+  return
+}
+if (process.platform === 'linux') app.disableHardwareAcceleration()
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -216,6 +228,7 @@ app.whenReady().then(async () => {
     finish(0)
     return
   }
+  if (phase === 'continuations') {
   const hit = await js(`(() => {
     const launch = document.querySelector('[data-widget="odk.tile.futu"] .widget-launch');
     const rect = launch.getBoundingClientRect();
@@ -394,6 +407,8 @@ app.whenReady().then(async () => {
     await capture(`${theme}-home`)
     console.log(`PASS ${theme}: native mouse and touch on all Widgets, pane bounds, focus, materials, complete scrolling holdings, 3x3 reading`)
   }
+  }
+  if (phase === 'responsive') {
   for (const [width, height] of [[1280, 776], [960, 640], [480, 854], [320, 480]]) {
     win.setContentSize(width, height)
     await js(`window.dispatchEvent(new Event('resize'))`)
@@ -482,6 +497,7 @@ app.whenReady().then(async () => {
   assert.equal(await js('document.querySelectorAll("#pages-track .widget .widget-launch").length'), 8)
   await comparePortraitCover()
   await stressWeReadApp()
+  }
   console.log('WIDGET_NAVIGATION_EVIDENCE ' + evidence)
   await js("odkTheme.set('instrument')")
   finish(0)

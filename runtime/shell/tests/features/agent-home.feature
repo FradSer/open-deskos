@@ -120,11 +120,16 @@ Feature: Personal Agent home briefing
   Scenario: Actual child execution reaches the conversation through the resident channel
     Given an isolated resident uses Durable execution with an offline provider
     And a saved reporter has a book avatar
+    And the geometry fixture releases its status and consumer readiness handlers
+    And only the actual Shell main frame can acknowledge consumer readiness
     When the user submits a task through the composer
-    Then the service socket and Shell client deliver the running identity to the conversation
+    Then keyboard input enables Send only after a nonempty draft is entered
+    And an empty draft remains disabled after admission and reconnection
+    And the service socket and Shell client deliver the running identity to the conversation
     And interrupted transport shows unavailable activity until the channel recovers
     And cancellation and completion remove inactive activity
     And a resident restart preserves the saved identity for another task
+    And success and expected failures require the actual normal fixture close
 
   Scenario: Running saved children have identities in the conversation
     Given the resident reports saved child tasks with built-in avatars
@@ -179,6 +184,15 @@ Feature: Personal Agent home briefing
     And the heading and input icons stay synchronized with the accessible identity
     And conversation messages have no avatars or timestamps
     And streaming updates preserve the message containers
+
+  Scenario: Native fade snapshots observe each rendered mask state
+    Given the conversation has visible messages behind its stationary heading
+    When a native screenshot compares the top fade with an unmasked conversation
+    Then each mask state reaches two renderer frames before native capture
+    And the computed mask matches the state under test
+    And native capture also completes while forced colors are active
+    And no capture marker remains in the document
+    And the original pixel difference threshold remains required
 
   Scenario: Normal design previews contain consistent populated readings
     Given an isolated preview uses synthetic desk data

@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
@@ -41,8 +42,8 @@ for (const mode of ['default', 'independent', 'invalid-contract', 'retained-clea
         } else await runCommand(process.execPath, [cli, 'link', directory, '--trust', '--replace'], { env, signal: t.signal, timeout: 10000 })
       }
       const renderingArgs = process.platform === 'linux' ? ['--disable-gpu'] : []
-      const operation = runCommand(require('electron'), [...renderingArgs, `--user-data-dir=${profile}`,
-        path.join(__dirname, 'user-app-desktop-plugins-electron.cjs')], { env, signal: t.signal, timeout: 50000, maxBuffer: 1024*1024 })
+      const operation = runCommand(require('electron'), isolatedElectronArgs([...renderingArgs, `--user-data-dir=${profile}`,
+        path.join(__dirname, 'user-app-desktop-plugins-electron.cjs')]), { env, signal: t.signal, timeout: 50000, maxBuffer: 1024*1024 })
       if (mode.endsWith('wrong-role')) {
         await assert.rejects(operation, error => /Installed App surface role changed/.test(error.stderr || ''))
         return

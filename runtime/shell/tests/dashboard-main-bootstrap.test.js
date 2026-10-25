@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -54,8 +55,8 @@ for (const mode of ['built-in', 'signed', 'missing-briefing']) {
           'native', 'install', path.join(root, 'bundle-2.0.0'), '--keyring', keyring, '--trust'],
         { env: { ...env, ELECTRON_RUN_AS_NODE: '1' }, signal: t.signal, timeout: 10000 })).stdout)
         assert.equal(installed.effect, 'selection-only')
-        const launch = runCommand(require('electron'), [`--user-data-dir=${path.join(root, 'profile')}`, '--force-device-scale-factor=1',
-          path.join(__dirname, 'dashboard-main-bootstrap.cjs')], { env, signal: t.signal, timeout: 45000, maxBuffer: 1024 * 1024 })
+        const launch = runCommand(require('electron'), isolatedElectronArgs([`--user-data-dir=${path.join(root, 'profile')}`, '--force-device-scale-factor=1',
+          path.join(__dirname, 'dashboard-main-bootstrap.cjs')]), { env, signal: t.signal, timeout: 45000, maxBuffer: 1024 * 1024 })
         if (mode === 'missing-briefing') await assert.rejects(launch, /Dashboard briefing subscription changed/)
         else {
           const report = JSON.parse((await launch).stdout.trim().split('\n').pop())

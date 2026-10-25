@@ -56,11 +56,12 @@ test('threshold: read only evidence, deduplication and exact subsequent confirma
   assert.equal(f.calls.length, 1); assert.equal(f.calls[0][2], p.confirmation); assert.equal(f.watch.list()[0].status, 'completed')
   await assert.rejects(f.watch.respond(p.id, 'accept', p.confirmation)); assert.equal(f.calls.length, 1)
 })
-test('recommendation feedback cannot mark a legacy executable action complete', async () => {
-  const f = fixture(); await f.watch.tick(); const p = f.watch.list()[0]; await f.watch.presented([p.id])
-  for (const decision of ['done', 'useful', 'irrelevant', 'incorrect']) {
-    await assert.rejects(f.watch.respond(p.id, decision), /read-only recommendations/)
-    assert.equal(f.watch.list()[0].status, 'pending')
+test('recommendation feedback never executes a legacy action or marks it complete', async () => {
+  for (const decision of ['useful', 'irrelevant', 'incorrect']) {
+    const f = fixture(); await f.watch.tick(); const p = f.watch.list()[0]; await f.watch.presented([p.id])
+    await assert.rejects(f.watch.respond(p.id, 'done'), /read-only recommendations/)
+    await f.watch.respond(p.id, decision)
+    assert.equal(f.watch.list()[0].status, decision === 'useful' ? 'pending' : 'ignored')
     assert.equal(f.calls.length, 0)
   }
 })

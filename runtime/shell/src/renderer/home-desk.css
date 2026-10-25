@@ -15,7 +15,7 @@
 #home-desk { position: absolute; inset: var(--status-h) 0 0; display: grid; grid-template-columns: minmax(320px, 1fr) minmax(0, var(--desk-pane-w, 67%)); }
 #personal-agent { container-type: inline-size; min-width: 0; min-height: 0; border-right: 1px solid var(--odk-stroke); }
 #personal-agent > .page { padding: 0; width: 100%; height: 100%; }
-#desk-content { display: grid; grid-template-rows: minmax(0, 1fr) 48px; min-width: 0; min-height: 0; }
+#desk-content { display: grid; grid-template-rows: minmax(0, 1fr) max-content 48px; min-width: 0; min-height: 0; }
 #home-summary { container-type: inline-size; width: var(--grid-w); max-width: calc(100% - 2 * var(--desk-side-inset)); height: var(--cell-h); flex: none; margin-inline: auto; min-width: 0; min-height: 0; overflow-y: auto; border: 0; border-radius: 0; background: transparent; }
 #home-desk .home-canvas { gap: var(--widget-gap); }
 #home-summary > .page { height: auto; padding: 0; overflow: visible; }
@@ -33,7 +33,7 @@
   #home-summary .dash-date { font-size: 14px; }
   #home-summary .dash-narrative { font-size: var(--overview-copy-size, 16px); line-height: 1.4; }
 }
-#pages-viewport { position: relative; inset: auto; min-height: 0; width: 100%; }
+#pages-viewport { position: relative; inset: auto; grid-column: 1; grid-row: 1; min-height: 0; width: 100%; }
 #page-center { position: static; transform: none; min-width: 0; }
 #home-desk .widget-grid { gap: var(--widget-gap); max-width: calc(100% - 2 * var(--desk-side-inset)); }
 #home-desk .page:has(.widget-grid) { padding-block: var(--widget-gap); }
@@ -74,7 +74,7 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 .agent-message-user { margin-left: 8%; padding: 14px 20px; background: var(--odk-surface); border-radius: 28px; width: fit-content; max-width: 92%; justify-self: end; }
 .agent-state { flex: 0 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 1.5; color: var(--odk-secondary-strong); }
 .agent-message-assistant:has(.agent-message-body:empty):not(:has(.agent-history-state)) { display: none; }
-.agent-composer { grid-column: 1; flex: none; display: flex; align-items: flex-end; gap: 8px; padding: 8px; border: 1px solid var(--odk-stroke); border-radius: 32px; background: var(--odk-surface); box-shadow: 0 4px 16px color-mix(in srgb, var(--odk-bg) 20%, transparent); }
+.agent-composer { grid-column: 1; flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 8px; border: 1px solid var(--odk-stroke); border-radius: 32px; background: var(--odk-surface); box-shadow: 0 4px 16px color-mix(in srgb, var(--odk-bg) 20%, transparent); }
 .agent-composer textarea { min-width: 0; flex: 1; min-height: 46px; height: 46px; max-height: none; resize: none; padding: 8px; scrollbar-width: thin; font: inherit; font-size: clamp(20px, calc(18px + 0.5cqw), 22px); line-height: 1.5; color: var(--odk-primary); background: transparent; border: 0; }
 .agent-composer textarea::placeholder { color: var(--odk-secondary-strong); }
 .agent-latest { min-width: 44px; min-height: 44px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: 14px; cursor: pointer; }
@@ -99,7 +99,7 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   .agent-panel { --agent-avatar-size: 64px; --agent-head-padding: 4px; }
   .agent-head { padding-block: 0 4px; }
   .agent-message-bubble, .agent-message-user { padding: 12px 16px; border-radius: 24px; }
-  #desk-content { flex: none; min-height: 70vh; grid-template-rows: minmax(360px, 60vh) 48px; }
+  #desk-content { flex: none; min-height: 70vh; grid-template-rows: minmax(360px, 60vh) max-content 48px; }
   #home-summary { width: 100%; height: max(var(--cell-h), 240px); max-height: none; }
   #home-summary .dash-head { column-gap: 8px; }
   #home-summary .dash-wd { font-size: clamp(20px, 8cqw, 32px); }
@@ -109,7 +109,7 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 
 .agent-composer button svg, .agent-latest svg { width: 24px; height: 24px; flex: none; }
 .agent-latest { display: flex; align-items: center; justify-content: center; gap: 10px; }
-.agent-composer button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; width: 46px; height: 46px; min-width: 46px; min-height: 46px; border: 0; border-radius: var(--odk-radius-pill); padding: 0; background: transparent; color: var(--odk-secondary-strong); font: inherit; cursor: pointer; }
+.agent-composer-controls > button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; width: 46px; height: 46px; min-width: 46px; min-height: 46px; border: 0; border-radius: var(--odk-radius-pill); padding: 0; background: transparent; color: var(--odk-secondary-strong); font: inherit; cursor: pointer; }
 .agent-composer :is(.agent-mic, .agent-keys, .agent-cancel):hover:not(:disabled) { background: var(--odk-elevated); color: var(--odk-primary); }
 .agent-composer .agent-send { background: var(--odk-primary); color: var(--odk-bg); padding: 0; }
 .agent-composer .agent-send:hover:not(:disabled) { background: color-mix(in srgb, var(--odk-primary) 86%, var(--odk-bg)); color: var(--odk-bg); }
@@ -144,7 +144,7 @@ html[data-theme='pixel'] #home-summary .dash {
 #desk-content { position: relative; }
 #desk-content > #app-view { inset: var(--widget-gap) var(--desk-side-inset) 56px; overflow: hidden; }
 @media (max-width: 639px) {
-  #desk-content:has(> #app-view:not([hidden])) { height: max(70vh, 408px); grid-template-rows: minmax(0, 1fr) 48px; }
+  #desk-content:has(> #app-view:not([hidden])) { height: max(70vh, 408px); grid-template-rows: minmax(0, 1fr) max-content 48px; }
 }
 #app-view .app-header { padding: 12px 20px; min-height: 64px; border-bottom: 0; }
 #app-view .app-header:has(#app-back[hidden]) { display: none; }
@@ -233,7 +233,7 @@ html[data-theme='pixel'] #home-summary .dash {
 
 /* The desk presents the page controller below the Widgets. Inside an App the
    same control becomes the return handle for the upward swipe. */
-#home-desk #page-center { position: relative; inset: auto; z-index: 21; }
+#home-desk #page-center { position: relative; inset: auto; grid-column: 1; grid-row: 3; z-index: 21; }
 #home-desk #dots { touch-action: none; user-select: none; }
 #home-desk #dots[data-mode="handle"] { padding: 0; background: transparent; }
 #home-desk #dots[data-mode="handle"] .dot { width: 144px; height: 44px; padding: 0; background: transparent; touch-action: none; }
@@ -309,3 +309,5 @@ html[data-theme='pixel'] #home-summary .dash {
 .agent-pi-auth-link { display: block; color: var(--odk-primary); overflow-wrap: anywhere; padding-block: 12px; text-underline-offset: 3px; }
 .agent-pi-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .agent-pi-config :disabled { color: var(--odk-secondary-strong); cursor: not-allowed; }
+
+.agent-composer-controls { display: flex; align-items: flex-end; gap: 8px; min-width: 0; }

@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -49,8 +50,8 @@ for (const mode of ['development', 'native']) for (const invalid of [false, 'mes
       } else await runCommand(process.execPath, [cli, 'link', directory, '--trust', '--replace'],
         { env, signal: t.signal, timeout: 10000 })
       const renderingArgs = process.platform === 'linux' ? ['--disable-gpu'] : []
-      const operation = runCommand(require('electron'), [...renderingArgs, `--user-data-dir=${profile}`, '--force-device-scale-factor=1',
-        path.join(__dirname, 'dashboard-surface-electron.cjs')], { env, signal: t.signal, timeout: 50000, maxBuffer: 1024 * 1024 })
+      const operation = runCommand(require('electron'), isolatedElectronArgs([...renderingArgs, `--user-data-dir=${profile}`, '--force-device-scale-factor=1',
+        path.join(__dirname, 'dashboard-surface-electron.cjs')]), { env, signal: t.signal, timeout: 50000, maxBuffer: 1024 * 1024 })
       if (invalid) {
         const expected = invalid === 'message' ? /independent instrument 0 parity/
           : invalid === 'released' ? /Released implementation changed former nodes/

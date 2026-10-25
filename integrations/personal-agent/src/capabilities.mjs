@@ -4,7 +4,7 @@ import { Type } from 'typebox'
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { createOdkDataTool } from './odk-data.mjs'
 import { userAppsRequest } from './apps-control.mjs'
-import { loadTargets, taskRequest } from './task-client.mjs'
+import { carriedProject, loadTargets, taskRequest } from './task-client.mjs'
 
 const APP_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const OBJECT_OUTPUT = Type.Record(Type.String(), Type.Unknown())
@@ -66,7 +66,7 @@ const TASK_COMMANDS = {
 
 function codingTaskTool(command, targets) {
   const spec = TASK_COMMANDS[command]
-  return defineTool({
+  return Object.assign(defineTool({
     name: spec.tool, label: command === 'list' ? 'Coding tasks list' : `Coding task ${command}`,
     description: spec.description, exposure: 'codemode', outputSchema: OBJECT_OUTPUT,
     namespace: { name: 'hosted_pi', description: 'Configured Hosted Pi identities, receipt-based work and bounded control.' },
@@ -81,6 +81,16 @@ function codingTaskTool(command, targets) {
       const target = targets.find(target => target.id === params.target)
       if (!target) throw Error('Target is not configured; use coding_targets and ask the user')
       return result(await taskRequest(target, { ...params, command }, signal))
+    },
+  }), {
+    // Availability uses the same configured target and transport path rules as execution.
+    // It does not contact the host or decide the host's filesystem permissions.
+    canExecuteProposal(params) {
+      const target = targets.find(target => target.id === params?.target)
+      if (!target || !carriedProject(params?.project, target.host !== undefined)) return false
+      if (command === 'start') return typeof params.prompt === 'string' && Boolean(params.prompt.trim())
+      if (command === 'history') return typeof params.taskId === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(params.taskId)
+      return false
     },
   })
 }

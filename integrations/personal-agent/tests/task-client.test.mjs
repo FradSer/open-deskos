@@ -112,6 +112,26 @@ test('unknown mutation outcomes expose original target and task ID, never retry'
   })
 })
 
+test('unknown transport errors retain an unforgeable receipt for the exact submitted mutation', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'task-receipt-wire-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const wireFile = join(directory, 'wire.ndjson')
+  const configured = await fixture(t, `const fs=require('node:fs');let input='';process.stdin.on('data',chunk=>input+=chunk);process.stdin.on('end',()=>{fs.appendFileSync(${JSON.stringify(wireFile)},input);process.exit(1)})`)
+  const { taskFailureReceipt } = await import('../src/task-client.mjs')
+  assert.equal(typeof taskFailureReceipt, 'function')
+  let failure
+  await assert.rejects(taskRequest(configured, { command: 'start', project: local('/work'), prompt: 'Controlled request' }), error => { failure = error; return true })
+  const { readFile } = await import('node:fs/promises')
+  const submitted = (await readFile(wireFile, 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+  assert.equal(submitted.length, 1, 'An uncertain mutation must never be retried')
+  const expected = { command: 'start', target: configured.id, project: local('/work'), taskId: submitted[0].taskId, mutationId: submitted[0].mutationId }
+  assert.deepEqual(taskFailureReceipt(failure), expected)
+  const copy = taskFailureReceipt(failure)
+  copy.taskId = 'forged'
+  assert.deepEqual(taskFailureReceipt(failure), expected, 'A caller cannot change the transport-owned receipt')
+  assert.equal(taskFailureReceipt(Object.assign(Error(failure.message), { receipt: expected })), undefined)
+})
+
 test('aborted mutations retain reconciliation information', async t => {
   const configured = await fixture(t, 'process.stdin.resume();setTimeout(()=>{},60000)')
   const taskId = '12345678-1234-1234-1234-123456789abc'

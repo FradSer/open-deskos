@@ -1,4 +1,18 @@
 Feature: E2E validates the current declarative desktop
+  Scenario: Disposable macOS fixtures defer optional background maintenance
+    Given the parent owns each isolated fixture profile
+    When it launches a macOS Electron fixture
+    Then the initial process arguments delay best-effort tasks until shutdown
+    And Linux and Windows retain their original arguments
+    And the fixture retains its assertions, deadline, sandbox, and normal exit gate
+
+  Scenario: Automated isolated native fixtures use the shared launch contract
+    Given automated Node checks own temporary browser profiles or isolated fixture state
+    When they start Electron through any native command helper
+    Then each initial argument list uses the shared isolated launch policy
+    And business assertions, options, environment, and deadlines remain unchanged
+    And runtime capability probes, production verifier consumers, and manual live acceptance retain their launch contracts
+
   Scenario: Hidden comparisons have an active render target
     Given Appearance and Hydra checks retain real Main, preload, and comparison assertions
     When they run without a visible desktop window
@@ -16,6 +30,13 @@ Feature: E2E validates the current declarative desktop
     And child failure or timeout removes the profile owned by the launcher
     And a locked Windows profile does not prevent fixture termination
     And Windows indicator checks can complete the existing page and theme matrix
+
+  Scenario: A timed-out child cannot pass after a normal exit
+    Given a child completes its assertions
+    When the launcher reports a timeout or signal with exit code zero
+    Then the child status is unsuccessful
+    And the complete E2E result is unsuccessful
+    And the original diagnostic and profile cleanup remain available
 
   Scenario: Every declared widget is present once
     Given the current desktop layout declares its widget identities

@@ -89,12 +89,30 @@ object PersonalAgentFrame {
                 !validText(p.opt("advice"), 1000) || p.optString("status") !in setOf("pending", "ignored", "expired", "executing", "completed", "unknown")) return null
             val row = JSONObject().put("id", id).put("status", p.getString("status")).put("advice", p.getString("advice"))
                 .put("action", JSONObject.NULL).put("confirmation", "").put("offered", p.opt("offered") == true).put("presented", p.opt("presented") == true)
-            for ((key, limit) in mapOf("ruleId" to 128, "reason" to 600, "createdAt" to 40, "completedAt" to 40)) {
+            if (p.has("nextStep")) {
+                val nextStep = p.opt("nextStep")
+                if (nextStep !is String || nextStep.isBlank() || !validText(nextStep, 240) ||
+                    Regex("[\\x00-\\x1f\\x7f]").containsMatchIn(nextStep)) return null
+                row.put("nextStep", nextStep)
+            }
+            for ((key, limit) in mapOf("ruleId" to 128, "createdAt" to 40, "completedAt" to 40)) {
                 val text = p.opt(key)
                 if (text is String && text.length <= limit) row.put(key, text)
             }
             val feedback = p.opt("feedback")
             if (feedback is String && feedback in setOf("done", "snooze", "useful", "irrelevant", "incorrect")) row.put("feedback", feedback)
+            if (p.has("feedbackLearning")) {
+                val learning = p.optJSONObject("feedbackLearning") ?: return null
+                val revision = learning.opt("revision")
+                val decision = learning.opt("decision")
+                val status = learning.opt("status")
+                if (revision !is Number || !revision.toDouble().isFinite() || revision.toDouble() < 1 ||
+                    revision.toDouble() > 9007199254740991.0 || revision.toDouble() % 1.0 != 0.0 ||
+                    decision !is String || decision !in setOf("done", "snooze", "useful", "irrelevant", "incorrect", "ignore", "mute") ||
+                    status !is String || status !in setOf("queued", "running", "applied", "failed", "unavailable", "stale")) return null
+                row.put("feedbackLearning", JSONObject().put("revision", revision)
+                    .put("decision", decision).put("status", status))
+            }
             val snoozed = p.opt("snoozedUntil")
             if (snoozed is Number && snoozed.toDouble().isFinite() && snoozed.toDouble() >= 0) row.put("snoozedUntil", snoozed)
             val evidence = p.optJSONArray("evidence") ?: return null

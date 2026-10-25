@@ -87,3 +87,19 @@ Feature: Confirmed personal DiDi rides
     Then Windows ACLs protect the credential and order state
     And uncertain orders still block repeated creation and cancellation
     And a shared credential or order directory is rejected before a request
+
+  Scenario: Live recommendations use saved route notes and a simulated schedule
+    Given an enabled ride Intent references the owner's saved city, company, gym, and habit
+    And an isolated acceptance run selects the configured model and reviewed DiDi capability
+    When only the copied Intent's time requirement changes to the current local minute
+    Then actual condition judgment, generation, and grounding produce the recommendation
+    And actual MCP search results define both places and any preview prices
+    And provider measurement times and quote expiry use the real clock
+    And no live Memory, Intent, or service configuration changes
+    And no order or cancellation request reaches DiDi
+
+  Scenario: Live ride acceptance requires explicit scope before external access
+    Given the ride acceptance command has no live execution flag or has invalid limits
+    When the command starts
+    Then it reads no credential or resident environment
+    And it creates no external model or MCP request

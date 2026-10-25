@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -146,8 +147,8 @@ test('selected diagnosis bridge preserves actual Electron reports and rejects a 
         XDG_RUNTIME_DIR: path.join(directory, 'runtime'), ODK_WORKSPACE: path.join(directory, 'workspace'),
         ODK_RENDERER_BRIDGE_EXPECTED_VERSION: mode === 'default' ? '1.0.0' : '2.0.0' }
       delete env.ELECTRON_RUN_AS_NODE
-      const running = runCommand(require('electron'), [path.join(__dirname, 'renderer-diagnosis-electron.cjs'),
-        '--bridge-diagnosis-proof', ...(mode === 'selected' ? ['--selected-diagnosis-bridge'] : [])],
+      const running = runCommand(require('electron'), isolatedElectronArgs([path.join(__dirname, 'renderer-diagnosis-electron.cjs'),
+        '--bridge-diagnosis-proof', ...(mode === 'selected' ? ['--selected-diagnosis-bridge'] : [])]),
       { env, signal: t.signal, timeout: 15000, maxBuffer: 1024 * 1024 })
       if (mode === 'missing') await assert.rejects(running, error => fixtureRejection(error, /selected Renderer diagnosis bridge is missing/))
       else {

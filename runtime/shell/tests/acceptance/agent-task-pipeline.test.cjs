@@ -1,3 +1,4 @@
+const { isolatedElectronArgs } = require('../helpers/electron-fixture')
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const { spawn, execFileSync } = require('node:child_process')
@@ -19,7 +20,7 @@ async function runPipeline(t, args = []) {
     } catch (error) { if (error.code !== 'ESRCH' && process.platform !== 'win32') throw error }
   }
   t.after(async () => { if (child?.exitCode === null && child?.signalCode === null) kill(); await fs.rm(directory, { recursive: true, force: true }) })
-  child = spawn(electron, [path.resolve(__dirname, '../agent-task-pipeline.cjs'), ...args], {
+  child = spawn(electron, isolatedElectronArgs([path.resolve(__dirname, '../agent-task-pipeline.cjs'), ...args]), {
     detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'],
     env: { PATH: process.env.PATH, HOME: home, USERPROFILE: home, TMPDIR: directory, TEMP: directory, TMP: directory,
       ...(process.env.DISPLAY ? { DISPLAY: process.env.DISPLAY } : {}),
@@ -30,8 +31,12 @@ async function runPipeline(t, args = []) {
   child.stdout.on('data', chunk => { stdout = (stdout + chunk).slice(-32768) })
   child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-32768) })
   const timer = setTimeout(() => { timedOut = true; kill() }, 20000)
-  const code = await new Promise((resolve, reject) => { child.once('exit', resolve); child.once('error', reject) }).finally(() => clearTimeout(timer))
+  const { code, signal } = await new Promise((resolve, reject) => {
+    child.once('close', (code, signal) => resolve({ code, signal }))
+    child.once('error', reject)
+  }).finally(() => clearTimeout(timer))
   assert.equal(timedOut, false, 'The owned Electron process group required the outer deadline')
+  assert.equal(signal, null, 'The pipeline must close normally without a termination signal')
   const report = stdout.split('\n').flatMap(line => { try { return [JSON.parse(line)] } catch { return [] } }).findLast(value => typeof value.passed === 'boolean')
   assert(report, JSON.stringify({ code, stdout, stderr }))
   assert.equal(path.dirname(report.directory), await fs.realpath(directory), 'Only private test state may be removed')
@@ -51,14 +56,14 @@ test('actual saved-child activity crosses the complete offline pipeline', { time
 
 test('missing saved identity cannot pass restart acceptance', { timeout: 30000 }, async t => {
   const { code, report, stderr } = await runPipeline(t, ['--drop-saved-identity'])
-  assert.notEqual(code, 0)
+  assert.equal(code, 1)
   assert.equal(report.passed, false)
   assert.match(stderr, /Saved reporter is missing after restart/)
 })
 
 test('an unresponsive resident cannot hang or pass teardown', { timeout: 30000 }, async t => {
   const { code, report } = await runPipeline(t, ['--stall-resident-close'])
-  assert.notEqual(code, 0)
+  assert.equal(code, 1)
   assert.equal(report.passed, false)
   assert.equal(report.cleanupPassed, false)
   assert.equal(report.forcedCleanup, true)

@@ -201,9 +201,11 @@ app.whenReady().then(async () => {
   let isolatedPageMounts = 0, isolatedAppMounts = 0, releasedViewChecks = 0, delayedViewChecks = 0, failedReleaseChecks = 0
   // Negative entries fail at the first selected consumer; positive cases retain both baselines.
   const missingExternalPage = Boolean(externalViews) && process.env.ODK_PI_EXTERNAL_MISSING_PAGE === '1'
-  for (const signed of missingExternalPage ? [true] : [false, true]) {
+  const missingCapturedPage = Boolean(capturedViews) && process.env.ODK_PI_CAPTURED_VIEWS_DEFAULT === '1'
+  for (const signed of missingExternalPage || missingCapturedPage ? [true] : [false, true]) {
     phase = `sources:${signed ? 'signed' : 'default'}`
     if (missingExternalPage) console.error(`PI_EXTERNAL_GUARD_PHASE:${signed ? 'signed' : 'default'}`)
+    if (missingCapturedPage) console.error(`PI_CAPTURED_GUARD_PHASE:${signed ? 'signed' : 'default'}`)
     let scanResponse = snapshot(sessions)
     let eventResponse = events
     let eventRead = () => eventResponse

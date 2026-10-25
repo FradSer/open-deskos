@@ -48,6 +48,14 @@ Feature: Active product components use replaceable plugin contracts
     And a missing selected implementation fails the version check
     And shutdown removes the diagnosis listener and endpoint
 
+  Scenario: Isolated Renderer fixtures retain one nonpersistent browser session
+    Given Renderer diagnosis and CSS recovery use private fixture profiles
+    When their windows load documents or reload a theme
+    Then each fixture reuses one nonpersistent session with caching disabled
+    And protocol, permission, and network handlers use that session
+    And same-process local storage remains available after reload
+    And file configuration, signed assets, and actual process exit checks remain active
+
   Scenario: Startup selection preserves Renderer diagnosis
     Given default and selected diagnosis plugins use the existing Renderer runtime report contract
     When the same public and CLI consumers request Renderer states

@@ -1,5 +1,14 @@
 Feature: Sandboxed self-contained user applications
 
+  Scenario: Bound native macOS verification without optional background maintenance
+    Given a candidate has visible content or a controlled script failure
+    When the isolated macOS verifier starts
+    Then its initial process arguments delay best-effort tasks until shutdown
+    And other platforms keep their original process arguments
+    And sandbox, permissions, and network restrictions stay active
+    And the child closes normally within the unchanged eight-second deadline
+    And its exit code agrees with its final verdict
+
   Scenario: The selected catalog owns installed runtime availability
     Given the installed runtime uses a selected package catalog
     When that catalog is disabled or fails to start
@@ -48,6 +57,21 @@ Feature: Sandboxed self-contained user applications
     Then diagnostics distinguish process spawn, reported result, actual verdict, and process closure
     And a reported success cannot replace the verifier's required normal process exit
     And diagnostics exclude package contents, paths, and subprocess output
+
+  Scenario: A completed verifier requests exit without another scheduling turn
+    Given an isolated candidate has a success or failure verdict
+    And stdout has backpressure and does not complete its write callback
+    When the runner writes its result file
+    Then it requests the matching process exit in the same turn
+    And exit does not wait for an immediate callback or stdout flushing
+    And the parent still requires actual closure and a matching normal exit for success
+
+  Scenario: Package verification uses one nonpersistent session
+    Given an isolated candidate needs document and policy verification
+    When the runner creates its verification session
+    Then that session uses an in-memory partition with caching disabled
+    And its window, protocol, permissions, and network restrictions use that session
+    And the runner does not use default persistent session APIs
 
   Scenario: Failed runtime cleanup retains resource ownership for retry
     Given the installed package runtime owns IPC handlers, a protocol route, and a control listener

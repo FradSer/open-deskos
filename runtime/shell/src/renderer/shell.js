@@ -746,7 +746,7 @@ async function main() {
   retryCatalog.className = 'button-pill button-secondary'
   retryCatalog.textContent = 'Refresh'
   notice.append(catalogStatus, retryCatalog)
-  document.body.append(notice)
+  document.getElementById('desk-content').append(notice)
   const desktopOptions = {
     track, layout: effectiveLayout, status: catalogStatus,
     onReturnHome: host => { if (activeInstalledApp() === host) homeHandle.requestReturn() },

@@ -236,34 +236,43 @@
   to { transform: translateX(310%); }
 }
 
-.personal-agent-proposals { display: none; }
-#personal-agent-status[data-proactive='true'] { pointer-events: none; }
-#personal-agent-status[data-proactive='true'] .personal-agent-status-content { pointer-events: auto; }
-#personal-agent-status[data-proactive='true'] .personal-agent-status-content > :not(.personal-agent-proposals) { display: none; }
-#personal-agent-status[data-proactive='true'] .personal-agent-proposals { display: grid; gap: var(--odk-space-3); }
+.agent-suggestions { min-width: 0; max-block-size: min(38vh, 24rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-inline: var(--odk-space-2); }
+.agent-suggestions[hidden] { display: none; }
+.agent-suggestions .personal-agent-proposals { display: grid; gap: var(--odk-space-2); }
 .personal-agent-proposals-header { display: flex; align-items: center; justify-content: space-between; gap: var(--odk-space-2); }
 .personal-agent-proposals-header h2 { font-size: 1em; font-weight: 400; margin: 0; }
-.personal-agent-proposal { display: grid; gap: var(--odk-space-2); border-top: 1px solid var(--odk-stroke); padding-top: var(--odk-space-3); }
+.personal-agent-proposal { display: grid; gap: var(--odk-space-3); border-top: 1px solid var(--odk-stroke); padding-top: var(--odk-space-3); }
 .personal-agent-proposal p { margin: 0; }
 .personal-agent-proposal-state, .personal-agent-proposal-evidence { color: var(--odk-secondary-strong); font-size: 14px; font-variant-numeric: tabular-nums; }
 .personal-agent-proposal-actions { display: flex; flex-wrap: wrap; gap: var(--odk-space-2); }
 .personal-agent-proposals button { min-height: 44px; padding: var(--odk-space-2); border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: 14px; white-space: normal; overflow-wrap: anywhere; text-align: start; }
 .personal-agent-proposals button:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 .personal-agent-proposals button:disabled { color: var(--odk-secondary-strong); }
-#personal-agent-status[data-suggestions='true'] .personal-agent-proposals { display: grid; gap: var(--odk-space-3); }
 
-.personal-agent-ride-details { display: grid; gap: 12px; }
-.personal-agent-ride-details[hidden] { display: none; }
-.personal-agent-ride-details label { display: grid; gap: 8px; font-size: 14px; color: var(--odk-secondary-strong); }
-.personal-agent-ride-details select { min-height: 44px; width: 100%; min-width: 0; max-width: 100%; font: inherit; color: var(--odk-primary); background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: 8px; }
-.personal-agent-ride-details select:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
+.personal-agent-ride-route { display: grid; gap: 12px; }
+.personal-agent-ride-route[hidden] { display: none; }
+.personal-agent-ride-route label { display: grid; gap: 8px; font-size: 14px; color: var(--odk-secondary-strong); }
+.personal-agent-ride-route select { min-height: 44px; width: 100%; min-width: 0; max-width: 100%; font: inherit; color: var(--odk-primary); background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: 8px; }
+.personal-agent-ride-route select:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 
-.personal-agent-proposal-advice { font-size: inherit; color: var(--odk-primary); }
-.personal-agent-proposal-reason, .personal-agent-proposal-feedback, .personal-agent-proposal-capability { color: var(--odk-secondary-strong); font-size: 14px; }
+.personal-agent-proposal-advice { min-width: 0; overflow-wrap: anywhere; font-size: clamp(20px, 1.5vw, 24px); line-height: 1.5; color: var(--odk-primary); }
+.personal-agent-proposal-advice[data-long='true'] { max-block-size: min(12rem, 30vh); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-inline-end: var(--odk-space-2); }
+.personal-agent-proposal-advice:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
+.personal-agent-ride-actions .personal-agent-proposal-primary { min-width: min(100%, 220px); justify-content: center; text-align: center; }
+.personal-agent-proposal-request-status { color: var(--odk-secondary-strong); font-size: 14px; line-height: 1.5; }
+.personal-agent-proposal-request-status:empty { display: none; }
+.personal-agent-proposal-next { display: grid; gap: var(--odk-space-1); }
+.personal-agent-proposal-next-label { font-size: 12px; color: var(--odk-secondary-strong); }
+.personal-agent-proposal-next-step { font-size: 16px; line-height: 1.5; color: var(--odk-primary); }
+.personal-agent-proposals .personal-agent-proposal-primary { min-height: 48px; padding-inline: var(--odk-space-3); font-size: 16px; background: var(--odk-button); border-color: var(--odk-stroke-focus); }
+.personal-agent-proposals .personal-agent-proposal-secondary { background: transparent; border-color: transparent; color: var(--odk-secondary-strong); }
+.personal-agent-proposal-feedback, .personal-agent-proposal-capability { color: var(--odk-secondary-strong); font-size: 14px; }
 .personal-agent-proposals details { min-width: 0; }
 .personal-agent-proposals summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--odk-secondary-strong); font-size: 14px; text-decoration: underline; text-underline-offset: 0.2em; }
 .personal-agent-proposals summary:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 .personal-agent-proposals details[open] > summary { margin-block-end: var(--odk-space-2); }
-.personal-agent-proposal-sources { overflow-wrap: anywhere; }
-.personal-agent-proposal-sources p + p { margin-block-start: var(--odk-space-2); }
 .personal-agent-proposal-history > .personal-agent-proposal { margin-block-start: var(--odk-space-3); }
+
+.agent-composer .personal-agent-proposals button { width: auto; height: auto; min-width: 44px; padding: var(--odk-space-2) var(--odk-space-3); }
+.agent-composer .personal-agent-proposal-advice { font-size: 18px; }
+.agent-suggestions .personal-agent-proposal { border-top: 0; padding-block: var(--odk-space-2); }

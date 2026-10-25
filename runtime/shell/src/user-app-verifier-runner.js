@@ -35,8 +35,10 @@ const send = (value) => {
   if (RESULT_PATH) {
     try { require('node:fs').writeFileSync(RESULT_PATH, `${output}\n`, 'utf8') } catch {}
   }
-  process.stdout.write(`${output}\n`)
-  setImmediate(() => app.exit(value.ok ? 0 : 1))
+  // The file is the authoritative result channel. Request exit in this turn;
+  // another event-loop phase or a stdout flush must not retain the verifier.
+  try { process.stdout.write(`${output}\n`) } catch { /* The result file remains available when stdout is closed. */ }
+  app.exit(value.ok ? 0 : 1)
 }
 
 async function readBundle() {
@@ -69,12 +71,15 @@ async function run() {
   // uses the Shell's tokens and faces still has them inside the verifier session.
   const html = buildUserAppDocument(bundle, { token, theme: DEFAULT_THEME })
   await app.whenReady()
+  // This disposable verifier needs no persistent browser storage. A disk-backed
+  // session can retain database initialization tasks after the verdict is ready.
+  const verificationSession = session.fromPartition(token, { cache: false })
   // One first-wins reason: whichever gate the candidate trips first is the one the
   // package author is told about.
   let failed = null
-  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false))
-  session.defaultSession.setPermissionCheckHandler(() => false)
-  session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+  verificationSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false))
+  verificationSession.setPermissionCheckHandler(() => false)
+  verificationSession.webRequest.onBeforeRequest((details, callback) => {
     const scheme = new URL(details.url).protocol
     const allowed = ['odk-user-app:', 'data:'].includes(scheme)
     // This session filter runs before the navigation guards, so an outside URL is
@@ -82,7 +87,7 @@ async function run() {
     if (!allowed) failed ??= `network blocked: ${details.url}`
     callback({ cancel: !allowed })
   })
-  protocol.handle('odk-user-app', async (request) => {
+  verificationSession.protocol.handle('odk-user-app', async (request) => {
     const requestUrl = new URL(request.url)
     if (requestUrl.hostname !== 'app') return new Response('Not found', { status: 404 })
     const font = /^\/font\/([a-z0-9-]{1,32})$/.exec(requestUrl.pathname)
@@ -92,7 +97,7 @@ async function run() {
       headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': USER_APP_CSP },
     })
   })
-  const win = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false } })
+  const win = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, session: verificationSession } })
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('will-navigate', (event, destination) => {
     if (!destination.startsWith('odk-user-app://app/verify/revision')) {

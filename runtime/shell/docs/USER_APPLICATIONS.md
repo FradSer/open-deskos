@@ -125,7 +125,12 @@ Ask the resident Agent to install a draft, optionally specifying its desktop pag
 
 The verifier sets private `userData` and `sessionData` paths before Electron readiness.
 Its hidden window disables background throttling and retains the existing sandbox and network restrictions.
+The window, protocol, permissions, and network restrictions use one nonpersistent session with caching disabled.
+The runner does not use default persistent session APIs.
 The parent owns temporary verification files and profile cleanup.
+The verifier writes its result file before requesting process exit in the same scheduling turn.
+Backpressure or a closed stdout channel cannot defer that exit request.
+The parent still requires actual process closure and a matching normal exit before accepting success.
 
 Widgets render at their persisted grid placement; Apps render on individual pages. Reinstalling an existing ID performs an **Update** and verifies the current draft again. **Rollback** verifies and restores the immediately preceding version. Successful updates retain only the active and preceding snapshots; old snapshots are pruned, with cleanup failures reported as warnings. **Remove** removes the installation, not the draft or separate user data. Installed snapshots and catalog live under `${XDG_STATE_HOME:-$HOME/.local/state}/odk/user-apps`, outside the runtime release.
 

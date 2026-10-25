@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -17,7 +18,7 @@ test('default and signed independent Weather preserve the actual rendered Widget
     await require('./helpers/weather-selection').install(profile, env, { signal: t.signal })
     const file = path.join(__dirname, 'weather-plugin-electron.cjs')
     await fs.access(file)
-    const operation = execFile(require('electron'), [`--user-data-dir=${profile}`, file], { env, timeout: surfaceTimeouts().child, signal: t.signal, killSignal: 'SIGKILL' })
+    const operation = execFile(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, file]), { env, timeout: surfaceTimeouts().child, signal: t.signal, killSignal: 'SIGKILL' })
     const closed = new Promise(resolve => operation.child.once('close', resolve))
     let result
     try { result = await operation } finally { await closed }

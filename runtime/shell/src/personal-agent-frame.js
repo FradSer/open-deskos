@@ -38,10 +38,21 @@ function readableProposals(value) {
     if (!p || typeof p.id !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(p.id) ||
         typeof p.advice !== 'string' || p.advice.length > 1000 || !['pending', 'ignored', 'expired', 'executing', 'completed', 'unknown'].includes(p.status)) return null
     const row = { id: p.id, status: p.status, advice: p.advice, action: null, confirmation: '', offered: p.offered === true, presented: p.presented === true }
-    for (const [key, limit] of [['ruleId', 128], ['reason', 600], ['createdAt', 40], ['completedAt', 40]]) {
+    if (Object.hasOwn(p, 'nextStep')) {
+      if (typeof p.nextStep !== 'string' || !p.nextStep.trim() || p.nextStep.length > 240 || /[\x00-\x1f\x7f]/.test(p.nextStep)) return null
+      row.nextStep = p.nextStep
+    }
+    for (const [key, limit] of [['ruleId', 128], ['createdAt', 40], ['completedAt', 40]]) {
       if (typeof p[key] === 'string' && p[key].length <= limit) row[key] = p[key]
     }
     if (['done', 'snooze', 'useful', 'irrelevant', 'incorrect'].includes(p.feedback)) row.feedback = p.feedback
+    if (p.feedbackLearning !== undefined) {
+      const learning = p.feedbackLearning
+      if (!learning || !Number.isSafeInteger(learning.revision) || learning.revision < 1 ||
+          !['done', 'snooze', 'useful', 'irrelevant', 'incorrect', 'ignore', 'mute'].includes(learning.decision) ||
+          !['queued', 'running', 'applied', 'failed', 'unavailable', 'stale'].includes(learning.status)) return null
+      row.feedbackLearning = { revision: learning.revision, decision: learning.decision, status: learning.status }
+    }
     if (Number.isFinite(p.snoozedUntil) && p.snoozedUntil >= 0) row.snoozedUntil = p.snoozedUntil
     row.evidence = []
     if (!Array.isArray(p.evidence) || p.evidence.length > 8) return null

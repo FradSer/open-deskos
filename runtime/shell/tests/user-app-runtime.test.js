@@ -65,40 +65,63 @@ test('verifier runner isolates both Electron profiles and hides its Dock entry b
 // The runner is a GUI process on Windows, where a piped stdin is not a channel it
 // can read: the bundle travels as a file and the result comes back as a file, so
 // neither direction depends on the child's standard streams.
-test('verifier runner creates a hidden window without background throttling', { timeout: 1000 }, async () => {
+for (const state of [{ visible: true, error: '' }, { visible: false, error: '' }, { visible: true, error: 'controlled script error' }]) {
+for (const stdout of ['backpressure', 'closed']) {
+test(`verifier runner exits after writing its ${state.visible && !state.error ? 'success' : 'failure'} result without another scheduling turn: ${stdout} ${JSON.stringify(state)}`, { timeout: 1000 }, async () => {
   let options
-  let done
-  const closed = new Promise(resolve => { done = resolve })
-  const app = { setPath() {}, disableHardwareAcceleration() {}, whenReady: async () => {}, exit: done }
-  const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {},
-    webRequest: { onBeforeRequest() {} } } }
-  const protocol = { registerSchemesAsPrivileged() {}, handle() {} }
+  let written, savedResult
+  const saved = new Promise(resolve => { written = resolve })
+  const events = [], pendingImmediates = []
+  const app = { setPath() {}, disableHardwareAcceleration() {}, whenReady: async () => {}, exit(code) { events.push({ kind: 'exit', code }) } }
+  const verificationSession = { setPermissionRequestHandler() {}, setPermissionCheckHandler() {},
+    webRequest: { onBeforeRequest() {} }, protocol: { handle() {} } }
+  const session = { fromPartition(partition, settings) {
+    assert.equal(partition, 'verify-1')
+    assert.equal(JSON.stringify(settings), JSON.stringify({ cache: false }))
+    return verificationSession
+  }, get defaultSession() { throw Error('Verification must not initialize the default persistent session') } }
+  const protocol = { registerSchemesAsPrivileged() {}, handle() { throw Error('Verification must use its session protocol') } }
   class BrowserWindow {
     constructor(value) {
       options = value
-      this.webContents = { setWindowOpenHandler() {}, on() {}, executeJavaScript: async () => ({ visible: true, error: '' }) }
+      this.webContents = { setWindowOpenHandler() {}, on() {}, executeJavaScript: async () => state }
     }
     async loadURL() {}
   }
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/user-app-verifier-runner.js'), 'utf8'), {
     module: { exports: {} }, process: { platform: 'linux', argv: ['electron', '/fixture/user-app-verifier-runner.js', '/bundle', '/result', '/profile'],
-      pid: 1, stdout: { write() {} } }, Buffer, setTimeout: callback => callback(), setImmediate: callback => callback(),
+      pid: 1, stdout: { write(text) { events.push({ kind: 'stdout', text }); if (stdout === 'closed') throw Error('Controlled closed stdout'); return false } } }, Buffer,
+    setTimeout: callback => callback(), setImmediate: callback => { pendingImmediates.push(callback) },
     require(name) {
       if (name === 'electron') return { app, session, protocol, BrowserWindow }
       if (name === './user-app-content') return { buildUserAppDocument: () => '<body>Fixture</body>' }
       if (name === './user-app-context') return {}
       if (name === './user-app-system') return { USER_APP_SCHEME_PRIVILEGES: {} }
-      if (name === 'node:fs') return { statSync: () => ({ size: 30 }), readFileSync: () => JSON.stringify({ html: '<body>Fixture</body>' }), writeFileSync() {} }
+      if (name === 'node:fs') return { statSync: () => ({ size: 30 }), readFileSync: () => JSON.stringify({ html: '<body>Fixture</body>' }), writeFileSync(file, text) {
+        assert.equal(file, '/result')
+        savedResult = JSON.parse(text)
+        events.push({ kind: 'file' })
+        written()
+      } }
       throw Error(`Unexpected runner import: ${name}`)
     },
   })
-  assert.equal(await closed, 0)
+  await saved
+  const ok = state.visible && !state.error
+  assert.equal(savedResult.ok, !!ok)
+  if (!ok) assert.equal(savedResult.error, state.error || 'user app has no visible body content')
+  assert.deepEqual(events.map(event => event.kind), ['file', 'stdout', 'exit'])
+  assert.equal(events.at(-1).code, ok ? 0 : 1)
+  assert.equal(pendingImmediates.length, 0, 'A completed verdict must not defer its only exit request')
   assert.equal(options.show, false)
   assert.equal(options.webPreferences.backgroundThrottling, false)
   assert.equal(options.webPreferences.contextIsolation, true)
   assert.equal(options.webPreferences.nodeIntegration, false)
   assert.equal(options.webPreferences.sandbox, true)
+  assert.equal(options.webPreferences.session, verificationSession)
 })
+}
+}
 
 test('verifier hands the bundle over as a file and reads the result from one', async () => {
   const seen = []
@@ -382,3 +405,33 @@ test('the opaque bootstrap shares the detector and accepts Home capability only 
   root.dispatchEvent(new Event('pagehide')); pinch()
   assert.equal(returns().length, 1, 'disposal removes the detector')
 })
+
+// Native lifecycle acceptance runs with the existing Electron verifier checks.
+for (const [name, html, expectedCode] of [
+  ['visible content', '<body><p>Verifier lifecycle regression</p></body>', 0],
+  ['script failure', '<body><p>Verifier lifecycle regression</p><script>throw Error("controlled lifecycle failure")</script></body>', 1],
+]) {
+  test(`native verifier normally closes within its default eight-second deadline: ${name}`, { timeout: 25000 }, async t => {
+    let closed
+    let stderr = ''
+    const events = []
+    const began = performance.now()
+    const verifier = createUserAppVerifier({ electronPath: require('electron'), spawnProcess(file, args, options) {
+      const child = require('node:child_process').spawn(file, args, options)
+      child.stdout.on('data', chunk => {
+        if (chunk.toString().includes('"ok":')) events.push({ phase: 'reported', elapsedMs: Math.round(performance.now() - began) })
+      })
+      child.stderr.on('data', chunk => { stderr = (stderr + chunk.toString()).slice(-4000) })
+      child.once('exit', (code, signal) => events.push({ phase: 'exit', code, signal, elapsedMs: Math.round(performance.now() - began) }))
+      child.once('close', (code, signal) => { closed = { code, signal }; events.push({ phase: 'close', ...closed, elapsedMs: Math.round(performance.now() - began) }) })
+      return child
+    } })
+    t.after(() => verifier.close())
+    const result = await verifier.verify({ html })
+    await verifier.close()
+    t.diagnostic(JSON.stringify({ result, events, stderr }))
+    assert.deepEqual(closed, { code: expectedCode, signal: null }, 'A verdict requires the actual normal child close')
+    assert.equal(result.ok, expectedCode === 0)
+    if (expectedCode === 1) assert.match(result.error, /controlled lifecycle failure/)
+  })
+}

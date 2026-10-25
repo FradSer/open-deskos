@@ -80,6 +80,7 @@ class PersonalAgentFrameTest {
     @Test fun suggestionsRemainReadableWithoutResponseAuthority() {
         val p = JSONObject().put("id", "e311a280-c0b9-4411-96cd-4e1e92385349").put("status", "pending")
             .put("advice", "Inspect the soil.").put("reason", "A current reading is low.").put("ruleId", "soil")
+            .put("nextStep", "Check the soil by hand before watering.")
             .put("offered", true).put("presented", false).put("evidence", org.json.JSONArray())
             .put("action", JSONObject().put("tool", "memory_update").put("params", JSONObject().put("private", "never forward")))
             .put("confirmation", "private confirmation").put("result", "PRIVATE_TOOL_RESULT")
@@ -88,7 +89,8 @@ class PersonalAgentFrameTest {
         val frame = PersonalAgentFrame.project(input)
         val readable = frame.getJSONArray("proposals").getJSONObject(0)
         assertEquals(p.getString("advice"), readable.getString("advice"))
-        assertEquals(p.getString("reason"), readable.getString("reason"))
+        assertEquals(p.getString("nextStep"), readable.getString("nextStep"))
+        assertFalse(readable.has("reason"))
         assertTrue(readable.isNull("action"))
         assertEquals("", readable.getString("confirmation"))
         assertTrue(frame.getJSONObject("proposalCapabilities").getBoolean("read"))
@@ -97,6 +99,27 @@ class PersonalAgentFrameTest {
         assertFalse(frame.toString().contains("never forward"))
         assertFalse(frame.toString().contains("PRIVATE_TOOL_RESULT"))
         assertTrue(frame.getBoolean("proposalPopup"))
+        assertFalse(readable.has("feedbackLearning"))
+    }
+
+    @Test fun malformedNextStepsCannotBecomeCompleteReadableSuggestions() {
+        for (nextStep in listOf<Any>("", " ", "x".repeat(241), 7, JSONObject.NULL, "inspect\u0000file", "inspect\nfile", "inspect\tfile", "inspect\u007ffile")) {
+            val proposal = JSONObject().put("id", "e311a280-c0b9-4411-96cd-4e1e92385349")
+                .put("status", "pending").put("advice", "Inspect the file.")
+                .put("nextStep", nextStep).put("evidence", org.json.JSONArray())
+            val frame = PersonalAgentFrame.project(JSONObject().put("state", "idle")
+                .put("proposals", org.json.JSONArray().put(proposal)))
+            assertFalse(frame.getJSONObject("proposalCapabilities").getBoolean("read"))
+            assertEquals(0, frame.getJSONArray("proposals").length())
+        }
+        val legacy = JSONObject().put("id", "e311a280-c0b9-4411-96cd-4e1e92385349")
+            .put("status", "pending").put("advice", "Earlier advice.")
+            .put("reason", "Earlier reason.").put("evidence", org.json.JSONArray())
+        val frame = PersonalAgentFrame.project(JSONObject().put("state", "idle")
+            .put("proposals", org.json.JSONArray().put(legacy)))
+        assertTrue(frame.getJSONObject("proposalCapabilities").getBoolean("read"))
+        assertFalse(frame.getJSONArray("proposals").getJSONObject(0).has("nextStep"))
+        assertFalse(frame.getJSONArray("proposals").getJSONObject(0).has("reason"))
     }
 
     @Test fun recoveryMarkerPreservesReadOnlyDismissalSemantics() {
@@ -117,6 +140,68 @@ class PersonalAgentFrameTest {
         val legacy = PersonalAgentFrame.project(JSONObject().put("state", "idle")
             .put("proposals", org.json.JSONArray().put(proposal)))
         assertFalse(legacy.getBoolean("proposalRecovery"))
+    }
+
+    private fun feedbackFrame(learning: Any): JSONObject {
+        val proposal = JSONObject().put("id", "e311a280-c0b9-4411-96cd-4e1e92385349")
+            .put("status", "pending").put("advice", "Inspect the soil.").put("feedback", "useful")
+            .put("feedbackLearning", learning).put("evidence", org.json.JSONArray())
+            .put("action", JSONObject().put("tool", "memory_update")).put("confirmation", "private confirmation")
+        return PersonalAgentFrame.project(JSONObject().put("state", "idle").put("textInput", true)
+            .put("proposals", org.json.JSONArray().put(proposal)).put("proposalRecovery", true)
+            .put("proposalCapabilities", JSONObject().put("read", true).put("respond", true).put("acknowledge", true)))
+    }
+
+    @Test fun feedbackLearningPreservesPublicStatesWithoutGrantingResponseAuthority() {
+        for (status in listOf("queued", "running", "applied", "failed", "unavailable", "stale")) {
+            for (decision in listOf("done", "snooze", "useful", "irrelevant", "incorrect", "ignore", "mute")) {
+                for (revision in listOf<Number>(1, 9007199254740991L)) {
+                    val input = JSONObject().put("revision", revision).put("decision", decision).put("status", status)
+                        .put("workerPrompt", "PRIVATE_WORKER_PROMPT").put("tools", org.json.JSONArray().put("PRIVATE_TOOL"))
+                        .put("privateData", JSONObject().put("memory", "PRIVATE_MEMORY"))
+                    val frame = feedbackFrame(input)
+                    val row = frame.getJSONArray("proposals").getJSONObject(0)
+                    val learning = row.getJSONObject("feedbackLearning")
+                    assertEquals(3, learning.length())
+                    assertEquals(revision.toLong(), learning.getLong("revision"))
+                    assertEquals(decision, learning.getString("decision"))
+                    assertEquals(status, learning.getString("status"))
+                    assertEquals("useful", row.getString("feedback"))
+                    assertTrue(row.isNull("action")); assertEquals("", row.getString("confirmation"))
+                    assertTrue(frame.getJSONObject("proposalCapabilities").getBoolean("read"))
+                    assertFalse(frame.getJSONObject("proposalCapabilities").getBoolean("respond"))
+                    assertFalse(frame.getJSONObject("proposalCapabilities").getBoolean("acknowledge"))
+                    assertTrue(frame.getBoolean("proposalRecovery")); assertTrue(frame.getBoolean("textInput"))
+                    assertFalse(frame.toString().contains("PRIVATE_"))
+                }
+            }
+        }
+    }
+
+    @Test fun malformedFeedbackLearningCannotBecomeACompleteReadableSuggestion() {
+        fun valid() = JSONObject().put("revision", 1).put("decision", "useful").put("status", "queued")
+        val malformed = mutableListOf<Any>(JSONObject.NULL, false, 1, "queued", org.json.JSONArray())
+        for (revision in listOf<Any>(0, -1, 0.5, 9007199254740992L, "1", true, JSONObject.NULL)) {
+            malformed.add(valid().put("revision", revision))
+        }
+        for (key in listOf("revision", "decision", "status")) {
+            malformed.add(valid().also { it.remove(key) })
+        }
+        for (decision in listOf<Any>("accept", "USEFUL", "", 1, true, JSONObject.NULL)) {
+            malformed.add(valid().put("decision", decision))
+        }
+        for (status in listOf<Any>("complete", "RUNNING", "", 1, true, JSONObject.NULL)) {
+            malformed.add(valid().put("status", status))
+        }
+        for (input in malformed) {
+            val frame = feedbackFrame(input)
+            assertFalse(frame.getJSONObject("proposalCapabilities").getBoolean("read"))
+            assertFalse(frame.getJSONObject("proposalCapabilities").getBoolean("respond"))
+            assertFalse(frame.getJSONObject("proposalCapabilities").getBoolean("acknowledge"))
+            assertEquals(0, frame.getJSONArray("proposals").length())
+            assertFalse(frame.getBoolean("proposalRecovery"))
+            assertTrue(frame.getBoolean("textInput"))
+        }
     }
 
 }

@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
@@ -35,7 +36,7 @@ test('production Main preserves default, independent signed and development navi
           ODK_DISABLE_GPU: '1', ODK_DISABLED_PLUGINS: createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',') }
         delete env.ELECTRON_RUN_AS_NODE
         delete env.XDG_RUNTIME_DIR
-        const result = await runCommand(electron, [`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, fixture],
+        const result = await runCommand(electron, isolatedElectronArgs([`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, fixture]),
           { env, signal: t.signal, timeout: 35000, maxBuffer: 1024 * 1024 })
         const report = JSON.parse(result.stdout.trim().split('\n').pop())
         assert.equal(report.productionMain, true)
@@ -76,7 +77,7 @@ for (const { rejected, fullComposition } of [
           ODK_DISABLE_GPU: '1', ODK_DISABLED_PLUGINS: fullComposition ? '' : createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',') }
         delete env.ELECTRON_RUN_AS_NODE
         await fs.mkdir(env.XDG_RUNTIME_DIR, { mode: 0o700 })
-        const result = await runCommand(electron, [`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, path.join(__dirname, 'app-manager-main-bootstrap.cjs')],
+        const result = await runCommand(electron, isolatedElectronArgs([`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, path.join(__dirname, 'app-manager-main-bootstrap.cjs')]),
           { env, signal: t.signal, timeout: 35000, maxBuffer: 1024 * 1024 })
         const report = JSON.parse(result.stdout.trim().split('\n').pop())
         assert.equal(report.productionMain, true)
@@ -135,7 +136,7 @@ test('production Main preserves selected installed desktop consumers and detects
           await runCommand(process.execPath, [path.join(__dirname, '../scripts/odk-plugin-cli.js'), 'link', bundle, '--trust', '--replace'],
             { env: { ...env, ELECTRON_RUN_AS_NODE: '1' }, signal: t.signal, timeout: 10000 })
         }
-        const running = runCommand(electron, [`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, path.join(__dirname, 'app-manager-main-bootstrap.cjs')],
+        const running = runCommand(electron, isolatedElectronArgs([`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, path.join(__dirname, 'app-manager-main-bootstrap.cjs')]),
           { env, signal: t.signal, timeout: 35000, maxBuffer: 1024 * 1024 })
         if (mode === 'missing') await assert.rejects(running, /Production desktop entry execution missing/)
         else {
@@ -171,7 +172,7 @@ test('production Main preserves signed built-in App consumers and detects invali
         if (mode !== 'default') await installBuiltinViews(directory, env, {
           invalid: mode === 'incorrect', omitApp: mode === 'missing' ? 'year' : undefined, signal: t.signal,
         })
-        const running = runCommand(electron, [`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, path.join(__dirname, 'app-manager-main-bootstrap.cjs')],
+        const running = runCommand(electron, isolatedElectronArgs([`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, path.join(__dirname, 'app-manager-main-bootstrap.cjs')]),
           { env, signal: t.signal, timeout: 35000, maxBuffer: 1024 * 1024 })
         if (mode === 'incorrect') await assert.rejects(running, /Production built-in Year reading changed/)
         else if (mode === 'missing') await assert.rejects(running, /Production built-in fallback guard triggered/)
@@ -266,7 +267,7 @@ globalThis.odkDiagnosticMainEntries.push(${JSON.stringify(plugin.manifest.id)});
           await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'link', folder, '--trust', '--replace',
             ...plugin.manifest.permissions.flatMap(permission => ['--grant', permission])], { env, signal: t.signal, timeout: 10000 })
         }
-        const running = runCommand(electron, [`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, path.join(__dirname, 'app-manager-main-bootstrap.cjs')],
+        const running = runCommand(electron, isolatedElectronArgs([`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, path.join(__dirname, 'app-manager-main-bootstrap.cjs')]),
           { env, signal: t.signal, timeout: 35000, maxBuffer: 1024 * 1024 })
         if (mode.startsWith('missing')) await assert.rejects(running, /Production diagnostic fallback guard triggered/)
         else {

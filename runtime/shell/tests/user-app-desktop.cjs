@@ -76,11 +76,17 @@ app.whenReady().then(async () => {
   assert.equal(await js(`getComputedStyle(document.querySelector('[data-user-app-id="note"] iframe')).pointerEvents`), 'none')
   const appFrame = win.webContents.mainFrame.frames.find(frame => frame.url.includes('/counter/'))
   await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 3 })
+  const { targetInfos } = await win.webContents.debugger.sendCommand('Target.getTargets')
+  const ownedTargets = targetInfos.filter(target => target.type === 'iframe' && target.url === appFrame.url)
+  assert.equal(ownedTargets.length, 1, 'one actual counter iframe target owns native touch')
+  const { sessionId: touchSession } = await win.webContents.debugger.sendCommand('Target.attachToTarget', { targetId: ownedTargets[0].targetId, flatten: true })
+  await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 3 }, touchSession)
+
   const currentPage = () => js(`document.querySelectorAll('#pages-track > .page')[[...document.querySelectorAll('#dots .dot')].findIndex(dot=>dot.classList.contains('active'))].dataset.pageId`)
   async function touchApp(kind = 'pinch') {
-    const rect = await js(`(()=>{const r=document.querySelector('[data-user-app-id="counter"] iframe').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`)
+    const rect = await appFrame.executeJavaScript(`({x:innerWidth/2,y:innerHeight/2})`)
     const points = (span, dy = 0) => [0,1].map(id => ({ id, x: rect.x + (id ? span/2 : -span/2), y: rect.y + dy }))
-    const send = (type, touchPoints) => win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type, touchPoints })
+    const send = (type, touchPoints) => win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type, touchPoints }, touchSession)
     await send('touchStart', points(240)); await delay(30)
     await send('touchMove', points(kind === 'scroll' ? 240 : 120, kind === 'scroll' ? -60 : 0)); await delay(30)
     await send('touchEnd', []); await delay(80)
@@ -170,6 +176,32 @@ app.whenReady().then(async () => {
   assert.equal(await js(`document.querySelector('#user-app-desktop-notice').inert`), true)
   await js(`document.querySelector('#app-back').click()`)
   assert.equal(await js(`document.querySelector('#user-app-desktop-notice').inert`), false)
+  for (const [width, height] of [[320, 480], [480, 854]]) {
+    win.setContentSize(width, height)
+    await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
+    await js(`window.dispatchEvent(new Event('resize')); document.getElementById('user-app-desktop-notice').scrollIntoView({ block: 'center' }); document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
+    const refresh = await js(`(() => {
+      const notice = document.getElementById('user-app-desktop-notice'), desk = document.getElementById('desk-content'), button = notice.querySelector('button')
+      const r = button.getBoundingClientRect(), n = notice.getBoundingClientRect(), d = desk.getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2
+      const pager = document.getElementById('page-center'), activeDot = pager.querySelector('.dot[aria-current="page"]'), p = pager.getBoundingClientRect(), dot = activeDot?.getBoundingClientRect()
+      return { x, y, hit: button.contains(document.elementFromPoint(x, y)), visible: button.checkVisibility(), targetHeight: r.height, horizontalOverflow: notice.scrollWidth > notice.clientWidth + 1 || d.left < -1 || d.right > innerWidth + 1, deskParent: notice.parentElement === desk,
+        pagerHit: !!dot && activeDot.contains(document.elementFromPoint(dot.x + dot.width / 2, dot.y + dot.height / 2)),
+        overlapsPager: Math.min(n.right, p.right) - Math.max(n.left, p.left) > 1 && Math.min(n.bottom, p.bottom) - Math.max(n.top, p.top) > 1,
+        contained: n.left >= d.left && n.right <= d.right && n.top >= d.top && n.bottom <= d.bottom }
+    })()`)
+    assert.equal(refresh.visible, true); assert.equal(refresh.hit, true, JSON.stringify({ width, height, ...refresh }))
+    assert.equal(refresh.deskParent, true); assert.equal(refresh.contained, true)
+    assert.ok(refresh.targetHeight >= 44, JSON.stringify({ width, height, ...refresh })); assert.equal(refresh.horizontalOverflow, false)
+    assert.equal(refresh.pagerHit, true, JSON.stringify({ width, height, ...refresh }))
+    assert.equal(refresh.overlapsPager, false, JSON.stringify({ width, height, ...refresh }))
+    if (width === 480) {
+      failure = false
+      win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, x: refresh.x, y: refresh.y })
+      win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, x: refresh.x, y: refresh.y })
+      await wait(`document.querySelector('#user-app-desktop-status').dataset.state === 'ready'`)
+      assert.equal(await js(`document.getElementById('user-app-desktop-notice').checkVisibility()`), false, 'A real Refresh recovers the catalog and removes its notice')
+    }
+  }
   failure = false; await update([])
   await wait(`document.querySelectorAll('[data-user-app-id]').length === 0`)
   assert.equal(await js(`document.querySelectorAll('#dots .dot').length`), 3)

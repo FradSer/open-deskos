@@ -12,6 +12,24 @@ class Element {
   querySelector(selector) { return this.children.find(node => selector === '.widget-grid' && node.className === 'widget-grid') }
 }
 const tick = () => new Promise(resolve => setImmediate(resolve))
+test('Shell creates the catalog notice inside Desk without an ambient content global', () => {
+  const source = fs.readFileSync('src/renderer/shell.js', 'utf8')
+  const start = source.indexOf("  const notice = document.createElement('aside')")
+  const end = source.indexOf('  const desktopOptions =', start)
+  assert.ok(start >= 0 && end > start, 'The actual Shell notice creation block is available')
+  const desk = new Element('section'), body = new Element('body')
+  const document = { body, createElement: tag => new Element(tag), getElementById: id => id === 'desk-content' ? desk : null }
+  vm.runInNewContext(source.slice(start, end), { document })
+  assert.equal(body.children.length, 0)
+  assert.equal(desk.children.length, 1)
+  const notice = desk.children[0]
+  assert.equal(notice.id, 'user-app-desktop-notice')
+  assert.equal(notice.children[0].id, 'user-app-desktop-status')
+  assert.equal(notice.children[0].attributes.role, 'status')
+  assert.equal(notice.children[1].tagName, 'button')
+  assert.equal(notice.children[1].type, 'button')
+  assert.equal(notice.children[1].textContent, 'Refresh')
+})
 const widget = (revision = 'r1', pageId = 'reading') => ({ id: 'note', name: '<Note>', kind: 'widget', revision, placement: { pageId, col: '4 / 6', row: '3' } })
 function setup(list, onReturnHome) {
   const track = new Element('main'); const status = new Element('p'); const mounted = []; const disposed = []

@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const path = require('node:path')
@@ -10,7 +11,7 @@ test('actual Electron activates and restores signed Appearance through authentic
   const root = await fs.mkdtemp(path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), 'odk-ap-'))
   const env = { ...process.env, ODK_APPEARANCE_ROOT: root }
   delete env.ELECTRON_RUN_AS_NODE
-  const operation = execute(require('electron'), [path.join(__dirname, 'native-appearance-electron.cjs')],
+  const operation = execute(require('electron'), isolatedElectronArgs([path.join(__dirname, 'native-appearance-electron.cjs')]),
     { env, signal: t.signal, timeout: 25000, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 })
   const closed = new Promise(resolve => operation.child.once('close', resolve))
   try {
@@ -26,7 +27,7 @@ test('actual Electron activates Appearance without startup signed assets or docu
   const root = await fs.mkdtemp(path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), 'odk-ap-'))
   const env = { ...process.env, ODK_APPEARANCE_ROOT: root }
   delete env.ELECTRON_RUN_AS_NODE
-  const operation = execute(require('electron'), [path.join(__dirname, 'native-appearance-electron.cjs'), '--empty-startup'],
+  const operation = execute(require('electron'), isolatedElectronArgs([path.join(__dirname, 'native-appearance-electron.cjs'), '--empty-startup']),
     { env, signal: t.signal, timeout: 25000, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 })
   const closed = new Promise(resolve => operation.child.once('close', resolve))
   try {

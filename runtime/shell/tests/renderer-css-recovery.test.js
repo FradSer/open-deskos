@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
@@ -37,7 +38,7 @@ test('actual Electron restores packaged CSS or retains external CSS through fail
       const link = document.querySelector('link[data-plugin="' + id + '"]');
       if (!link.sheet) await new Promise((resolve, reject) => { link.onload = resolve; link.onerror = reject });
     })();`)
-    const operation = execute(require('electron'), [`--user-data-dir=${root}`, path.join(__dirname, 'renderer-css-recovery-electron.cjs')],
+    const operation = execute(require('electron'), isolatedElectronArgs([`--user-data-dir=${root}`, path.join(__dirname, 'renderer-css-recovery-electron.cjs')]),
       { env, signal: t.signal, timeout: 30000, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 })
     const closed = new Promise(resolve => operation.child.once('close', resolve))
     try {

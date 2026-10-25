@@ -1,5 +1,67 @@
 Feature: Owner controlled proactive Personal Agent proposals
   Proposals are read-only agent state, never plugin instructions or authorization.
+  Generated text never supplies action authority. Owner-approved catalogs define executable actions.
+
+  Scenario: A generated recommendation selects a currently executable owner action
+    Given the owner configures a bounded action catalog for a recommendation topic
+    And the selected Agent can execute one configured action
+    When the generator selects that action identifier
+    Then the host binds its label and exact parameters without model supplied permissions
+    And an unavailable action cannot create a new recommendation card
+    And execution requires presentation and the exact owner confirmation
+    And uncertain receipts and restarted execution cannot replay the action
+    And Intent previews remain read-only
+
+  Scenario: Stopping the Watch cancels a pending action confirmation read
+    Given a presented executable recommendation waits for a source read during confirmation
+    When the Watch stops before that read completes
+    Then no action executes after the source read returns
+    And no late presentation is published
+
+  Scenario: Dispatch rechecks the Watch after asynchronous confirmation work
+    Given a confirmed action waits for source reads or executor routing
+    When its source revision, selected capability, owner action, or Watch lifecycle changes
+    Then the actual tool dispatch refuses the obsolete action
+    And a reserved action retains an unknown result without replay
+
+  Scenario: Uncertain effects cannot be retried through changed model or owner labels
+    Given an owner action has an executing or unknown outcome
+    When generated keys, advice, observations, or owner rule versions change
+    Then the same tool and exact parameters cannot create another executable card
+    And an already pending duplicate cannot execute
+    And the original mutation receipt survives restart
+    And an independent approved action remains available
+
+  Scenario: Action selection requires explicit string identifiers
+    Given an ordinary owner action catalog or generated selection omits an action identifier
+    When the host validates that value
+    Then validation rejects the missing or non-string identifier
+
+  Scenario: Trusted Intent previews keep their read-only recommendation format
+    Given a ready Intent provides current preview observations
+    When its generator proposes read-only preview advice
+    Then the preview contains concise advice and a concrete owner next step
+    And the generator does not return a reason field
+    And source hashes remain in the cited observations
+    And preview details do not grant an order or execution permission
+
+  Scenario: Intent generation repairs a missing advice field without changing its authority
+    Given a ready Intent has current ride preview evidence
+    When the first generated candidate has a next step but omits advice
+    Then validation rejects that candidate before judgment or publication
+    And one correction identifies the missing advice field with complete valid JSON examples
+    And both ordinary and Intent examples retain advice and their own evidence identifiers
+    And only a corrected candidate with advice and a next step can pass
+    And two responses without advice fail without a generated fallback or new permission
+
+  Scenario: Useful feedback preserves a completed read-only Intent preview
+    Given the real Watch presents a completed Intent preview with current route handles
+    When the owner marks the recommendation useful or starts another owner turn
+    Then the recommendation remains pending and its route handles remain readable
+    And a completed manual preview retains the same read-only validity
+    And memory, source, Intent, time, expiry, or Watch lifecycle changes still invalidate it
+    And interaction during condition, discovery, refresh, or generation still cancels that unfinished work
+    And feedback never grants order or action permission
 
   Scenario: Presentation receipts recheck observation freshness
     Given offered routine recommendations have timestamped observations
@@ -452,3 +514,46 @@ Feature: Owner controlled proactive Personal Agent proposals
     And readiness does not acknowledge presentation
     And quiet, busy, routine, snooze and dismissal policies remain effective
     And diagnostic status queries do not request recovery
+
+  Scenario: Generated advice leads with one concise recommendation
+    Given the topic includes detailed observations and an approved next action
+    When ordinary generation or schema correction requests a suggestion
+    Then advice requests one short sentence focused on what the owner should do
+    And detailed source values and itemized quotes remain available in the cited observations
+    And existing stored advice retains its original length and evidence validation
+
+  Scenario: Feedback updates scoped recommendation memory in the background
+    Given a current recommendation has an executable action or a read-only preview
+    When the owner marks it useful, irrelevant, incorrect, postponed, or dismissed
+    Then its feedback and pending memory work are saved together before the response returns
+    And a separate tool-free Pi session asynchronously refines related recommendation memory
+    And future generation receives that topic's learned feedback without new action permission
+    And explicitly saved personal facts remain unchanged
+
+  Scenario: Feedback learning retains lifecycle and replacement boundaries
+    Given feedback learning is pending or running
+    When newer feedback replaces it, its topic changes, or the Watch stops
+    Then the obsolete result cannot update related memory
+    And restarting can resume saved tool-free work without executing a proposal action
+    And an unavailable learning runtime preserves feedback without claiming memory was updated
+
+  Scenario: Learning recovery does not erase accepted feedback work
+    Given feedback is saved while its Pi runtime is unavailable or its first attempt fails
+    When the selected runtime returns after restart
+    Then its saved tool-free work can resume within two worker attempts
+    And the same explicit feedback can retry a failed attempt without reopening the handled occurrence
+    And proposal-history eviction retains every unfinished learning job and its source policy
+    And full learning capacity reports backpressure instead of silently discarding accepted work
+
+
+  Scenario: Feedback refinement follows the current native Pi selection
+    Given the owner selected another native Pi model and thinking level
+    When asynchronous feedback refinement creates its tool-free session
+    Then it uses the current model and thinking level
+    And it does not restore the initial configured model or expose saved facts
+
+  Scenario: Native Pi configuration and feedback refinement do not overlap
+    Given asynchronous feedback refinement is running
+    When the owner requests a native Pi selection change
+    Then the resident reports busy until refinement completes
+    And an active configuration session refuses new refinement before inference

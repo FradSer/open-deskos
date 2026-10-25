@@ -2,7 +2,7 @@ import { nodeExecutable } from './helpers/node-executable.mjs'
 import { endpoint, tokenEnvironment, requests } from './helpers/private-channel.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -13,6 +13,180 @@ import { HomeBriefing } from '../src/home-briefing.mjs'
 import { PersonalAgentService } from '../src/service.mjs'
 import { loadCapabilities } from '../src/capabilities.mjs'
 import { agentOptions, validateWorkspace, createPersonalAgent, createResourceLoader, sessionAdapter } from '../src/agent.mjs'
+
+async function proposalExecutionFixture(t, { route, helperSource, capabilitySource } = {}) {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'odk-proposal-execution-')))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
+  const targets = join(dir, 'targets.json')
+  let executable = join(dir, 'unused-helper')
+  if (helperSource) {
+    await writeFile(executable, '#!/usr/bin/env node\n' + helperSource(dir), { mode: 0o700 })
+    executable = await nodeExecutable(t, executable)
+  }
+  await writeFile(targets, JSON.stringify({ targets: [{ id: 'cm5', name: 'Controlled target', roots: [dir], executable }] }))
+  const previous = process.env.ODK_TASK_TARGETS_FILE
+  process.env.ODK_TASK_TARGETS_FILE = targets
+  t.after(() => { if (previous === undefined) delete process.env.ODK_TASK_TARGETS_FILE; else process.env.ODK_TASK_TARGETS_FILE = previous })
+  let routes = 0, prompts = 0
+  const memoryFile = join(dir, 'memory.json')
+  const capability = join(dir, 'reviewed-capability.mjs')
+  if (capabilitySource) await writeFile(capability, capabilitySource)
+  const bot = await createPersonalAgent({ stateDir: join(dir, 'state'), env: {},
+    ...(capabilitySource ? { workspace: fileURLToPath(new URL('../../../', import.meta.url)), capabilityPaths: [capability] }
+      : { personal: { profile: 'personal', memoryFile, skillPaths: [] } }) }, {
+    createIntentRouter: () => async input => { routes++; return route ? route(input) : { intent: 'proposal_response' } },
+    createRuntime: async () => ({ getAvailable: async () => [{ provider: 'fixture', id: 'model' }] }),
+    createSession: async () => ({ session: { isStreaming: false, bindExtensions: async () => {}, setActiveToolsByName() {},
+      prompt() { prompts++; throw Error('Proposal execution must not prompt a model') }, abort: async () => {}, dispose() {} } }),
+  })
+  t.after(() => bot.close())
+  return { bot, dir, memoryFile, activity: () => ({ routes, prompts }) }
+}
+
+test('proposal availability checks actual schemas and configured targets without execution or inference', async t => {
+  const f = await proposalExecutionFixture(t)
+  assert.equal(typeof f.bot.canExecuteProposal, 'function')
+  const start = { tool: 'coding_task_start', params: { target: 'cm5', project: f.dir, prompt: 'Inspect the existing source.' } }
+  assert.equal(f.bot.canExecuteProposal(start), true)
+  assert.equal(f.bot.canExecuteProposal({ ...start, params: { ...start.params, target: 'mac' } }), false)
+  assert.equal(f.bot.canExecuteProposal({ ...start, params: { ...start.params, project: 'relative/project' } }), false)
+  assert.equal(f.bot.canExecuteProposal({ ...start, params: { ...start.params, prompt: ' ' } }), false)
+  assert.equal(f.bot.canExecuteProposal({ ...start, params: { ...start.params, prompt: 'x'.repeat(4096) } }), false)
+  assert.equal(f.bot.canExecuteProposal({ ...start, params: { ...start.params, extra: true } }), false)
+  assert.equal(f.bot.canExecuteProposal({ tool: 'coding_task_history', params: { target: 'cm5', project: f.dir, taskId: '12345678-1234-4234-8234-123456789abc' } }), true)
+  assert.equal(f.bot.canExecuteProposal({ tool: 'coding_task_history', params: { target: 'cm5', project: f.dir, taskId: 'x'.repeat(36) } }), false)
+  assert.equal(f.bot.canExecuteProposal({ tool: 'memory_update', params: { category: 'watering', value: 'Inspect soil.' } }), true)
+  assert.equal(f.bot.canExecuteProposal({ tool: 'memory_update', params: { category: 'watering' } }), false)
+  assert.equal(f.bot.canExecuteProposal({ tool: 'user_app_install', params: { id: 'notes' } }), false)
+  assert.equal(f.bot.canExecuteProposal({ tool: 'memory_forget', params: { category: 'watering' } }), false)
+  assert.equal(f.bot.canExecuteProposal(null), false)
+  assert.deepEqual(f.activity(), { routes: 0, prompts: 0 })
+  await assert.rejects(readFile(f.memoryFile), { code: 'ENOENT' })
+  await f.bot.close()
+  assert.equal(f.bot.canExecuteProposal(start), false)
+})
+
+test('a card cannot install through a missing destination or classify that attempt', async t => {
+  const f = await proposalExecutionFixture(t)
+  await assert.rejects(f.bot.executeProposal('user_app_install', { id: 'notes' }, '确认执行 12345678-1234-4234-8234-123456789abc'), /destination|text turn/i)
+  assert.deepEqual(f.activity(), { routes: 0, prompts: 0 })
+})
+
+test('confirmed proposal memory execution returns a completed receipt after actual readback', async t => {
+  const f = await proposalExecutionFixture(t)
+  const result = await f.bot.executeProposal('memory_update', { category: 'watering', value: 'Inspect soil.' }, '记住 watering：Inspect soil.', {})
+  assert.equal(result.outcome, 'completed')
+  assert.deepEqual(result.receipt, { tool: 'memory_update', category: 'watering' })
+  assert.deepEqual(JSON.parse(await readFile(f.memoryFile, 'utf8')), { watering: 'Inspect soil.' })
+  assert.deepEqual(f.activity(), { routes: 1, prompts: 0 })
+  await assert.rejects(f.bot.executeProposal('memory_update', { category: 'other', value: 'No authorization.' }, '好的'))
+})
+
+test('an existing three-argument Watch receives default Agent memory results as durable text', async t => {
+  const f = await proposalExecutionFixture(t)
+  // This separately selected consumer uses the public pre-context contract.
+  const watch = { proposal: { status: 'pending', result: '' }, async respond() {
+    this.proposal.result = await f.bot.executeProposal('memory_update', { category: 'watering', value: 'Inspect soil.' }, '记住 watering：Inspect soil.')
+    assert.equal(typeof this.proposal.result, 'string')
+    this.proposal.status = 'completed'
+    return JSON.stringify(this.proposal)
+  } }
+  const checkpoint = JSON.parse(await watch.respond())
+  assert.equal(checkpoint.result, 'Memory updated.')
+  assert.equal(checkpoint.status, 'completed')
+  assert.deepEqual(JSON.parse(await readFile(f.memoryFile, 'utf8')), { watering: 'Inspect soil.' })
+  assert.deepEqual(f.activity(), { routes: 1, prompts: 0 })
+})
+
+test('an existing three-argument reviewed custom action keeps joined text without new card authority', async t => {
+  const f = await proposalExecutionFixture(t, { capabilitySource: `export default async () => [{ name: 'reviewed_text', label: 'Reviewed text',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    execute: async () => ({ content: [{type:'text',text:'First line'}, {type:'image',data:'ignored',mimeType:'image/png'}, {type:'text',text:'Second line'}] }) }];` })
+  assert.equal(f.bot.canExecuteProposal({ tool: 'reviewed_text', params: {} }), false)
+  assert.equal(await f.bot.executeProposal('reviewed_text', {}, '确认执行 fixture'), 'First line\nSecond line')
+  await assert.rejects(f.bot.executeProposal('reviewed_text', {}, '确认执行 fixture', {}), /unavailable/)
+  assert.deepEqual(f.activity(), { routes: 1, prompts: 0 })
+})
+
+test('an existing three-argument task failure still rejects without retrying', async t => {
+  const f = await proposalExecutionFixture(t, { helperSource: directory => `const fs=require('node:fs');let input='';process.stdin.on('data',chunk=>input+=chunk);process.stdin.on('end',()=>{fs.appendFileSync(${JSON.stringify(join(directory, 'wire.ndjson'))},input);process.exit(1)})` })
+  await assert.rejects(f.bot.executeProposal('coding_task_start', { target: 'cm5', project: f.dir, prompt: 'Inspect source.' }, '确认执行 fixture'), /taskId|mutationId/)
+  const wire = (await readFile(join(f.dir, 'wire.ndjson'), 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+  assert.equal(wire.length, 1)
+  assert.deepEqual(f.activity(), { routes: 1, prompts: 0 })
+})
+
+test('proposal result classification never promotes error text or task admission to completion', async () => {
+  const { proposalExecutionResult } = await import('../src/agent.mjs')
+  assert.equal(typeof proposalExecutionResult, 'function')
+  const params = { target: 'cm5', project: '/controlled/project', taskId: '12345678-1234-4234-8234-123456789abc' }
+  const task = { taskId: params.taskId, project: params.project, state: 'running' }
+  const text = [{ type: 'text', text: 'Everything completed successfully.' }]
+  for (const result of [
+    { isError: true, structuredContent: { ok: true, accepted: true, task }, content: text },
+    { structuredContent: { ok: false, accepted: true, task }, content: text },
+    { structuredContent: { ok: true, accepted: false, task }, content: text },
+    { content: text },
+    { structuredContent: { ok: true, accepted: true, task: { ...task, project: '/other' } }, content: text },
+    { structuredContent: { ok: true, delivery: 'unknown', task }, content: text },
+  ]) assert.notEqual(proposalExecutionResult('coding_task_start', params, result).outcome, 'completed')
+  for (const delivery of [undefined, 'queued']) {
+    const result = proposalExecutionResult('coding_task_start', params, { structuredContent: { ok: true, accepted: true, delivery, task }, content: text })
+    assert.equal(result.outcome, 'accepted')
+    assert.deepEqual(result.receipt, { tool: 'coding_task_start', target: 'cm5', project: params.project, taskId: params.taskId })
+    assert.doesNotMatch(result.text, /Everything completed/)
+  }
+  assert.equal(proposalExecutionResult('coding_task_start', params, { isError: true, structuredContent: { ok: true, task } }).outcome, 'failed')
+  assert.equal(proposalExecutionResult('coding_task_start', params, { structuredContent: { ok: false, task } }).outcome, 'failed')
+  const uncertain = proposalExecutionResult('coding_task_start', params, { structuredContent: { ok: true, delivery: 'unknown', task } })
+  assert.equal(uncertain.outcome, 'unknown')
+  assert.deepEqual(uncertain.receipt, { tool: 'coding_task_start', target: 'cm5', project: params.project, taskId: params.taskId })
+  const history = proposalExecutionResult('coding_task_history', params, { structuredContent: { ok: true, task, history: { events: [] } } })
+  assert.equal(history.outcome, 'completed', 'Reading history completes the read, not the coding task')
+  assert.match(history.text, /记录/)
+  assert.notEqual(proposalExecutionResult('coding_task_history', params, { structuredContent: { ok: true, task: { ...task, taskId: 'other' }, history: { events: [] } } }).outcome, 'completed')
+  const installed = { structuredContent: { ok: true, app: { id: 'notes', revision: 'a'.repeat(32) } } }
+  assert.equal(proposalExecutionResult('user_app_install', { id: 'notes' }, installed).outcome, 'completed')
+  assert.notEqual(proposalExecutionResult('user_app_install', { id: 'notes' }, { structuredContent: { ok: true, app: { id: 'notes', revision: 'a'.repeat(64) } } }).outcome, 'completed')
+  assert.notEqual(proposalExecutionResult('user_app_install', { id: 'other' }, installed).outcome, 'completed')
+  assert.notEqual(proposalExecutionResult('memory_update', { category: 'watering', value: 'Inspect soil.' }, { content: text }).outcome, 'completed')
+})
+
+for (const invalidation of ['close', 'signal', 'current']) {
+  test(`a deferred proposal route cannot write memory after ${invalidation} invalidation`, async t => {
+    let entered, release, current = true
+    const ready = new Promise(resolve => { entered = resolve })
+    const gate = new Promise(resolve => { release = resolve })
+    const f = await proposalExecutionFixture(t, { route: async () => { entered(); await gate; return { intent: 'proposal_response' } } })
+    const controller = new AbortController()
+    const context = invalidation === 'close' ? undefined : { signal: controller.signal, isCurrent: () => current }
+    const executing = f.bot.executeProposal('memory_update', { category: 'watering', value: 'Inspect soil.' }, '记住 watering：Inspect soil.', context)
+    await ready
+    if (invalidation === 'close') await f.bot.close()
+    if (invalidation === 'signal') controller.abort()
+    if (invalidation === 'current') current = false
+    release()
+    await assert.rejects(executing, /abort|current|unavailable/i)
+    await assert.rejects(readFile(f.memoryFile), { code: 'ENOENT' })
+  })
+}
+
+test('an unavailable proposal context refuses before routing or a tool call', async t => {
+  const f = await proposalExecutionFixture(t)
+  await assert.rejects(f.bot.executeProposal('memory_update', { category: 'watering', value: 'Inspect soil.' }, '记住 watering：Inspect soil.', { isCurrent: () => false }), /current/i)
+  assert.deepEqual(f.activity(), { routes: 0, prompts: 0 })
+  await assert.rejects(readFile(f.memoryFile), { code: 'ENOENT' })
+})
+
+test('a proposal start retains the transport-owned unknown receipt without retrying', async t => {
+  const f = await proposalExecutionFixture(t, { helperSource: directory => `const fs=require('node:fs');let input='';process.stdin.on('data',chunk=>input+=chunk);process.stdin.on('end',()=>{fs.appendFileSync(${JSON.stringify(join(directory, 'wire.ndjson'))},input);process.exit(1)})` })
+  const result = await f.bot.executeProposal('coding_task_start', { target: 'cm5', project: f.dir, prompt: 'Inspect the existing source.' }, '确认执行 12345678-1234-4234-8234-123456789abc', { isCurrent: () => true })
+  assert.equal(result.outcome, 'unknown')
+  const wire = (await readFile(join(f.dir, 'wire.ndjson'), 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+  assert.equal(wire.length, 1)
+  assert.deepEqual(result.receipt, { tool: 'coding_task_start', target: 'cm5', project: f.dir, taskId: wire[0].taskId, mutationId: wire[0].mutationId })
+  assert.deepEqual(f.activity(), { routes: 1, prompts: 0 })
+})
 
 test('a routed conversation stays concise when completion and learning are enabled', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'odk-conversation-verification-'))
@@ -388,6 +562,50 @@ test('invalid fact selections retry without restoring required source coverage',
   })
   await bot.generateBriefing({ readings: [{ id: 'futu', label: 'Futu holdings', state: 'live', value: { count: 11 }, home: { mode: 'required', priority: 100, icon: 'portfolio', fields: ['count'] } }] })
   assert.equal(attempts, 2)
+})
+
+test('Intent generation repairs an omitted advice field through the actual isolated session prompt', async t => {
+  const topic = { id: 'intent-ride', intentPreview: true, evidence: [{ id: 'e0', value: 'Read-only ride preview available' }] }
+  const missing = { topicId: topic.id, key: 'ride-preview', nextStep: '查看行程候选并选择起终点。', evidenceIds: ['e0'] }
+  const repaired = { ...missing, advice: '查看当前行程方案。' }
+  let calls = 0, instructions = ''
+  const bot = await generationFixture(t, {}, async (emit, text) => {
+    const input = JSON.parse(text.slice(text.indexOf('{')))
+    if (++calls === 2) {
+      assert.match(input.formatCorrection, /Missing required field "advice"/)
+      for (const label of ['Ordinary example: ', 'Intent preview example: ']) {
+        const line = input.formatCorrection.split('\n').find(row => row.startsWith(label))
+        assert.ok(line, label)
+        const example = JSON.parse(line.slice(label.length)).suggestions[0]
+        assert.equal(typeof example.advice, 'string')
+        assert.ok(Array.isArray(example.evidenceIds))
+        assert.equal(Object.hasOwn(example, 'reason'), false)
+        assert.equal(Object.hasOwn(example, 'why'), false)
+        assert.equal(Object.hasOwn(example, label.startsWith('Intent') ? 'nextStep' : 'actionId'), true)
+      }
+      assert.deepEqual(input.topics, [topic])
+    }
+    emit({ type: 'message_end', message: assistant(JSON.stringify({ suggestions: [calls === 1 ? missing : repaired] })) })
+  }, options => {
+    instructions = options.resourceLoader.getSystemPrompt()
+    assert.deepEqual(options.tools, [])
+    assert.deepEqual(options.customTools, [])
+  })
+  assert.deepEqual(await bot.generateProposals({ topics: [topic], maxCandidates: 1 }), { suggestions: [repaired] })
+  assert.equal(calls, 2)
+  assert.match(instructions, /Every candidate, including an Intent preview, must include advice/)
+  assert.equal(Object.hasOwn(missing, 'advice'), false)
+})
+
+test('Intent generation cannot substitute a next step for advice after its one correction', async t => {
+  let calls = 0
+  const topic = { id: 'intent-ride', intentPreview: true, evidence: [{ id: 'e0', value: 'Read-only preview' }] }
+  const bot = await generationFixture(t, {}, async emit => {
+    calls++
+    emit({ type: 'message_end', message: assistant(JSON.stringify({ suggestions: [{ topicId: topic.id, key: 'ride-preview', nextStep: '查看行程候选。', evidenceIds: ['e0'] }] })) })
+  })
+  await assert.rejects(bot.generateProposals({ topics: [topic], maxCandidates: 1 }), error => error.code === 'advice_required')
+  assert.equal(calls, 2)
 })
 
 test('Given different service and process environments When generating suggestions Then the service timeout controls the injected SDK session', { timeout: 5000 }, async t => {

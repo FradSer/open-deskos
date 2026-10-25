@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -74,7 +75,7 @@ for (const { emptyStartup, rejectPackage, heldStylesheet } of [{ emptyStartup: f
           : '<!doctype html><html><style>body{margin:0;padding:32px;background:var(--odk-bg);color:var(--odk-primary);font:20px var(--odk-font)}button{display:block;margin-top:16px;min-width:80px;min-height:48px;font:inherit;color:inherit;background:var(--odk-surface);border:1px solid var(--odk-stroke);border-radius:var(--odk-radius-card)}</style><body><p>Synthetic Appearance fixture</p><label for="counter">Counter</label><button id="counter">0</button><script>counter.onclick=()=>counter.textContent=Number(counter.textContent)+1</script></body></html>')
         if (!emptyStartup) await execute(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'),
           'native', 'install', env.ODK_APPEARANCE_FIRST, '--trust', '--keyring', env.ODK_NATIVE_KEYRING], { env, signal: t.signal })
-        const operation = execute(require('electron'), [`--user-data-dir=${env.ODK_APPEARANCE_PROFILE}`, fixture],
+        const operation = execute(require('electron'), isolatedElectronArgs([`--user-data-dir=${env.ODK_APPEARANCE_PROFILE}`, fixture]),
           { env, cwd: path.resolve(__dirname, '..'), signal: t.signal, timeout: appearanceChildTimeout, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 })
         const closed = new Promise(resolve => operation.child.once('close', resolve))
         try {

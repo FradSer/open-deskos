@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -43,7 +44,7 @@ for (const mode of ['development', 'native']) {
           { env, signal: t.signal, timeout: 10000 })
       }
       const renderingArgs = process.platform === 'linux' ? ['--disable-gpu'] : []
-      const result = await runCommand(require('electron'), [...renderingArgs, `--user-data-dir=${profile}`, '--force-device-scale-factor=1', fixture],
+      const result = await runCommand(require('electron'), isolatedElectronArgs([...renderingArgs, `--user-data-dir=${profile}`, '--force-device-scale-factor=1', fixture]),
         { env, signal: t.signal, timeout: 55000, maxBuffer: 1024 * 1024 })
       assert.deepEqual(JSON.parse(result.stdout.trim().split('\n').pop()), {
         actualPreload: true, mode, identities: specs.map(spec => spec.id), documentLoads: 1,

@@ -109,12 +109,14 @@ app.whenReady().then(async () => {
   const initial = await startResident()
   const token = process.platform === 'win32' ? fs.readFileSync(path.join(directory, 'channel.token'), 'utf8').trim() : ''
   ipcMain.removeHandler('odk-personal-agent-status')
+  ipcMain.removeHandler('odk-personal-agent-consumer-ready')
   win = new BrowserWindow({ width: 1280, height: 800, show: false, useContentSize: true, webPreferences: {
     preload: path.resolve(__dirname, '../src/preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false, offscreen: true, backgroundThrottling: false,
   } })
   channelHost = createPluginHost({ capabilities: { ipc: ipcMain,
     broadcast: (name, status) => { if (win && !win.isDestroyed()) win.webContents.send(name, status) },
-    'system.personal-agent': { create: createPersonalAgentClient, options: { socketPath, token, reconnectDelayMs: 50 }, smokeMode: false },
+    'system.personal-agent': { create: createPersonalAgentClient, options: { socketPath, token, reconnectDelayMs: 50 }, smokeMode: false,
+      isConsumerFrame: event => event.sender === win.webContents && event.senderFrame === win.webContents.mainFrame },
   } })
   channelHost.register(createSystemChannelPlugins().find(plugin => plugin.manifest.id === 'odk.system.personal-agent'))
   await channelHost.start()
@@ -122,12 +124,20 @@ app.whenReady().then(async () => {
   assert(client, 'The actual main-process channel plugin must start')
   await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'))
   await evaluate('document.fonts.ready')
-  await dom(`document.querySelector('.agent-send')?.disabled === false`)
+  await dom(`document.querySelector('.agent-send')?.disabled === true`)
   async function submit() {
-    await evaluate(`(()=>{const input=document.querySelector('.agent-composer textarea');input.value='Run the saved reporter.';document.querySelector('.agent-composer').requestSubmit()})()`)
+    await evaluate(`(() => {
+      const composer = document.querySelector('.agent-composer')
+      if (composer.dataset.mode !== 'keyboard') composer.querySelector('.agent-keys').click()
+      const input = composer.querySelector('textarea')
+      input.value = 'Run the saved reporter.'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })()`)
+    await dom(`document.querySelector('.agent-send')?.disabled === false`)
+    await evaluate(`document.querySelector('.agent-send').click()`)
     await event('child_started')
     await dom(`document.querySelector('.agent-child-state')?.textContent === 'Running'`)
-    await dom(`document.querySelector('.agent-send')?.disabled === false`)
+    await dom(`document.querySelector('.agent-composer')?.dataset.state === 'idle' && document.querySelector('.agent-send')?.disabled === true && document.querySelector('.agent-composer textarea')?.value === ''`)
     const [task] = client.snapshot().agents.tasks
     assert.equal(task.identity.revision, initial.identity.revision)
     assert.equal(await evaluate(`document.querySelector('.agent-child-name').textContent`), initial.identity.name)
@@ -150,6 +160,7 @@ app.whenReady().then(async () => {
   await dom(`document.querySelectorAll('.agent-child').length === 0`)
   command('disconnect'); await event('disconnected')
   await dom(`document.querySelector('.agent-send')?.disabled === true`)
+  await dom(`document.querySelector('.agent-input-notice')?.textContent.includes('Connection unavailable')`)
   assert.equal(await stopResident(), 0)
   assert.equal(forcedCleanup, false)
   if (process.argv.includes('--drop-saved-identity')) {
@@ -162,7 +173,7 @@ app.whenReady().then(async () => {
   assert.notEqual(restarted.pid, initial.pid, 'Persistence must survive a new resident process')
   assert.deepEqual(restarted.identity, initial.identity)
   assert(restarted.tasks.some(task => task.taskId === first.taskId && task.state === 'finished'))
-  await dom(`document.querySelector('.agent-send')?.disabled === false`)
+  await dom(`document.querySelector('.agent-input-notice')?.hidden === true && document.querySelector('.agent-composer')?.dataset.state === 'idle' && document.querySelector('.agent-send')?.disabled === true && document.querySelector('.agent-composer textarea')?.value === ''`)
   const second = await submit()
   assert.notEqual(second.taskId, first.taskId)
   command('cancel'); await event('cancelling')

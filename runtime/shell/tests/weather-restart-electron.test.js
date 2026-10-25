@@ -1,4 +1,5 @@
 'use strict'
+const { isolatedElectronArgs } = require('./helpers/electron-fixture')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -28,7 +29,7 @@ test('signed Weather update rollback and removal preserve separate Electron cons
       try {
         const fixture = path.join(__dirname, 'weather-plugin-electron.cjs')
         await fs.access(fixture)
-        const running = execFile(require('electron'), [`--user-data-dir=${profile}`, fixture], { env: childEnv, timeout: 55000, maxBuffer: 4 * 1024 * 1024 })
+        const running = execFile(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, fixture]), { env: childEnv, timeout: 55000, maxBuffer: 4 * 1024 * 1024 })
         const result = await running
         const report = JSON.parse(result.stdout.trim().split('\n').pop())
         assert.equal(report.actualPreload, true)
