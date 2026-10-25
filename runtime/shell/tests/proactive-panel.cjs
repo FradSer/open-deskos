@@ -150,12 +150,16 @@ app.whenReady().then(async () => {
   await delay()
   assert.deepEqual(ownerTurns, ['查看报价 11111111-1111-4111-8111-111111111111 33333333-3333-4333-8333-333333333333 44444444-4444-4444-8444-444444444444'])
   assert.equal(commands.filter(c => c.type === 'proposal_respond').length, 2, 'Route selection adds no proposal acceptance')
+  let rideScenario = 0
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     await run(`odkTheme.set(${JSON.stringify(theme)}); document.fonts.ready.then(() => true)`)
     for (const [width, height] of [[320, 480], [480, 854], [1920, 1280]]) {
       await viewport(width, height)
-      await send({ state: 'idle', proposals: [ride], proposalPopup: true })
+      const scenarioRide = { ...ride, id: `7311a280-c0b9-4411-96cd-${String(++rideScenario).padStart(12, '0')}`, ridePreview: { ...ride.ridePreview, handle: `matrix-preview-${rideScenario}` } }
+      await send({ state: 'idle', proposals: [scenarioRide], proposalPopup: true })
+      const beforeSelection = ownerTurns.length
       await run(`(() => { const route = document.querySelector('.personal-bot-ride-route'); if (route.hidden) document.querySelector('.personal-bot-ride-actions .personal-bot-proposal-primary').click(); return document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) })()`)
+      assert.equal(ownerTurns.length, beforeSelection, 'Each fresh ambiguous route requires an explicit place selection')
       const rideGeometry = await run(`(() => { const node = document.querySelector('.agent-suggestions'); return { routeHidden: document.querySelector('.personal-bot-ride-route').hidden, overflow: node.scrollWidth > node.clientWidth + 1, heights: [...document.querySelectorAll('.personal-bot-ride-route select, .personal-bot-ride-route button, .personal-bot-ride-actions button')].map(n => n.getBoundingClientRect().height) } })()`)
       assert.equal(rideGeometry.routeHidden, false, JSON.stringify({ theme, width, height, ...rideGeometry })); assert.equal(rideGeometry.overflow, false); assert.ok(rideGeometry.heights.length >= 3); assert.ok(rideGeometry.heights.every(h => h >= 44), JSON.stringify({ theme, width, height, ...rideGeometry }))
       for (const status of ['pending', 'expired', 'ignored', 'completed', 'unknown']) {
