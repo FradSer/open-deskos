@@ -236,11 +236,9 @@
   to { transform: translateX(310%); }
 }
 
-.personal-bot-proposals { display: none; }
-#personal-bot-status[data-proactive='true'] { pointer-events: none; }
-#personal-bot-status[data-proactive='true'] .personal-bot-status-content { pointer-events: auto; }
-#personal-bot-status[data-proactive='true'] .personal-bot-status-content > :not(.personal-bot-proposals) { display: none; }
-#personal-bot-status[data-proactive='true'] .personal-bot-proposals { display: grid; gap: var(--odk-space-3); }
+.agent-suggestions { min-width: 0; max-block-size: min(38vh, 24rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-inline: var(--odk-space-2); }
+.agent-suggestions[hidden] { display: none; }
+.agent-suggestions .personal-bot-proposals { display: grid; gap: var(--odk-space-2); }
 .personal-bot-proposals-header { display: flex; align-items: center; justify-content: space-between; gap: var(--odk-space-2); }
 .personal-bot-proposals-header h2 { font-size: 1em; font-weight: 400; margin: 0; }
 .personal-bot-proposal { display: grid; gap: var(--odk-space-3); border-top: 1px solid var(--odk-stroke); padding-top: var(--odk-space-3); }
@@ -250,13 +248,12 @@
 .personal-bot-proposals button { min-height: 44px; padding: var(--odk-space-2); border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: 14px; white-space: normal; overflow-wrap: anywhere; text-align: start; }
 .personal-bot-proposals button:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 .personal-bot-proposals button:disabled { color: var(--odk-secondary-strong); }
-#personal-bot-status[data-suggestions='true'] .personal-bot-proposals { display: grid; gap: var(--odk-space-3); }
 
-.personal-bot-ride-details { display: grid; gap: 12px; }
-.personal-bot-ride-details[hidden] { display: none; }
-.personal-bot-ride-details label { display: grid; gap: 8px; font-size: 14px; color: var(--odk-secondary-strong); }
-.personal-bot-ride-details select { min-height: 44px; width: 100%; min-width: 0; max-width: 100%; font: inherit; color: var(--odk-primary); background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: 8px; }
-.personal-bot-ride-details select:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
+.personal-bot-ride-route { display: grid; gap: 12px; }
+.personal-bot-ride-route[hidden] { display: none; }
+.personal-bot-ride-route label { display: grid; gap: 8px; font-size: 14px; color: var(--odk-secondary-strong); }
+.personal-bot-ride-route select { min-height: 44px; width: 100%; min-width: 0; max-width: 100%; font: inherit; color: var(--odk-primary); background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: 8px; }
+.personal-bot-ride-route select:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 
 .personal-bot-proposal-advice { min-width: 0; overflow-wrap: anywhere; font-size: clamp(20px, 1.5vw, 24px); line-height: 1.5; color: var(--odk-primary); }
 .personal-bot-proposal-advice[data-long='true'] { max-block-size: min(12rem, 30vh); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-inline-end: var(--odk-space-2); }
@@ -273,8 +270,9 @@
 .personal-bot-proposals details { min-width: 0; }
 .personal-bot-proposals summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--odk-secondary-strong); font-size: 14px; text-decoration: underline; text-underline-offset: 0.2em; }
 .personal-bot-proposals summary:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
-.personal-bot-proposal-sources > summary, .personal-bot-proposal-feedback-options > summary { display: list-item; list-style-position: inside; padding-block: 10px; line-height: 24px; box-sizing: border-box; }
 .personal-bot-proposals details[open] > summary { margin-block-end: var(--odk-space-2); }
-.personal-bot-proposal-sources { overflow-wrap: anywhere; }
-.personal-bot-proposal-sources p + p { margin-block-start: var(--odk-space-2); }
 .personal-bot-proposal-history > .personal-bot-proposal { margin-block-start: var(--odk-space-3); }
+
+.agent-composer .personal-bot-proposals button { width: auto; height: auto; min-width: 44px; padding: var(--odk-space-2) var(--odk-space-3); }
+.agent-composer .personal-bot-proposal-advice { font-size: 18px; }
+.agent-suggestions .personal-bot-proposal { border-top: 0; padding-block: var(--odk-space-2); }

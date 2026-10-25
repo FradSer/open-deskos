@@ -1,11 +1,29 @@
 Feature: Independent resident personal bot
-  Scenario: Folded historical advice is unread until its actual text becomes visible
-    Given a historical suggestion contains a technical hash
-    And its original advice is inside collapsed Sources and details
-    When its source-inspection placeholder becomes visible
-    Then the suggestion remains unacknowledged
-    When the owner expands sources and the original advice enters the viewport
-    Then that suggestion identifier receives a presentation acknowledgement
+  # The Personal Agent page owns suggestions inside its existing composer.
+  # Resident proposal state owns identity, freshness, feedback, and action authority.
+  # Four Shell themes retain readable advice, 44px controls, and input drafts.
+  Scenario: Recommendations stay inside the Personal Agent composer
+    Given a pending recommendation arrives while the owner types a draft
+    When the Personal Agent receives the current proposal snapshot
+    Then the recommendation and executable action appear inside the input composer
+    And no recommendation popup opens or takes focus
+    And the draft, input mode, and selection remain unchanged
+    And Sources and details, technical receipts, and Why are absent
+    And Feedback remains available for executable and read-only recommendations
+
+  Scenario: Feedback starts asynchronous memory refinement
+    Given a current recommendation has an available Feedback control
+    When the owner marks the recommendation useful, irrelevant, or incorrect
+    Then the resident saves the feedback without waiting for Pi inference
+    And a tool-free Pi job refines only related recommendation preference memory
+    And future recommendations consume the saved preference memory
+    And saved personal facts and action authority remain unchanged
+
+  Scenario: Technical historical advice stays private
+    Given an earlier suggestion contains a technical hash
+    When its unavailable placeholder enters the composer viewport
+    Then no Sources or Details disclosure appears
+    And the hidden original advice remains unacknowledged
 
   Scenario: Remote microphone asks the renderer before controlling recording
     Given the CM5 personal bot service is connected and no interaction has been activated
@@ -315,9 +333,9 @@ Feature: Independent resident personal bot
     Then the response identifies only that suggestion and decision
     And Done does not execute the suggested action
     And the main content states that no executable action is available
-    And Sources retains the earlier next-step text
+    And the resident retains the earlier next-step text
     And no reason or Why now explanation appears
-    And technical sources and previous suggestions use keyboard-accessible disclosures
+    And previous suggestions use a keyboard-accessible disclosure
     And controls retain 44-pixel touch targets across themes and compact sizes
 
   Scenario: Android reads suggestions without acquiring response authority
@@ -341,7 +359,7 @@ Feature: Independent resident personal bot
   Scenario: Recommendation cards emphasize the next action
     Given a suggestion contains concise advice and an authorized plugin action
     And its source evidence contains complete SHA256 values
-    When the nonmodal card opens
+    When the recommendation appears inside the input composer
     Then advice has visual priority over metadata
     And the concrete execution button precedes source and feedback disclosures
     And a current executable card does not repeat its button label as a separate next step
@@ -349,26 +367,22 @@ Feature: Independent resident personal bot
     And execution and exact confirmation retain the primary action style
     And confirmation receives focus and Cancel returns focus to the execution button
     And secondary actions remain quieter without losing their touch targets
-    And source and feedback disclosures are closed by default
+    And Feedback is closed by default
     And no Why now explanation appears
-    And source values remain complete when the owner opens Sources
+    And source values remain private in resident state
 
-  Scenario: Earlier technical suggestions retain their complete content
+  Scenario: Technical recommendation content remains in resident state
     Given an earlier stored suggestion contains a SHA256 value in its advice
-    And it has no next step
-    When the card opens
-    Then the main content asks the owner to review the earlier suggestion in Sources
-    And View sources opens the complete original advice without executing an action
-    And opening Sources alone does not acknowledge the suggestion
-    And the original advice remains the visibility observation target
+    When the Personal Agent renders its input recommendations
+    Then it requests an updated suggestion without exposing the hash
+    And no source inspection control appears
+    And the resident retains the original private record
 
-  Scenario: Native acceptance waits for the actual visibility receipt
-    Given an earlier technical suggestion is inside collapsed Sources
-    When its original advice becomes visible after the owner opens Sources
-    Then acceptance waits for the same suggestion visibility command after fonts and frames settle
-    And an unrelated suggestion receipt cannot satisfy the wait
-    And a missing or late receipt fails within the bounded wait
-    And the original overall acceptance deadline remains unchanged
+  Scenario: Native acceptance requires actual visible recommendation text
+    Given a recommendation is below the composer viewport
+    When another recommendation becomes visible
+    Then only the visible recommendation receives a presentation acknowledgement
+    And a technical placeholder cannot acknowledge its original private text
 
   Scenario: The next step starts an authorized plugin operation
     Given a pending suggestion has an owner-authorized action and exact confirmation
@@ -383,23 +397,21 @@ Feature: Independent resident personal bot
     Given an earlier suggestion has text for a next step but no authorized action
     When the card opens
     Then it states that no executable action is available
-    And the earlier text remains available in Sources
+    And the earlier text remains private in resident state
     And Done is available only as historical feedback
 
   Scenario: An incomplete action remains non-executable
     Given an earlier suggestion has an action but no exact confirmation
     When the card opens
     Then no executable next-step control appears
-    And Sources retains the earlier action details
+    And the resident retains the earlier action details
 
-  Scenario: Execution receipts remain inspectable in Sources
+  Scenario: Execution receipts remain private
     Given an accepted operation has a structured execution receipt
-    When the suggestion card opens
-    Then Sources keeps the receipt closed by default
-    And the main card does not expose technical receipt fields
-    When the owner opens Sources
-    Then the complete bounded receipt is readable as text
-    And receipt presence does not change the authoritative suggestion state
+    When the recommendation appears inside the composer
+    Then its authoritative state remains visible
+    And no technical receipt, source disclosure, or execution parameter appears
+    And receipt presence does not assert completion
 
   Scenario: An uncertain action stays reserved across card redraw and reconnect
     Given a confirmed action has no authoritative execution outcome
@@ -410,11 +422,12 @@ Feature: Independent resident personal bot
     Then the execution reservation and warning remain
     And no automatic response replay occurs
 
-  Scenario: Earlier tool results keep technical details in Sources
+  Scenario: Technical tool results stay outside the input recommendation
     Given an earlier plugin returns a technical result or a bounded JSON receipt
-    When the recommendation card opens
-    Then Sources keeps the complete original result as collapsed text
-    And natural-language results remain in the main card
+    When the Personal Agent renders the recommendation
+    Then the input area shows its recorded operation status
+    And the original result stays in resident state
+    And natural-language results remain readable
     And the result never replaces the authoritative proposal state
 
   Scenario: Stable action confirmation survives unrelated status updates
@@ -431,7 +444,7 @@ Feature: Independent resident personal bot
 
   Scenario: A real ride recommendation opens a fresh interactive quote
     Given the resident publishes a recommendation from actual Memory and reviewed DiDi results
-    When the owner opens ride details and selects actual returned places
+    When the owner selects actual returned places in the inline route chooser
     And the owner activates Get current quote
     Then the actual owner text channel reaches the Agent's ride workflow
     And a new MCP estimate appears in the rendered response and controller readback

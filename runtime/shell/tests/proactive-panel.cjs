@@ -30,30 +30,6 @@ async function waitForAdviceEnd(run, timeoutMs = 2000) {
   } while (true)
   assert.fail('Native End did not reach the complete recommendation: ' + JSON.stringify(observed))
 }
-async function waitForTechnicalAdvicePresentation(run, commands, id, timeoutMs = 5000) {
-  const deadline = performance.now() + timeoutMs
-  await run(`(async () => {
-    await document.fonts.ready
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-  })()`)
-  while (performance.now() < deadline) {
-    if (commands.some(c => c.type === 'proposal_presented' && Array.isArray(c.ids) && c.ids.includes(id))) return
-    await new Promise(resolve => setTimeout(resolve, 20))
-  }
-  const geometry = await run(`(() => {
-    const original = document.querySelector('.personal-bot-proposal-original-advice')
-    const sources = document.querySelector('.personal-bot-proposal-sources')
-    const content = document.querySelector('.personal-bot-status-content')
-    const rect = node => {
-      if (!node) return null
-      const { top, left, width, height } = node.getBoundingClientRect()
-      return { top, left, width, height }
-    }
-    return { documentHidden: document.hidden, surfaceHidden: document.getElementById('personal-bot-status')?.hidden,
-      sourcesOpen: sources?.open, originalVisible: original?.checkVisibility(), original: rect(original), viewport: rect(content) }
-  })()`)
-  throw Error(`Technical original advice was not acknowledged: ${JSON.stringify({ id, geometry })}`)
-}
 app.whenReady().then(async () => {
   const reconnect = reconnectOnly ? await require('./helpers/proactive-reconnect').createProactiveReconnectFixture() : undefined
   const commands = []
@@ -92,7 +68,7 @@ app.whenReady().then(async () => {
     await send({ state: 'idle', proposals: [long], proposalPopup: true, proposalCapabilities: { read: true, respond: true, acknowledge: true } })
     await run(`document.querySelector('.personal-bot-proposal-advice').scrollIntoView({block:'center'})`)
     await delay()
-    const geometry = await run(`(() => { const advice = document.querySelector('.personal-bot-proposal-advice'); const body = advice.getBoundingClientRect(); const viewport = document.querySelector('.personal-bot-status-content').getBoundingClientRect(); return { body: body.height, viewport: viewport.height, textHeight: advice.scrollHeight, text: advice.textContent, tabIndex: advice.tabIndex } })()`)
+    const geometry = await run(`(() => { const advice = document.querySelector('.personal-bot-proposal-advice'); const body = advice.getBoundingClientRect(); const viewport = document.querySelector('.agent-suggestions').getBoundingClientRect(); return { body: body.height, viewport: viewport.height, textHeight: advice.scrollHeight, text: advice.textContent, tabIndex: advice.tabIndex } })()`)
     assert.ok(geometry.body > 0 && geometry.body < geometry.viewport, JSON.stringify(geometry))
     assert.ok(geometry.textHeight > geometry.body * 2, JSON.stringify(geometry))
     assert.equal(geometry.text, long.advice)
@@ -107,7 +83,7 @@ app.whenReady().then(async () => {
     await send({ state: 'idle', proposals: [{ ...long, id: 'b311a280-c0b9-4411-96cd-4e1e92385350' }], proposalPopup: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
     await run(`document.querySelector('.personal-bot-proposal-advice').scrollIntoView({block:'center'})`)
     await delay(); assert.equal(commands.length, before, 'Long read-only advice cannot acknowledge itself')
-    await run(`odkPersonalBotStatus.close()`)
+    await send({ state: 'idle', proposals: [], proposalPopup: false })
     await viewport(480, 854)
     commands.length = 0
   }
@@ -116,11 +92,15 @@ app.whenReady().then(async () => {
     console.log('PROACTIVE_LONG_ADVICE_VISIBLE_PASS')
     clearTimeout(timer); win.destroy(); app.exit(0); return
   }
-  await run(`document.querySelector('#dots .dot').focus()`)
+  await run(`(() => { const composer = document.querySelector('.agent-composer'); if (composer.dataset.mode !== 'keyboard') composer.querySelector('.agent-keys').click(); const input = composer.querySelector('textarea'); input.value = 'Keep this unfinished draft.'; input.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#dots .dot').focus() })()`)
   await send({ state: 'idle', proposals: [p], proposalPopup: true })
   assert.equal(await run(`document.activeElement.matches('#dots .dot')`), true)
   assert.equal(await run(`document.getElementById('pages-viewport').inert`), false)
   assert.equal(await run(`odkPersonalBotStatus.visible()`), false)
+  assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), true, 'Recommendations never open the fallback voice popup')
+  assert.equal(await run(`document.querySelector('.agent-suggestions').closest('.agent-composer') === document.querySelector('.agent-composer') && !document.querySelector('.agent-suggestions').hidden`), true, 'Recommendations stay inside the Personal Agent composer')
+  assert.equal(await run(`document.querySelector('.agent-composer textarea').value`), 'Keep this unfinished draft.')
+  assert.equal(await run(`!!document.querySelector('.personal-bot-proposal-sources, .personal-bot-ride-details, button[data-proposal-action="view-sources"]')`), false)
   assert.equal(await run(`document.getElementById('personal-bot-status').getAttribute('aria-modal')`), 'false')
   assert.equal(await run(`!!document.querySelector('.personal-bot-proposals script')`), false)
   assert.equal(commands[0].type, 'proposal_presented')
@@ -155,37 +135,36 @@ app.whenReady().then(async () => {
       from: [{ handle: '22222222-2222-4222-8222-222222222222', name: '<script>测试起点甲</script>', city: '测试市', address: '测试街道' }, { handle: '33333333-3333-4333-8333-333333333333', name: '测试起点乙', city: '测试市' }],
       to: [{ handle: '44444444-4444-4444-8444-444444444444', name: '测试终点', city: '测试市' }], items: [{ productName: '测试车型', productCategory: '1', priceText: '20元' }] } }
   await send({ state: 'idle', proposals: [ride], proposalPopup: true })
-  const beforeDetails = commands.length
-  assert.equal(await run(`(() => { const quote = document.querySelector('.personal-bot-ride-actions .personal-bot-proposal-primary'); return !!quote && quote.checkVisibility() && !document.querySelector('.personal-bot-ride-details').contains(quote) && !document.querySelector('.personal-bot-proposals button[data-proposal-action="view-sources"]') })()`), true, 'Prepared preview exposes its real next action before opening details')
-  await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'View ride details').click()`)
-  assert.equal(ownerTurns.length, 0); assert.equal(commands.length, beforeDetails)
-  assert.equal(await run(`!!document.querySelector('.personal-bot-ride-details script')`), false)
-  assert.equal(await run(`document.querySelector('.personal-bot-ride-details').hidden`), false)
-  assert.match(await run(`document.querySelector('.personal-bot-ride-details').textContent`), /Sandbox preview; no real vehicle or trip\./)
-  assert.match(await run(`document.querySelector('.personal-bot-ride-details').textContent`), /20元/)
+  const beforeRoute = commands.length
+  assert.equal(await run(`(() => { const quote = document.querySelector('.personal-bot-ride-actions .personal-bot-proposal-primary'); const route = document.querySelector('.personal-bot-ride-route'); return !!quote && quote.checkVisibility() && !!route && route.hidden && !route.contains(quote) && !document.querySelector('.personal-bot-ride-details, .personal-bot-proposal-sources') })()`), true, 'Prepared preview exposes its real next action without a Details control')
+  assert.equal(await run(`!!document.querySelector('.personal-bot-ride-route script')`), false)
+  assert.match(await run(`document.querySelector('.personal-bot-proposal').textContent`), /Sandbox preview; no real vehicle or trip\./)
+  assert.match(await run(`document.querySelector('.personal-bot-proposal').textContent`), /20元/)
   await run(`[...document.querySelectorAll('.personal-bot-ride-actions button')].find(b => b.textContent === 'Get current quote').click()`)
-  await delay(); assert.equal(ownerTurns.length, 0)
-  await run(`document.querySelector('.personal-bot-ride-details select').value = '33333333-3333-4333-8333-333333333333'; [...document.querySelectorAll('.personal-bot-ride-actions button')].find(b => b.textContent === 'Get current quote').click()`)
+  await delay(); assert.equal(ownerTurns.length, 0); assert.equal(commands.length, beforeRoute)
+  assert.equal(await run(`document.querySelector('.personal-bot-ride-route').hidden`), false, 'An ambiguous quote opens only the essential route chooser')
+  assert.equal(await run(`document.activeElement === document.querySelector('.personal-bot-ride-route select')`), true)
+  await run(`document.querySelector('.personal-bot-ride-route select').value = '33333333-3333-4333-8333-333333333333'; [...document.querySelectorAll('.personal-bot-ride-actions button')].find(b => b.textContent === 'Get current quote').click()`)
   await delay()
   assert.deepEqual(ownerTurns, ['查看报价 11111111-1111-4111-8111-111111111111 33333333-3333-4333-8333-333333333333 44444444-4444-4444-8444-444444444444'])
-  assert.equal(commands.filter(c => c.type === 'proposal_respond').length, 2, 'Ride details add no proposal action')
+  assert.equal(commands.filter(c => c.type === 'proposal_respond').length, 2, 'Route selection adds no proposal acceptance')
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     await run(`odkTheme.set(${JSON.stringify(theme)}); document.fonts.ready.then(() => true)`)
     for (const [width, height] of [[320, 480], [480, 854], [1920, 1280]]) {
       await viewport(width, height)
       await send({ state: 'idle', proposals: [ride], proposalPopup: true })
-      await run(`(() => { const open = [...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'View ride details'); if (open.getAttribute('aria-expanded') === 'false') open.click(); return document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) })()`)
-      const rideGeometry = await run(`(() => { const node = document.querySelector('.personal-bot-status-content'); return { detailsHidden: document.querySelector('.personal-bot-ride-details').hidden, overflow: node.scrollWidth > node.clientWidth + 1, heights: [...document.querySelectorAll('.personal-bot-ride-details select, .personal-bot-ride-details button, .personal-bot-ride-actions button')].map(n => n.getBoundingClientRect().height) } })()`)
-      assert.equal(rideGeometry.detailsHidden, false, JSON.stringify({ theme, width, height, ...rideGeometry })); assert.equal(rideGeometry.overflow, false); assert.ok(rideGeometry.heights.length >= 3); assert.ok(rideGeometry.heights.every(h => h >= 44), JSON.stringify({ theme, width, height, ...rideGeometry }))
+      await run(`(() => { const route = document.querySelector('.personal-bot-ride-route'); if (route.hidden) document.querySelector('.personal-bot-ride-actions .personal-bot-proposal-primary').click(); return document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) })()`)
+      const rideGeometry = await run(`(() => { const node = document.querySelector('.agent-suggestions'); return { routeHidden: document.querySelector('.personal-bot-ride-route').hidden, overflow: node.scrollWidth > node.clientWidth + 1, heights: [...document.querySelectorAll('.personal-bot-ride-route select, .personal-bot-ride-route button, .personal-bot-ride-actions button')].map(n => n.getBoundingClientRect().height) } })()`)
+      assert.equal(rideGeometry.routeHidden, false, JSON.stringify({ theme, width, height, ...rideGeometry })); assert.equal(rideGeometry.overflow, false); assert.ok(rideGeometry.heights.length >= 3); assert.ok(rideGeometry.heights.every(h => h >= 44), JSON.stringify({ theme, width, height, ...rideGeometry }))
       for (const status of ['pending', 'expired', 'ignored', 'completed', 'unknown']) {
         await send({ state: 'idle', proposals: [{ ...p, status, advice: 'Long CJK 长句测试 '.repeat(40), result: status === 'unknown' ? 'Outcome unknown; do not retry.' : '' }], proposalPopup: true })
         const geometry = await run(`(() => {
-          const node = document.querySelector('.personal-bot-status-content'); const r = node.getBoundingClientRect();
+          const node = document.querySelector('.agent-suggestions'); const r = node.getBoundingClientRect();
           const controls = [...document.querySelectorAll('.personal-bot-proposals button')].filter(n => n.checkVisibility());
           return { contained: r.x >= 0 && r.y >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
             overflow: node.scrollWidth > node.clientWidth + 1,
             controls: controls.every(b => b.getBoundingClientRect().height >= 44),
-            font: parseFloat(getComputedStyle(document.querySelector('.personal-bot-proposal-evidence')).fontSize),
+            font: parseFloat(getComputedStyle(document.querySelector('.personal-bot-proposal-state')).fontSize),
             accept: controls.some(b => b.textContent === '保存检查盆土备忘') }
         })()`)
         assert.equal(geometry.contained, true); assert.equal(geometry.overflow, false); assert.equal(geometry.controls, true); assert.ok(geometry.font >= 14)
@@ -199,16 +178,16 @@ app.whenReady().then(async () => {
     for (const [width, height] of [[320, 480], [480, 854], [1920, 1280]]) {
       await viewport(width, height)
       await send({ state: 'idle', proposals: [actionCard], proposalPopup: true })
-      await run(`document.querySelector('.personal-bot-status-content').scrollTop = 0; document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
+      await run(`document.querySelector('.agent-suggestions').scrollTop = 0; document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
       const layout = await run(`(() => {
-        const card = document.querySelector('.personal-bot-proposal'), advice = card.querySelector('.personal-bot-proposal-advice'), primary = card.querySelector('.personal-bot-proposal-primary'), actions = card.querySelector('.personal-bot-proposal-actions'), sources = card.querySelector('.personal-bot-proposal-sources'), feedback = card.querySelector('.personal-bot-proposal-feedback-options');
-        return { advice: advice.textContent, action: primary.textContent, duplicateNext: !!card.querySelector('.personal-bot-proposal-next-step'), secondary: actions.querySelector('.personal-bot-proposal-secondary')?.textContent, reason: !!card.querySelector('.personal-bot-proposal-reason') || card.textContent.includes('Legacy reason must not render.'), sourcesClosed: !sources.open, feedbackClosed: !feedback.open, hashHidden: [...sources.querySelectorAll('p')].filter(p => p.textContent.includes('a'.repeat(64))).every(p => !p.checkVisibility()), hashCount: [...sources.querySelectorAll('p')].filter(p => p.textContent.includes('a'.repeat(64))).length, ordered: advice.getBoundingClientRect().bottom <= actions.getBoundingClientRect().top && actions.getBoundingClientRect().bottom <= sources.getBoundingClientRect().top, adviceSize: parseFloat(getComputedStyle(advice).fontSize), detailSize: parseFloat(getComputedStyle(sources.querySelector('p')).fontSize), actionSize: parseFloat(getComputedStyle(primary).fontSize), primaryHeight: primary.getBoundingClientRect().height, disclosureTargets: [sources, feedback].every(d => d.querySelector('summary').getBoundingClientRect().height >= 44 && getComputedStyle(d.querySelector('summary')).display === 'list-item'), overflow: card.scrollWidth > card.clientWidth + 1, controls: [...actions.querySelectorAll('button')].every(b => b.getBoundingClientRect().height >= 44) }
+        const card = document.querySelector('.personal-bot-proposal'), advice = card.querySelector('.personal-bot-proposal-advice'), primary = card.querySelector('.personal-bot-proposal-primary'), actions = card.querySelector('.personal-bot-proposal-actions'), feedback = card.querySelector('.personal-bot-proposal-feedback-options'), state = card.querySelector('.personal-bot-proposal-state');
+        return { advice: advice.textContent, action: primary.textContent, duplicateNext: !!card.querySelector('.personal-bot-proposal-next-step'), secondary: actions.querySelector('.personal-bot-proposal-secondary')?.textContent, reason: !!card.querySelector('.personal-bot-proposal-reason') || card.textContent.includes('Legacy reason must not render.'), sourcesAbsent: !card.querySelector('.personal-bot-proposal-sources'), feedbackClosed: !feedback.open, hashAbsent: !card.textContent.includes('a'.repeat(64)), ordered: advice.getBoundingClientRect().bottom <= actions.getBoundingClientRect().top && actions.getBoundingClientRect().bottom <= feedback.getBoundingClientRect().top, adviceSize: parseFloat(getComputedStyle(advice).fontSize), stateSize: parseFloat(getComputedStyle(state).fontSize), actionSize: parseFloat(getComputedStyle(primary).fontSize), primaryHeight: primary.getBoundingClientRect().height, feedbackTarget: feedback.querySelector('summary').getBoundingClientRect().height >= 44, inline: !!card.closest('.agent-composer .agent-suggestions'), popupHidden: document.getElementById('personal-bot-status').hidden, overflow: card.scrollWidth > card.clientWidth + 1, controls: [...actions.querySelectorAll('button')].every(b => b.getBoundingClientRect().height >= 44) }
       })()`)
       assert.equal(layout.advice, actionCard.advice); assert.equal(layout.action, actionCard.nextStep)
       assert.equal(layout.duplicateNext, false); assert.equal(layout.secondary, 'Later')
-      for (const key of ['sourcesClosed', 'feedbackClosed', 'hashHidden', 'ordered', 'controls', 'disclosureTargets']) assert.equal(layout[key], true, JSON.stringify({ theme, width, height, key, ...layout }))
-      assert.equal(layout.hashCount, 1); assert.equal(layout.reason, false); assert.equal(layout.overflow, false)
-      assert.ok(layout.adviceSize >= layout.detailSize * 1.4); assert.ok(layout.actionSize >= 16); assert.ok(layout.primaryHeight >= 48)
+      for (const key of ['sourcesAbsent', 'feedbackClosed', 'hashAbsent', 'ordered', 'controls', 'feedbackTarget', 'inline', 'popupHidden']) assert.equal(layout[key], true, JSON.stringify({ theme, width, height, key, ...layout }))
+      assert.equal(layout.reason, false); assert.equal(layout.overflow, false)
+      assert.ok(layout.adviceSize >= 18); assert.ok(layout.adviceSize > layout.stateSize); assert.ok(layout.adviceSize >= layout.actionSize); assert.ok(layout.actionSize >= 16); assert.ok(layout.primaryHeight >= 48)
       await run(`document.querySelector('.personal-bot-proposal-primary').focus()`)
       win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
       await delay()
@@ -223,15 +202,29 @@ app.whenReady().then(async () => {
       assert.equal(await run(`document.activeElement === document.querySelector('.personal-bot-proposal-primary') && document.activeElement?.dataset.proposalAction === 'execute'`), true, 'Cancel restores the original execution focus')
     }
   }
-  // Only the original technical advice in the expanded source can acknowledge an older suggestion.
+  // Technical legacy content has no source surface and cannot acknowledge its unavailable placeholder.
   const technical = { ...p, id: 'a111a280-c0b9-4411-96cd-4e1e92385349', action: null, confirmation: '', advice: `Inspect expectedSHA256 ${'a'.repeat(64)}` }
   commands.length = 0
   await send({ state: 'idle', proposals: [technical], proposalPopup: true })
+  await run(`document.querySelector('.personal-bot-proposal-advice').scrollIntoView({block:'center'}); document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
+  await delay()
+  assert.equal(await run(`document.querySelector('.personal-bot-proposal-advice').textContent`), 'Earlier recommendation unavailable. Ask the Agent for an updated suggestion.')
+  assert.equal(await run(`!!document.querySelector('.personal-bot-proposal-sources, .personal-bot-proposal-original-advice, button[data-proposal-action="view-sources"]')`), false)
+  assert.equal(await run(`document.querySelector('.agent-suggestions').textContent.includes('a'.repeat(64))`), false)
   assert.equal(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(technical.id)), false)
-  await run(`document.querySelector('.personal-bot-proposals button[data-proposal-action="view-sources"]').click(); document.querySelector('.personal-bot-proposal-original-advice').scrollIntoView({block:'center'})`)
-  await waitForTechnicalAdvicePresentation(run, commands, technical.id)
-  assert.ok(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(technical.id)))
-  await run(`document.querySelector('.personal-bot-proposal-sources summary').click()`)
+  // A mounted but hidden Personal Agent is not a visible recommendation surface.
+  const hidden = { ...p, id: 'a111a280-c0b9-4411-96cd-4e1e92385350', action: null, confirmation: '' }
+  commands.length = 0
+  await run(`(() => { const agent = document.getElementById('personal-agent'); window.__agentHidden = { hidden: agent.hidden, display: agent.style.display }; agent.hidden = true; agent.style.display = 'none' })()`)
+  await send({ state: 'idle', proposals: [hidden], proposalPopup: true, proposalCapabilities: { read: true, respond: true, acknowledge: true } })
+  assert.equal(await run(`document.querySelector('.personal-bot-proposal-advice').checkVisibility()`), false, 'The hidden-page fixture must actually suppress native visibility')
+  assert.equal(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(hidden.id)), false, 'An inactive Personal Agent cannot acknowledge unread advice')
+  assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), true, 'Hidden-page delivery cannot escape into a popup')
+  await run(`(() => { const agent = document.getElementById('personal-agent'); agent.hidden = window.__agentHidden.hidden; agent.style.display = window.__agentHidden.display; document.querySelector('.personal-bot-proposal-advice').scrollIntoView({block:'center'}) })()`)
+  await delay()
+  assert.equal(await run(`document.querySelector('.personal-bot-proposal-advice').checkVisibility()`), true)
+  assert.ok(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(hidden.id)), 'Restoring the actual page allows its viewport to acknowledge advice')
+  assert.equal(await run(`document.querySelector('.agent-composer textarea').value`), 'Keep this unfinished draft.')
   // Synthetic suggestions exercise the real scroll viewport without model or device access.
   await run(`odkTheme.set('instrument')`)
   await viewport(480, 854)
@@ -255,7 +248,8 @@ app.whenReady().then(async () => {
     assert.equal(commands.at(-1).decision, decision); assert.equal(commands.at(-1).id, next.id)
     const updated = { ...next, feedback: decision, status: ['done'].includes(decision) ? 'completed' : ['irrelevant', 'incorrect'].includes(decision) ? 'ignored' : 'pending', ...(decision === 'snooze' ? { snoozedUntil: Date.now() + 60000 } : {}) }
     await send({ state: 'idle', proposals: [updated], proposalPopup: false })
-    assert.equal(await run(`document.activeElement.textContent`), decision === 'useful' ? 'Useful' : 'Close', 'Feedback updates retain a meaningful keyboard focus')
+    assert.equal(await run(`document.activeElement === document.querySelector('.agent-composer textarea') || document.activeElement.textContent === 'Useful'`), true, 'Feedback updates retain their control or return focus to the draft')
+    assert.equal(await run(`document.querySelector('.agent-composer textarea').value`), 'Keep this unfinished draft.')
   }
   const touched = { ...p, id: 'f311a280-c0b9-4411-96cd-4e1e92385349', action: null, confirmation: '' }
   await send({ state: 'idle', proposals: [touched], proposalPopup: true })
@@ -273,15 +267,19 @@ app.whenReady().then(async () => {
   assert.equal(await run(`!![...document.querySelectorAll('.personal-bot-proposals button')].find(b => ['Accept','Run action','保存检查盆土备忘','Done','Later','Useful','Not relevant','Incorrect','Ignore','Get current quote','Refresh preview'].includes(b.textContent))`), false)
   assert.match(await run(`document.querySelector('.personal-bot-proposal-capability').textContent`), /read-only on this device/)
   assert.equal(ownerTurns.length, beforeReadOnlyTurns)
-  await run(`odkPersonalBotStatus.close()`)
+  await run(`document.querySelector('.agent-composer textarea').focus()`)
   await send({ state: 'idle', proposals: [ride], proposalPopup: true, proposalRecovery: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
-  assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), true, 'Read-only recovery preserves Close dismissal')
+  assert.equal(await run(`!document.querySelector('.agent-suggestions').hidden && document.querySelector('.agent-suggestions').closest('.agent-composer') !== null && document.getElementById('personal-bot-status').hidden`), true, 'Read-only recovery remains inline and never opens a popup')
+  assert.equal(await run(`document.activeElement === document.querySelector('.agent-composer textarea') && document.activeElement.value === 'Keep this unfinished draft.'`), true)
   await send({ state: 'idle', proposals: [{ ...ride, id: '11111111-1111-4111-8111-111111111111' }], proposalPopup: true, proposalRecovery: false, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
-  assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), false, 'An ordinary new read-only reminder can open')
+  assert.equal(await run(`!document.querySelector('.agent-suggestions').hidden && document.getElementById('personal-bot-status').hidden`), true, 'A new read-only recommendation stays inside the input')
   assert.equal(commands.length, beforeReadOnly, 'Read-only recovery grants no acknowledgement or response authority')
-  await run(`document.querySelector('.personal-bot-proposal-sources summary').focus()`)
+  const disclosureResponses = commands.filter(c => c.type === 'proposal_respond').length
+  await send({ state: 'idle', proposals: [{ ...p, id: '11111111-1111-4111-8111-111111111112', action: null, confirmation: '' }], proposalCapabilities: { read: true, respond: true, acknowledge: true } })
+  await run(`document.querySelector('.personal-bot-proposal-feedback-options summary').focus()`)
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
-  await delay(); assert.equal(await run(`document.querySelector('.personal-bot-proposal-sources').open`), true)
+  await delay(); assert.equal(await run(`document.querySelector('.personal-bot-proposal-feedback-options').open`), true)
+  assert.equal(commands.filter(c => c.type === 'proposal_respond').length, disclosureResponses, 'Opening Feedback does not submit a decision')
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     await run(`odkTheme.set(${JSON.stringify(theme)})`)
     for (const revoked of [{ state: 'unavailable' }, { state: 'idle', proposalCapabilities: { read: false, respond: false, acknowledge: false } }]) {
@@ -298,8 +296,11 @@ app.whenReady().then(async () => {
   await longAdviceVisibility()
   // Populated fixture preview: the capture waits for the current native compositor frame.
   const preview = { ...actionCard, id: 'c311a280-c0b9-4411-96cd-4e1e92385349' }
-  await send({ state: 'idle', proposals: [preview], proposalPopup: true })
-  await run(`document.querySelector('.personal-bot-status-content').scrollTop = 0; document.fonts.ready.then(() => true)`)
+  const previewFrame = { state: 'idle', judgment: { status: 'ready', provider: 'jev' }, transcript: 'Help me remember to check the soil.', ownerTurnId: 'synthetic-preview-turn', message: 'I can save a soil-check note. Choose the suggestion below to continue.', proposals: [preview], proposalPopup: true }
+  await send(previewFrame)
+  assert.equal(await run(`document.querySelector('.agent-conversation').textContent.includes('I can save a soil-check note.')`), true, 'Preview captures a populated normal conversation')
+  assert.equal(await run(`document.querySelector('.agent-state').textContent.includes('Connection unavailable')`), false)
+  await run(`document.querySelector('.agent-suggestions').scrollTop = 0; document.fonts.ready.then(() => true)`)
   const { capturePaintedPage } = require('./helpers/native-page-capture')
   const output = process.env.ODK_PROACTIVE_PREVIEW_FILE
   if (output) fs.writeFileSync(output, (await capturePaintedPage(win)).toPNG())
@@ -310,18 +311,27 @@ app.whenReady().then(async () => {
       await run(`odkTheme.set(${JSON.stringify(theme)})`)
       for (const [width, height] of [[480, 854], [1920, 1280]]) {
         await viewport(width, height)
-        await send({ state: 'idle', proposals: [preview], proposalPopup: true })
-        await run(`document.querySelector('.personal-bot-status-content').scrollTop = 0; document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
+        await send(previewFrame)
+        await run(`document.querySelector('.agent-suggestions').scrollTop = 0; document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
         fs.writeFileSync(path.join(previewDirectory, `${theme}-${width}x${height}.png`), (await capturePaintedPage(win)).toPNG())
       }
     }
   }
-  await run(`odkPersonalBotStatus.close()`)
+  const voiceFocus = { ...p, id: 'f311a280-c0b9-4411-96cd-4e1e92385349' }
+  await send({ state: 'idle', proposals: [voiceFocus] })
+  const beforeVoiceResponses = commands.filter(command => command.type === 'proposal_respond').length, beforeVoiceTurns = ownerTurns.length
+  await send({ state: 'recording', proposals: [voiceFocus] })
+  await run(`(() => { const summary = document.querySelector('.personal-bot-proposal-feedback-options summary'); summary.scrollIntoView({block:'center'}); summary.focus(); window.__voiceProposalFocus = summary })()`)
+  assert.equal(await run(`document.activeElement === window.__voiceProposalFocus && window.__voiceProposalFocus.checkVisibility()`), true)
+  await send({ state: 'idle', proposals: [voiceFocus] })
+  assert.equal(await run(`document.activeElement === window.__voiceProposalFocus && document.activeElement !== document.querySelector('.agent-composer textarea')`), true, 'Voice completion must retain recommendation focus instead of moving it to the input')
+  assert.equal(commands.filter(command => command.type === 'proposal_respond').length, beforeVoiceResponses)
+  assert.equal(ownerTurns.length, beforeVoiceTurns, 'Retaining recommendation focus dispatches no owner operation')
   await send({ state: 'idle', proposals: [], proposalPopup: false })
   assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), true)
   await send({ state: 'starting' })
   await send({ state: 'recording' })
-  assert.equal(await run(`document.getElementById('personal-bot-status').dataset.proactive`), 'false')
+  assert.equal(await run(`document.querySelector('.agent-suggestions').hidden`), true)
   assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), true)
   assert.equal(await run(`document.querySelector('.agent-state').textContent`), 'Listening...')
   assert.equal(await run(`document.querySelector('.agent-mic').hidden`), true)
@@ -329,6 +339,6 @@ app.whenReady().then(async () => {
   assert.equal(await run(`document.querySelector('.agent-send').getAttribute('aria-label')`), 'Send voice request')
   assert.equal(await run(`document.querySelector('.agent-send').disabled`), false)
   assert.equal(await run(`document.getElementById('pages-viewport').inert || document.getElementById('home-desk').inert`), false)
-  console.log('PROACTIVE_PANEL_CM5_ISOLATED_PASS: 4 themes, 3 sizes, 5 proposal states, focus, touch confirmation, literal untrusted text, service error recovery, uncertain delivery, read-only ride details explicit owner quote selection, viewport visibility acknowledgements, candidate feedback, read-only capabilities, provider withdrawal and keyboard disclosures')
+  console.log('PROACTIVE_PANEL_CM5_ISOLATED_PASS: 4 themes, 3 sizes, 5 proposal states, focus, touch confirmation, literal untrusted text, service error recovery, uncertain delivery, inline composer, no source/detail surfaces, essential route selection and explicit owner quote, viewport visibility acknowledgements, candidate feedback, read-only capabilities, provider withdrawal and keyboard disclosures')
   clearTimeout(timer); win.destroy(); app.exit(0)
 }).catch(error => { console.error(error); app.exit(1) })

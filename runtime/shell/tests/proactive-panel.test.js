@@ -22,22 +22,112 @@ function fixture({ readiness = false, hidden = false } = {}) {
   let now = Date.now()
   class Clock extends Date { static now() { return now } }
   const surface = new Element(); surface.hidden = true
-  const selectors = ['content', 'heading', 'input', 'transcript', 'stage', 'icon', 'title', 'detail', 'progress', 'level']
-  surface.selectors = Object.fromEntries(selectors.map(name => [`.personal-bot-status-${name}`, new Element()]))
-  surface.selectors['.personal-bot-status-level span'] = new Element()
-  const content = surface.selectors['.personal-bot-status-content']; surface.append(content)
-  const local = new Element('button'), commands = [], ready = [], events = {}, observers = []
-  const document = { hidden, visibilityState: hidden ? 'hidden' : 'visible', addEventListener(name, cb) { events[name] = cb }, removeEventListener() {}, querySelector: () => null, getElementById: () => surface, activeElement: local, body: { children: [local, surface] }, createElement: tag => new Element(tag) }
-  let render
-  const window = { odkPersonalBot: { subscribe: callback => { render = callback }, onMic() {}, proposalCommand: async command => { commands.push(command); return { accepted: true } } },
-    odkPersonalBotReply: { render: (el, text) => { el.textContent = text } }, addEventListener: (name, callback) => { events[name] = callback }, dispatchEvent() {} }
+  const content = new Element()
+  const local = new Element('textarea'), commands = [], ready = [], events = {}, observers = []
+  const document = { hidden, visibilityState: hidden ? 'hidden' : 'visible', addEventListener(name, cb) { events[name] = cb }, removeEventListener() {}, querySelector: () => null, getElementById: () => surface, activeElement: local, body: { children: [local, surface, content] }, createElement: tag => new Element(tag) }
+  const window = { odkPersonalBot: { proposalCommand: async command => { commands.push(command); return { accepted: true } } } }
   if (readiness) window.odkPersonalBot.consumerReady = id => { ready.push(id); return Promise.resolve({ accepted: true }) }
   let sequence = 0
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/personal-bot-status.js'), 'utf8'), { window, document, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++sequence).padStart(12, '0')}` }, CustomEvent: class {}, console, Date: Clock, IntersectionObserver: class { constructor(callback) { this.callback = callback; this.nodes = new Set(); observers.push(this) } observe(node) { this.nodes.add(node) } disconnect() { this.nodes.clear() } unobserve(node) { this.nodes.delete(node) } } })
-  return { surface, content, local, commands, ready, render, window, events, document, observers, advance(ms) { now += ms }, visible(node, ratio = 1, { height = 44, viewportHeight = 200 } = {}) { for (const observer of observers) if (observer.nodes.has(node)) observer.callback([{ target: node, isIntersecting: ratio > 0, intersectionRatio: ratio, boundingClientRect: { width: 100, height }, rootBounds: { width: 100, height: viewportHeight }, intersectionRect: { width: ratio > 0 ? 100 : 0, height: height * ratio } }]) } }
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/personal-agent-suggestions.js'), 'utf8'), { window, document, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++sequence).padStart(12, '0')}` }, console, Date: Clock, IntersectionObserver: class { constructor(callback) { this.callback = callback; this.nodes = new Set(); observers.push(this) } observe(node) { this.nodes.add(node) } disconnect() { this.nodes.clear() } unobserve(node) { this.nodes.delete(node) } } })
+  const controller = window.odkPersonalAgentSuggestions.mount(content, { focusInput: () => local.focus() })
+  const render = status => controller.update(status)
+
+  return { controller, surface, content, local, commands, ready, render, window, events, document, observers, advance(ms) { now += ms }, visible(node, ratio = 1, { height = 44, viewportHeight = 200 } = {}) { for (const observer of observers) if (observer.nodes.has(node)) observer.callback([{ target: node, isIntersecting: ratio > 0, intersectionRatio: ratio, boundingClientRect: { width: 100, height }, rootBounds: { width: 100, height: viewportHeight }, intersectionRect: { width: ratio > 0 ? 100 : 0, height: height * ratio } }]) } }
 }
 const proposal = () => ({ id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry', status: 'pending', offered: true, presented: false, confirmation: '记住 watering：检查盆土', advice: '<script>不可信文本</script>', action: { tool: 'memory_update' }, evidence: [{ readingId: 'hydra', field: 'soil', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z' }] })
 const flatten = node => [node, ...node.children.flatMap(flatten)]
+test('incoming recommendations never open the Personal Bot popup', () => {
+  const f = fixture()
+  f.render({ state: 'idle', proposals: [proposal()], proposalPopup: true })
+  assert.equal(f.surface.hidden, true, 'Recommendations belong to the Personal Agent composer')
+  assert.equal(f.document.activeElement, f.local, 'Incoming recommendations preserve input focus')
+})
+test('recommendations preserve the draft and selection during arrival and feedback updates', () => {
+  const f = fixture(), p = proposal()
+  f.local.value = 'A draft with 未完成输入'; f.local.selectionStart = 4; f.local.selectionEnd = 9
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  f.render({ state: 'idle', proposals: [{ ...p, feedback: 'useful' }], proposalPopup: false })
+  assert.equal(f.local.value, 'A draft with 未完成输入')
+  assert.equal(f.local.selectionStart, 4); assert.equal(f.local.selectionEnd, 9)
+  assert.equal(f.document.activeElement, f.local)
+  assert.equal(f.surface.hidden, true)
+})
+test('confirmation metadata updates do not steal focus from the message draft', async () => {
+  const f = fixture(), p = { ...proposal(), nextStep: 'Save the watering note' }
+  f.render({ state: 'idle', proposals: [p] })
+  await flatten(f.content).find(n => n.dataset.proposalAction === 'execute').click()
+  assert.equal(flatten(f.content).find(n => n.dataset.proposalAction === 'confirm').focused, true)
+  f.document.activeElement = f.local
+  f.render({ state: 'idle', proposals: [{ ...p, presented: true }] })
+  assert.equal(flatten(f.content).find(n => n.dataset.proposalAction === 'confirm').focused, undefined)
+  assert.equal(f.document.activeElement, f.local)
+})
+test('page replacement retains uncertain execution reservations and releases old controls', async () => {
+  const f = fixture(), p = { ...proposal(), nextStep: 'Save the watering note' }
+  f.window.odkPersonalBot.proposalCommand = async command => { f.commands.push(command); throw Error('Receipt lost') }
+  f.render({ state: 'idle', proposals: [p] })
+  const feedback = flatten(f.content).find(n => n.textContent === 'Useful')
+  await flatten(f.content).find(n => n.dataset.proposalAction === 'execute').click()
+  await flatten(f.content).find(n => n.dataset.proposalAction === 'confirm').click()
+  await f.controller.destroy()
+  await feedback.click()
+  const replacement = f.window.odkPersonalAgentSuggestions.mount(f.content)
+  replacement.update({ state: 'idle', proposals: [p] })
+  assert.equal(flatten(f.content).find(n => n.dataset.proposalAction === 'execute').disabled, true)
+  assert.equal(f.commands.length, 1)
+  assert.ok(f.content.querySelector('.personal-bot-proposal-error'))
+  await replacement.destroy()
+})
+test('a released page cannot recreate confirmation through a detached execution control', async () => {
+  const f = fixture(), p = proposal()
+  f.render({ state: 'idle', proposals: [p] })
+  const article = f.content.querySelector('.personal-bot-proposal')
+  const execute = flatten(article).find(n => n.dataset.proposalAction === 'execute')
+  await f.controller.destroy()
+  await execute.click()
+  const confirmation = flatten(article).find(n => n.dataset.proposalAction === 'confirm')
+  await confirmation?.click()
+  assert.equal(f.commands.length, 0)
+  assert.equal(confirmation, undefined)
+})
+test('optional readiness failures cannot prevent the input surface from mounting or releasing', async () => {
+  const f = fixture({ readiness: true })
+  await f.controller.destroy()
+  f.window.odkPersonalBot.consumerReady = () => { throw Error('Unavailable optional readiness') }
+  const replacement = f.window.odkPersonalAgentSuggestions.mount(f.content)
+  replacement.update({ state: 'idle', proposals: [proposal()] })
+  assert.ok(f.content.querySelector('.personal-bot-proposal-advice'))
+  f.document.visibilityState = 'hidden'; f.events.visibilitychange()
+  await replacement.destroy()
+  assert.equal(f.content.children.length, 0)
+})
+test('an unavailable command bridge preserves readable advice without response controls', async () => {
+  const f = fixture()
+  await f.controller.destroy()
+  const replacement = f.window.odkPersonalAgentSuggestions.mount(f.content, { api: {} })
+  replacement.update({ state: 'idle', proposals: [{ ...proposal(), nextStep: 'Save the watering note' }], proposalCapabilities: { read: true, respond: true, acknowledge: true } })
+  assert.ok(f.content.querySelector('.personal-bot-proposal-advice'))
+  assert.equal(flatten(f.content).some(n => n.tagName === 'BUTTON'), false)
+  assert.match(f.content.querySelector('.personal-bot-proposal-capability').textContent, /read-only/)
+  await replacement.destroy()
+})
+for (const [status, copy] of [
+  ['queued', 'Feedback saved. Updating related memory…'],
+  ['running', 'Feedback saved. Updating related memory…'],
+  ['applied', 'Feedback saved. Related memory updated.'],
+  ['failed', 'Feedback saved. Memory update unavailable.'],
+  ['unavailable', 'Feedback saved. Memory update unavailable.'],
+  ['stale', 'Feedback saved. Memory update was skipped.'],
+]) {
+  test(`feedback memory ${status} reports only its actual state`, () => {
+    const { projectPersonalAgentFrame } = require('../src/personal-agent-frame')
+    const p = { ...proposal(), feedback: 'useful', feedbackLearning: { revision: 1, decision: 'useful', status } }
+    const f = fixture()
+    f.render({ state: 'idle', proposals: [p] })
+    assert.equal(f.content.querySelector('.personal-bot-proposal-memory').textContent, copy)
+    assert.equal(projectPersonalAgentFrame({ state: 'idle', proposals: [p] }).proposals[0].feedbackLearning.status, status)
+  })
+}
 test('a desk-projected next step stays readable on the read-only Android surface', () => {
   const { projectPersonalAgentFrame } = require('../src/personal-agent-frame')
   const p = { ...proposal(), advice: 'Keep a soil inspection note.', nextStep: 'Save a soil inspection note' }
@@ -53,58 +143,13 @@ test('a desk-projected next step stays readable on the read-only Android surface
   f.visible(f.content.querySelector('.personal-bot-proposal-advice'))
   assert.equal(f.commands.length, 0)
 })
-test('a technical-advice placeholder cannot acknowledge hidden original advice', async () => {
+test('technical advice remains private and cannot acknowledge an unread original', () => {
   const f = fixture(), p = { ...proposal(), action: null, advice: `Inspect expectedSHA256 ${'a'.repeat(64)}` }
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
-  const placeholder = f.content.querySelector('.personal-bot-proposal-advice')
-  const sources = f.content.querySelector('.personal-bot-proposal-sources')
-  const original = flatten(sources).find(n => n.textContent === p.advice)
-  assert.ok(f.observers.some(observer => observer.nodes.has(original)))
-  assert.ok(f.observers.every(observer => !observer.nodes.has(placeholder)))
-  f.visible(placeholder)
-  assert.equal(f.commands.length, 0, 'A source-inspection placeholder is not the actual advice')
-  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'View sources').click()
-  assert.equal(sources.open, true)
-  assert.equal(f.commands.length, 0, 'Opening Sources alone does not prove visible advice')
-  f.visible(original, 0)
-  f.visible(original, 0.49)
-  assert.equal(f.commands.length, 0, 'Non-intersecting or insufficiently visible original advice stays unread')
-  f.visible(original)
-  assert.deepEqual(f.commands.map(c => c.type), ['proposal_presented'])
-  assert.deepEqual(Array.from(f.commands[0].ids), [p.id])
-})
-
-function technicalPresentationWait() {
-  const source = fs.readFileSync(path.join(__dirname, 'proactive-panel.cjs'), 'utf8')
-  const start = source.indexOf('async function waitForTechnicalAdvicePresentation(')
-  const end = source.indexOf('app.whenReady().then(async () => {', start)
-  assert.ok(start >= 0 && end > start)
-  const context = { assert, performance, setTimeout }
-  vm.runInNewContext(source.slice(start, end) + '\nthis.wait = waitForTechnicalAdvicePresentation', context)
-  return context.wait
-}
-
-test('technical advice acceptance waits for a delayed same-ID visibility receipt', async () => {
-  const wait = technicalPresentationWait(), commands = [], id = 'technical-advice', calls = []
-  const unrelated = setTimeout(() => commands.push({ type: 'proposal_presented', ids: ['another-suggestion'] }), 25)
-  const receipt = setTimeout(() => commands.push({ type: 'proposal_presented', ids: [id] }), 180)
-  try {
-    await wait(async script => { calls.push(script); return {} }, commands, id, 1000)
-    assert.ok(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(id)))
-    assert.ok(calls.some(script => script.includes('document.fonts.ready') && script.includes('requestAnimationFrame')))
-  } finally { clearTimeout(unrelated); clearTimeout(receipt) }
-})
-
-test('technical advice acceptance rejects missing or late visibility receipts', async () => {
-  for (const late of [false, true]) {
-    const wait = technicalPresentationWait(), commands = [{ type: 'proposal_presented', ids: ['another-suggestion'] }]
-    const receipt = late ? setTimeout(() => commands.push({ type: 'proposal_presented', ids: ['technical-advice'] }), 180) : undefined
-    try {
-      await assert.rejects(wait(async () => ({ sourcesOpen: true, documentHidden: false }), commands, 'technical-advice', 60),
-        /Technical original advice was not acknowledged.*technical-advice.*sourcesOpen/)
-      assert.equal(commands.some(c => c.ids.includes('technical-advice')), false)
-    } finally { clearTimeout(receipt) }
-  }
+  assert.equal(f.content.querySelector('.personal-bot-proposal-sources'), null)
+  assert.ok(!flatten(f.content).some(n => n.textContent.includes('a'.repeat(64))))
+  f.visible(f.content.querySelector('.personal-bot-proposal-advice'))
+  assert.equal(f.commands.length, 0)
 })
 
 for (const revoked of [{ state: 'unavailable' }, { state: 'idle', proposalCapabilities: { read: false, respond: false, acknowledge: false } }]) {
@@ -146,17 +191,17 @@ test('a withdrawn provider command cannot overwrite replacement suggestion feedb
   assert.ok(flatten(f.content).some(node => node.textContent === 'Current provider suggestion'))
 })
 
-test('proactive popup is nonmodal and preserves local focus and input authority', () => {
+test('composer recommendations preserve local focus and input authority without a popup', () => {
   const f = fixture(); f.render({ state: 'idle', proposals: [proposal()], proposalPopup: true })
-  assert.equal(f.surface.hidden, false); assert.equal(f.surface.dataset.proactive, 'true')
-  assert.equal(f.local.inert, undefined); assert.equal(f.content.focused, undefined)
-  assert.equal(f.window.odkPersonalBotStatus.visible(), false, 'Passive proposal must not block Shell navigation')
-  assert.equal(f.window.odkPersonalBotStatus.handleInput('left'), false)
-  assert.equal(f.commands.length, 0, 'Delivered content is not yet visible acknowledgement')
-  f.visible(flatten(f.content).find(n => n.className === 'personal-bot-proposal-advice'))
+  assert.equal(f.surface.hidden, true)
+  assert.equal(f.content.hidden, false)
+  assert.equal(f.local.inert, undefined); assert.equal(f.document.activeElement, f.local)
+  assert.equal(f.commands.length, 0)
+  f.visible(f.content.querySelector('.personal-bot-proposal-advice'))
   assert.equal(f.commands[0].type, 'proposal_presented')
   assert.ok(flatten(f.content).some(n => n.textContent === '<script>不可信文本</script>'))
 })
+
 test('touch acceptance shows the exact phrase before a separate confirmation', async () => {
   const f = fixture(); const p = proposal(); f.render({ state: 'idle', proposals: [p], proposalPopup: true })
   const buttons = flatten(f.content).filter(n => n.tagName === 'BUTTON')
@@ -165,15 +210,14 @@ test('touch acceptance shows the exact phrase before a separate confirmation', a
   await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation).click()
   assert.equal(f.commands.at(-1).confirmation, p.confirmation)
 })
-test('silent data does not open, expiry removes execution and a voice turn takes the normal path', () => {
+test('expiry removes execution and status cannot open a recommendation popup', () => {
   const f = fixture(); f.render({ state: 'idle', proposals: [proposal()], proposalPopup: false })
   assert.equal(f.surface.hidden, true)
   f.render({ state: 'idle', proposals: [{ ...proposal(), status: 'expired' }], proposalPopup: true })
-  assert.ok(!flatten(f.content).some(n => n.tagName === 'BUTTON' && n.textContent === 'Run action'))
-  f.render({ state: 'recording' }); assert.equal(f.surface.dataset.proactive, 'false')
-  assert.equal(f.local.inert, true); assert.equal(f.content.focused, true)
+  assert.ok(!flatten(f.content).some(n => n.dataset.proposalAction === 'execute'))
+  f.render({ state: 'recording' })
+  assert.equal(f.surface.hidden, true)
 })
-
 test('a recovered service error clears without replacing the same suggestion controls', () => {
   const f = fixture(), status = { state: 'idle', proposals: [proposal()], proposalHiddenCount: 1, proposalPopup: true }
   f.render({ ...status, proposalError: 'generation_unavailable' })
@@ -183,7 +227,8 @@ test('a recovered service error clears without replacing the same suggestion con
   assert.equal(f.content.querySelector('.personal-bot-proposal-error'), null)
   assert.equal(f.content.children[0], section)
   assert.deepEqual(flatten(section).filter(n => n.tagName === 'BUTTON'), controls)
-  assert.equal(f.surface.hidden, false)
+  assert.equal(f.content.hidden, false)
+  assert.equal(f.surface.hidden, true)
   f.render({ ...status, proposalError: 'checkpoint_failed' })
   assert.equal(f.content.querySelector('.personal-bot-proposal-error').textContent, 'checkpoint_failed')
 })
@@ -213,8 +258,7 @@ test('ride details are read-only and explicit endpoint selection enters the ordi
   f.window.odkPersonalBot.sendText = async text => { turns.push(text); return { accepted: true } }
   const ride = { ...proposal(), action: null, confirmation: '', ridePreview: { handle: 'preview-handle', status: 'choose_places', sandbox: true, expiresAt: Date.now() + 60000, measuredAt: new Date().toISOString(), from: [{ handle: 'from-a', name: '<script>起点甲</script>', city: '测试市', address: '测试路' }, { handle: 'from-b', name: '起点乙', city: '测试市' }], to: [{ handle: 'to-a', name: '终点', city: '测试市' }] } }
   f.render({ state: 'idle', proposals: [ride], proposalPopup: true })
-  const open = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'View ride details')
-  assert.ok(open); await open.click(); assert.equal(turns.length, 0); assert.equal(f.commands.filter(c => c.type === 'proposal_respond').length, 0)
+  assert.equal(f.content.querySelector('.personal-bot-ride-route').hidden, true);  assert.equal(turns.length, 0); assert.equal(f.commands.filter(c => c.type === 'proposal_respond').length, 0)
   assert.ok(flatten(f.content).some(n => n.textContent === 'Sandbox preview; no real vehicle or trip.'))
   assert.ok(flatten(f.content).some(n => n.textContent.includes('<script>起点甲</script>')))
   const selects = flatten(f.content).filter(n => n.tagName === 'SELECT')
@@ -279,7 +323,6 @@ test('actual service, private socket and Shell client deliver restored ride refr
   const connected = until(frame => frame.state === 'idle'); client.start(); await connected
   const shown = until(frame => frame.proposalPopup === true); await watch.readProposals(); await shown
   assert.equal(watch.list()[0].status, 'expired')
-  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'View ride details').click()
   const updated = until(frame => frame.proposals?.[0]?.ridePreview?.handle && frame.proposals[0].ridePreview.handle !== old.handle)
   await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Refresh preview').click()
   const frame = await updated
@@ -289,7 +332,7 @@ test('actual service, private socket and Shell client deliver restored ride refr
   assert.equal(frame.proposals[0].offered, true); assert.equal(frame.proposals[0].presented, true)
   assert.equal(checkpoint.load().intentClaims.length, 1); assert.equal(frame.proposalPopup, false)
   assert.equal(JSON.stringify(frame).includes('never-expose'), false)
-  assert.ok(flatten(f.content).some(n => n.textContent === 'View ride details'))
+  assert.ok(flatten(f.content).some(n => n.textContent === 'Get current quote'))
 })
 
 
@@ -303,7 +346,7 @@ test('only an offered pending suggestion visible in the current viewport is ackn
   f.document.hidden = false; f.visible(advice[0])
   assert.deepEqual(Array.from(f.commands[0].ids), [first.id])
   f.visible(advice[0]); assert.equal(f.commands.length, 1)
-  f.window.odkPersonalBotStatus.close(); f.visible(advice[1]); assert.equal(f.commands.length, 1)
+  f.content.hidden = true; f.visible(advice[1]); assert.equal(f.commands.length, 1)
 })
 
 test('unoffered and snoozed suggestions cannot become visible acknowledgements', () => {
@@ -313,19 +356,16 @@ test('unoffered and snoozed suggestions cannot become visible acknowledgements',
   assert.equal(f.commands.length, 0)
 })
 
-test('earlier actionless advice preserves feedback and sources without implying an executable step', async () => {
+test('earlier actionless advice preserves feedback without provenance or implying an executable step', async () => {
   const f = fixture(), p = { ...proposal(), action: null, nextStep: 'Touch the soil before deciding whether to water.', reason: 'Observed soil is below the selected threshold.' }
   f.render({ state: 'idle', proposals: [p, { ...p, id: 'd311a280-c0b9-4411-96cd-4e1e92385349', status: 'completed' }], proposalPopup: true })
   assert.ok(!flatten(f.content).some(n => n.className === 'personal-bot-proposal-reason' || n.textContent.includes(p.reason)))
   assert.ok(!flatten(f.content).some(n => n.className === 'personal-bot-proposal-next-step'))
   assert.ok(flatten(f.content).some(n => n.textContent.includes('No executable action')))
-  const sources = flatten(f.content).find(n => n.className === 'personal-bot-proposal-sources')
-  assert.ok(flatten(sources).some(n => n.textContent === p.nextStep))
-  const article = flatten(f.content).find(n => n.className === 'personal-bot-proposal')
-  assert.ok(article.children.findIndex(n => n.className === 'personal-bot-proposal-actions') < article.children.findIndex(n => n.className === 'personal-bot-proposal-sources'))
-  assert.ok(flatten(article).filter(n => n.tagName === 'DETAILS').every(n => !n.open))
-  assert.ok(flatten(f.content).some(n => n.tagName === 'DETAILS' && n.className === 'personal-bot-proposal-sources'))
-  assert.ok(flatten(f.content).some(n => n.tagName === 'DETAILS' && n.className === 'personal-bot-proposal-history'))
+  const article = f.content.querySelector('.personal-bot-proposal')
+  assert.equal(article.querySelector('.personal-bot-proposal-sources'), null)
+  assert.ok(flatten(article).some(n => n.textContent === 'Feedback'))
+  assert.ok(f.content.querySelector('.personal-bot-proposal-history'))
   for (const [label, decision] of [['Done', 'done'], ['Later', 'snooze'], ['Useful', 'useful'], ['Not relevant', 'irrelevant'], ['Incorrect', 'incorrect']]) {
     const button = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === label)
     assert.ok(button, label)
@@ -334,7 +374,7 @@ test('earlier actionless advice preserves feedback and sources without implying 
   }
 })
 
-test('read-only suggestion capabilities keep evidence and hide every response control', async () => {
+test('read-only suggestion capabilities preserve advice and hide every response control', async () => {
   const f = fixture(), p = { ...proposal(), nextStep: 'Save the watering note', reason: 'Actual observation.' }
   f.render({ state: 'idle', proposals: [p], proposalPopup: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
   for (const node of flatten(f.content).filter(n => n.className === 'personal-bot-proposal-advice')) f.visible(node)
@@ -370,7 +410,8 @@ test('legacy executable suggestions retain confirmation without a misleading Don
   const labels = flatten(f.content).filter(n => n.tagName === 'BUTTON').map(n => n.textContent)
   assert.ok(labels.includes('Run action')); assert.ok(labels.includes('Ignore')); assert.ok(labels.includes('Never suggest this category'))
   assert.ok(labels.includes('Later'))
-  for (const label of ['Done', 'Useful', 'Not relevant', 'Incorrect']) assert.ok(!labels.includes(label), label)
+  assert.ok(!labels.includes('Done'))
+  for (const label of ['Useful', 'Not relevant', 'Incorrect']) assert.ok(labels.includes(label), label)
 })
 
 
@@ -396,17 +437,15 @@ test('long advice uses the visible viewport while a heading-only glimpse is insu
   assert.equal(f.commands.length, 1, 'Half the available viewport is meaningful even for a very long paragraph')
 })
 
-test('a recovered offer cannot reopen a suggestion dismissed in the current document', () => {
+test('recovered offers reappear inside the composer without opening a popup', () => {
   const f = fixture(), p = proposal()
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
-  f.window.odkPersonalBotStatus.close()
-  assert.equal(f.surface.hidden, true)
+  f.render({ state: 'unavailable' })
   f.render({ state: 'idle', proposals: [p], proposalPopup: true, proposalRecovery: true })
   assert.equal(f.surface.hidden, true)
-  f.render({ state: 'idle', proposals: [{ ...p, id: '11111111-1111-4111-8111-111111111111' }], proposalPopup: true })
-  assert.equal(f.surface.hidden, false, 'a genuinely new offer keeps the original opening behavior')
+  assert.equal(f.content.hidden, false)
+  assert.ok(f.content.querySelector('.personal-bot-proposal-advice'))
 })
-
 test('only visible subscribed consumers request recovery and replacement reuses the episode identity', () => {
   const f = fixture({ readiness: true, hidden: true })
   assert.equal(f.ready.length, 0)
@@ -433,39 +472,13 @@ test('watch capability replacement on the same resident starts a new readiness e
   assert.equal(f.ready.at(-1), restored)
 })
 
-test('earlier technical advice moves intact into Sources with an explicit reading action', async () => {
-  const f = fixture(), hash = 'a'.repeat(64), p = { ...proposal(), action: null, confirmation: '', advice: `Review the file with SHA256 ${hash}.`, reason: 'Earlier reason.' }
+test('sources, action parameters and technical next steps never appear in composer recommendations', () => {
+  const f = fixture(), hash = 'b'.repeat(64), p = { ...proposal(), action: null, confirmation: '', nextStep: `Compare SHA256 ${hash}`, advice: 'Inspect the soil reading.', reason: 'Private reasoning', evidence: [{ value: hash }] }
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
-  const article = flatten(f.content).find(n => n.className === 'personal-bot-proposal')
-  const sources = flatten(article).find(n => n.className === 'personal-bot-proposal-sources')
-  assert.equal(flatten(article).find(n => n.className === 'personal-bot-proposal-advice').textContent, 'Review the earlier suggestion in Sources.')
-  assert.ok(flatten(sources).some(n => n.textContent === p.advice))
-  assert.ok(!flatten(article).some(n => n.textContent.includes(p.reason)))
-  assert.equal(sources.open, false)
-  await flatten(article).find(n => n.tagName === 'BUTTON' && n.textContent === 'View sources').click()
-  assert.equal(sources.open, true)
-  assert.equal(f.commands.length, 0)
-})
-
-test('earlier nontechnical advice remains readable without inventing a next step', async () => {
-  const f = fixture(), p = { ...proposal(), action: null, confirmation: '', advice: 'Inspect the actual soil reading.' }
-  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
-  assert.equal(flatten(f.content).find(n => n.className === 'personal-bot-proposal-advice').textContent, p.advice)
-  assert.ok(flatten(f.content).some(n => n.className === 'personal-bot-proposal-state' && n.textContent.includes('Earlier suggestion')))
-  assert.ok(!flatten(f.content).some(n => n.className === 'personal-bot-proposal-next-step'))
-  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'View sources').click()
-  assert.equal(f.commands.length, 0)
-})
-
-test('technical next steps stay complete inside Sources instead of the primary action text', async () => {
-  const f = fixture(), p = { ...proposal(), action: null, confirmation: '', nextStep: `Compare SHA256 ${'b'.repeat(64)}.`, advice: 'Review the controlled export file.' }
-  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
-  assert.ok(!flatten(f.content).some(n => n.className === 'personal-bot-proposal-next-step'))
-  const sources = flatten(f.content).find(n => n.className === 'personal-bot-proposal-sources')
-  assert.equal(sources.open, false)
-  assert.ok(flatten(sources).some(n => n.textContent === p.nextStep))
-  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'View sources').click()
-  assert.equal(sources.open, true); assert.equal(f.commands.length, 0)
+  assert.equal(f.content.querySelector('.personal-bot-proposal-sources'), null)
+  assert.ok(!flatten(f.content).some(n => /Sources|details|Private reasoning/.test(n.textContent) || n.textContent.includes(hash)))
+  assert.equal(f.content.querySelector('.personal-bot-proposal-advice').textContent, p.advice)
+  assert.ok(flatten(f.content).some(n => n.textContent === 'Feedback'))
 })
 
 for (const nextStep of ['', ' '.repeat(240) + 'Check soil.', 'Check\u0000soil.']) {
@@ -534,21 +547,13 @@ test('an action without exact confirmation cannot masquerade as an executable ne
   assert.ok(flatten(f.content).some(n => n.textContent.includes('No executable action')))
 })
 
-test('execution receipts remain collapsed source text without asserting completion', async () => {
-  const f = fixture(), p = { ...proposal(), status: 'unknown', result: 'The plugin accepted the operation.', execution: { outcome: 'accepted', receipt: { taskId: 'fixture-task', target: '<script>untrusted target</script>', sha256: 'a'.repeat(64) } } }
+test('execution receipts remain private without asserting completion', () => {
+  const f = fixture(), p = { ...proposal(), status: 'unknown', result: 'The plugin accepted the operation.', execution: { outcome: 'accepted', receipt: { taskId: 'fixture-task', sha256: 'a'.repeat(64) } } }
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
-  const article = flatten(f.content).find(n => n.className === 'personal-bot-proposal')
-  const sources = flatten(article).find(n => n.className === 'personal-bot-proposal-sources')
-  const receipt = flatten(sources).find(n => n.className === 'personal-bot-proposal-evidence personal-bot-proposal-execution')
-  assert.ok(receipt, 'The host receipt must remain inspectable')
-  assert.equal(sources.open, false)
-  assert.ok(receipt.textContent.includes(JSON.stringify(p.execution)))
-  assert.ok(!article.children.filter(n => n !== sources).some(n => n.textContent.includes(p.execution.receipt.taskId) || n.textContent.includes(p.execution.receipt.sha256)))
-  assert.equal(flatten(article).some(n => n.tagName === 'SCRIPT'), false)
-  assert.ok(flatten(article).some(n => n.textContent.startsWith('Outcome not confirmed')))
-  assert.ok(!flatten(article).some(n => n.textContent === 'Completed'))
-  sources.open = true
-  assert.ok(receipt.textContent.includes(p.execution.receipt.target))
+  assert.equal(f.content.querySelector('.personal-bot-proposal-sources'), null)
+  assert.ok(!flatten(f.content).some(n => n.textContent.includes('fixture-task') || n.textContent.includes('a'.repeat(64))))
+  assert.ok(flatten(f.content).some(n => n.textContent.startsWith('Outcome not confirmed')))
+  assert.ok(!flatten(f.content).some(n => n.textContent === 'Completed'))
 })
 
 test('uncertain accept remains reserved across other-card redraw and service reconnect', async () => {
@@ -617,18 +622,14 @@ for (const rawResult of [
   ' { "target": "cm5", "project": "/workspace/example", "taskId": "fixture", "html": "<script>untrusted</script>" } ',
   '[{"target":"cm5","status":"accepted"}]',
 ]) {
-  test(`technical legacy results stay complete in Sources: ${rawResult.slice(0, 30)}`, () => {
+  test(`technical legacy results remain private: ${rawResult.slice(0, 30)}`, () => {
     const f = fixture(), p = { ...proposal(), status: 'unknown', result: rawResult }
     f.render({ state: 'idle', proposals: [p], proposalPopup: true })
     const article = flatten(f.content).find(n => n.className === 'personal-bot-proposal')
-    const sources = flatten(article).find(n => n.className === 'personal-bot-proposal-sources')
-    assert.equal(sources.open, false)
-    const original = flatten(sources).find(n => n.textContent === rawResult)
-    assert.ok(original, 'Sources must retain the exact original result')
-    assert.equal(article.children.some(n => n.textContent === rawResult), false, 'Technical result cannot enter the primary card')
+    assert.equal(article.querySelector('.personal-bot-proposal-sources'), null)
+    assert.equal(flatten(article).some(n => n.textContent === rawResult), false)
+    assert.ok(flatten(article).some(n => n.textContent === 'Operation result recorded. Check its status in the Agent conversation.'))
     assert.equal(flatten(article).some(n => n.tagName === 'SCRIPT'), false)
-    sources.open = true
-    assert.equal(original.textContent, rawResult)
     assert.ok(flatten(article).some(n => n.className === 'personal-bot-proposal-state' && n.textContent.startsWith('Outcome not confirmed')))
     assert.equal(flatten(article).some(n => n.className === 'personal-bot-proposal-state' && n.textContent.startsWith('Completed')), false)
   })
@@ -690,7 +691,7 @@ test('prepared ride quote is primary and reachable before collapsed details or f
   const p = { ...proposal(), action: null, confirmation: '', advice: 'Go to the gym.', ridePreview: { handle: 'preview-handle', expiresAt: Date.now() + 60000, measuredAt: new Date().toISOString(), from: [{ handle: 'from-a', name: 'Office' }], to: [{ handle: 'to-a', name: 'Gym' }] } }
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
   const article = f.content.querySelector('.personal-bot-proposal')
-  const details = f.content.querySelector('.personal-bot-ride-details')
+  const details = f.content.querySelector('.personal-bot-ride-route')
   const quote = flatten(article).find(n => n.tagName === 'BUTTON' && n.textContent === 'Get current quote')
   assert.equal(details.hidden, true)
   assert.equal(details.contains(quote), false, 'The next action cannot require discovering a disclosure')
@@ -708,7 +709,7 @@ test('quote action opens ambiguous place selection without dispatching a turn', 
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
   await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Get current quote').click()
   assert.equal(turns.length, 0)
-  assert.equal(f.content.querySelector('.personal-bot-ride-details').hidden, false)
+  assert.equal(f.content.querySelector('.personal-bot-ride-route').hidden, false)
   assert.equal(flatten(f.content).find(n => n.tagName === 'SELECT').focused, true)
 })
 
@@ -732,8 +733,26 @@ test('quote delivery failure is visible outside collapsed details without claimi
   const status = f.content.querySelector('.personal-bot-proposal-request-status')
   assert.match(status.textContent, /delivery is uncertain.*Check the Agent conversation/)
   assert.equal(status.attributes.role, 'status')
-  assert.equal(f.content.querySelector('.personal-bot-ride-details').contains(status), false)
+  assert.equal(f.content.querySelector('.personal-bot-ride-route').contains(status), false)
   assert.equal(quote.disabled, true)
+})
+test('feedback memory redraw and page replacement cannot replay a submitted ride quote', async () => {
+  const f = fixture(), turns = []
+  f.window.odkPersonalBot.sendText = async text => { turns.push(text); return { accepted: true } }
+  const p = { ...proposal(), action: null, confirmation: '', advice: 'Go to the gym.', ridePreview: { handle: 'preview-handle', expiresAt: Date.now() + 60000, from: [{ handle: 'from-a', name: 'Office' }], to: [{ handle: 'to-a', name: 'Gym' }] } }
+  f.render({ state: 'idle', proposals: [p] })
+  await flatten(f.content).find(n => n.textContent === 'Get current quote').click()
+  f.render({ state: 'idle', proposals: [{ ...p, feedbackLearning: { revision: 1, decision: 'useful', status: 'applied' } }] })
+  assert.equal(flatten(f.content).find(n => n.textContent === 'Get current quote').disabled, true)
+  await f.controller.destroy()
+  const replacement = f.window.odkPersonalAgentSuggestions.mount(f.content)
+  replacement.update({ state: 'idle', proposals: [p] })
+  assert.equal(flatten(f.content).find(n => n.textContent === 'Get current quote').disabled, true)
+  assert.match(f.content.querySelector('.personal-bot-proposal-request-status').textContent, /Quote request sent/)
+  assert.equal(turns.length, 1)
+  replacement.update({ state: 'idle', proposals: [{ ...p, ridePreview: { ...p.ridePreview, handle: 'fresh-preview' } }] })
+  assert.equal(flatten(f.content).find(n => n.textContent === 'Get current quote').disabled, false)
+  await replacement.destroy()
 })
 
 test('read-only ride previews expose no quote or refresh action', () => {
@@ -750,7 +769,7 @@ test('expired ride preview exposes refresh as the primary recovery action', asyn
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
   const refresh = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Refresh preview')
   assert.equal(refresh.className, 'personal-bot-proposal-primary')
-  assert.equal(f.content.querySelector('.personal-bot-ride-details').contains(refresh), false)
+  assert.equal(f.content.querySelector('.personal-bot-ride-route').contains(refresh), false)
   await refresh.click()
   assert.deepEqual(turns, ['刷新行程 preview-handle'])
 })
@@ -761,5 +780,5 @@ test('malformed preview cannot hide source inspection behind an unusable quote b
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
   const buttons = flatten(f.content).filter(n => n.tagName === 'BUTTON')
   assert.equal(buttons.some(n => ['Get current quote', 'Refresh preview'].includes(n.textContent)), false)
-  assert.equal(buttons.some(n => n.textContent === 'View sources'), true)
+  assert.equal(buttons.some(n => n.textContent === 'View sources'), false)
 })

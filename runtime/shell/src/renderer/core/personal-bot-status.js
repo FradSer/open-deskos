@@ -1,10 +1,6 @@
 ;(function () {
   'use strict'
 
-  // Owner-channel protocol tokens are data, not interface copy.
-  const rideQuotePrefix = '\u67e5\u770b\u62a5\u4ef7'
-  const rideRefreshPrefix = '\u5237\u65b0\u884c\u7a0b'
-
   const surface = document.getElementById('personal-bot-status')
   if (!surface || !window.odkPersonalBot) return
 
@@ -52,473 +48,9 @@
     return messageText(status) || copy.detail
   }
 
-  let proposals
-  let proactive = false
-  let proposalSnapshot = ''
-  let proposalError = ''
-  let proposalCommandError = ''
-  // Keep dispatched operations reserved until this ID has an authoritative terminal state.
-  const executionAttempts = new Map()
-  const actionConfirmations = new Map()
-  const renderedProposalIds = new Set()
-  const uncertainActionWarning = 'Suggestion response was not delivered. Check the personal bot service; do not repeat an uncertain action.'
-  let feedbackFocus
-  let proposalEpoch = 0
-  let suggestionCapabilities = { read: true, respond: true, acknowledge: true }
-  // A transport receipt does not prove that the resident saved its visibility state.
-  const visibilityAttempts = new Map()
-  const visibleAdvice = new Set()
-  const observedAdvice = new Map()
-  let visibilityFailure = false
-  function acknowledgeVisible(node, p) {
-    if (!p || !visibleAdvice.has(node) || document.hidden || surface.hidden || visibilityFailure || !suggestionCapabilities.acknowledge ||
-        p.status !== 'pending' || p.offered !== true || p.presented || p.snoozedUntil > Date.now()) return
-    const prior = visibilityAttempts.get(p.id)
-    if (prior && (prior.count >= 3 || Date.now() - prior.at < 5000)) return
-    visibilityAttempts.set(p.id, { count: (prior?.count ?? 0) + 1, at: Date.now() })
-    if (visibilityAttempts.size > 256) visibilityAttempts.delete(visibilityAttempts.keys().next().value)
-    void command({ type: 'proposal_presented', ids: [p.id] })
-  }
-  const visibility = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries => {
-    for (const entry of entries) {
-      // Long advice can exceed the scroll viewport. Require meaningful visible body
-      // area relative to the space a reader can actually see, not its whole length.
-      const body = entry.boundingClientRect, viewport = entry.rootBounds
-      const width = Math.min(body?.width ?? 0, viewport?.width ?? 0)
-      const height = Math.min(body?.height ?? 0, viewport?.height ?? 0)
-      if (!entry.isIntersecting || width <= 0 || height <= 0 || entry.intersectionRect.width < width * 0.5 || entry.intersectionRect.height < height * 0.5) {
-        visibleAdvice.delete(entry.target); continue
-      }
-      visibleAdvice.add(entry.target)
-      acknowledgeVisible(entry.target, observedAdvice.get(entry.target))
-    }
-  }, { root: elements.content, threshold: Array.from({ length: 101 }, (_, index) => index / 100) }) : null
-  const recheckVisibility = () => {
-    visibleAdvice.clear()
-    if (!document.hidden) for (const node of observedAdvice.keys()) { visibility?.unobserve(node); visibility?.observe(node) }
-  }
-  document.addEventListener('visibilitychange', recheckVisibility)
-  window.addEventListener('pagehide', () => { visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear(); expandedDisclosures.clear(); actionConfirmations.clear(); document.removeEventListener('visibilitychange', recheckVisibility) })
-
-  async function command(value) {
-    const epoch = proposalEpoch
-    const executionAttempt = value.type === 'proposal_respond' && value.decision === 'accept' ? executionAttempts.get(value.id) : undefined
-    try {
-      const receipt = await window.odkPersonalBot.proposalCommand(value)
-      if (!receipt?.accepted) throw Error('Unavailable')
-    } catch {
-      if (executionAttempt) {
-        if (executionAttempts.get(value.id) !== executionAttempt) return
-        executionAttempt.uncertain = true
-      }
-      if (epoch !== proposalEpoch && (!executionAttempt || !renderedProposalIds.has(value.id))) return
-      if (value.type === 'proposal_presented') return
-      proposalCommandError = uncertainActionWarning
-      showProposalError()
-    }
-  }
-  function showProposalError() {
-    let error = proposals.querySelector('.personal-bot-proposal-error')
-    if (!error) {
-      error = document.createElement('p')
-      error.className = 'personal-bot-proposal-error'
-      error.setAttribute('role', 'status')
-      proposals.appendChild(error)
-    }
-    error.textContent = proposalCommandError || proposalError
-  }
-  function button(label, callback) {
-    const node = document.createElement('button')
-    node.type = 'button'
-    node.textContent = label
-    node.addEventListener('click', callback)
-    return node
-  }
-  function rideDetails(article, proposal, canRespond = true) {
-    const preview = proposal.ridePreview
-    if (!preview || typeof preview !== 'object') return
-    const panel = document.createElement('section')
-    panel.className = 'personal-bot-ride-details'
-    panel.id = `ride-details-${proposal.id}`
-    panel.setAttribute('aria-label', 'Ride details')
-    panel.hidden = true
-    const opening = button('View ride details', () => {
-      panel.hidden = !panel.hidden
-      opening.setAttribute('aria-expanded', String(!panel.hidden))
-    })
-    opening.setAttribute('aria-expanded', 'false')
-    opening.setAttribute('aria-controls', panel.id)
-    const note = document.createElement('p')
-    const current = () => proposal.status === 'pending' && Number.isFinite(preview.expiresAt) && preview.expiresAt > Date.now()
-    note.textContent = current() ? `Estimate observed ${preview.measuredAt}. Expires ${new Date(preview.expiresAt).toISOString()}. Planned pickup; current location is not verified. This preview has not placed an order.` : 'Ride preview is expired or needs a location. Ask the Agent to search again. This preview has not placed an order.'
-    panel.append(note)
-    if (preview.sandbox === true) { const sandbox = document.createElement('p'); sandbox.textContent = 'Sandbox preview; no real vehicle or trip.'; panel.append(sandbox) }
-    for (const item of Array.isArray(preview.items) ? preview.items.slice(0, 16) : []) {
-      const line = document.createElement('p')
-      line.textContent = `${String(item.productName ?? '').slice(0, 256)}: ${String(item.priceText ?? '').slice(0, 256)}`
-      panel.append(line)
-    }
-    const selectors = []
-    for (const [key, caption] of [['from', 'Pickup'], ['to', 'Destination']]) {
-      const label = document.createElement('label')
-      label.textContent = caption
-      const select = document.createElement('select')
-      select.setAttribute('aria-label', caption)
-      const choices = Array.isArray(preview[key]) ? preview[key].slice(0, 8) : []
-      const blank = document.createElement('option')
-      blank.value = ''; blank.textContent = `Choose ${caption.toLowerCase()}`
-      select.append(blank)
-      for (const place of choices) {
-        const option = document.createElement('option')
-        option.value = typeof place.handle === 'string' ? place.handle : ''
-        option.textContent = `${String(place.name ?? '').slice(0, 256)} — ${String(place.city ?? '').slice(0, 80)} ${String(place.address ?? '').slice(0, 256)}`
-        select.append(option)
-      }
-      select.value = choices.length === 1 ? choices[0].handle : ''
-      label.append(select); panel.append(label); selectors.push(select)
-    }
-    const actions = document.createElement('div')
-    actions.className = 'personal-bot-proposal-actions personal-bot-ride-actions'
-    const requestStatus = document.createElement('p')
-    requestStatus.className = 'personal-bot-proposal-request-status'
-    requestStatus.setAttribute('role', 'status')
-    let quoteButton
-    const validPreviewHandle = typeof preview.handle === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(preview.handle)
-    if (canRespond && validPreviewHandle && current()) {
-      quoteButton = button('Get current quote', async function () {
-        const handles = [preview.handle, ...selectors.map(select => select.value)]
-        if (!current() || !handles.every(value => typeof value === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(value)) || !selectors.every((select, index) => preview[index === 0 ? 'from' : 'to'].some(p => p.handle === select.value))) {
-          note.textContent = 'Choose both actual places. If the preview expired, ask the Agent to search again.'
-          panel.hidden = false
-          opening.setAttribute('aria-expanded', 'true')
-          const missing = selectors.find(select => !select.value)
-          if (missing) missing.focus()
-          return
-        }
-        for (const control of [...selectors, quoteButton]) control.disabled = true
-        requestStatus.textContent = 'Sending quote request…'
-        try {
-          const receipt = await window.odkPersonalBot.sendText(`${rideQuotePrefix} ${handles.join(' ')}`)
-          if (!receipt?.accepted) throw Error('Unavailable')
-          requestStatus.textContent = 'Quote request sent. Follow its result in the Agent conversation.'
-        } catch {
-          requestStatus.textContent = 'Quote request delivery is uncertain. Check the Agent conversation before trying again. No order confirmation was sent.'
-        }
-      })
-      quoteButton.className = 'personal-bot-proposal-primary'
-      quoteButton.dataset.proposalId = proposal.id
-      quoteButton.dataset.proposalAction = 'ride-quote'
-      actions.append(quoteButton)
-    }
-    if (canRespond && validPreviewHandle && ['pending', 'expired'].includes(proposal.status)) {
-      const refresh = button('Refresh preview', async () => {
-        refresh.disabled = true
-        requestStatus.textContent = 'Sending preview refresh…'
-        try {
-          const receipt = await window.odkPersonalBot.sendText(`${rideRefreshPrefix} ${preview.handle}`)
-          if (!receipt?.accepted) throw Error('Unavailable')
-          requestStatus.textContent = 'Preview refresh sent. Follow its result in the Agent conversation.'
-        } catch { requestStatus.textContent = 'Preview refresh delivery is uncertain. Check the Agent conversation before trying again.' }
-      })
-      refresh.dataset.proposalId = proposal.id
-      refresh.dataset.proposalAction = 'ride-refresh'
-      if (!quoteButton) refresh.className = 'personal-bot-proposal-primary'
-      else panel.append(refresh)
-      if (!quoteButton) actions.append(refresh)
-    }
-    article.append(actions, requestStatus, opening, panel)
-    return actions.children.length > 0
-  }
-  const expandedDisclosures = new Set()
-  function disclosure(label, className, id = '') {
-    const details = document.createElement('details')
-    details.className = className
-    details.open = expandedDisclosures.has(id)
-    details.addEventListener('toggle', () => {
-      if (!id) return
-      if (details.open) expandedDisclosures.add(id); else expandedDisclosures.delete(id)
-      if (expandedDisclosures.size > 256) expandedDisclosures.delete(expandedDisclosures.values().next().value)
-    })
-    const summary = document.createElement('summary')
-    summary.textContent = label
-    if (id) { summary.dataset.proposalId = id; summary.dataset.proposalAction = 'disclosure' }
-    details.append(summary)
-    return details
-  }
-  function renderProposals(status) {
-    if (status.state === 'unavailable' || status.proposalCapabilities?.read === false) {
-      proposalEpoch++
-      renderedProposalIds.clear()
-      visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear(); proposalSnapshot = ''
-      suggestionCapabilities = { read: false, respond: false, acknowledge: false }
-      proposalError = ''; proposalCommandError = ''; visibilityFailure = false; feedbackFocus = undefined
-      expandedDisclosures.clear()
-      actionConfirmations.clear()
-      if (proposals) { proposals.replaceChildren(); proposals.hidden = true }
-      return
-    }
-    if (!Array.isArray(status.proposals)) return
-    renderedProposalIds.clear()
-    for (const p of status.proposals) if (p?.id) renderedProposalIds.add(p.id)
-    for (const p of status.proposals) if (p && ['completed', 'unknown', 'ignored', 'expired'].includes(p.status)) executionAttempts.delete(p.id)
-    const uncertainExecution = status.proposals.some(p => p && executionAttempts.get(p.id)?.uncertain)
-    if (visibilityFailure && !status.proposalError) visibilityAttempts.clear()
-    visibilityFailure = Boolean(status.proposalError)
-    suggestionCapabilities = status.proposalCapabilities === undefined ? { read: true, respond: true, acknowledge: true } : {
-      read: status.proposalCapabilities?.read === true,
-      respond: status.proposalCapabilities?.respond === true,
-      acknowledge: status.proposalCapabilities?.acknowledge === true,
-    }
-    const actionSignature = p => JSON.stringify([p.actionId, p.action, p.confirmation, p.nextStep])
-    for (const [id, confirmation] of actionConfirmations) {
-      const p = status.proposals.find(proposal => proposal?.id === id)
-      if (!suggestionCapabilities.respond || !p?.action || p.status !== 'pending' || p.snoozedUntil > Date.now() || executionAttempts.has(id) || actionSignature(p) !== confirmation.signature) actionConfirmations.delete(id)
-    }
-    if (!proposals) {
-      if (!status.proposals.length) return
-      proposals = document.createElement('section')
-      proposals.className = 'personal-bot-proposals'
-      proposals.setAttribute('aria-label', 'Personal Bot suggestions')
-      elements.content.appendChild(proposals)
-    }
-    proposals.hidden = !status.proposals.length || !suggestionCapabilities.read
-    const snapshot = JSON.stringify([status.proposals, status.proposalHiddenCount, suggestionCapabilities])
-    if (snapshot !== proposalSnapshot) {
-      proposalSnapshot = snapshot
-      const focused = document.activeElement
-      const retainedFocus = focused === document.body ? feedbackFocus : undefined
-      const focusId = focused?.dataset?.proposalId || retainedFocus?.id, focusAction = focused?.dataset?.proposalAction || retainedFocus?.action
-      feedbackFocus = undefined
-      const previousScroll = elements.content.scrollTop
-      visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear()
-      proposals.replaceChildren()
-      proposalCommandError = uncertainExecution ? uncertainActionWarning : ''
-      if (!status.proposals.length || !suggestionCapabilities.read) { proposalError = status.proposalError || ''; return }
-      const header = document.createElement('div')
-      header.className = 'personal-bot-proposals-header'
-      const heading = document.createElement('h2')
-      heading.textContent = 'Personal Bot suggestions'
-      header.append(heading, button('Close', close))
-      proposals.append(header)
-      if (!suggestionCapabilities.respond) {
-        const note = document.createElement('p')
-        note.className = 'personal-bot-proposal-capability'
-        note.textContent = 'Suggestions are read-only on this device. Respond from the desk.'
-        proposals.append(note)
-      }
-      if (status.proposalHiddenCount > 0) {
-        const remaining = document.createElement('p')
-        remaining.textContent = `${status.proposalHiddenCount} more suggestions in the agent store. Ask for suggestions to inspect them.`
-        proposals.append(remaining)
-      }
-      const history = disclosure('Previous suggestions', 'personal-bot-proposal-history', 'history')
-      const statusLabels = { pending: 'Suggested', ignored: 'Dismissed', expired: 'Expired', executing: 'In progress', completed: 'Completed', unknown: 'Outcome not confirmed' }
-      const feedbackLabels = { done: 'Marked done', snooze: 'Saved for later', useful: 'Marked useful', irrelevant: 'Marked not relevant', incorrect: 'Marked incorrect' }
-      let historical = 0
-      for (const p of status.proposals) {
-        if (!p || typeof p.advice !== 'string') continue
-        const snoozed = p.status === 'pending' && p.snoozedUntil > Date.now()
-        const current = p.status === 'pending' && !snoozed
-        const article = document.createElement('article')
-        article.className = 'personal-bot-proposal'
-        article.dataset.proposalId = p.id
-        const state = document.createElement('p')
-        state.className = 'personal-bot-proposal-state'
-        state.textContent = snoozed ? 'Saved for later' : statusLabels[p.status] || 'Suggestion state unavailable'
-        const advice = document.createElement('p')
-        advice.className = 'personal-bot-proposal-advice'
-        let presentationAdvice = advice
-        const technicalText = /sha[-_\s]?256|\b[a-f0-9]{32,}\b/i
-        const technicalAdvice = technicalText.test(p.advice)
-        const technicalNext = typeof p.nextStep === 'string' && technicalText.test(p.nextStep)
-        const executableAction = Boolean(p.action && typeof p.confirmation === 'string' && p.confirmation.trim())
-        const nextStep = typeof p.nextStep === 'string' && p.nextStep.length <= 240 && !/[\x00-\x1f\x7f]/.test(p.nextStep) && !technicalNext ? p.nextStep.trim() : ''
-        const readOnlyStep = !suggestionCapabilities.respond && Boolean(nextStep)
-        if (!executableAction) state.textContent += p.ridePreview || readOnlyStep ? ' · Read-only preview' : ' · Earlier suggestion · No executable action'
-        else if (!nextStep || technicalAdvice) state.textContent += ' · Earlier suggestion'
-        advice.textContent = technicalAdvice ? 'Review the earlier suggestion in Sources.' : p.advice
-        if (!technicalAdvice && p.advice.length > 180) {
-          advice.dataset.long = 'true'
-          advice.setAttribute('tabindex', '0')
-          advice.setAttribute('role', 'region')
-          advice.setAttribute('aria-label', 'Full recommendation; scroll to read')
-        }
-        article.append(state, advice)
-        if ((readOnlyStep || (executableAction && !current)) && nextStep && !technicalAdvice) {
-          const next = document.createElement('div')
-          next.className = 'personal-bot-proposal-next'
-          const caption = document.createElement('p')
-          caption.className = 'personal-bot-proposal-next-label'
-          caption.textContent = 'Next step'
-          const step = document.createElement('p')
-          step.className = 'personal-bot-proposal-next-step'
-          step.textContent = nextStep
-          next.append(caption, step)
-          article.append(next)
-        }
-        if (current && executionAttempts.has(p.id)) {
-          const pending = document.createElement('p')
-          pending.className = 'personal-bot-proposal-feedback'
-          pending.setAttribute('role', 'status')
-          pending.textContent = 'Operation submitted; waiting for its confirmed outcome. Do not repeat this action.'
-          article.append(pending)
-        }
-        if (p.feedback && feedbackLabels[p.feedback]) {
-          const feedback = document.createElement('p')
-          feedback.className = 'personal-bot-proposal-feedback'
-          feedback.setAttribute('role', 'status')
-          feedback.textContent = feedbackLabels[p.feedback]
-          article.append(feedback)
-        }
-        const sources = disclosure('Sources and details', 'personal-bot-proposal-sources', `${p.id}:sources`)
-        const identity = document.createElement('p')
-        identity.className = 'personal-bot-proposal-evidence'
-        identity.textContent = `${p.ruleId} · ${p.status}`
-        sources.append(identity)
-        if (technicalAdvice) {
-          const original = document.createElement('p')
-          original.className = 'personal-bot-proposal-evidence personal-bot-proposal-original-advice'
-          original.textContent = p.advice
-          sources.append(original)
-          presentationAdvice = original
-        }
-        if (technicalNext || (((!executableAction && !readOnlyStep) || technicalAdvice) && typeof p.nextStep === 'string')) {
-          const originalNext = document.createElement('p')
-          originalNext.className = 'personal-bot-proposal-evidence'
-          originalNext.textContent = p.nextStep
-          sources.append(originalNext)
-        }
-        for (const e of p.evidence ?? []) {
-          const evidence = document.createElement('p')
-          evidence.className = 'personal-bot-proposal-evidence'
-          evidence.textContent = `${e.readingId} · ${e.field}: ${JSON.stringify(e.value)} · ${p.status === 'expired' ? 'stale / expired' : e.state} · measured ${e.measuredAt}`
-          sources.append(evidence)
-        }
-        if (p.action && suggestionCapabilities.respond) {
-          const next = document.createElement('p')
-          next.textContent = `Next: ${p.action.tool} ${JSON.stringify(p.action.params ?? {})}. Confirmation: ${p.confirmation}`
-          sources.append(next)
-        }
-        if (p.execution && typeof p.execution === 'object') {
-          const execution = document.createElement('p')
-          execution.className = 'personal-bot-proposal-evidence personal-bot-proposal-execution'
-          execution.textContent = `Execution receipt: ${JSON.stringify(p.execution).slice(0, 16384)}`
-          sources.append(execution)
-        }
-        const hasRideAction = p.ridePreview ? rideDetails(article, p, suggestionCapabilities.respond) : false
-        if (p.result) {
-          let structuredResult = false
-          if (typeof p.result === 'string' && p.result.length <= 8192) {
-            try {
-              const parsed = JSON.parse(p.result)
-              structuredResult = parsed !== null && typeof parsed === 'object'
-            } catch { /* Human-readable operation results are not JSON receipts. */ }
-          }
-          const result = document.createElement('p')
-          result.textContent = p.result
-          result.setAttribute('role', 'status')
-          if (technicalText.test(p.result) || structuredResult) {
-            result.className = 'personal-bot-proposal-evidence personal-bot-proposal-original-result'
-            sources.append(result)
-          } else article.append(result)
-        }
-        if (current && suggestionCapabilities.respond) {
-          const actions = document.createElement('div')
-          actions.className = 'personal-bot-proposal-actions'
-          const response = (label, decision) => {
-            const control = button(label, async () => {
-              if (document.activeElement === control) feedbackFocus = { id: p.id, action: decision }
-              control.disabled = true
-              await command({ type: 'proposal_respond', id: p.id, decision })
-            })
-            control.dataset.proposalId = p.id; control.dataset.proposalAction = decision
-            return control
-          }
-          if ((!executableAction || !nextStep || technicalAdvice) && !hasRideAction) {
-            const view = button('View sources', () => { sources.open = true; expandedDisclosures.add(`${p.id}:sources`); sources.children[0].focus({ preventScroll: true }) })
-            view.className = 'personal-bot-proposal-primary'
-            view.dataset.proposalId = p.id; view.dataset.proposalAction = 'view-sources'
-            actions.append(view)
-          }
-          if (executableAction) {
-            const showConfirmation = confirmation => {
-              const isCurrent = () => proposals.contains(actions) && suggestionCapabilities.respond && actionConfirmations.get(p.id) === confirmation && !executionAttempts.has(p.id)
-              const confirm = button(p.confirmation, async () => {
-                if (!isCurrent()) return
-                actionConfirmations.delete(p.id)
-                executionAttempts.set(p.id, { uncertain: false })
-                for (const control of actions.children) control.disabled = true
-                await command({ type: 'proposal_respond', id: p.id, decision: 'accept', confirmation: p.confirmation })
-              })
-              confirm.className = 'personal-bot-proposal-primary'
-              confirm.dataset.proposalId = p.id; confirm.dataset.proposalAction = 'confirm'
-              const cancel = button('Cancel', () => {
-                if (!isCurrent()) return
-                actionConfirmations.delete(p.id)
-                proposalSnapshot = ''; renderProposals(status)
-                for (const card of proposals.children) if (card.dataset.proposalId === p.id) card.querySelector('[data-proposal-action="execute"]')?.focus({ preventScroll: true })
-              })
-              cancel.className = 'personal-bot-proposal-secondary'
-              cancel.dataset.proposalId = p.id; cancel.dataset.proposalAction = 'cancel'
-              actions.replaceChildren(confirm, cancel)
-              if (proposals.contains(confirm)) confirm.focus({ preventScroll: true })
-            }
-            const confirmation = actionConfirmations.get(p.id)
-            if (confirmation) showConfirmation(confirmation)
-            else {
-              const accept = button(nextStep && !technicalAdvice ? nextStep : 'Run action', () => {
-                if (!proposals.contains(accept) || !suggestionCapabilities.respond || executionAttempts.has(p.id)) return
-                const confirmation = { signature: actionSignature(p) }
-                actionConfirmations.set(p.id, confirmation)
-                showConfirmation(confirmation)
-              })
-              accept.className = 'personal-bot-proposal-primary'
-              accept.dataset.proposalId = p.id; accept.dataset.proposalAction = 'execute'
-              accept.disabled = executionAttempts.has(p.id)
-              const later = response('Later', 'snooze')
-              later.className = 'personal-bot-proposal-secondary'
-              later.disabled = accept.disabled
-              actions.append(accept, later)
-            }
-          }
-          const feedback = disclosure('Feedback', 'personal-bot-proposal-feedback-options', `${p.id}:feedback`)
-          const choices = document.createElement('div')
-          choices.className = 'personal-bot-proposal-actions'
-          if (!p.action) choices.append(response('Done', 'done'), response('Later', 'snooze'), response('Useful', 'useful'), response('Not relevant', 'irrelevant'), response('Incorrect', 'incorrect'))
-          choices.append(response('Ignore', 'ignore'), response('Never suggest this category', 'mute'))
-          feedback.append(choices)
-          article.append(actions, sources, feedback)
-        } else article.append(sources)
-        if (current) {
-          proposals.append(article)
-          observedAdvice.set(presentationAdvice, p)
-          visibility?.observe(presentationAdvice)
-        } else { history.append(article); historical++ }
-      }
-      if (historical) {
-        history.children[0].textContent = `Previous suggestions (${historical})`
-        proposals.append(history)
-      }
-      if (focusId && focusAction) {
-        let restored = false
-        for (const node of proposals.querySelectorAll?.('button, summary') || []) if (node.dataset.proposalId === focusId && node.dataset.proposalAction === focusAction) {
-          const owner = node.closest('details'); if (owner && node.tagName !== 'SUMMARY') owner.open = true
-          node.focus({ preventScroll: true }); restored = true; break
-        }
-        if (!restored) proposals.querySelector('.personal-bot-proposals-header button')?.focus({ preventScroll: true })
-      }
-      elements.content.scrollTop = previousScroll
-    }
-    for (const [node, p] of observedAdvice) acknowledgeVisible(node, p)
-    proposalError = status.proposalError || ''
-    if (proposalError || proposalCommandError) showProposalError()
-    else proposals.querySelector('.personal-bot-proposal-error')?.remove()
-  }
 
   let active = false
   let dismissed = false
-  let consumerUnavailable = false
-  let consumerId
   const busyStates = new Set(['starting', 'sending', 'transcribing', 'thinking'])
   let togglePending = false
   let savedScrollTop = 0
@@ -532,11 +64,11 @@
   const residentHome = () => Boolean(document.querySelector('#personal-agent .agent-panel') && document.getElementById('app-view')?.hidden)
   function setVisible(visible) {
     // The resident panel owns home feedback. Keep modal voice feedback inside Apps.
-    if (residentHome() && !proactive) visible = false
+    if (residentHome()) visible = false
     if (visible === !surface.hidden) return
     if (!visible) savedScrollTop = elements.content.scrollTop
     surface.hidden = !visible
-    if (visible && !proactive) {
+    if (visible) {
       previousFocus = document.activeElement
       background = [...document.body.children]
         .filter((node) => node !== surface && node.tagName !== 'SCRIPT')
@@ -561,7 +93,7 @@
   }
 
   function handleInput(input) {
-    if (surface.hidden || input === 'mic' || (proactive && !surface.contains(document.activeElement))) return false
+    if (surface.hidden || input === 'mic') return false
     if (input === 'back') close()
     if (input === 'up' || input === 'down') {
       elements.content.scrollBy({ top: input === 'down' ? 80 : -80, behavior: 'instant' })
@@ -595,12 +127,10 @@
       togglePending = false
     }
   }
-  window.odkPersonalBotStatus = { close, handleInput, mic, visible: () => !surface.hidden && !proactive }
+  window.odkPersonalBotStatus = { close, handleInput, mic, visible: () => !surface.hidden }
 
   window.addEventListener('keydown', (event) => {
-    if (surface.hidden || (proactive && !surface.contains(document.activeElement))) return
-    if ((proactive || surface.dataset.suggestions === 'true') && event.key === 'Tab') return
-    if (event.key !== 'Escape' && document.activeElement?.closest?.('.personal-bot-proposals') && document.activeElement !== elements.content) { event.stopImmediatePropagation(); return }
+    if (surface.hidden) return
     event.stopImmediatePropagation()
     if (event.key === 'Escape') {
       event.preventDefault()
@@ -615,32 +145,6 @@
 
   function render(status) {
     if (!status || !Object.hasOwn(presentation, status.state)) return
-    renderProposals(status)
-    if (status.proposalCapabilities?.read === false) consumerId = undefined
-    const unavailable = status.state === 'unavailable' || status.proposalCapabilities?.read === false
-    const restoredConsumer = consumerUnavailable && !unavailable
-    consumerUnavailable = unavailable
-    if (restoredConsumer) consumerReady()
-    const idle = ['idle', 'error'].includes(status.state)
-    const hasSuggestions = suggestionCapabilities.read && Boolean(proposals?.children.length)
-    const userSuggestions = hasSuggestions && status.proposalPopup && status.proposalInteraction && active && !dismissed && !proactive
-    if (userSuggestions) {
-      surface.dataset.suggestions = 'true'
-    }
-    if (!idle) surface.dataset.suggestions = 'false'
-    if (idle && hasSuggestions && !userSuggestions && (status.proposalPopup || (proactive && !surface.hidden))) {
-      if (!proactive) setVisible(false)
-      proactive = true
-      surface.dataset.proactive = 'true'
-      surface.setAttribute('aria-modal', 'false')
-      if (status.proposalPopup && !status.proposalRecovery) dismissed = false
-      setVisible(!dismissed)
-      return
-    }
-    if (proactive) setVisible(false)
-    proactive = false
-    surface.dataset.proactive = 'false'
-    surface.setAttribute('aria-modal', 'true')
     const copy = presentation[status.state]
     const newRecording = status.state === 'starting' && lastState !== 'starting'
     const activates = status.activated === true || newRecording || busyStates.has(status.state) || status.state === 'recording'
@@ -699,23 +203,6 @@
     return changed
   }
 
-  function consumerReady() {
-    if (document.visibilityState === 'hidden' || typeof window.odkPersonalBot.consumerReady !== 'function' || !globalThis.crypto?.randomUUID) return
-    void Promise.resolve(window.odkPersonalBot.consumerReady(consumerId ||= globalThis.crypto.randomUUID())).catch(() => {})
-  }
-  function consumerVisibilityChanged() {
-    if (document.visibilityState === 'hidden') {
-      consumerId = undefined
-      void Promise.resolve(window.odkPersonalBot.consumerReady?.(null)).catch(() => {})
-    }
-    else consumerReady()
-  }
-  document.addEventListener('visibilitychange', consumerVisibilityChanged)
-  window.addEventListener('pagehide', () => {
-    document.removeEventListener('visibilitychange', consumerVisibilityChanged)
-    void Promise.resolve(window.odkPersonalBot.consumerReady?.(null)).catch(() => {})
-  })
   window.odkPersonalBot.subscribe(render)
-  consumerReady()
   window.odkPersonalBot.onMic(mic)
 })()

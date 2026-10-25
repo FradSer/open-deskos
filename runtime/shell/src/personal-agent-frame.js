@@ -46,6 +46,13 @@ function readableProposals(value) {
       if (typeof p[key] === 'string' && p[key].length <= limit) row[key] = p[key]
     }
     if (['done', 'snooze', 'useful', 'irrelevant', 'incorrect'].includes(p.feedback)) row.feedback = p.feedback
+    if (p.feedbackLearning !== undefined) {
+      const learning = p.feedbackLearning
+      if (!learning || !Number.isSafeInteger(learning.revision) || learning.revision < 1 ||
+          !['done', 'snooze', 'useful', 'irrelevant', 'incorrect', 'ignore', 'mute'].includes(learning.decision) ||
+          !['queued', 'running', 'applied', 'failed', 'unavailable', 'stale'].includes(learning.status)) return null
+      row.feedbackLearning = { revision: learning.revision, decision: learning.decision, status: learning.status }
+    }
     if (Number.isFinite(p.snoozedUntil) && p.snoozedUntil >= 0) row.snoozedUntil = p.snoozedUntil
     row.evidence = []
     if (!Array.isArray(p.evidence) || p.evidence.length > 8) return null

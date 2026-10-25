@@ -74,7 +74,7 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 .agent-message-user { margin-left: 8%; padding: 14px 20px; background: var(--odk-surface); border-radius: 28px; width: fit-content; max-width: 92%; justify-self: end; }
 .agent-state { flex: 0 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 1.5; color: var(--odk-secondary-strong); }
 .agent-message-assistant:has(.agent-message-body:empty):not(:has(.agent-history-state)) { display: none; }
-.agent-composer { grid-column: 1; flex: none; display: flex; align-items: flex-end; gap: 8px; padding: 8px; border: 1px solid var(--odk-stroke); border-radius: 32px; background: var(--odk-surface); box-shadow: 0 4px 16px color-mix(in srgb, var(--odk-bg) 20%, transparent); }
+.agent-composer { grid-column: 1; flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 8px; border: 1px solid var(--odk-stroke); border-radius: 32px; background: var(--odk-surface); box-shadow: 0 4px 16px color-mix(in srgb, var(--odk-bg) 20%, transparent); }
 .agent-composer textarea { min-width: 0; flex: 1; min-height: 46px; height: 46px; max-height: none; resize: none; padding: 8px; scrollbar-width: thin; font: inherit; font-size: clamp(20px, calc(18px + 0.5cqw), 22px); line-height: 1.5; color: var(--odk-primary); background: transparent; border: 0; }
 .agent-composer textarea::placeholder { color: var(--odk-secondary-strong); }
 .agent-latest { min-width: 44px; min-height: 44px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: 14px; cursor: pointer; }
@@ -109,7 +109,7 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 
 .agent-composer button svg, .agent-latest svg { width: 24px; height: 24px; flex: none; }
 .agent-latest { display: flex; align-items: center; justify-content: center; gap: 10px; }
-.agent-composer button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; width: 46px; height: 46px; min-width: 46px; min-height: 46px; border: 0; border-radius: var(--odk-radius-pill); padding: 0; background: transparent; color: var(--odk-secondary-strong); font: inherit; cursor: pointer; }
+.agent-composer-controls > button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; width: 46px; height: 46px; min-width: 46px; min-height: 46px; border: 0; border-radius: var(--odk-radius-pill); padding: 0; background: transparent; color: var(--odk-secondary-strong); font: inherit; cursor: pointer; }
 .agent-composer :is(.agent-mic, .agent-keys, .agent-cancel):hover:not(:disabled) { background: var(--odk-elevated); color: var(--odk-primary); }
 .agent-composer .agent-send { background: var(--odk-primary); color: var(--odk-bg); padding: 0; }
 .agent-composer .agent-send:hover:not(:disabled) { background: color-mix(in srgb, var(--odk-primary) 86%, var(--odk-bg)); color: var(--odk-bg); }
@@ -292,3 +292,5 @@ html[data-theme='pixel'] #home-summary .dash {
 
 
 .agent-panel .agent-thread-nav button { flex: none; white-space: nowrap; pointer-events: auto; background: var(--odk-surface); }
+
+.agent-composer-controls { display: flex; align-items: flex-end; gap: 8px; min-width: 0; }
