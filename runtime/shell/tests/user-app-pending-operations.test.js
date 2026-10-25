@@ -178,11 +178,11 @@ test('runtime release waits for verifier ownership after installation requests s
   const stopping = f.stop().then(() => { stopped = true })
   await entered.promise
   const releasedBeforeVerifier = stopped
-  const handlersBeforeVerifier = f.handlers.size
+  const handlersBeforeVerifier = [...f.handlers.keys()].sort()
   gate.resolve()
   await stopping
   assert.equal(releasedBeforeVerifier, false)
-  assert.equal(handlersBeforeVerifier, 4)
+  assert.deepEqual(handlersBeforeVerifier, ['odk-user-apps-api', 'odk-user-apps-device', 'odk-user-apps-dispatch', 'odk-user-apps-list', 'odk-user-apps-publish'])
   assert.equal(f.handlers.size, 0)
   assert.equal(f.counts().closes, 1)
 })
@@ -195,7 +195,7 @@ test('failed catalog verification drain retains the production Host provider for
   await f.stop()
   assert.equal(f.host.list().find(record => record.manifest.id === 'odk.system.user-apps').state, 'cleanup-failed')
   assert.equal(f.providerReleases(), 0)
-  assert.equal(f.handlers.size, 4)
+  assert.deepEqual([...f.handlers.keys()].sort(), ['odk-user-apps-api', 'odk-user-apps-device', 'odk-user-apps-dispatch', 'odk-user-apps-list', 'odk-user-apps-publish'])
   await f.stop()
   assert.equal(attempts, 2)
   assert.equal(f.providerReleases(), 1)

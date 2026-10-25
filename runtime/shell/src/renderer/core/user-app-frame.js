@@ -97,6 +97,14 @@
         ).catch(() => {})
         return
       }
+      if (data.type === 'odk-user-app-device') {
+        if (disposed || !Number.isSafeInteger(data.requestId) || data.requestId < 1 || !data.request || typeof data.request !== 'object' || Array.isArray(data.request)) return
+        void Promise.resolve().then(() => root.odkUserApps?.deviceRequest?.(id, revision, token, data.request)).then(
+          result => { if (!disposed) frame.contentWindow?.postMessage({ type: 'odk-user-app-device-result', token, requestId: data.requestId, result: result || { ok: false, error: 'device-unavailable' } }, '*') },
+          () => { if (!disposed) frame.contentWindow?.postMessage({ type: 'odk-user-app-device-result', token, requestId: data.requestId, result: { ok: false, error: 'device-unavailable' } }, '*') },
+        ).catch(() => {})
+        return
+      }
       if (data.type === 'odk-user-app-data') { publishData(data.data); return }
       if (data.type === 'odk-user-app-error') { fail(data.error || 'user app failed during startup'); return }
       if (data.type !== 'odk-user-app-ready') return

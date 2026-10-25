@@ -9,7 +9,12 @@ Read [CONTEXT](../CONTEXT.md) for terms, [runtime README](../README.md) for deve
 <a id="adr-0001"></a>
 ### ADR-0001: Transport-independent Remote Link
 
-The standalone Node.js Remote Bridge owns device I/O and a replaceable transport adapter. The Shell owns page state. Their Unix socket is mode `0600`. Wired input uses USB HID; USB CDC returns state. A future UART/C6/ESP-NOW adapter carries the same versioned JSON Lines. This keeps transport out of Electron and avoids replacing a USB-only design. Wireless deployment requires hardware acceptance; see [C6-GATEWAY](C6-GATEWAY.md).
+The standalone Node.js Remote Bridge owns Remote Control I/O and a replaceable transport adapter.
+The Shell owns page state. Their Unix socket is mode `0600`.
+The wired adapter uses USB HID for input and USB CDC for state.
+The selected C6/ESP-NOW profile carries versioned Remote Messages without USB control fallback.
+ADR-0038 extends peripheral access through the same Bridge owner.
+Wireless deployment requires separate hardware acceptance; see [C6-GATEWAY](C6-GATEWAY.md).
 
 <a id="adr-0002"></a>
 ### ADR-0002: Shared runtime and research boundary
@@ -320,6 +325,34 @@ Android reports `unavailable` when the link drops. The conversation keeps the co
 The engine baseline is a modern Chromium WebView of the Electron Chromium generation. `minSdk` is 26. A redroid Android 14 image with WebView 125 is the reference test device. A system WebView older than the baseline does not prove presentation; upgrading it is a separate device change.
 
 The host lives in `runtime/android/`. That directory holds Android-only host code, build files and assets. Shared renderer behavior stays under `runtime/shell/`, so ADR-0035 still owns the shared source root. Gradle with the Android plugin and Kotlin builds the host. The staging excludes `renderer/themes/liquid-glass-sdk.js`, which the Shell generates at build time and never commits. [ANDROID_HOST](ANDROID_HOST.md) owns build, verification and device steps.
+
+<a id="adr-0038"></a>
+### ADR-0038: Pluggable peripherals with host-owned device access
+
+ESP32 devices are part of the pluggable system direction.
+The first gateway target is a USB-connected M5Stack NanoC6 on a Windows x64 Shell Host.
+The gateway connects approved ESP-NOW peers to the host.
+Other USB devices can use their own host adapters without a gateway.
+Each device retains separate firmware, transport, and hardware acceptance results.
+
+A host service owns device discovery, identity checks, exclusive access, and bounded communication.
+Adapters use the existing plugin lifecycle where their host supports it.
+Widgets display source state.
+Apps request declared device actions through a host-validated interface.
+Installed HTML packages use a bounded device SDK with separate host grants for exact revisions.
+Widgets retain read-only access. Apps can send only granted general peer traffic.
+The Bridge owns C6 access; the Shell broker validates package frames and grants.
+Native trust does not provide a sandbox.
+
+Device selection does not authorize firmware installation.
+Firmware work identifies the board, source revision, toolchain, and artifact hash before a write.
+The device service releases its port before an authorized firmware operation.
+Reconnection requires a new identity and protocol check.
+Other peripherals and direct Shell input remain available during failure or removal.
+
+The [C6 Gateway contract](C6-GATEWAY.md) owns implementation stages, Remote Control compatibility, acceptance scenarios, and current evidence.
+The [Bridge contract](../../../integrations/remote-bridge/README.md#shared-device-channel) defines gateway state and the trusted device interface.
+Package, general peer, and physical Remote acceptance remain separate gates.
 
 ## Current Shell plugin composition
 

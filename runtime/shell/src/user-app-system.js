@@ -7,6 +7,7 @@ const { buildUserAppDocument, USER_APP_CSP } = require('./user-app-content')
 const { resolveShellHost } = require('./platform')
 const { readOrCreateToken } = require('./local-channel')
 const { createUserAppApi } = require('./user-app-api')
+const { createUserAppDevices, isActiveDeviceFrame } = require('./user-app-devices')
 const { NATIVE_PLUGIN_SCHEME, NATIVE_PLUGIN_PRIVILEGES } = require('./native-renderer-assets')
 
 // supportFetchAPI + corsEnabled are what let a sandboxed frame (opaque origin) load the
@@ -34,13 +35,14 @@ function registerUserAppScheme(protocol) {
     { scheme: NATIVE_PLUGIN_SCHEME, privileges: NATIVE_PLUGIN_PRIVILEGES }])
 }
 
-async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env = process.env, smokeMode = false, odkData = null, store: selectedStore, isStopping = () => app.isQuitting === true, onCleanup, appearancePlugins, desktopGeometry }) {
+async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env = process.env, smokeMode = false, odkData = null, store: selectedStore, isStopping = () => app.isQuitting === true, onCleanup, appearancePlugins, desktopGeometry, deviceGateway, shellDocument }) {
   let stopped = false
   let server = null
   let opening = null
   let releasing = null
   let verifier = null
   let packageApi = null
+  let packageDevices = null
   const releases = new Set()
   const pending = new Set()
   const stopping = () => stopped || isStopping() || app.isQuitting === true
@@ -63,6 +65,7 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
       // Stop admission before draining accepted work, so replacement cannot race
       // an old catalog write or release a provider that work still consumes.
       await packageApi?.close()
+      await packageDevices?.close()
       await Promise.allSettled([...pending])
       await selectedStore?.waitForVerification?.()
       await verifier?.close()
@@ -86,6 +89,10 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
     : selectedStore || createUserAppStore({ workspace: env.ODK_WORKSPACE, stateDir: surface.stateDir, verify: bundle => verifier.verify(bundle),
       ...(desktopGeometry ? { getDesktopGeometry: desktopGeometry.read } : {}) })
   packageApi = createUserAppApi({ store, publicDns: env.ODK_PACKAGE_API_PUBLIC_DNS === 'cloudflare' })
+  packageDevices = createUserAppDevices({ store, gateway: deviceGateway,
+    grantsFile: path.join(resolveShellHost({ env }).stateDir, 'device-grants.json'),
+    isActive: identity => !stopping() && isActiveDeviceFrame(identity.event, identity, BrowserWindow.getAllWindows(), shellDocument),
+  })
   const control = createUserAppControl(store, () => {
     if (stopping()) return
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-user-apps-changed')
@@ -115,6 +122,14 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
     releases.add(() => ipcMain.removeListener('odk-user-apps-geometry', geometryReport))
   }
   bind('odk-user-apps-api', (_event, request) => packageApi.read(request?.appId, request?.revision, request?.sourceId))
+  bind('odk-user-apps-device', (event, value) => {
+    const identity = { appId: value?.appId, revision: value?.revision, frameToken: value?.frameToken, event }
+    const request = value?.request
+    if (!request || typeof request !== 'object' || Array.isArray(request)) return { ok: false, error: 'invalid-device-request' }
+    if (request.type === 'read' && Object.keys(request).length === 1) return packageDevices.read(identity)
+    if (request.type === 'send' && Object.keys(request).length === 3) return packageDevices.send(identity, request.peer, request.payload)
+    return { ok: false, error: 'invalid-device-request' }
+  })
   bind('odk-user-apps-list', () => control.dispatch({ command: 'list' }))
   bind('odk-user-apps-dispatch', (_event, request) => control.dispatch(request))
   bind('odk-user-apps-publish', (_event, request) => odkData?.registry.publish(request?.appId, request?.data) ?? { ok: false, error: 'unknown-reading' })

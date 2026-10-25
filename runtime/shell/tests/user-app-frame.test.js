@@ -8,6 +8,20 @@ const path = require('node:path')
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'src/renderer/core/user-app-frame.js'), 'utf8')
 
+test('device channel binds package identity and drops removed frame replies', async () => {
+  const h = create(); let received, release
+  h.root.odkUserApps = { deviceRequest: (...args) => { received = args; return new Promise(resolve => { release = resolve }) } }
+  const mounted = h.mount(h.container, { id: 'sensor', revision: 'a'.repeat(32), url: `odk-user-app://app/sensor/${'a'.repeat(32)}` })
+  const message = { type: 'odk-user-app-device', token: 'token', requestId: 1, request: { type: 'read' }, appId: 'forged' }
+  for (const listener of h.listeners) listener({ source: {}, data: message })
+  await new Promise(resolve => setImmediate(resolve)); assert.equal(received, undefined)
+  for (const listener of h.listeners) listener({ source: h.frame.contentWindow, data: message })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(received[0], 'sensor'); assert.equal(received[1], 'a'.repeat(32)); assert.equal(received[2], 'token')
+  const before = h.posted.length; disposeQuietly(mounted); release({ ok: true })
+  await new Promise(resolve => setImmediate(resolve)); assert.equal(h.posted.length, before)
+})
+
 // Disposal settles readiness as a rejection, which the host is expected to handle;
 // tests that only check the URL silence it here.
 function disposeQuietly(mounted) {

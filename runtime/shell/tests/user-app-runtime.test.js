@@ -15,6 +15,32 @@ function verifier(timeoutMs = 30000) {
   return createUserAppVerifier({ electronPath, timeoutMs })
 }
 
+test('opaque installed packages use private device grants through the actual preload', {
+  skip: require('./not-ported').posixOnlyReason('unix-socket'), timeout: 45000,
+}, async t => {
+  const { runCommand } = require('./helpers/hydra-wire-lifecycle')
+  // Keep Unix socket paths short and give Chromium one parent-owned profile.
+  const root = await fs.promises.mkdtemp(path.join(process.platform === 'darwin' ? '/private/tmp' : require('node:os').tmpdir(), 'odk-pd-'))
+  const env = { ...process.env, ODK_PACKAGE_DEVICE_PROFILE: root }
+  delete env.ELECTRON_RUN_AS_NODE
+  let failure
+  try {
+    await fs.promises.chmod(root, 0o700)
+    const result = await runCommand(electronPath, [`--user-data-dir=${root}`, path.join(__dirname, 'user-app-devices-electron.cjs')],
+      { env, signal: t.signal, timeout: 35000, maxBuffer: 1024 * 1024 })
+    assert.deepEqual(JSON.parse(result.stdout.trim().split('\n').pop()), {
+      result: 'PASS', opaqueFrame: true, actualPreload: true, privateGrants: true, sends: 1, physicalDevice: false,
+    })
+  } catch (error) { failure = error }
+  // runCommand settles only after the child's close event, including timeout or abort.
+  try { await fs.promises.rm(root, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 }) }
+  catch (cleanupError) {
+    if (failure) throw new AggregateError([failure, cleanupError], 'Device fixture failed and its closed profile cleanup failed', { cause: failure })
+    throw cleanupError
+  }
+  if (failure) throw failure
+})
+
 test('BDD feature specifies opaque sandbox runtime guarantees and no CPU promise', () => {
   assert.match(feature, /Feature: Sandboxed self-contained user applications/)
   assert.match(feature, /Startup does not create resources after quit/)

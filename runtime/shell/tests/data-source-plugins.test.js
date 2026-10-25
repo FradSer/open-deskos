@@ -5,6 +5,24 @@ const assert = require('node:assert/strict')
 const { createPluginHost } = require('../src/plugin-host')
 const { createDataSourcePlugins, DATA_PORTS } = require('../src/plugins/data-sources')
 
+test('Devices uses the existing Bridge client without acquiring a device transport', async () => {
+  const client = { getDeviceSnapshot: () => ({ status: 'live' }) }
+  const handlers = new Map()
+  let captured
+  const source = { dispatch: async () => ({ status: 'live' }), stop() {} }
+  const host = createPluginHost({ capabilities: {
+    ipc: { handle: (id, fn) => handlers.set(id, fn), removeHandler: id => handlers.delete(id) },
+    'source.device-gateway': { create: options => { captured = options; return source } },
+  } })
+  host.register({ manifest: { schemaVersion: 1, id: 'odk.test.remote-owner', name: 'Remote owner', version: '1.0.0', kind: 'transport', host: 'electron-main',
+    provides: [{ interface: 'odk:transport/remote-link/v1' }] }, create: () => ({ ports: { 'odk:transport/remote-link/v1': { client } } }) })
+  host.register(createDataSourcePlugins().find(p => p.manifest.id === 'odk.source.device-gateway'))
+  await host.start()
+  assert.equal(captured.client, client)
+  assert.equal(await handlers.get('odk-device-gateway')({}, { type: 'status' }).then(x => x.status), 'live')
+  await host.stop()
+})
+
 function fixture() {
   const handlers = new Map()
   const calls = []
@@ -19,6 +37,7 @@ function fixture() {
   }
   const odkLink = { machines: async () => [] }
   const capabilities = {
+    'source.device-gateway': { create: () => ({ stop() {}, dispatch: async () => ({ status: 'unconfigured' }) }) },
     ipc: { handle: (id, handler) => handlers.set(id, handler), removeHandler: id => handlers.delete(id) },
     'source.odk-link': { create: () => odkLink },
     'source.pi-sessions': { create: options => {

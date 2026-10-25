@@ -5,6 +5,7 @@ const { isDeepStrictEqual } = require('node:util')
 const { readBoundedFile, ensureDirectory, writeExclusive } = require('./user-app-files')
 const { parseDeclaration, parseHome } = require('./odk-data-registry')
 const { parseApiSources } = require('./user-app-api')
+const { parseDevices } = require('./user-app-devices')
 
 const MAX_APPS = 32
 const MAX_HTML_BYTES = 256 * 1024
@@ -16,7 +17,7 @@ const validRevision = value => typeof value === 'string' && /^[a-f0-9]{32}$/.tes
 const PLACEMENT_SHAPE = /^\d+(?:\s*\/\s*\d+)?$/
 const STORED_PLACEMENT_ERRORS = new Set(['occupied-placement', 'unavailable-page', 'invalid-placement'])
 const failure = error => ({ ok: false, error })
-const metadata = ({ id, name, version, kind, revision, placement, placementError, service, data, home, api }) => ({ id, name, version, kind, revision, ...(placement ? { placement: { ...placement } } : {}), ...(placementError ? { placementError } : {}), ...(service ? { service: { ...service, secrets: [...service.secrets], egress: service.egress.map(rule => ({ ...rule })) } } : {}), ...(data ? { data: { fields: { ...data.fields } } } : {}), ...(home ? { home: parseHome(home) } : {}), ...(api ? { api: parseApiSources(api) } : {}) })
+const metadata = ({ id, name, version, kind, revision, placement, placementError, service, data, home, api, devices }) => ({ id, name, version, kind, revision, ...(placement ? { placement: { ...placement } } : {}), ...(placementError ? { placementError } : {}), ...(service ? { service: { ...service, secrets: [...service.secrets], egress: service.egress.map(rule => ({ ...rule })) } } : {}), ...(data ? { data: { fields: { ...data.fields } } } : {}), ...(home ? { home: parseHome(home) } : {}), ...(api ? { api: parseApiSources(api) } : {}), ...(devices ? { devices: parseDevices(devices, kind) } : {}) })
 const digestOf = (manifest, html) => crypto.createHash('sha256').update(manifest).update(html).digest('hex')
 
 function parseService(service) {
@@ -62,10 +63,12 @@ function parseManifest(bytes, id) {
   const data = parseData(manifest.data)
   let api
   try { api = parseApiSources(manifest.api) } catch { throw Error('invalid-manifest') }
+  let devices
+  try { devices = parseDevices(manifest.devices, manifest.kind) } catch { throw Error('invalid-manifest') }
   let home
   try { home = parseHome(manifest.home) } catch { throw Error('invalid-manifest') }
   if (home && home.fields.some(field => !Object.hasOwn(data?.fields ?? {}, field))) throw Error('invalid-manifest')
-  return { ...manifest, ...(service === undefined ? {} : { service }), ...(data === undefined ? {} : { data }), ...(home === undefined ? {} : { home }), ...(api === undefined ? {} : { api }) }
+  return { ...manifest, ...(service === undefined ? {} : { service }), ...(data === undefined ? {} : { data }), ...(home === undefined ? {} : { home }), ...(api === undefined ? {} : { api }), ...(devices === undefined ? {} : { devices }) }
 }
 
 function loadDesktopLayout() {
@@ -124,7 +127,7 @@ function createUserAppStore({ workspace, stateDir, verify, waitForVerification, 
           || !entry.history.every(validRevision)) throw Error('invalid-catalog')
         const bundle = await snapshot(entry.id, entry.revision)
         if (bundle.digest !== entry.digest || ['name', 'version', 'kind'].some(key => entry[key] !== bundle.manifest[key])
-          || ['service', 'data', 'api'].some(key => !isDeepStrictEqual(entry[key], bundle.manifest[key]))) throw Error('invalid-catalog')
+          || ['service', 'data', 'api', 'devices'].some(key => !isDeepStrictEqual(entry[key], bundle.manifest[key]))) throw Error('invalid-catalog')
         if (entry.placement !== undefined) {
           if (entry.kind !== 'widget' || !entry.placement
             || typeof entry.placement.pageId !== 'string' || entry.placement.pageId.length === 0
@@ -404,6 +407,16 @@ function createUserAppStore({ workspace, stateDir, verify, waitForVerification, 
         const bundle = await snapshot(id, entry.revision)
         return { ok: true, app: metadata(entry), html: bundle.htmlBytes.toString('utf8') }
       } catch { return failure('catalog-corrupt') }
+    }),
+    withCurrentRevision: (id, revision, admit) => serial(async () => {
+      if (!validId(id) || !validRevision(revision) || typeof admit !== 'function') return failure('revision-changed')
+      const entry = (await catalog()).find(app => app.id === id)
+      if (!entry || entry.revision !== revision) return failure('revision-changed')
+      // Admit synchronously while catalog mutations are excluded. A nested
+      // operation Promise belongs to the caller, never to the catalog queue.
+      const result = admit(metadata(entry))
+      if (!result || typeof result !== 'object' || typeof result.then === 'function') throw Error('invalid-revision-admission')
+      return result
     }),
     install,
     update: install,

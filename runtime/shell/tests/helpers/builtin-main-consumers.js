@@ -21,7 +21,7 @@ async function exerciseBuiltinMainViews(win, host, { version, configPath }) {
       if (id === 'year') assert.equal(readings[id].value, '0%', 'Production built-in Year reading changed')
       if (id === 'pomodoro') assert.equal(readings[id].value, '25:00')
       if (id === 'app-manager') {
-        assert.equal(readings[id].rows.length, 9)
+        assert.equal(readings[id].rows.length, 10)
         await js("(()=>{const input=document.querySelector('#app-search');input.value=' YEAR ';input.dispatchEvent(new Event('input'))})()")
         assert.equal(await js("document.querySelectorAll('#app-runtime .app-list li').length"), 1)
         assert.equal(await js("document.querySelector('#app-runtime .app-list strong').textContent"), 'Year progress')

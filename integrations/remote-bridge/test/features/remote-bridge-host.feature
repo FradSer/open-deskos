@@ -148,3 +148,31 @@
     When bridge shutdown cancels initialization
     Then shutdown waits for the factory allocation and its registered cleanup
     And the canceled transport does not start or retain subscriptions
+
+  Scenario: The CM5 Remote uses only the paired ESP-NOW gateway
+    Given an explicit private ESP-NOW configuration selects the NanoC6 serial identity and one S3 peer
+    When the bridge starts in ESP-NOW mode
+    Then it registers only the wireless transport
+    And it never discovers or opens the S3 USB port
+    And loss of the gateway does not select USB
+    And the Shell keeps its local touch and keyboard input
+
+  Scenario: Radio synchronization needs an application acknowledgement
+    Given the paired S3 has announced its current boot session
+    When the Shell sends its state through the NanoC6
+    Then bounded radio fragments carry that state
+    And the bridge stays syncing until the S3 acknowledges the complete valid state
+    And a MAC receipt alone does not establish synchronization
+    And duplicate inputs and records from retired boot sessions are discarded
+
+  Scenario: Devices shares the active encrypted gateway
+    Given the ESP-NOW transport owns one NanoC6 worker and a reserved S3 peer
+    When Devices requests status and subscribes to device events
+    Then cached gateway and remote status use the same worker
+    And the S3 becomes ready only after its complete state acknowledgement
+    And generic messages never include Remote protocol packets or private configuration
+    When an App sends a packet to its approved generic peer
+    Then the bridge reports only MAC receipt or unknown delivery
+    And packets to the reserved S3, unpaired peers, or the Remote protocol are rejected
+    When the gateway or bridge disconnects
+    Then retained live data and pending requests become unavailable without USB fallback

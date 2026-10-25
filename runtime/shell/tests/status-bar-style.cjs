@@ -77,7 +77,9 @@ app.whenReady().then(async () => {
         const agentRect=document.getElementById('personal-agent').getBoundingClientRect();
         const deskRect=document.getElementById('desk-content').getBoundingClientRect();
         const widget=document.querySelector('.widget');
-        const controls = [...bar.querySelectorAll('#sb-pad, #sb-camera, #sb-pi-status, #sb-net, .sb-time')].filter(node=>node.getClientRects().length);
+        const devices = bar.querySelector('button[aria-label="Open Devices"]');
+        const devicesRect = devices.getBoundingClientRect();
+        const controls = [...bar.querySelectorAll('#sb-pad, .sb-devices, #sb-pi-status, #sb-net, .sb-time')].filter(node=>node.getClientRects().length);
         return { viewport:[innerWidth,innerHeight,devicePixelRatio], theme:document.documentElement.dataset.theme, barBottom:rect.bottom,
           material: {
             borders:[material.borderTopWidth,material.borderRightWidth,material.borderBottomWidth,material.borderLeftWidth],
@@ -92,6 +94,7 @@ app.whenReady().then(async () => {
           panesCorrect:innerWidth>=640?Math.abs(agentRect.left)<1&&Math.abs(deskRect.left-agentRect.right)<1&&Math.abs(deskRect.top-agentRect.top)<1:deskRect.top>=agentRect.bottom-1,
           bodyFill:getComputedStyle(document.body).backgroundImage,
           backdropFill:getComputedStyle(document.getElementById('liquid-glass-backdrop')).backgroundImage,
+          devicesTarget:devicesRect.width>=44&&devicesRect.height>=44&&devices.contains(document.elementFromPoint(devicesRect.x+devicesRect.width/2,devicesRect.y+devicesRect.height/2)),
           piHeight:piRect.height, focused:document.activeElement===pi,
           hit:pi.contains(document.elementFromPoint(piRect.x+piRect.width/2,piRect.y+piRect.height/2)),
           focusOutline:getComputedStyle(pi).outlineStyle,
@@ -100,6 +103,7 @@ app.whenReady().then(async () => {
       })()`)
       assert.deepEqual(state.viewport, [width,height,1])
       assert.equal(state.theme, theme)
+      assert.equal(state.devicesTarget, true, 'Devices retains a reachable touch target')
       assert.equal(state.panesCorrect,true,'Backdrop must not displace the Agent or desk pane')
       assert.equal(state.frost.content, '""')
       assert.deepEqual(state.frost.insets, ['0px','0px','0px','0px'], 'The frost covers the full bar without an inset card')

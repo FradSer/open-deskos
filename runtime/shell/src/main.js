@@ -325,6 +325,7 @@ async function main() {
       'desk.refresh': { smokeMode, setInterval, clearInterval, report: message => console.error(message) },
       'desk.user-apps': { start: startUserAppSystem, smokeMode, isStopping, options: {
         app, ipcMain, protocol: electron.protocol, BrowserWindow, smokeMode, appearancePlugins, desktopGeometry,
+        shellDocument: require('node:path').join(__dirname, 'renderer', 'index.html'),
       } },
       'desk.link': { listen: listenOdkData, smokeMode, enabled: shellHost.provisionsOdkData, report: message => console.error(message), options: {
         endpoint: shellHost.odkDataEndpoint, stateDir: shellHost.stateDir, platform: shellHost.platform,
@@ -338,6 +339,9 @@ async function main() {
       'source.pi-sessions': { create: createPiSessionsSource, configured: createConfiguredPiSessionReader },
       'source.pi-events': { create: createPiSessionEventsSource, readLocal: readSessionEvents },
       'source.camera': { create: createCameraSource, provider: createCameraCaptureProvider },
+      'source.device-gateway': { create: require('./device-bridge-source').createBridgeDeviceSource, options: {
+        authorize: event => diagnosisFrames.has(event?.sender) && event.senderFrame === event.sender.mainFrame,
+      } },
       'source.personal-agent-readings': { endpoint: smokeMode ? null : shellHost.endpoint('personal-bot-control'), tokenFile: shellHost.localChannelTokenFile, platform: shellHost.platform },
       'source.quota': { read: options => fetchOpenCodeGo(resolveOpenCodeGoConfig(), options) },
       'source.hydra': { create: createHydraSource, connect: connectHydraMqtt, options: smokeMode ? {} : {

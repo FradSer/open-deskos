@@ -18,6 +18,7 @@ const expectedVersion = process.env.ODK_APP_MANAGER_MAIN_VERSION
 const liveHandoff = process.env.ODK_APP_MANAGER_MAIN_LIVE === '1'
 const rejectHandoff = process.env.ODK_APP_MANAGER_MAIN_REJECT === '1'
 const fullComposition = process.env.ODK_APP_MANAGER_MAIN_COMPOSITION === '1'
+delete process.env.ODK_DEVICE_GATEWAY_CONFIG
 const diagnosticMain = process.env.ODK_DIAGNOSTIC_MAIN_MODE
   ? require('./helpers/diagnostic-main-consumers').prepareDiagnosticMain(process.env.ODK_DIAGNOSTIC_MAIN_MODE) : null
 if (diagnosticMain) assert.ok(fullComposition)
@@ -132,6 +133,8 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(record.manifest.version, expectedVersion)
       assert.equal(defaultConstructions, expectedVersion === '1.0.0' ? 1 : 0)
       if (fullComposition) {
+        const gateway = await win.webContents.executeJavaScript('odkPlatform.getDeviceGateway()')
+        assert.equal(gateway.status, 'disconnected', 'Production Shell main frame must pass the device IPC gate without a Bridge service')
         assert.ok(host.list().every(plugin => plugin.enabled && plugin.state === 'running'), 'Every Main plugin must run')
         assert.equal(Object.keys(isolatedSources).length, 6, 'All controlled source boundaries must execute')
         assert.ok(await win.webContents.executeJavaScript('document.querySelectorAll("[data-widget]").length>0'), 'Desktop surfaces must mount')

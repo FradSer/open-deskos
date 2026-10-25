@@ -39,7 +39,7 @@ function loadPreload() {
 test('exposes platform actions and only narrow remote state APIs to the sandboxed renderer', async () => {
   const { exposed, listeners, invokes } = loadPreload()
 
-  assert.deepEqual(Object.keys(exposed.odkPlatform).sort(), ['dispatchIntent', 'getAppState', 'getCameraFrame', 'getFutuHoldings', 'getHydraStatus', 'getOpenCodeGoStatus', 'getPiSessionEvents', 'getPiSessions', 'getWeReadHighlight', 'getWeatherStatus', 'listApps'])
+  assert.deepEqual(Object.keys(exposed.odkPlatform).sort(), ['deviceGatewayAction', 'dispatchIntent', 'getAppState', 'getCameraFrame', 'getDeviceGateway', 'getFutuHoldings', 'getHydraStatus', 'getOpenCodeGoStatus', 'getPiSessionEvents', 'getPiSessions', 'getWeReadHighlight', 'getWeatherStatus', 'listApps'])
   await exposed.odkPlatform.getOpenCodeGoStatus()
   assert.deepEqual(invokes[0], ['odk-opencode-go-status', undefined])
   await exposed.odkPlatform.getCameraFrame()
@@ -106,4 +106,10 @@ test('consumer readiness has a dedicated narrow bridge', async () => {
   const { exposed, invokes } = loadPreload()
   await exposed.odkPersonalBot.consumerReady('11111111-1111-4111-8111-111111111111')
   assert.deepEqual(invokes, [['odk-personal-bot-consumer-ready', '11111111-1111-4111-8111-111111111111']])
+})
+
+test('package device calls forward only their bound identity and request', async () => {
+  const { exposed, invokes } = loadPreload()
+  await exposed.odkUserApps.deviceRequest('sensor', 'a'.repeat(32), 'token', { type: 'read' })
+  assert.deepEqual(JSON.parse(JSON.stringify(invokes)), [['odk-user-apps-device', { appId: 'sensor', revision: 'a'.repeat(32), frameToken: 'token', request: { type: 'read' } }]])
 })

@@ -34,7 +34,7 @@ It does not inspect or open numbered `ttyACM` paths.
 No matching device reports `device-not-found`; several matches report `ambiguous-device`.
 The adapter scans periodically, handles stream failure as disconnect, and resends the retained shell state after reconnection.
 
-The `RemoteLinkAdapter` boundary provides `start`, `stop`, `send`, and `connected`/`disconnected`/`message` events, so a future CM5 UART plus C6 Gateway adapter can use unchanged JSON Lines records.
+The `RemoteLinkAdapter` boundary provides `start`, `stop`, `send`, and `connected`/`disconnected`/`message` events, and is also used by the ESP-NOW adapter.
 
 ## Plugin lifecycle
 
@@ -160,3 +160,106 @@ node integrations/remote-bridge/lib/main.js --plugin-selection /absolute/selecti
 Selected native modules remain trusted mutable code with normal CommonJS caching.
 Declarations do not sandbox module imports or filesystem access.
 This entry does not provide production signatures, immutable revisions, reload, or rollback.
+
+## ESP-NOW-only mode
+
+This mode connects the S3 Remote through a NanoC6 gateway.
+It registers only `odk.remote.transport.esp-now`.
+It never constructs the USB Remote adapter.
+Gateway failure reports `disconnected` without USB fallback.
+Local Shell touch and keyboard input retain their existing behavior.
+
+```sh
+node integrations/remote-bridge/bin/odk-remote-bridge.js --esp-now-config /private/gateway.json
+```
+
+The service also accepts `ODK_REMOTE_ESPNOW_CONFIG` from `~/.config/odk/remote-bridge.env`.
+Set that variable to the same absolute private JSON path.
+The command option overrides the environment selection.
+Keep this environment file outside immutable releases.
+The configuration file requires private permissions and an absolute path.
+It contains `python`, `serialNumber`, `channel`, `pmk`, and encrypted `peers` entries with `mac` and `lmk`.
+The existing one-peer configuration selects that peer as the Remote.
+Multiple peers require `remoteMac` to select exactly one configured Remote peer.
+`python` selects an absolute executable path with pyserial installed.
+`serialNumber` selects the NanoC6 USB identity, independently of numbered serial paths.
+`channel` is an integer from 1 through 11.
+Both keys contain 32 hexadecimal characters.
+The peer MAC selects the S3 station interface.
+The [S3 pairing image](../../peripherals/esp32-s3-remote/README.md#private-pairing) stores the corresponding gateway MAC and keys.
+Do not combine this mode with an external transport selection.
+Offline `--plugins list` inspection does not read keys or open devices.
+
+The transport owns one exclusive gateway worker.
+Do not run another serial source, monitor, or hardware checker beside it.
+The Shell Devices facade uses the existing Remote client connection.
+Installed Widgets/Apps use the same facade through the granted [package device SDK](../../runtime/shell/docs/USER_APPLICATIONS.md#device-access).
+
+### Shared device channel
+
+The existing private Bridge socket carries bounded device records alongside Remote records.
+Opening Devices does not start another worker or configure another gateway.
+Device requests use this envelope:
+
+```json
+{"v":1,"type":"device_request","requestId":"00000000-0000-4000-8000-000000000001","action":{"type":"status"}}
+```
+
+Replies use `device_reply` with the same `requestId` and a `result` object.
+Subscribed clients receive `device_snapshot` and general `device_event` records.
+Device lines have a 2048-byte limit.
+Each connection permits eight pending device actions and a 64 KiB write queue.
+Slow clients close without blocking Remote state updates.
+
+Gateway firmware state and Remote session state remain separate.
+`remote.status` becomes `ready` only after the current S3 state acknowledgement.
+The client clears readiness and events after 3500 milliseconds without a fresh snapshot.
+Reconnect never replays an action.
+Snapshots omit pairing keys, configuration paths, and reserved Remote payloads.
+Snapshots retain at most two general receive events; `device_event` supplies the bounded live stream.
+
+Device actions are `status`, `ping`, and `send`.
+`send` accepts a configured general peer and canonical base64 data of at most 250 decoded bytes.
+It rejects the entire Remote peer and the reserved `ODKR` prefix.
+Success reports `mac-receipt`, not application completion.
+An uncertain send reports unknown delivery without automatic retry.
+General received traffic never invokes Shell navigation.
+
+### Radio frames
+
+Encrypted unicast packets use the gateway's existing 250-byte payload limit.
+All integers use little-endian encoding.
+The fixed header occupies 24 bytes.
+
+| Offset | Field |
+| --- | --- |
+| 0–3 | ASCII `ODKR` |
+| 4 | Protocol version 1 |
+| 5 | Type: HELLO=1, HELLO_ACK=2, INPUT=3, STATE=4, STATE_ACK=5 |
+| 6–7 | Zero-based fragment index and fragment count |
+| 8–11 | Nonzero S3 boot identity |
+| 12–15 | Bridge boot identity; zero before handshake |
+| 16–19 | Sequence number |
+| 20–21 | Complete payload length |
+| 22–23 | Reserved zero bytes |
+
+State JSON occupies at most 512 bytes across three fragments.
+Reassembly uses one fixed buffer and a one-second deadline.
+Malformed lengths, conflicting duplicates, embedded terminators, and retired sequences cannot commit state.
+Only complete valid state produces `STATE_ACK`.
+The Bridge publishes `wireless` after that acknowledgement.
+A gateway MAC receipt alone does not establish synchronization.
+
+State conversion preserves page boundaries and exact supported action identifiers.
+It bounds name and label UTF-8 lengths to the existing display buffers.
+Unsupported action identifiers are omitted.
+State that cannot fit the bounded payload remains unsynchronized.
+
+The S3 sends a heartbeat each second.
+Each side expires the connection after 3.5 seconds without its peer's heartbeat.
+The host challenge binds input to the current S3 and Bridge boot identities.
+The Bridge rejects duplicate input sequences and undeclared action identifiers.
+Input occupies one frame and is never queued for reconnection or automatically retried.
+The S3 clears contextual actions after heartbeat expiry.
+Radio reception and transmission callbacks use bounded queues.
+Physical gestures and actual Shell navigation require separate hardware acceptance.
