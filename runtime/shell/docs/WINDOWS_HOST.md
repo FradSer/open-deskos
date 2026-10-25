@@ -51,6 +51,7 @@ pnpm run build:native
 | Surface | Windows contract |
 | --- | --- |
 | Remote Control / Remote Bridge | Not ported. The Unix link and service are absent. Report unavailable/disconnected. |
+| NanoC6 / pluggable ESP32 devices | Optional source and Devices App; see [C6 Gateway](C6-GATEWAY.md). Firmware/USB checks and two-device wireless acceptance remain separate. This row does not establish Windows transport acceptance. |
 | Voice Agent / Personal Agent | Windows display and DirectShow microphone client. CM5 owns the Personal Agent; a disconnected main service reports unavailable. |
 | Open DeskOS Link | Ported. TCP reporting listener defaults to 8765. The runtime channel is `\\.\pipe\odk-link`. |
 | Open DeskOS Data | Ported on both sides. Shell and bot use `\\.\pipe\odk-data` with the host channel token. |

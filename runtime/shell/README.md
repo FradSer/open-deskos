@@ -86,6 +86,10 @@ Remote management requires HTTPS. Plain HTTP is allowed only for `127.0.0.1`, `:
 
 ## Peripherals
 
+The [C6 Gateway contract](docs/C6-GATEWAY.md) defines pluggable ESP32 devices, NanoC6 USB/ESP-NOW, and development from firmware through host adapters to Widgets/Apps.
+It separates accepted design, implementation, and device evidence.
+The current Devices host extension requires no new firmware for the C6 USB gateway or S3 Remote.
+
 The [P4 runbook](../../peripherals/esp32-p4-camera/README.md) owns wiring, build and firmware gates. P4 exposes standard UVC MJPEG and UAC audio. It performs no face recognition, expression analysis or biometric storage. Camera/microphone acceptance stays separate from base Shell installation.
 
 For a native MIPI DSI extension, verify the exact carrier, panel and kernel together. HDMI plus third-party MIPI is not yet accepted as two independent displays.
