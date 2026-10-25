@@ -176,6 +176,27 @@ app.whenReady().then(async () => {
   assert.equal(await js(`document.querySelector('#user-app-desktop-notice').inert`), true)
   await js(`document.querySelector('#app-back').click()`)
   assert.equal(await js(`document.querySelector('#user-app-desktop-notice').inert`), false)
+  for (const [width, height] of [[320, 480], [480, 854]]) {
+    win.setContentSize(width, height)
+    await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
+    await js(`window.dispatchEvent(new Event('resize')); document.getElementById('user-app-desktop-notice').scrollIntoView({ block: 'center' }); document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
+    const refresh = await js(`(() => {
+      const notice = document.getElementById('user-app-desktop-notice'), desk = document.getElementById('desk-content'), button = notice.querySelector('button')
+      const r = button.getBoundingClientRect(), n = notice.getBoundingClientRect(), d = desk.getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2
+      return { x, y, hit: button.contains(document.elementFromPoint(x, y)), visible: button.checkVisibility(), targetHeight: r.height, horizontalOverflow: notice.scrollWidth > notice.clientWidth + 1 || d.left < -1 || d.right > innerWidth + 1, deskParent: notice.parentElement === desk,
+        contained: n.left >= d.left && n.right <= d.right && n.top >= d.top && n.bottom <= d.bottom }
+    })()`)
+    assert.equal(refresh.visible, true); assert.equal(refresh.hit, true, JSON.stringify({ width, height, ...refresh }))
+    assert.equal(refresh.deskParent, true); assert.equal(refresh.contained, true)
+    assert.ok(refresh.targetHeight >= 44, JSON.stringify({ width, height, ...refresh })); assert.equal(refresh.horizontalOverflow, false)
+    if (width === 480) {
+      failure = false
+      win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, x: refresh.x, y: refresh.y })
+      win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, x: refresh.x, y: refresh.y })
+      await wait(`document.querySelector('#user-app-desktop-status').dataset.state === 'ready'`)
+      assert.equal(await js(`document.getElementById('user-app-desktop-notice').checkVisibility()`), false, 'A real Refresh recovers the catalog and removes its notice')
+    }
+  }
   failure = false; await update([])
   await wait(`document.querySelectorAll('[data-user-app-id]').length === 0`)
   assert.equal(await js(`document.querySelectorAll('#dots .dot').length`), 3)

@@ -90,6 +90,11 @@ Feature: Installed packages belong on the desktop
     When the next catalog read fails
     Then a visible unavailable status identifies the stale catalog
     And existing frames remain intact until an authoritative result arrives
+    And the unavailable notice stays inside Desk without covering Personal Agent input or Feedback
+    And Refresh remains reachable at widths of 320 and 480 pixels without horizontal overflow
+    And the Refresh target has a height of at least 44 pixels
+    When the owner selects Refresh and the next catalog read succeeds
+    Then the authoritative catalog returns and the unavailable notice becomes hidden
 
   Scenario: Built-in pages publish remote actions during composition
     Given a built-in App publishes its controls while mounting

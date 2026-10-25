@@ -308,6 +308,41 @@ app.whenReady().then(async () => {
   assert.equal(await run(`document.querySelector('.agent-conversation').textContent.includes('I can save a soil-check note.')`), true, 'Preview captures a populated normal conversation')
   assert.equal(await run(`document.querySelector('.agent-state').textContent.includes('Connection unavailable')`), false)
   await showComposer()
+  // A catalog failure belongs to Desk and cannot intercept the Personal Agent.
+  await viewport(1920, 1280)
+  await run(`odkTheme.set('instrument')`)
+  await send(previewFrame)
+  await showComposer()
+  const noticeHit = await run(`(() => {
+    const notice = document.getElementById('user-app-desktop-notice'), desk = document.getElementById('desk-content'), agent = document.getElementById('personal-agent')
+    const input = document.querySelector('.agent-composer textarea'), feedback = document.querySelector('.personal-bot-proposal-feedback-options summary')
+    const point = node => { const r = node.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 } }
+    const hit = node => { const p = point(node); return node.contains(document.elementFromPoint(p.x, p.y)) }
+    const n = notice.getBoundingClientRect(), d = desk.getBoundingClientRect(), a = agent.getBoundingClientRect()
+    return { input: point(input), feedback: point(feedback), inputHit: hit(input), feedbackHit: hit(feedback), draft: input.value,
+      noticeVisible: notice.checkVisibility(), deskParent: notice.parentElement === desk,
+      contained: n.left >= d.left && n.right <= d.right && n.top >= d.top && n.bottom <= d.bottom,
+      overlapsAgent: Math.min(n.right, a.right) > Math.max(n.left, a.left) && Math.min(n.bottom, a.bottom) > Math.max(n.top, a.top) }
+  })()`)
+  assert.equal(noticeHit.noticeVisible, true, 'The catalog failure remains visible during the hit test')
+  assert.equal(noticeHit.inputHit, true, JSON.stringify(noticeHit))
+  assert.equal(noticeHit.feedbackHit, true, JSON.stringify(noticeHit))
+  assert.equal(noticeHit.deskParent, true); assert.equal(noticeHit.contained, true); assert.equal(noticeHit.overlapsAgent, false)
+  const noticeResponses = commands.filter(command => command.type === 'proposal_respond').length, noticeTurns = ownerTurns.length
+  win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...noticeHit.input })
+  win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...noticeHit.input })
+  await delay()
+  assert.equal(await run(`document.activeElement === document.querySelector('.agent-composer textarea')`), true)
+  assert.equal(await run(`document.querySelector('.agent-composer textarea').value`), noticeHit.draft)
+  win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...noticeHit.feedback })
+  win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...noticeHit.feedback })
+  await delay()
+  assert.equal(await run(`document.querySelector('.personal-bot-proposal-feedback-options').open`), true)
+  assert.equal(commands.filter(command => command.type === 'proposal_respond').length, noticeResponses)
+  assert.equal(ownerTurns.length, noticeTurns, 'Opening Feedback cannot execute an action or owner request')
+  await run(`document.querySelector('.personal-bot-proposal-feedback-options').open = false`)
+  await viewport(480, 854)
+  await showComposer()
   const { capturePaintedPage } = require('./helpers/native-page-capture')
   const output = process.env.ODK_PROACTIVE_PREVIEW_FILE
   if (output) fs.writeFileSync(output, (await capturePaintedPage(win)).toPNG())
