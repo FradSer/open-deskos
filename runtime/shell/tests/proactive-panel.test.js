@@ -437,6 +437,65 @@ test('long advice uses the visible viewport while a heading-only glimpse is insu
   assert.equal(f.commands.length, 1, 'Half the available viewport is meaningful even for a very long paragraph')
 })
 
+test('Home and End reach both ends of the focused full recommendation', () => {
+  const f = fixture(); f.render({ state: 'idle', proposals: [{ ...proposal(), advice: '测'.repeat(1000) }] })
+  const body = f.content.querySelector('.personal-bot-proposal-advice')
+  body.clientHeight = 144; body.scrollHeight = 2196
+  f.document.activeElement = body
+  const press = key => {
+    const event = { key, target: body, currentTarget: body, defaultPrevented: false, propagationStopped: false,
+      preventDefault() { this.defaultPrevented = true }, stopPropagation() { this.propagationStopped = true } }
+    body.events.keydown?.(event)
+    return event
+  }
+  assert.equal(body.attributes.role, 'region'); assert.equal(body.attributes.tabindex, '0')
+  const end = press('End')
+  assert.equal(end.defaultPrevented, true); assert.equal(end.propagationStopped, true)
+  assert.ok(body.scrollTop + body.clientHeight >= body.scrollHeight, 'End must expose the end of the recommendation')
+  const home = press('Home')
+  assert.equal(home.defaultPrevented, true); assert.equal(home.propagationStopped, true)
+  assert.equal(body.scrollTop, 0)
+  assert.equal(f.document.activeElement, body)
+  assert.equal(f.commands.length, 0, 'Keyboard scrolling cannot execute or acknowledge a recommendation')
+})
+
+test('full recommendation scrolling preserves input keys and modified shortcuts', () => {
+  const f = fixture(); f.render({ state: 'idle', proposals: [{ ...proposal(), advice: '测'.repeat(1000) }] })
+  const body = f.content.querySelector('.personal-bot-proposal-advice')
+  body.clientHeight = 144; body.scrollHeight = 2196
+  f.local.value = 'Keep this draft'; f.local.selectionStart = 4; f.local.selectionEnd = 8
+  for (const key of ['Home', 'End', 'PageUp', 'PageDown', 'ArrowUp', 'ArrowDown']) {
+    for (const modifier of ['ctrlKey', 'altKey', 'metaKey', 'shiftKey', 'isComposing']) {
+      body.scrollTop = 72
+      const event = { key, [modifier]: true, target: body, currentTarget: body, defaultPrevented: false, propagationStopped: false,
+        preventDefault() { this.defaultPrevented = true }, stopPropagation() { this.propagationStopped = true } }
+      body.events.keydown?.(event)
+      assert.equal(body.scrollTop, 72, `${modifier}+${key} keeps its native behavior`)
+      assert.equal(event.defaultPrevented, false)
+      assert.equal(event.propagationStopped, true, 'The Shell pager must not take the focused region scroll key')
+    }
+  }
+  for (const key of ['PageUp', 'PageDown', 'ArrowUp', 'ArrowDown']) {
+    body.scrollTop = 72
+    const event = { key, target: body, currentTarget: body, defaultPrevented: false, propagationStopped: false,
+      preventDefault() { this.defaultPrevented = true }, stopPropagation() { this.propagationStopped = true } }
+    body.events.keydown?.(event)
+    assert.equal(body.scrollTop, 72, 'Vertical scrolling remains a native browser action')
+    assert.equal(event.defaultPrevented, false); assert.equal(event.propagationStopped, true)
+  }
+  for (const [key, target] of [['End', f.local], ['Home', f.local], ['ArrowDown', f.local], ['Enter', body], ['ArrowLeft', body]]) {
+    body.scrollTop = 72
+    const event = { key, target, currentTarget: body, defaultPrevented: false, propagationStopped: false,
+      preventDefault() { this.defaultPrevented = true }, stopPropagation() { this.propagationStopped = true } }
+    body.events.keydown?.(event)
+    assert.equal(body.scrollTop, 72); assert.equal(event.defaultPrevented, false); assert.equal(event.propagationStopped, false)
+  }
+  assert.equal(f.local.value, 'Keep this draft')
+  assert.equal(f.local.selectionStart, 4); assert.equal(f.local.selectionEnd, 8)
+  assert.equal(f.document.activeElement, f.local)
+  assert.equal(f.commands.length, 0)
+})
+
 test('recovered offers reappear inside the composer without opening a popup', () => {
   const f = fixture(), p = proposal()
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })

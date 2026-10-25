@@ -323,6 +323,16 @@
               advice.setAttribute('tabindex', '0')
               advice.setAttribute('role', 'region')
               advice.setAttribute('aria-label', 'Full recommendation; scroll to read')
+              advice.addEventListener('keydown', event => {
+                if (event.target !== advice || !['Home', 'End', 'PageUp', 'PageDown', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
+                // Keep the focused region's scroll keys out of the Shell pager.
+                event.stopPropagation()
+                if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return
+                if (event.key === 'Home' || event.key === 'End') {
+                  event.preventDefault()
+                  advice.scrollTop = event.key === 'Home' ? 0 : advice.scrollHeight
+                }
+              })
             }
             article.append(state, advice)
             if ((readOnlyStep || (executableAction && !current)) && nextStep && !technicalAdvice) {

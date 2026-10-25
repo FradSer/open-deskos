@@ -361,7 +361,7 @@ Feature: Independent resident personal bot
     And its source evidence contains complete SHA256 values
     When the recommendation appears inside the input composer
     Then advice has visual priority over metadata
-    And the concrete execution button precedes source and feedback disclosures
+    And the concrete execution button precedes the Feedback control
     And a current executable card does not repeat its button label as a separate next step
     And read-only and historical cards retain readable next-step context
     And execution and exact confirmation retain the primary action style
@@ -383,6 +383,14 @@ Feature: Independent resident personal bot
     When another recommendation becomes visible
     Then only the visible recommendation receives a presentation acknowledgement
     And a technical placeholder cannot acknowledge its original private text
+
+  Scenario: A long recommendation supports keyboard navigation
+    Given the focused recommendation has a scrollable text region
+    When the owner presses End without a modifier key
+    Then the region scrolls to the complete recommendation end
+    When the owner presses Home without a modifier key
+    Then the region scrolls to its start
+    And text input and modified key shortcuts retain their normal behavior
 
   Scenario: The next step starts an authorized plugin operation
     Given a pending suggestion has an owner-authorized action and exact confirmation
