@@ -241,7 +241,8 @@ app.on('browser-window-created', (_event, win) => {
         for (const theme of ['pixel', 'instrument', 'border-beam', 'liquid-glass']) {
           const shell = await js(`(async () => {
             document.querySelector('#dots .dot[aria-label^="Home, page "]').click();
-            await window.__appearanceSelectThemeReady(${JSON.stringify(theme)});
+            if (${holdingStylesheet && theme === 'liquid-glass'}) window.odkTheme.set(${JSON.stringify(theme)});
+            else await window.__appearanceSelectThemeReady(${JSON.stringify(theme)});
             await document.fonts.ready;
             await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
             const clock = document.querySelector('.sb-time');
