@@ -93,6 +93,8 @@ Feature: Installed packages belong on the desktop
     And the unavailable notice stays inside Desk without covering Personal Agent input or Feedback
     And Refresh remains reachable at widths of 320 and 480 pixels without horizontal overflow
     And the Refresh target has a height of at least 44 pixels
+    And the unavailable notice does not overlap the page controller
+    And the active page control remains reachable while the catalog is unavailable
     When the owner selects Refresh and the next catalog read succeeds
     Then the authoritative catalog returns and the unavailable notice becomes hidden
 

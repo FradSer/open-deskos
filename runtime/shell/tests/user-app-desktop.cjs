@@ -183,12 +183,17 @@ app.whenReady().then(async () => {
     const refresh = await js(`(() => {
       const notice = document.getElementById('user-app-desktop-notice'), desk = document.getElementById('desk-content'), button = notice.querySelector('button')
       const r = button.getBoundingClientRect(), n = notice.getBoundingClientRect(), d = desk.getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2
+      const pager = document.getElementById('page-center'), activeDot = pager.querySelector('.dot[aria-current="page"]'), p = pager.getBoundingClientRect(), dot = activeDot?.getBoundingClientRect()
       return { x, y, hit: button.contains(document.elementFromPoint(x, y)), visible: button.checkVisibility(), targetHeight: r.height, horizontalOverflow: notice.scrollWidth > notice.clientWidth + 1 || d.left < -1 || d.right > innerWidth + 1, deskParent: notice.parentElement === desk,
+        pagerHit: !!dot && activeDot.contains(document.elementFromPoint(dot.x + dot.width / 2, dot.y + dot.height / 2)),
+        overlapsPager: Math.min(n.right, p.right) - Math.max(n.left, p.left) > 1 && Math.min(n.bottom, p.bottom) - Math.max(n.top, p.top) > 1,
         contained: n.left >= d.left && n.right <= d.right && n.top >= d.top && n.bottom <= d.bottom }
     })()`)
     assert.equal(refresh.visible, true); assert.equal(refresh.hit, true, JSON.stringify({ width, height, ...refresh }))
     assert.equal(refresh.deskParent, true); assert.equal(refresh.contained, true)
     assert.ok(refresh.targetHeight >= 44, JSON.stringify({ width, height, ...refresh })); assert.equal(refresh.horizontalOverflow, false)
+    assert.equal(refresh.pagerHit, true, JSON.stringify({ width, height, ...refresh }))
+    assert.equal(refresh.overlapsPager, false, JSON.stringify({ width, height, ...refresh }))
     if (width === 480) {
       failure = false
       win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, x: refresh.x, y: refresh.y })

@@ -15,7 +15,7 @@
 #home-desk { position: absolute; inset: var(--status-h) 0 0; display: grid; grid-template-columns: minmax(320px, 1fr) minmax(0, var(--desk-pane-w, 67%)); }
 #personal-agent { container-type: inline-size; min-width: 0; min-height: 0; border-right: 1px solid var(--odk-stroke); }
 #personal-agent > .page { padding: 0; width: 100%; height: 100%; }
-#desk-content { display: grid; grid-template-rows: minmax(0, 1fr) 48px; min-width: 0; min-height: 0; }
+#desk-content { display: grid; grid-template-rows: minmax(0, 1fr) max-content 48px; min-width: 0; min-height: 0; }
 #home-summary { container-type: inline-size; width: var(--grid-w); max-width: calc(100% - 2 * var(--desk-side-inset)); height: var(--cell-h); flex: none; margin-inline: auto; min-width: 0; min-height: 0; overflow-y: auto; border: 0; border-radius: 0; background: transparent; }
 #home-desk .home-canvas { gap: var(--widget-gap); }
 #home-summary > .page { height: auto; padding: 0; overflow: visible; }
@@ -33,7 +33,7 @@
   #home-summary .dash-date { font-size: 14px; }
   #home-summary .dash-narrative { font-size: var(--overview-copy-size, 16px); line-height: 1.4; }
 }
-#pages-viewport { position: relative; inset: auto; min-height: 0; width: 100%; }
+#pages-viewport { position: relative; inset: auto; grid-column: 1; grid-row: 1; min-height: 0; width: 100%; }
 #page-center { position: static; transform: none; min-width: 0; }
 #home-desk .widget-grid { gap: var(--widget-gap); max-width: calc(100% - 2 * var(--desk-side-inset)); }
 #home-desk .page:has(.widget-grid) { padding-block: var(--widget-gap); }
@@ -99,7 +99,7 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   .agent-panel { --agent-avatar-size: 64px; --agent-head-padding: 4px; }
   .agent-head { padding-block: 0 4px; }
   .agent-message-bubble, .agent-message-user { padding: 12px 16px; border-radius: 24px; }
-  #desk-content { flex: none; min-height: 70vh; grid-template-rows: minmax(360px, 60vh) 48px; }
+  #desk-content { flex: none; min-height: 70vh; grid-template-rows: minmax(360px, 60vh) max-content 48px; }
   #home-summary { width: 100%; height: max(var(--cell-h), 240px); max-height: none; }
   #home-summary .dash-head { column-gap: 8px; }
   #home-summary .dash-wd { font-size: clamp(20px, 8cqw, 32px); }
@@ -144,7 +144,7 @@ html[data-theme='pixel'] #home-summary .dash {
 #desk-content { position: relative; }
 #desk-content > #app-view { inset: var(--widget-gap) var(--desk-side-inset) 56px; overflow: hidden; }
 @media (max-width: 639px) {
-  #desk-content:has(> #app-view:not([hidden])) { height: max(70vh, 408px); grid-template-rows: minmax(0, 1fr) 48px; }
+  #desk-content:has(> #app-view:not([hidden])) { height: max(70vh, 408px); grid-template-rows: minmax(0, 1fr) max-content 48px; }
 }
 #app-view .app-header { padding: 12px 20px; min-height: 64px; border-bottom: 0; }
 #app-view .app-header:has(#app-back[hidden]) { display: none; }
@@ -233,7 +233,7 @@ html[data-theme='pixel'] #home-summary .dash {
 
 /* The desk presents the page controller below the Widgets. Inside an App the
    same control becomes the return handle for the upward swipe. */
-#home-desk #page-center { position: relative; inset: auto; z-index: 21; }
+#home-desk #page-center { position: relative; inset: auto; grid-column: 1; grid-row: 3; z-index: 21; }
 #home-desk #dots { touch-action: none; user-select: none; }
 #home-desk #dots[data-mode="handle"] { padding: 0; background: transparent; }
 #home-desk #dots[data-mode="handle"] .dot { width: 144px; height: 44px; padding: 0; background: transparent; touch-action: none; }
