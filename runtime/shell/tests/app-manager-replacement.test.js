@@ -17,7 +17,7 @@ test('signed App Manager owns construction and preserves IPC transitions from ca
   assert.equal(replacement.creates(), 0)
   assert.equal(replacement.host.list().find(plugin => plugin.manifest.id === ID).manifest.version, '2.0.0')
   assert.deepEqual(replacement.list(), original.list())
-  assert.deepEqual(replacement.list().map(app => app.name), ['Futu holdings', 'Weather', 'Hydra plants', 'WeRead', 'Pomodoro', 'Year progress', 'Built-in views', 'Pi Sessions', 'AI usage & quotas'])
+  assert.deepEqual(replacement.list().map(app => app.name), ['Devices', 'Futu holdings', 'Weather', 'Hydra plants', 'WeRead', 'Pomodoro', 'Year progress', 'Built-in views', 'Pi Sessions', 'AI usage & quotas'])
   replacement.list()[0].capabilities.push('mutated')
   assert.deepEqual(replacement.get('weather').capabilities, [])
   const cases = [

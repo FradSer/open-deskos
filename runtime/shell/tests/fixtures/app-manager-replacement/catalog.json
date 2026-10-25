@@ -1,5 +1,13 @@
 [
   {
+    "appId": "devices",
+    "name": "Devices",
+    "kind": "ui",
+    "version": "builtin",
+    "source": "builtin",
+    "capabilities": []
+  },
+  {
     "appId": "futu",
     "name": "Futu holdings",
     "kind": "ui",

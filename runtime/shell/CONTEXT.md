@@ -191,16 +191,14 @@ Keep the Pi extension directory at `pi-packages/packages/open-deskos`.
 
 **Remote Bridge**: A Node.js systemd user service that owns the active Remote Link and relays Display Shell state to the Remote Control independently of whether the link is wired USB or wireless ESP-NOW. It communicates with the Electron main process over a permission-restricted Unix domain socket and starts with the CM5 graphical user's session.
 
-**Remote Link**: The bidirectional transport between the Remote Control and Remote Bridge: USB HID plus CDC while wired, and ESP-NOW through a future ESP32-C6 gateway while wireless. The wired adapter identifies its CDC device through Remote Firmware's unique `/dev/serial/by-id/` link, never a numbered `ttyACM` path. Its absence never blocks direct Display Shell interaction; reconnection triggers an authoritative state sync.
+**Remote Link**: The selected transport between Remote Control and Bridge. The ESP-NOW profile uses NanoC6 and has no USB control fallback. USB supports power and firmware maintenance in that profile. Direct Shell input remains available; reconnection requires authoritative state synchronization.
 
-**C6 Gateway**: The future ESP32-C6 installed with the CM5 that bridges ESP-NOW Remote Link traffic to the Remote Bridge over a 3.3V UART Host Link.
-
-**Host Link**: The 3.3V UART connection between C6 Gateway and CM5 that carries framed Remote Messages.
-
-**Remote Pair**: The preconfigured single ESP32-S3 and C6 Gateway peer relationship secured with ESP-NOW peer keys; only that Remote Control may navigate the Display Shell.
-
-**Wired Vertical Slice**: The first deliverable: Remote Firmware sends HID Navigation over USB, Display Shell publishes authoritative state through Remote Bridge, and the bridge returns it over USB CDC; the wireless adapter boundary is delivered but C6 hardware is not yet deployed.
-
-**Remote Message**: A versioned JSON Lines command or state record shared across wired and wireless Remote Link adapters. In wired operation, HID alone requests navigation and CDC carries authoritative state; in wireless operation, `navigate` records request Display Shell navigation through Remote Bridge rather than keyboard emulation.
+**Pluggable Peripheral**: A selected USB device or approved device behind a gateway. Host-owned adapters expose its readings and declared actions. See [C6 Gateway](docs/C6-GATEWAY.md).
+**C6 Gateway**: The target ESP32-C6 bridge between a Shell Host and approved ESP-NOW peers. NanoC6 on Windows USB is the first target.
+**Host Link**: The connection between a gateway and its Shell Host. NanoC6 uses USB CDC. CM5 UART remains an optional adapter.
+**Remote Pair**: The approved ESP32-S3 and C6 peer relationship with ESP-NOW encryption. Other approved peers do not gain Remote Control authority.
+**Device Grant**: Private host authorization for an exact installed package revision and declared gateway or peer access. Widgets remain read-only.
+**Wired Vertical Slice**: Remote Firmware sends HID Navigation over USB. Remote Bridge returns authoritative Shell state over CDC. Wireless device acceptance remains separate.
+**Remote Message**: A versioned JSON Lines Remote Link record. Wired HID requests navigation; CDC returns state. Wireless records pass through Remote Bridge.
 
 **Mali Userspace**: The pinned CM5 CSF firmware/libmali pair. GPU rasterization uses ANGLE; X11 presentation stays software. See ADR-0016.

@@ -53,6 +53,7 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `ODK_GPU_BACKEND` | L3 device | Operator | runtime/shell/src/main.js | Auto-detect | GPU backend selection. |
 | `ODK_PI_REASONING` | L3 device | runtime.env | runtime/shell/src/main.js | Hidden (`hidden`) | Only shown displays reasoning bodies. All other values keep the hidden default. Do not restate that default in host configuration. |
 | `ODK_REMOTE_BRIDGE_SOCKET` | Internal | Shell | runtime/shell/src/remote-bridge-client.js | Host Remote Bridge socket | Shell client override for the Remote Bridge socket. |
+| `ODK_REMOTE_ESPNOW_CONFIG` | L3 device (sensitive) | Operator | integrations/remote-bridge/lib/main.js | Unset | Absolute private ESP-NOW configuration path. The `--esp-now-config` argument takes precedence. Selecting this profile disables USB Remote fallback. |
 | `ODK_SHELL_HEIGHT` | Test | Smoke/acceptance | runtime/shell/src/main.js | — | Window height override. |
 | `ODK_SHELL_KIOSK` | Test | Acceptance | runtime/shell/src/main.js | — | Kiosk mode switch. |
 | `ODK_SHELL_TEST_MODE` | Test | Test process | runtime/shell/src/odk-link-client.js, runtime/shell/src/remote-bridge-client.js | — | Client test mode. |

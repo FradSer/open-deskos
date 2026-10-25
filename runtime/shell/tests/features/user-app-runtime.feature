@@ -9,6 +9,33 @@ Feature: Sandboxed self-contained user applications
     And the child closes normally within the unchanged eight-second deadline
     And its exit code agrees with its final verdict
 
+  Scenario: Installed packages use granted devices through Bridge
+    Given a package declares gateway readings or peer access
+    And host configuration grants its exact installed revision those capabilities
+    When its active frame requests device state
+    Then it receives only granted gateway and peer readings from Bridge
+    And declarations alone cannot authorize device access
+
+  Scenario: Only granted Apps send bounded peer messages
+    Given an interactive App has an exact revision grant for a peer
+    When its active frame sends a bounded message
+    Then Bridge receives one send request without automatic retry
+    And a MAC receipt does not claim application acknowledgement
+    And Widgets and the reserved S3 Remote peer cannot send messages
+
+  Scenario: Revoked packages and removed frames lose device access
+    Given a device operation is pending
+    When the frame closes, its installed revision changes, or its host grant changes
+    Then the old frame receives no successful result
+    And a subsequent operation cannot reach Bridge
+
+  Scenario: Device verification releases its private Electron profile after process closure
+    Given the parent creates one private profile for device verification
+    When the child completes its opaque-frame and grant checks
+    Then the child releases its runtime and exits without deleting its profile
+    And the parent waits for child closure before removing the profile
+    And a cleanup failure does not hide the original failure
+
   Scenario: The selected catalog owns installed runtime availability
     Given the installed runtime uses a selected package catalog
     When that catalog is disabled or fails to start

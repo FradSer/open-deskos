@@ -29,9 +29,12 @@ The Shell remains useful when peripherals, providers, or experimental services f
 | Hosted Pi / Open DeskOS Link | Host sessions and attribute Console control; local input keeps authority |
 | ESP32-S3 Remote / Remote Bridge | Touch Remote Control and its transport |
 | ESP32-P4 SC2336 Camera | Generic UVC webcam and UAC microphone; no recognition, expression analysis, or identity storage |
+| Pluggable peripherals / C6 Gateway | Accepted development direction: host-owned device access, firmware development, and Widget/App interaction; NanoC6 provides the first USB-to-ESP-NOW gateway target |
 | Local user Widgets/Apps | Self-contained HTML packages with independent draft, verify, install, update, rollback, and removal |
 
 The S3 Remote and P4 Camera are CM5 components with separate hardware gates. Neither blocks base-shell operation.
+Pluggable peripherals have separate host, firmware, radio, and application acceptance gates.
+The [C6 Gateway contract](runtime/shell/docs/C6-GATEWAY.md) defines the target design, implementation stages, and current evidence.
 The [Shell runbook](runtime/shell/README.md) and [Windows runbook](runtime/shell/docs/WINDOWS_HOST.md) define current host support.
 
 ## Preserved Research
@@ -50,7 +53,8 @@ The semantic palette and interaction rules are owned by [DESIGN.md](DESIGN.md).
 1. **Host ownership.** Shell services live on each Shell Host. CM5 owns shared Personal Agent inference and state.
 2. **Truth before detail.** Show local or provider-sourced facts with provenance; never invent personal activity, health, calendar, or usage data.
 3. **Independent peripheral gates.** Missing S3 or P4 hardware cannot block touch and keyboard.
-4. **Explicit experiments.** C6/S31 gateways and future packages stay opt-in until promoted by a product decision.
+4. **Explicit peripheral selection.** Pluggable ESP32 devices are part of the product direction. Device access and firmware installation require explicit selection.
 5. **Research stays historical.** Preserve experiments without inheriting their product constraints.
 6. **Escape is guaranteed.** Back restores the source context; direct input survives unavailable links.
 7. **Bounded user packages.** Verified HTML Widgets/Apps do not imply a marketplace, native extensions, background services, or network permissions.
+8. **One peripheral model.** Direct USB devices and devices behind a gateway use host-owned adapters. Widgets display state; Apps request declared actions.

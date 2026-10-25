@@ -146,12 +146,13 @@ function createDeskRuntimePlugins({ readingPorts, serviceReadingPorts = [] } = {
         } }
       }),
     define('odk.system.user-apps', 'Installed Widget and App runtime', null,
-      [{ interface: DESK_PORTS.data, optional: true }, { interface: DESK_PORTS.catalog }], ['desk.user-apps'], ctx => {
+      [{ interface: DESK_PORTS.data, optional: true }, { interface: DATA_PORTS.deviceGateway, optional: true }, { interface: DESK_PORTS.catalog }], ['desk.user-apps'], ctx => {
         const config = ctx.capability('desk.user-apps')
         const data = ctx.get(DESK_PORTS.data)
         return { async start() {
           if (ctx.signal.aborted) return
-          await config.start({ ...config.options, store: ctx.get(DESK_PORTS.catalog), odkData: data, onCleanup: ctx.onCleanup,
+          await config.start({ ...config.options, store: ctx.get(DESK_PORTS.catalog), odkData: data,
+            deviceGateway: ctx.get(DATA_PORTS.deviceGateway), onCleanup: ctx.onCleanup,
             isStopping: () => ctx.signal.aborted || config.isStopping() })
           if (ctx.signal.aborted) return
           if (!installedRuntimeStarted && !config.smokeMode) {

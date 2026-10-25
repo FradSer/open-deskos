@@ -4,6 +4,10 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
+const path = require('node:path')
+const { createRequire } = require('node:module')
+const systemFile = path.resolve(__dirname, '../src/user-app-system.js')
+const systemRequire = createRequire(systemFile)
 
 function fixture({ pendingListener = false, closeFailures = 0, routeFailures = 0, pendingClose = false, handlerFailures = 0, realStoreConsumers = false } = {}) {
   const handlers = new Map()
@@ -36,7 +40,7 @@ function fixture({ pendingListener = false, closeFailures = 0, routeFailures = 0
     './local-channel': { readOrCreateToken: async () => 'fixture-token' },
   }
   const module = { exports: {} }
-  vm.runInNewContext(fs.readFileSync('src/user-app-system.js', 'utf8'), { module, require: id => modules[id] || require(id), process: { env: {}, execPath: '/fixture/electron' }, console })
+  vm.runInNewContext(fs.readFileSync(systemFile, 'utf8'), { module, require: id => modules[id] || systemRequire(id), process: { env: {}, execPath: '/fixture/electron' }, console })
   const start = (options = {}) => module.exports.startUserAppSystem({ app: { once() {} }, ipcMain: { handle: (id, handler) => handlers.set(id, handler), removeHandler: id => {
     removals.set(id, (removals.get(id) || 0) + 1)
     if (id === 'odk-user-apps-publish' && removals.get(id) <= handlerFailures) throw Error('handler release failed')
@@ -52,12 +56,15 @@ function fixture({ pendingListener = false, closeFailures = 0, routeFailures = 0
 test('installed package runtime releases IPC, protocol and listener through its owner', async () => {
   const f = fixture()
   await f.start()
-  assert.equal(f.handlers.size, 4)
+  const channels = ['odk-user-apps-device', 'odk-user-apps-dispatch', 'odk-user-apps-list', 'odk-user-apps-api', 'odk-user-apps-publish'].sort()
+  assert.deepEqual([...f.handlers.keys()].sort(), channels)
   assert.equal(f.routes.size, 1)
   assert.equal(f.cleanups.length, 1)
   await f.cleanups[0]()
   await f.cleanups[0]()
   assert.equal(f.handlers.size, 0)
+  assert.deepEqual([...f.removals.keys()].sort(), channels)
+  assert.ok([...f.removals.values()].every(count => count === 1))
   assert.equal(f.routes.size, 0)
   assert.equal(f.closed(), 1)
 })
@@ -92,6 +99,7 @@ test('failed IPC removal remains owned while successful handlers release only on
   assert.equal(f.removals.get('odk-user-apps-publish'), 2)
   assert.equal(f.removals.get('odk-user-apps-list'), 1)
   assert.equal(f.removals.get('odk-user-apps-dispatch'), 1)
+  assert.equal(f.removals.get('odk-user-apps-device'), 1)
   assert.equal(f.closed(), 1)
 })
 

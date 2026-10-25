@@ -9,6 +9,56 @@ const run = require('node:util').promisify(require('node:child_process').execFil
 const { resolveConfigPath } = require('../src/plugin-config')
 const { resolveShellHost } = require('../src/platform')
 const { capturePaintedPage } = require('./helpers/native-page-capture')
+
+// Inject before parsing: sheet association alone does not prove @import completion.
+function installAppearanceStylesheetReadiness() {
+  const terminal = new WeakMap()
+  const waiters = new Set()
+  const stylesheet = node => node?.tagName === 'LINK' && node.rel === 'stylesheet'
+  const record = event => {
+    if (!stylesheet(event.target)) return
+    terminal.set(event.target, event.type)
+    for (const notify of [...waiters]) notify()
+  }
+  document.addEventListener('load', record, true)
+  document.addEventListener('error', record, true)
+  window.addEventListener('pagehide', () => {
+    document.removeEventListener('load', record, true)
+    document.removeEventListener('error', record, true)
+  }, { once: true })
+  window.__appearanceSelectThemeReady = async (theme, timeoutMs = 4000) => {
+    if (!['pixel', 'instrument', 'border-beam', 'liquid-glass'].includes(theme)) throw Error('Unknown measured Appearance')
+    if (theme === 'instrument') { window.odkTheme.set(theme); return }
+    const href = new URL(`themes/${theme}.css`, document.baseURI).href
+    let link, timer, check
+    const loaded = new Promise((resolve, reject) => {
+      check = () => {
+        if (!link) return
+        const state = terminal.get(link)
+        if (state === 'error') reject(Error(`Appearance stylesheet failed: ${href}`))
+        if (state === 'load') {
+          if (!link.sheet || link.disabled) reject(Error(`Appearance stylesheet unavailable after load: ${href}`))
+          else resolve()
+        }
+      }
+      waiters.add(check) // Arm before set() may synchronously append or finish a cached link.
+      timer = setTimeout(() => reject(Error(`Appearance stylesheet timed out: ${href}`)), timeoutMs)
+    })
+    try {
+      window.odkTheme.set(theme)
+      const matches = [...document.querySelectorAll('link[rel="stylesheet"]')].filter(node => node.href === href)
+      if (matches.length !== 1) throw Error(`Expected one Appearance stylesheet: ${href}`)
+      link = matches[0]
+      if (link.dataset.plugin && link.dataset.plugin !== `odk.theme.${theme}`) throw Error('Appearance stylesheet plugin differs')
+      check()
+      await loaded
+    } finally {
+      clearTimeout(timer)
+      waiters.delete(check)
+    }
+  }
+}
+
 const profile = process.env.ODK_APPEARANCE_PROFILE
 assert.ok(profile && path.isAbsolute(profile), 'Appearance acceptance requires a private parent-owned profile')
 assert.notEqual(process.platform, 'win32', 'Windows management requires private named-pipe isolation')
@@ -89,6 +139,7 @@ app.on('browser-window-created', (_event, win) => {
         })
       }
       await win.webContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: `
+        (${installAppearanceStylesheetReadiness.toString()})();
         const NativeDate = Date;
         const fixtureTime = NativeDate.parse('2026-10-09T12:34:00+08:00');
         window.Date = class extends NativeDate {
@@ -190,7 +241,7 @@ app.on('browser-window-created', (_event, win) => {
         for (const theme of ['pixel', 'instrument', 'border-beam', 'liquid-glass']) {
           const shell = await js(`(async () => {
             document.querySelector('#dots .dot[aria-label^="Home, page "]').click();
-            odkTheme.set(${JSON.stringify(theme)});
+            await window.__appearanceSelectThemeReady(${JSON.stringify(theme)});
             await document.fonts.ready;
             await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
             const clock = document.querySelector('.sb-time');

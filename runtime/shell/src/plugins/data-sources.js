@@ -8,6 +8,7 @@ const { healthPort } = require('./health')
 const { createPiSessionReadings } = require('./readings/pi-sessions')
 const { createQuotaReadings } = require('./readings/quota')
 const { createQuotaSource } = require('../quota-source')
+const { SYSTEM_PORTS } = require('./system-channels')
 
 const DATA_PORTS = Object.freeze({
   odkLink: 'odk:source/link/v1',
@@ -18,16 +19,18 @@ const DATA_PORTS = Object.freeze({
   weread: 'odk:source/weread/v1',
   camera: 'odk:source/camera/v1',
   quota: 'odk:source/quota/v1',
+  deviceGateway: 'odk:source/device-gateway/v1',
 })
 
-function sourcePlugin({ id, name, port, requires = [], channels = {}, construct, stop, createReadings, health, compatibleProvides }) {
+function sourcePlugin({ id, name, port, requires = [], optionalRequires = [], channels = {}, construct, stop, createReadings, health, compatibleProvides }) {
   const readingPort = createReadings ? `odk:desk-reading/${id}/v1` : null
   const healthInterface = health ? healthPort(`odk.source.${id}`) : null
   return {
     manifest: {
       schemaVersion: 1, ...(compatibleProvides ? { compatibleProvides } : {}), id: `odk.source.${id}`, name, version: '1.0.0',
       kind: 'service', host: 'electron-main',
-      provides: [{ interface: port }, ...(readingPort ? [{ interface: readingPort }] : []), ...(healthInterface ? [{ interface: healthInterface }] : [])], requires: requires.map(interfaceName => ({ interface: interfaceName })),
+      provides: [{ interface: port }, ...(readingPort ? [{ interface: readingPort }] : []), ...(healthInterface ? [{ interface: healthInterface }] : [])],
+      requires: [...requires.map(interfaceName => ({ interface: interfaceName })), ...optionalRequires.map(interfaceName => ({ interface: interfaceName, optional: true }))],
       permissions: [`source.${id}`, ...(Object.keys(channels).length ? ['ipc'] : [])],
     },
     create(ctx) {
@@ -51,6 +54,13 @@ function sourcePlugin({ id, name, port, requires = [], channels = {}, construct,
 
 function createDataSourcePlugins() {
   return [
+    sourcePlugin({
+      id: 'device-gateway', name: 'Bridge devices', port: DATA_PORTS.deviceGateway,
+      optionalRequires: [SYSTEM_PORTS.remoteLink],
+      construct: (config, ctx) => config.create({ ...config.options, client: ctx.get(SYSTEM_PORTS.remoteLink)?.client }),
+      stop: source => source.stop(),
+      channels: { 'odk-device-gateway': (source, request, event) => source.dispatch(event, request) },
+    }),
     sourcePlugin({ id: 'odk-link', name: 'Open DeskOS Link readings', port: DATA_PORTS.odkLink,
       construct: (config, ctx) => config.create({ ...config.options, signal: ctx.signal }),
       stop: source => source.stop?.() }),

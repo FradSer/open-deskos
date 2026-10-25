@@ -4,6 +4,8 @@
 #sb-net { position: absolute; right: calc(var(--gutter) + var(--bar-icon) * 3.5); }
 #sb-net::after { content: '?'; position: absolute; right: -5px; top: -5px; font-size: 12px; line-height: 1; background: var(--odk-bg); }
 .sb-network-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.sb-devices { appearance: none; display: inline-flex; align-items: center; gap: 12px; min-width: 44px; min-height: 44px; padding: 0 4px; border: 0; border-radius: var(--odk-radius-pill); background: transparent; color: var(--odk-primary); cursor: pointer; }
+.sb-devices:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 0; }
 .sb-peripheral { display: inline-flex; align-items: center; position: relative; flex: none; color: var(--odk-secondary-strong); }
 .sb-peripheral svg { width: var(--bar-icon); height: var(--bar-icon); }
 .sb-peripheral::after { content: '?'; position: absolute; right: -5px; top: -5px; font-size: 12px; line-height: 1; background: var(--odk-bg); }

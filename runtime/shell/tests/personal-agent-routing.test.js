@@ -2,6 +2,10 @@ const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
+const path = require('node:path')
+const { createRequire } = require('node:module')
+const mainFile = path.resolve(__dirname, '../src/main.js')
+const mainRequire = createRequire(mainFile)
 
 test('Remote MIC requests a Shell decision and main rejects busy or duplicate capture toggles', async () => {
   let onInput
@@ -28,7 +32,7 @@ test('Remote MIC requests a Shell decision and main rejects busy or duplicate ca
       ipcMain: { on() {}, removeListener() {}, handle: (id, fn) => handlers.set(id, fn), removeHandler: id => handlers.delete(id) },
       session: { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {} } },
     },
-    './platform': { resolveShellHost: () => ({ id: 'win32-x64', isWindows: true, supported: true, endpoint: () => null, provisionsUserAppControl: false }) },
+    './platform': { resolveShellHost: () => ({ id: 'win32-x64', isWindows: true, supported: true, stateDir: '/test/state/odk', endpoint: () => null, provisionsUserAppControl: false }) },
     './plugin-host': require('../src/plugin-host'),
     './frame-ready': require('../src/frame-ready'),
     './plugin-config': require('../src/plugin-config'),
@@ -89,8 +93,8 @@ test('Remote MIC requests a Shell decision and main rejects busy or duplicate ca
     './opencode-go': {},
     './camera-source': { createCameraSource: () => ({ refresh: async () => {}, snapshot: () => ({ status: 'unavailable' }) }) },
   }
-  vm.runInNewContext(fs.readFileSync('src/main.js', 'utf8'), {
-    require: (id) => modules[id] || require(id), process: { argv: [], env: { ODK_CONFIG_DIR: '/fixture/absent-plugin-config' } },
+  vm.runInNewContext(fs.readFileSync(mainFile, 'utf8'), {
+    require: (id) => modules[id] || mainRequire(id), process: { argv: [], env: { ODK_CONFIG_DIR: '/fixture/absent-plugin-config' } },
     module: { exports: {} }, __dirname: '/test', console, URLSearchParams, setInterval, clearInterval,
   })
   await new Promise(resolve => setImmediate(resolve))

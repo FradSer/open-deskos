@@ -23,6 +23,21 @@ async function draft(workspace, id, version, html = `<p>${version}</p>`) {
   await fs.writeFile(path.join(dir, 'index.html'), html)
 }
 
+test('device declarations persist exact metadata and invalid Widget writes cannot install', async () => {
+  const f = await fixture(); await draft(f.workspace, 'sensor', '1')
+  const manifestPath = path.join(f.workspace, 'apps/sensor/manifest.json')
+  const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
+  const devices = { gateway: true, read: ['02:11:22:33:44:55'], send: [] }
+  await fs.writeFile(manifestPath, JSON.stringify({ ...manifest, devices }))
+  const store = createUserAppStore({ workspace: f.workspace, stateDir: f.stateDir, verify: () => true })
+  const installed = await store.install('sensor'); assert.equal(installed.ok, true); assert.deepEqual(installed.app.devices, devices)
+  const restarted = createUserAppStore({ workspace: f.workspace, stateDir: f.stateDir, verify: () => true })
+  assert.deepEqual((await restarted.getContent('sensor')).app.devices, devices)
+  await fs.writeFile(manifestPath, JSON.stringify({ ...manifest, kind: 'widget', devices: { send: ['02:11:22:33:44:55'] } }))
+  assert.equal((await store.update('sensor')).ok, false)
+  assert.equal((await store.getContent('sensor')).app.revision, installed.app.revision)
+})
+
 test('installs immutable content, updates, restarts, rolls back, and removes without user data loss', async () => {
   const f = await fixture(); await draft(f.workspace, 'notes', '1', '<p>one</p>')
   const store = createUserAppStore({ workspace: f.workspace, stateDir: f.stateDir, verify: () => true })

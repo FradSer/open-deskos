@@ -196,4 +196,4 @@ function createBridgePluginRuntime({ transports, open, close, handlers, logger, 
   }
 }
 
-module.exports = { createBridgePluginRuntime, loadPluginHost, loadPluginConfig, respondRuntimeDiagnosis, validateTransportReplacement, resolveBridgeControlEndpoint }
+module.exports = { loadShellModule, createBridgePluginRuntime, loadPluginHost, loadPluginConfig, respondRuntimeDiagnosis, validateTransportReplacement, resolveBridgeControlEndpoint }

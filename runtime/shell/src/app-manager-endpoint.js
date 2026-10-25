@@ -1,4 +1,5 @@
 const BUILTIN_APPS = [
+  { appId: 'devices', name: 'Devices', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'futu', name: 'Futu holdings', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'weather', name: 'Weather', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'hydra', name: 'Hydra plants', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },

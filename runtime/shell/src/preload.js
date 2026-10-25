@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('odkRendererPluginBridge', {
 contextBridge.exposeInMainWorld('odkPlatform', {
   getOpenCodeGoStatus: () => ipcRenderer.invoke('odk-opencode-go-status'),
   getCameraFrame: () => ipcRenderer.invoke('odk-camera-frame'),
+  getDeviceGateway: () => ipcRenderer.invoke('odk-device-gateway', { type: 'status' }),
+  deviceGatewayAction: (request) => ipcRenderer.invoke('odk-device-gateway', request),
   getPiSessions: () => ipcRenderer.invoke('odk-pi-sessions'),
   getPiSessionEvents: (request) => ipcRenderer.invoke('odk-pi-session-events', request),
   getHydraStatus: () => ipcRenderer.invoke('odk-hydra-status'),
@@ -28,6 +30,7 @@ contextBridge.exposeInMainWorld('odkPlatform', {
 })
 
 contextBridge.exposeInMainWorld('odkUserApps', {
+  deviceRequest: (appId, revision, frameToken, request) => ipcRenderer.invoke('odk-user-apps-device', { appId, revision, frameToken, request }),
   reportGeometry: pages => ipcRenderer.send('odk-user-apps-geometry', pages),
   list: () => ipcRenderer.invoke('odk-user-apps-list'),
   readApi: (appId, revision, sourceId) => ipcRenderer.invoke('odk-user-apps-api', { appId, revision, sourceId }),

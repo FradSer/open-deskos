@@ -78,6 +78,76 @@ The default uses system DNS and never retries a rejected answer with another res
 The broker does not run a background service when frames stop reading.
 Declarations and cache state grant no access to secrets or arbitrary service executables.
 
+<a id="device-access"></a>
+
+## Devices through Bridge
+
+Packages use the existing Bridge connection. They cannot open serial ports or read pairing keys.
+Widgets can read device state. Interactive Apps can also send messages to granted peers.
+
+Declare requested capabilities in `devices`:
+
+```json
+{"schemaVersion":1,"id":"sensor-panel","name":"Sensor panel","version":"1","kind":"app","devices":{"gateway":true,"read":["02:11:22:33:44:55"],"send":["02:11:22:33:44:55"]}}
+```
+
+The declaration grants no authority.
+The host operator must grant the exact installed revision in `device-grants.json`.
+This private file resides in the Shell state directory, outside the workspace and runtime release.
+On CM5, the default path is `/home/orangepi/.local/state/odk/device-grants.json`.
+`XDG_STATE_HOME` can change that directory.
+The file must belong to the Shell user and have mode `0600` on Unix hosts.
+The runtime refuses symbolic links and malformed configuration.
+Do not put grants or pairing keys inside packages.
+
+```json
+{"schemaVersion":1,"grants":[{"appId":"sensor-panel","revision":"0123456789abcdef0123456789abcdef","gateway":true,"read":["02:11:22:33:44:55"],"send":["02:11:22:33:44:55"]}]}
+```
+
+Use the actual installed revision from the application catalog.
+An update changes the revision and requires a new host grant.
+The runtime checks declarations, host grants, installed revision, and active frame before each operation and after completion.
+Access requires both the declaration and the host grant.
+The catalog serializes send admission with installation changes.
+Send admission reads the latest private grants before dispatch.
+This bounded local read prevents queued sends from using revoked grants.
+An admitted radio request does not hold the catalog queue while awaiting delivery.
+Replacement catalogs must provide `withCurrentRevision(id, revision, admit)` for sends.
+The callback admits work synchronously and returns its operation Promise inside an object.
+Catalogs without this interface refuse sends. The runtime does not construct a fallback catalog.
+
+```html
+<script>
+  async function refreshDevices() {
+    const state = await odkPackageDevices.read()
+    document.getElementById('status').textContent = state.ok
+      ? state.status : 'Device access unavailable'
+  }
+  async function sendToSensor() {
+    const result = await odkPackageDevices.send('02:11:22:33:44:55', 'eA==')
+    document.getElementById('result').textContent = result.ok
+      ? 'MAC receipt received' : 'Delivery unknown or unavailable'
+  }
+</script>
+```
+
+- Each MAC list accepts at most seven unique unicast addresses.
+- `gateway: true` requests gateway metadata. A peer read grant does not expose gateway metadata.
+- `read()` returns filtered cached Bridge state, permitted peer state, and permitted received messages.
+- Gateway loss cannot leave old readings marked live.
+- Read results exclude keys, transport configuration, and raw Remote protocol messages.
+- Poll `read()` only while the frame needs readings. The SDK creates no background subscription.
+- `send(peer, payload)` accepts canonical Base64 containing one to 250 bytes.
+- Widgets cannot declare or use send access.
+- The S3 Remote peer is reserved. Packages cannot send any payload to that peer.
+- Sends require an available gateway and a known reserved Remote identity.
+- A successful send reports `delivery: "mac-receipt"`. It does not establish application acknowledgement.
+- A failed or timed out send can return `delivery-unknown`. The SDK never retries a send.
+- At most eight operations can run concurrently. Requests have bounded deadlines.
+- Frame removal, grant revocation, revision replacement, and runtime shutdown prevent successful late results.
+
+The SDK retains the package sandbox. It grants no network, Node, filesystem, or Shell preload access.
+
 ## Declared Data: answerable by voice
 
 A Widget or App can make its own runtime state answerable to the resident Personal Agent, which reads the same readings the desk's tiles draw from. Declare what it may publish in the manifest, and publish it from the document:
@@ -215,6 +285,7 @@ The bounded candidate verifier catches initial rendering failures and synchronou
 ```sh
 cd runtime/shell
 node --test tests/user-app*.test.js
+pnpm exec electron tests/user-app-devices-electron.cjs
 pnpm exec electron tests/user-app-lifecycle.cjs
 pnpm test
 bash tests/smoke.sh

@@ -3,6 +3,7 @@
 const { parseArgs } = require('node:util')
 const { RemoteBridge } = require('./remote-bridge')
 const { RemoteBridgeHost } = require('./remote-bridge-host')
+const { EspNowAdapter, radioDeclaration } = require('./esp-now-adapter')
 const { UsbCdcAdapter } = require('./usb-cdc-adapter')
 const { createBridgePluginRuntime, loadPluginConfig } = require('./plugin-runtime')
 const { loadBridgeReplacements, transportPlaceholder } = require('./development-plugins')
@@ -13,18 +14,22 @@ const usbDeclaration = {
   priority: 100, transport: 'usb-cdc',
 }
 
-function startupSelection(args) {
+function startupSelection(args, env = {}) {
   const { values } = parseArgs({ args, options: {
     'plugin-selection': { type: 'string' },
+    'esp-now-config': { type: 'string' },
     'trust-plugins': { type: 'boolean', default: false },
     plugins: { type: 'string' },
   } })
   if (values.plugins !== undefined && !['list', 'validate'].includes(values.plugins)) throw Error('invalid bridge inspection command')
   if (values['plugin-selection'] !== undefined && !values['plugin-selection']) throw Error('bridge selection requires a file path')
   if (values['trust-plugins'] && !values['plugin-selection']) throw Error('bridge trust requires a startup selection')
+  const radioConfig = values['esp-now-config'] ?? env.ODK_REMOTE_ESPNOW_CONFIG
+  if (radioConfig !== undefined && (!radioConfig || !require('node:path').isAbsolute(radioConfig))) throw Error('ESP-NOW configuration requires an absolute path')
+  if (radioConfig && (values['plugin-selection'] || values['trust-plugins'])) throw Error('ESP-NOW mode cannot be combined with external selections')
   const replacementPlugins = values['plugin-selection']
     ? loadBridgeReplacements(values['plugin-selection'], { trusted: values['trust-plugins'] }) : []
-  return { inspection: values.plugins, replacementPlugins }
+  return { inspection: values.plugins, replacementPlugins, radioConfig }
 }
 
 function composeTransports(replacementPlugins, defaultTransport) {
@@ -33,12 +38,17 @@ function composeTransports(replacementPlugins, defaultTransport) {
   return selected
 }
 
+function selectTransports(selection, factories) {
+  return selection.radioConfig ? [factories.radio(selection.radioConfig)] : composeTransports(selection.replacementPlugins, factories.usb)
+}
+
 async function main(args = process.argv.slice(2), env = process.env) {
-  const { inspection, replacementPlugins } = startupSelection(args)
+  const selection = startupSelection(args, env)
+  const { inspection, replacementPlugins } = selection
   const disabled = loadPluginConfig().resolveStartupDisabled(env)
   if (inspection) {
     const runtime = createBridgePluginRuntime({
-      transports: composeTransports(replacementPlugins, () => usbDeclaration), replacementPlugins,
+      transports: selectTransports(selection, { usb: () => usbDeclaration, radio: () => radioDeclaration }), replacementPlugins,
       disabled,
       open() {}, close() {}, handlers: {}, logger: console,
     })
@@ -46,7 +56,7 @@ async function main(args = process.argv.slice(2), env = process.env) {
     console.log(JSON.stringify({ host: 'remote-bridge', validated: inspection === 'validate', plugins: runtime.host.list() }))
     return
   }
-  const transports = composeTransports(replacementPlugins, () => new UsbCdcAdapter())
+  const transports = selectTransports(selection, { usb: () => new UsbCdcAdapter(), radio: file => new EspNowAdapter({ configFile: file }) })
   const options = { replacementPlugins, disabled }
   const bridge = transports.length === 1
     ? new RemoteBridge({ ...options, adapter: transports[0] })
@@ -79,4 +89,4 @@ function run() {
 }
 
 if (require.main === module) run()
-module.exports = { main, run, startupSelection, composeTransports }
+module.exports = { main, run, startupSelection, composeTransports, selectTransports }

@@ -7,6 +7,9 @@ const os = require('node:os')
 const path = require('node:path')
 const vm = require('node:vm')
 const { createShellOdkData } = require('../src/odk-data')
+const { createRequire } = require('node:module')
+const mainRequire = createRequire(path.resolve(__dirname, '../src/main.js'))
+const userAppRequire = createRequire(path.resolve(__dirname, '../src/user-app-system.js'))
 
 // The wired main process is the seam where the tile, the installed packages and
 // the Personal Agent meet. Only the launcher, the display and the store's bytes are
@@ -191,13 +194,13 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
   // the shipped ones rather than a test's idea of them.
   const userAppSystem = { exports: {} }
   vm.runInNewContext(fs.readFileSync('src/user-app-system.js', 'utf8'), {
-    require: (id) => modules[id] || require(id),
+    require: (id) => modules[id] || userAppRequire(id),
     process: { env },
     module: userAppSystem, exports: userAppSystem.exports, __dirname: '/test', console,
   })
   modules['./user-app-system'] = userAppSystem.exports
   vm.runInNewContext(fs.readFileSync('src/main.js', 'utf8'), {
-    require: (id) => modules[id] || require(id),
+    require: (id) => modules[id] || mainRequire(id),
     process: { argv: [], env },
     module: { exports: {} }, __dirname: '/test', console, URLSearchParams,
     setInterval: (fn) => { const handle = { fn, unref() {} }; intervals.push(fn); timerHandles.push(handle); return handle },

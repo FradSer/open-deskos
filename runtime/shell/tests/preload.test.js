@@ -2,16 +2,19 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
+const path = require('node:path')
+const { createRequire } = require('node:module')
 
 const source = fs.readFileSync('src/preload.js', 'utf8')
 
-function loadPreload() {
+function loadPreload(invoke) {
   const exposed = {}
   const listeners = new Map()
   const invokes = []
   const ipcRenderer = {
     invoke(channel, payload, ...extra) {
       invokes.push([channel, payload, ...extra])
+      if (invoke) return invoke(channel, payload, ...extra)
       if (channel === 'odk-remote-link-state') {
         return Promise.resolve({ state: 'disconnected', sequence: 1 })
       }
@@ -39,7 +42,7 @@ function loadPreload() {
 test('exposes platform actions and only narrow remote state APIs to the sandboxed renderer', async () => {
   const { exposed, listeners, invokes } = loadPreload()
 
-  assert.deepEqual(Object.keys(exposed.odkPlatform).sort(), ['dispatchIntent', 'getAppState', 'getCameraFrame', 'getFutuHoldings', 'getHydraStatus', 'getOpenCodeGoStatus', 'getPiSessionEvents', 'getPiSessions', 'getWeReadHighlight', 'getWeatherStatus', 'listApps'])
+  assert.deepEqual(Object.keys(exposed.odkPlatform).sort(), ['deviceGatewayAction', 'dispatchIntent', 'getAppState', 'getCameraFrame', 'getDeviceGateway', 'getFutuHoldings', 'getHydraStatus', 'getOpenCodeGoStatus', 'getPiSessionEvents', 'getPiSessions', 'getWeReadHighlight', 'getWeatherStatus', 'listApps'])
   await exposed.odkPlatform.getOpenCodeGoStatus()
   assert.deepEqual(invokes[0], ['odk-opencode-go-status', undefined])
   await exposed.odkPlatform.getCameraFrame()
@@ -106,4 +109,34 @@ test('consumer readiness has a dedicated narrow bridge', async () => {
   const { exposed, invokes } = loadPreload()
   await exposed.odkPersonalAgent.consumerReady('11111111-1111-4111-8111-111111111111')
   assert.deepEqual(invokes, [['odk-personal-agent-consumer-ready', '11111111-1111-4111-8111-111111111111']])
+})
+
+test('Devices native fixture serves current Personal Agent preload calls before opening a window', async () => {
+  const fixturePath = path.resolve('tests/device-gateway-electron.cjs')
+  const fixtureRequire = createRequire(fixturePath)
+  const handlers = new Map()
+  vm.runInNewContext(fs.readFileSync(fixturePath, 'utf8'), {
+    __dirname: path.dirname(fixturePath),
+    process: { env: { ODK_DEVICE_GATEWAY_TEST_PROFILE: '/fixture-profile' } },
+    require(id) {
+      if (id !== 'electron') return fixtureRequire(id)
+      return {
+        app: { setPath() {}, whenReady: () => new Promise(() => {}) },
+        ipcMain: { handle(channel, handler) { handlers.set(channel, handler) } },
+      }
+    },
+  }, { filename: fixturePath })
+  const { exposed } = loadPreload((channel, payload, ...extra) => {
+    const handler = handlers.get(channel)
+    assert.ok(handler, `No handler registered for ${channel}`)
+    return Promise.resolve(handler({}, payload, ...extra))
+  })
+  assert.equal((await exposed.odkPersonalAgent.getStatus()).state, 'unavailable')
+  assert.equal((await exposed.odkPersonalAgent.consumerReady('consumer')).accepted, false)
+})
+
+test('package device calls forward only their bound identity and request', async () => {
+  const { exposed, invokes } = loadPreload()
+  await exposed.odkUserApps.deviceRequest('sensor', 'a'.repeat(32), 'token', { type: 'read' })
+  assert.deepEqual(JSON.parse(JSON.stringify(invokes)), [['odk-user-apps-device', { appId: 'sensor', revision: 'a'.repeat(32), frameToken: 'token', request: { type: 'read' } }]])
 })

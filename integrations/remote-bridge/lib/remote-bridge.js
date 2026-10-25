@@ -3,6 +3,7 @@
 const fs = require('node:fs')
 const net = require('node:net')
 const path = require('node:path')
+const { writeDeviceRecord, respondDeviceRequest } = require('./device-channel')
 const { createJsonLineReader } = require('./json-line-reader')
 const { createBridgePluginRuntime, respondRuntimeDiagnosis, resolveBridgeControlEndpoint } = require('./plugin-runtime')
 const {
@@ -45,6 +46,8 @@ class RemoteBridge {
       handlers: {
         connected: (transport, details) => this.#onAdapterConnected(details),
         disconnected: (transport, details) => this.#onAdapterDisconnected(details),
+        'device-snapshot': (_transport, snapshot) => this.#broadcast({ v: 1, type: 'device_snapshot', snapshot }),
+        'device-event': (_transport, event) => this.#broadcast({ v: 1, type: 'device_event', event }),
         message: (_transport, record) => this.#onAdapterMessage(record),
         'adapter-error': (_transport, error) => this.logger.error('Remote Link adapter error', error),
       },
@@ -111,9 +114,10 @@ class RemoteBridge {
   }
 
   #attachClient(socket) {
+    if (this.clients.size >= 32) { socket.destroy(); return }
     this.clients.add(socket)
     socket.write(encodeJsonLine(this.linkState))
-    const reader = createJsonLineReader((line) => this.#onClientLine(line, socket))
+    const reader = createJsonLineReader((line) => this.#onClientLine(line, socket), { maxBytes: 262144 })
     socket.on('data', (chunk) => reader.push(chunk))
     socket.once('end', () => reader.end())
     socket.once('close', () => this.clients.delete(socket))
@@ -123,6 +127,8 @@ class RemoteBridge {
   async #onClientLine(line, socket) {
     const parsed = parseJsonLine(line)
     if (!parsed.ok) return
+    if (parsed.record.type === 'device_request' && Buffer.byteLength(line) > 2048) return
+    if (respondDeviceRequest(socket, parsed.record, this.adapter)) return
     if (respondRuntimeDiagnosis(socket, parsed.record, () => this.pluginCatalog())) return
     const validation = validateShellState(parsed.record)
     if (!validation.ok) return
@@ -173,7 +179,10 @@ class RemoteBridge {
   #broadcast(record) {
     const line = encodeJsonLine(record)
     for (const client of this.clients) {
-      if (client.destroyed || !client.write(line)) continue
+      if (client.destroyed || (record.type.startsWith('device_') && !client.odkDeviceSubscriber)) continue
+      if (record.type.startsWith('device_')) { writeDeviceRecord(client, record); continue }
+      if (client.writableLength + Buffer.byteLength(line) > 65536) { client.destroy(); continue }
+      client.write(line)
     }
   }
 }
