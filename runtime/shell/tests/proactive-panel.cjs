@@ -60,6 +60,8 @@ app.whenReady().then(async () => {
     clearTimeout(timer); win.destroy(); app.exit(0); return
   }
   const send = async status => { win.webContents.send('odk-personal-bot-status', status); await delay() }
+  // Inline recommendations share the Home scroll context; bring the target into view before measurement.
+  const showComposer = () => run(`(() => { const composer = document.querySelector('.agent-composer'); composer.scrollIntoView({block:'center', inline:'nearest'}); document.querySelector('.agent-suggestions').scrollTop = 0; return document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) })()`)
   const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry-soil', status: 'pending', offered: true, presented: false, reason: 'A current soil reading is below the selected threshold.', nextStep: '保存检查盆土备忘', advice: '<script>untrusted reading</script> 检查盆土。', action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土' } }, confirmation: '记住 watering：检查盆土', evidence: [{ readingId: 'odk.tile.hydra', field: 'plants.0.soilPercent', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z', ruleId: 'dry-soil' }] }
   async function longAdviceVisibility() {
     await viewport(320, 480)
@@ -158,6 +160,7 @@ app.whenReady().then(async () => {
       assert.equal(rideGeometry.routeHidden, false, JSON.stringify({ theme, width, height, ...rideGeometry })); assert.equal(rideGeometry.overflow, false); assert.ok(rideGeometry.heights.length >= 3); assert.ok(rideGeometry.heights.every(h => h >= 44), JSON.stringify({ theme, width, height, ...rideGeometry }))
       for (const status of ['pending', 'expired', 'ignored', 'completed', 'unknown']) {
         await send({ state: 'idle', proposals: [{ ...p, status, advice: 'Long CJK 长句测试 '.repeat(40), result: status === 'unknown' ? 'Outcome unknown; do not retry.' : '' }], proposalPopup: true })
+        await showComposer()
         const geometry = await run(`(() => {
           const node = document.querySelector('.agent-suggestions'); const r = node.getBoundingClientRect();
           const controls = [...document.querySelectorAll('.personal-bot-proposals button')].filter(n => n.checkVisibility());
@@ -178,7 +181,7 @@ app.whenReady().then(async () => {
     for (const [width, height] of [[320, 480], [480, 854], [1920, 1280]]) {
       await viewport(width, height)
       await send({ state: 'idle', proposals: [actionCard], proposalPopup: true })
-      await run(`document.querySelector('.agent-suggestions').scrollTop = 0; document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
+      await showComposer()
       const layout = await run(`(() => {
         const card = document.querySelector('.personal-bot-proposal'), advice = card.querySelector('.personal-bot-proposal-advice'), primary = card.querySelector('.personal-bot-proposal-primary'), actions = card.querySelector('.personal-bot-proposal-actions'), feedback = card.querySelector('.personal-bot-proposal-feedback-options'), state = card.querySelector('.personal-bot-proposal-state');
         return { advice: advice.textContent, action: primary.textContent, duplicateNext: !!card.querySelector('.personal-bot-proposal-next-step'), secondary: actions.querySelector('.personal-bot-proposal-secondary')?.textContent, reason: !!card.querySelector('.personal-bot-proposal-reason') || card.textContent.includes('Legacy reason must not render.'), sourcesAbsent: !card.querySelector('.personal-bot-proposal-sources'), feedbackClosed: !feedback.open, hashAbsent: !card.textContent.includes('a'.repeat(64)), ordered: advice.getBoundingClientRect().bottom <= actions.getBoundingClientRect().top && actions.getBoundingClientRect().bottom <= feedback.getBoundingClientRect().top, adviceSize: parseFloat(getComputedStyle(advice).fontSize), stateSize: parseFloat(getComputedStyle(state).fontSize), actionSize: parseFloat(getComputedStyle(primary).fontSize), primaryHeight: primary.getBoundingClientRect().height, feedbackTarget: feedback.querySelector('summary').getBoundingClientRect().height >= 44, inline: !!card.closest('.agent-composer .agent-suggestions'), popupHidden: document.getElementById('personal-bot-status').hidden, overflow: card.scrollWidth > card.clientWidth + 1, controls: [...actions.querySelectorAll('button')].every(b => b.getBoundingClientRect().height >= 44) }
@@ -300,7 +303,7 @@ app.whenReady().then(async () => {
   await send(previewFrame)
   assert.equal(await run(`document.querySelector('.agent-conversation').textContent.includes('I can save a soil-check note.')`), true, 'Preview captures a populated normal conversation')
   assert.equal(await run(`document.querySelector('.agent-state').textContent.includes('Connection unavailable')`), false)
-  await run(`document.querySelector('.agent-suggestions').scrollTop = 0; document.fonts.ready.then(() => true)`)
+  await showComposer()
   const { capturePaintedPage } = require('./helpers/native-page-capture')
   const output = process.env.ODK_PROACTIVE_PREVIEW_FILE
   if (output) fs.writeFileSync(output, (await capturePaintedPage(win)).toPNG())
@@ -312,7 +315,7 @@ app.whenReady().then(async () => {
       for (const [width, height] of [[480, 854], [1920, 1280]]) {
         await viewport(width, height)
         await send(previewFrame)
-        await run(`document.querySelector('.agent-suggestions').scrollTop = 0; document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
+        await showComposer()
         fs.writeFileSync(path.join(previewDirectory, `${theme}-${width}x${height}.png`), (await capturePaintedPage(win)).toPNG())
       }
     }
