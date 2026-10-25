@@ -590,6 +590,7 @@ research/esp32-p4-c6-deskos/apple/OpenDeskOS/Resources/plugins/wispr/bun
 *.db-journal
 .git-agent/config.local.yml
 .impeccable/
+# Keep generated agent worktrees outside repository history.
 .pi/worktrees/
 
 # Keep the Remote Bridge executable despite global bin exclusions.
