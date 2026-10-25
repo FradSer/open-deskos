@@ -19,7 +19,7 @@ function isolateComposition(root) {
   wrap('../../src/weread-source', 'createWeReadSource', { apiKey: '', fetchImpl: unavailableFetch })
   wrap('../../src/camera-source', 'createCameraSource', { fsImpl: { existsSync: () => false },
     execFileImpl: () => { throw Error('Physical capture is forbidden in composition acceptance') } })
-  wrap('../../src/hydra-mqtt', 'createHydraSource', { url: undefined })
+  wrap('../../src/hydra-espnow', 'createHydraEspNowSource', { profileFile: path.join(root, 'hydra-espnow.json') })
   wrap('../../src/pi-sessions-source', 'createPiSessionsSource', { env: {}, scanLocal: async () => ({ ok: true,
     scannedAt: Date.now(), sessions: [], workspaces: [], summary: { total: 0, running: 0, settled: 0, exited: 0, workspacesCount: 0 } }) })
   wrap('../../src/pi-session-events-source', 'createPiSessionEventsSource', { readLocal: () => ({ ok: false, reason: 'session-log-missing' }) })

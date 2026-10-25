@@ -19,11 +19,9 @@ Use [ARCHITECTURE](docs/ARCHITECTURE.md) for decisions and safety boundaries. Us
 ## Technical namespace
 
 Use **Open DeskOS Link** and **Open DeskOS Data** as product names.
-Use `odk` for technical prefixes and `ODK_` for environment variables.
-Use `odk-link` and `odk-data` for their modules, services, and local endpoints.
+Use `odk` for technical prefixes and `ODK_` for environment variables. Use `odk-link` and `odk-data` for their modules, services, and local endpoints.
 The Personal Agent data tool is `odk_data`.
-Previous names have no aliases or automatic fallback.
-Deployment must transfer required configuration and state to the new paths before activation.
+Previous names have no aliases or automatic fallback. Deployment must transfer required configuration and state to the new paths before activation.
 Keep repository addresses, public domains, and historical evidence unchanged.
 Keep the Pi extension directory at `pi-packages/packages/open-deskos`.
 

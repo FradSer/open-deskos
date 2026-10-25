@@ -101,8 +101,8 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `ODK_LINK_TOKEN` | L3 device (sensitive, transitional) | runtime.env | runtime/shell/scripts/odk-link-service.js | Unset | Transitional environment reporting token. Other processes of the same user can read it. Prefer ODK_LINK_TOKEN_FILE; the file form takes priority. |
 | `ODK_LINK_TOKEN_FILE` | L3 device (sensitive) | runtime.env | runtime/shell/scripts/odk-link-service.js | Unset | Preferred reporting token file, mode 0600. Match the reporting client token. |
 | `ODK_HOSTED_PI_SOCKET` | Test | Test process | runtime/shell/src/odk-link-host-adapter.js | Read endpoint.json | Explicit override for isolated operation/tests. Production reads the daemon endpoint descriptor. |
-| `ODK_HYDRA_MQTT_TOPIC` | L3 device | shell drop-in | runtime/shell/src/main.js | — | Hydra topic prefix. |
-| `ODK_HYDRA_MQTT_URL` | L3 device | shell drop-in | runtime/shell/src/main.js | — | Hydra MQTT endpoint. |
+| `ODK_HYDRA_MQTT_TOPIC` | L3 device | shell drop-in | runtime/shell/src/main.js | — | Topic prefix for explicit legacy native sources. The default ESP-NOW source ignores this setting. |
+| `ODK_HYDRA_MQTT_URL` | L3 device | shell drop-in | runtime/shell/src/main.js | — | Endpoint for explicit legacy native sources. The default ESP-NOW source ignores this setting. |
 | `ODK_KIOSK_BIN_DIR` | L2 install | cm5-install.sh → update-runtime.js | runtime/shell/scripts/update-runtime.js | — | Directory for Corepack/pnpm shims. |
 | `ODK_KIOSK_DISPLAY` | L2 install | cm5-install.sh → update-runtime.js | runtime/shell/scripts/update-runtime.js | — | Graphical DISPLAY for post-activation smoke. |
 | `ODK_KIOSK_HOME` | L2 install | cm5-install.sh → update-runtime.js | runtime/shell/scripts/update-runtime.js | — | Kiosk user home directory. |

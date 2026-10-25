@@ -106,7 +106,7 @@ for (const failed of [false, true]) {
     assert.equal(instances.length, 2)
     assert.notEqual(host.get(DATA_PORTS.hydra), original)
     assert.notEqual(fixture.clients[0], fixture.clients[1])
-    assert.equal(handlers.size, 1)
+    assert.deepEqual([...handlers.keys()].sort(), ['odk-hydra-device', 'odk-hydra-status'])
   })
 }
 

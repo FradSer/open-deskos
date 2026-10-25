@@ -344,7 +344,13 @@ async function main() {
       } },
       'source.personal-agent-readings': { endpoint: smokeMode ? null : shellHost.endpoint('personal-agent-control'), tokenFile: shellHost.localChannelTokenFile, platform: shellHost.platform },
       'source.quota': { read: options => fetchOpenCodeGo(resolveOpenCodeGoConfig(), options) },
-      'source.hydra': { create: createHydraSource, connect: connectHydraMqtt, options: smokeMode ? {} : {
+      'source.hydra': { create: createHydraSource, connect: connectHydraMqtt,
+        createDefault: require('./hydra-espnow').createHydraEspNowSource, options: {
+        profileFile: smokeMode ? undefined : require('node:path').join(shellHost.stateDir, 'hydra-espnow.json'),
+        controlKeyFile: smokeMode ? undefined : require('node:path').join(shellHost.stateDir, 'hydra-control.key'),
+        controlPlanFile: smokeMode ? undefined : require('node:path').join(shellHost.stateDir, 'hydra-control-plan-sequences.json'),
+        authorize: event => diagnosisFrames.has(event?.sender) && event.senderFrame === event.sender.mainFrame,
+        // Legacy native replacements retain their explicit connector options.
         url: process.env.ODK_HYDRA_MQTT_URL,
         topicPrefix: process.env.ODK_HYDRA_MQTT_TOPIC,
         onUpdate: () => servicePush(['odk.tile.hydra']),

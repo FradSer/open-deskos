@@ -94,3 +94,31 @@ Feature: Shared Bridge device access
     And all layout fixture paths stay inside their temporary root
     And the nearest release entry takes priority over an outer copy
     And a missing dependency inside the selected Bridge remains an error
+  Scenario: Associate a Hydra controller
+    Given the Bridge has a configured encrypted general peer
+    When the resident selects that peer as the Hydra controller in Devices
+    Then the host saves that association outside the runtime release
+    And Devices shows the controller identity and application connection state
+    And the existing Hydra Widget and App receive its validated telemetry
+    And the association does not change gateway keys or the S3 Remote peer
+
+  Scenario: Remove a Hydra association
+    Given Devices shows a selected Hydra controller and its plant readings
+    When the resident removes the Hydra association
+    Then the host clears only the Hydra association
+    And old controller readings cannot appear under a new identity
+    And the Bridge and S3 remain available
+
+  Scenario: Hydra telemetry expires independently
+    Given the gateway remains connected and Hydra stops reporting
+    When the Hydra application heartbeat expires
+    Then Devices reports Hydra unavailable
+    And old plant measurements remain stale rather than live
+    And local watering remains under the peripheral firmware
+
+  Scenario: Connection management cannot authorize watering commands
+    Given Hydra is associated with a configured peer
+    And no separately authenticated user-confirmed control action exists
+    When Devices manages its connection
+    Then its connection actions are association and removal
+    And it does not send pump, timetable, provisioning, or OTA commands

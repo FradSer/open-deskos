@@ -82,7 +82,14 @@ function createDataSourcePlugins() {
     }),
     sourcePlugin({
       id: 'hydra', createReadings: createHydraReadings, health: getHydraHealth, name: 'Hydra plants', port: DATA_PORTS.hydra,
-      channels: { 'odk-hydra-status': source => source.snapshot() }, stop: source => source.stop(),
+      optionalRequires: [DATA_PORTS.deviceGateway],
+      construct: (config, ctx) => config.createDefault
+        ? config.createDefault({ ...config.options, deviceGateway: ctx.get(DATA_PORTS.deviceGateway) })
+        : config.create(config.options),
+      channels: {
+        'odk-hydra-status': source => source.snapshot(),
+        'odk-hydra-device': (source, action, event) => source.dispatchDevice?.(event, action) ?? { ok: false, error: 'unsupported-transport' },
+      }, stop: source => source.stop(),
     }),
     sourcePlugin({
       id: 'weather', createReadings: createWeatherReadings, health: getWeatherHealth, name: 'Weather', port: DATA_PORTS.weather,

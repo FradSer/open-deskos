@@ -42,7 +42,7 @@ function loadPreload(invoke) {
 test('exposes platform actions and only narrow remote state APIs to the sandboxed renderer', async () => {
   const { exposed, listeners, invokes } = loadPreload()
 
-  assert.deepEqual(Object.keys(exposed.odkPlatform).sort(), ['deviceGatewayAction', 'dispatchIntent', 'getAppState', 'getCameraFrame', 'getDeviceGateway', 'getFutuHoldings', 'getHydraStatus', 'getOpenCodeGoStatus', 'getPiSessionEvents', 'getPiSessions', 'getWeReadHighlight', 'getWeatherStatus', 'listApps'])
+  assert.deepEqual(Object.keys(exposed.odkPlatform).sort(), ['deviceGatewayAction', 'dispatchIntent', 'getAppState', 'getCameraFrame', 'getDeviceGateway', 'getFutuHoldings', 'getHydraDevice', 'getHydraStatus', 'getOpenCodeGoStatus', 'getPiSessionEvents', 'getPiSessions', 'getWeReadHighlight', 'getWeatherStatus', 'hydraDeviceAction', 'listApps'])
   await exposed.odkPlatform.getOpenCodeGoStatus()
   assert.deepEqual(invokes[0], ['odk-opencode-go-status', undefined])
   await exposed.odkPlatform.getCameraFrame()
@@ -139,4 +139,21 @@ test('package device calls forward only their bound identity and request', async
   const { exposed, invokes } = loadPreload()
   await exposed.odkUserApps.deviceRequest('sensor', 'a'.repeat(32), 'token', { type: 'read' })
   assert.deepEqual(JSON.parse(JSON.stringify(invokes)), [['odk-user-apps-device', { appId: 'sensor', revision: 'a'.repeat(32), frameToken: 'token', request: { type: 'read' } }]])
+})
+
+test('Hydra management exposes only the dedicated host request channel', async () => {
+  const { exposed, invokes } = loadPreload()
+  await exposed.odkPlatform.getHydraDevice()
+  await exposed.odkPlatform.hydraDeviceAction({ type: 'bind', peer: '02:00:00:00:00:01' })
+  await exposed.odkPlatform.hydraDeviceAction({ type: 'unbind' })
+  const actions = [{ type: 'control-visibility', visible: true }, { type: 'prepare-water', node: 1, durationMs: 5000 },
+    { type: 'prepare-plan', node: 1, season: 1, entries: [{ offsetMinutes: 15, intent: 3, night: false }] },
+    { type: 'confirm', token: 'opaque-confirmation' }, { type: 'cancel' }, { type: 'control-visibility', visible: false }]
+  for (const action of actions) await exposed.odkPlatform.hydraDeviceAction(action)
+  assert.deepEqual(JSON.parse(JSON.stringify(invokes)), [
+    ['odk-hydra-device', { type: 'status' }],
+    ['odk-hydra-device', { type: 'bind', peer: '02:00:00:00:00:01' }],
+    ['odk-hydra-device', { type: 'unbind' }],
+    ...actions.map(action => ['odk-hydra-device', action]),
+  ])
 })

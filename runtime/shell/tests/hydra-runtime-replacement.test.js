@@ -106,7 +106,7 @@ test('runtime Host replaces signed Hydra factories only after old MQTT ownership
     await native.command(['remove', id])
     allowDefault = true
     const defaultPlugin = createMainPlugins().find(plugin => plugin.manifest.id === id)
-    const restored = host.replace(defaultPlugin)
+    const restored = host.replace(defaultPlugin, { recompose: true })
     await clients[1].releasing.promise
     assert.equal(clients.length, 2)
     clients[1].done()
@@ -114,6 +114,13 @@ test('runtime Host replaces signed Hydra factories only after old MQTT ownership
     publish(clients[2])
     assert.deepEqual(await consumers(), baseline)
     assert.equal(defaults, 1)
+    // The new default dependency graph cannot silently hot-activate an old
+    // signed source with an empty requires list. Startup selection remains valid.
+    const runningDefault = host.get(DATA_PORTS.hydra)
+    await assert.rejects(host.replace(updated), /changes external contract/)
+    assert.equal(host.get(DATA_PORTS.hydra), runningDefault)
+    assert.equal(clients.length, 3)
+    assert.equal(clients[2].done, undefined, 'contract refusal occurs before resource release')
     assert.deepEqual([...(await native.store.snapshot(first)).files], firstBytes)
     assert.deepEqual([...(await native.store.snapshot(second)).files], secondBytes)
   } finally {

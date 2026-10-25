@@ -23,6 +23,58 @@ test('Devices uses the existing Bridge client without acquiring a device transpo
   await host.stop()
 })
 
+test('default Hydra uses the shared device facade even when old MQTT options remain', async () => {
+  const { createHydraEspNowSource } = require('../src/hydra-espnow')
+  const handlers = new Map(), events = new Set(), peer = '02:11:22:33:44:55'
+  const gateway = { snapshot: () => ({ status: 'live', gateway: { status: 'live' }, remote: { mac: 'f0:9e:9e:11:23:cc' }, peers: [{ mac: peer, role: 'device', status: 'stale' }] }), onEvent: callback => { events.add(callback); return () => events.delete(callback) } }
+  const host = createPluginHost({ capabilities: {
+    ipc: { handle: (id, fn) => handlers.set(id, fn), removeHandler: id => handlers.delete(id) },
+    'source.hydra': { create: () => assert.fail('legacy MQTT constructed'), connect: () => assert.fail('network opened'), createDefault: createHydraEspNowSource,
+      options: { url: 'mqtts://old.invalid:8883', peerStore: { load: () => null, save: async () => {} }, authorize: event => event === 'trusted', setIntervalFn: () => null, clearIntervalFn() {} } },
+  } })
+  host.register({ manifest: { schemaVersion: 1, id: 'odk.test.gateway-owner', name: 'Gateway', version: '1.0.0', kind: 'service', host: 'electron-main', provides: [{ interface: DATA_PORTS.deviceGateway }] }, create: () => ({ ports: { [DATA_PORTS.deviceGateway]: gateway } }) })
+  host.register(createDataSourcePlugins().find(p => p.manifest.id === 'odk.source.hydra'))
+  await host.start()
+  assert.equal((await handlers.get('odk-hydra-device')('trusted', { type: 'status' })).status, 'unconfigured')
+  assert.equal((await handlers.get('odk-hydra-device')('trusted', { type: 'bind', peer })).ok, true)
+  assert.equal(events.size, 1)
+  assert.equal((await handlers.get('odk-hydra-status')()).configured, true)
+  assert.equal((await handlers.get('odk-hydra-device')('trusted', { type: 'status' })).status, 'syncing')
+  await host.stop(); assert.equal(events.size, 0); assert.equal(handlers.has('odk-hydra-device'), false)
+})
+
+test('explicit legacy Hydra capability does not request the new gateway dependency', () => {
+  const definition = createDataSourcePlugins().find(plugin => plugin.manifest.id === 'odk.source.hydra')
+  const options = { url: 'mqtt://legacy.fixture', topicPrefix: 'plants' }
+  const source = { snapshot: () => ({ configured: false }), stop() {} }
+  const cleanups = [], handlers = new Map()
+  let constructions = 0
+  const capability = { options, create(incoming) {
+    assert.equal(incoming, options)
+    constructions++
+    return source
+  } }
+  const context = {
+    capability: name => name === 'source.hydra' ? capability : {
+      handle: (id, handler) => handlers.set(id, handler), removeHandler: id => handlers.delete(id),
+    },
+    get: () => { throw Error('undeclared gateway port in legacy reference graph') },
+    onCleanup: cleanup => cleanups.push(cleanup),
+  }
+  // An alias still selects the default branch, so the legacy reference fixture
+  // must omit createDefault instead of pointing it at the legacy constructor.
+  capability.createDefault = capability.create
+  assert.throws(() => definition.create(context), /undeclared gateway port/)
+  assert.equal(constructions, 0)
+  delete capability.createDefault
+  const created = definition.create(context)
+  assert.equal(created.ports[DATA_PORTS.hydra], source)
+  assert.equal(constructions, 1)
+  assert.deepEqual(handlers.get('odk-hydra-status')(), { configured: false })
+  for (const cleanup of cleanups.reverse()) cleanup()
+  assert.equal(handlers.size, 0)
+})
+
 function fixture() {
   const handlers = new Map()
   const calls = []

@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('odkPlatform', {
   getPiSessions: () => ipcRenderer.invoke('odk-pi-sessions'),
   getPiSessionEvents: (request) => ipcRenderer.invoke('odk-pi-session-events', request),
   getHydraStatus: () => ipcRenderer.invoke('odk-hydra-status'),
+  getHydraDevice: () => ipcRenderer.invoke('odk-hydra-device', { type: 'status' }),
+  hydraDeviceAction: (request) => ipcRenderer.invoke('odk-hydra-device', request),
   getWeReadHighlight: () => ipcRenderer.invoke('odk-weread-highlight'),
   getFutuHoldings: (request) => ipcRenderer.invoke('odk-futu-holdings', request),
   getWeatherStatus: (request) => ipcRenderer.invoke('odk-weather-status', request),

@@ -44,6 +44,16 @@ test('device facade authorizes IPC and releases only its subscriptions', async (
   assert.deepEqual(await source.action({ type: 'ping' }), { ok: false, error: 'unavailable' })
 })
 
+test('facade snapshot subscriptions retain cleanup ownership after a failed release', () => {
+  let fail = true, released = 0, update
+  const source = createBridgeDeviceSource({ client: { getDeviceSnapshot: () => ({ status: 'live' }), onDeviceSnapshot(fn) { update = fn; return () => { if (fail) throw Error('retained subscription'); released++ } } } })
+  const observed = []; source.onSnapshot(value => observed.push(value.status))
+  update({ status: 'disconnected' }); assert.deepEqual(observed, ['live', 'disconnected'])
+  assert.throws(() => source.stop(), /cleanup failed/)
+  fail = false; source.stop(); assert.equal(released, 1)
+  update({ status: 'live' }); assert.equal(source.snapshot().status, 'disconnected')
+})
+
 test('client device correlation times out without replay and disconnect invalidates caches', async t => {
   const { EventEmitter } = require('node:events')
   const { createRemoteBridgeClient } = require('../src/remote-bridge-client')

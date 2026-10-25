@@ -13,7 +13,7 @@ An entry has an ID, label, owner kind and read function. Kinds are `tile`, `app`
 | Installed package | Its package ID |
 | Installed catalog | `odk.plugins.installed` |
 
-The Futu tile and poller share one service reading. The tile IPC handler and registry call the same source object. A read can perform I/O under that source's refresh policy. It cannot force a refresh. Weather keeps its ten-minute interval and in-flight deduplication; Hydra keeps its MQTT source.
+The Futu tile and poller share one service reading. The tile IPC handler and registry call the same source object. A read can perform I/O under that source's refresh policy. It cannot force a refresh. Weather keeps its ten-minute interval and in-flight deduplication. Hydra reads its [shared ESP-NOW source](HYDRA_ESPNOW.md).
 
 `list` reports IDs, labels and kinds without reading any source. It cannot trigger scans/provider refreshes or claim an unread state. `read` obtains the current value and source state. It does not return an agent cache. Keep `live`, `stale`, `unavailable`, `unconfigured` and source-specific equivalents truthful. A nonlive Service Plugin presents no holdings.
 

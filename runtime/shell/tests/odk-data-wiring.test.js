@@ -6,8 +6,8 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const vm = require('node:vm')
-const { createShellOdkData } = require('../src/odk-data')
 const { createRequire } = require('node:module')
+const { createShellOdkData } = require('../src/odk-data')
 const mainRequire = createRequire(path.resolve(__dirname, '../src/main.js'))
 const userAppRequire = createRequire(path.resolve(__dirname, '../src/user-app-system.js'))
 
@@ -169,6 +169,9 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
     './odk-link-client': { createOdkLinkClient: () => ({ machines: async () => [] }), createOdkLinkTransport: odkLinkTransport },
     './odk-link-host-adapter': require('../src/odk-link-host-adapter'),
     './hydra-mqtt': { connectHydraMqtt: hydraConnector, createHydraSource: options => { onHydraUpdate = options.onUpdate; return { snapshot: () => hydraSnapshot, stop() { hydraStopCount += 1 } } } },
+    './hydra-espnow': { createHydraEspNowSource: options => { onHydraUpdate = options.onUpdate; return { snapshot: () => hydraSnapshot, stop() { hydraStopCount += 1 } } } },
+    './device-bridge-source': require('../src/device-bridge-source'),
+    './user-app-devices': require('../src/user-app-devices'),
     './weather-source': { createWeatherSource: () => ({ refresh: async () => ({ status: 'unconfigured' }) }) },
     './weread-source': { createWeReadSource: () => ({ refresh: async () => ({ status: 'unconfigured' }) }) },
     './futu-source': { createFutuSource: (options) => { futuServices = options.services; return { refreshServices: async () => { futuRefreshCount += 1 }, stop: async () => { futuStopCount += 1 }, snapshot: service => ({ state: 'live', service, snapshot: { positions: [] } }) } } },
@@ -606,11 +609,15 @@ test('quitting during native discovery cannot start factories or create a window
 })
 
 
-test('Main grants Hydra the raw MQTT connector alongside the existing factory', async () => {
-  const shell = wireShell()
+test('Main retains the explicit legacy connector but defaults Hydra to the Bridge constructor', async () => {
+  const shell = wireShell({ env: { ODK_HYDRA_MQTT_URL: 'mqtts://old-broker.invalid:8883' } })
   await shell.ready()
   assert.equal(shell.hydraCapability().connect, shell.hydraConnector)
   assert.equal(typeof shell.hydraCapability().create, 'function')
+  assert.equal(typeof shell.hydraCapability().createDefault, 'function')
+  assert.notEqual(shell.hydraCapability().createDefault, shell.hydraCapability().create)
+  assert.equal(shell.hydraCapability().options.url, 'mqtts://old-broker.invalid:8883')
+  assert.ok(path.isAbsolute(shell.hydraCapability().options.profileFile))
   assert.equal(typeof shell.hydraCapability().options.onUpdate, 'function')
   shell.app.emit('before-quit')
 })

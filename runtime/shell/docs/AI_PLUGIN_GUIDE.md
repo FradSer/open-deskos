@@ -338,7 +338,7 @@ Read [the WeRead contract](WEREAD_PLUGIN_CONTRACT.md) when implementing highligh
 Read [the Weather contract](WEATHER_PLUGIN_CONTRACT.md) when implementing location, provider responses, cache behavior, and source cancellation.
 
 Read [the Camera contract](CAMERA_PLUGIN_CONTRACT.md) when implementing frame consumers, capture ownership, and source shutdown.
-Read [the Hydra contract](HYDRA_PLUGIN_CONTRACT.md) when implementing MQTT sources, protocol state, cached health, or connection ownership.
+Read [the Hydra contract](HYDRA_PLUGIN_CONTRACT.md) when implementing Hydra sources, telemetry protocols, cached health, or connection ownership.
 Its independent example shares the public reading projection and captures that module in signed acceptance bundles.
 Read [the Quota contract](QUOTA_PLUGIN_CONTRACT.md) when implementing a Main Quota replacement through declared capabilities.
 Its independent example implements request ownership and Open DeskOS Data projection without Shell module imports.

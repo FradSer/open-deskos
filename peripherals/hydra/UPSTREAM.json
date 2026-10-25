@@ -1,0 +1,648 @@
+{
+  "repository": "https://github.com/FradSer/hydra-m5stack",
+  "revision": "a8fd6b2cae8f8241454700a72d742630fc6bdc29",
+  "license": "MIT",
+  "import": "firmware/src,test,features,boards,partitions,platformio.ini,.clang-format; LICENSE",
+  "excludes": [
+    "docker",
+    "iOS",
+    "private configuration",
+    "build artifacts",
+    "keys",
+    "duplicate upstream backup src/idf_component.yml.orig"
+  ],
+  "sourceFiles": {
+    "src/idf_component.yml": {
+      "sha256": "0c81f051a95fae36dc740fd13a568e206e09287b75cfc3c4d40e0eca19fda8cf",
+      "size": 29
+    },
+    "src/sub_node/main.cpp": {
+      "sha256": "7374d4c6603848e3966f02dd037c5c41f6ac39bf123b003af0630404b3b1d06b",
+      "size": 2520
+    },
+    "src/main_node/config.h": {
+      "sha256": "bcc24c5368334e64ae533fc7096b213ce5b0b42e5885629a4a01cfb3cb2e31fd",
+      "size": 4454
+    },
+    "src/main_node/main.cpp": {
+      "sha256": "3740b4880ae5a56c8efa112074fe4b70f99ace37fee0a9ab50bb31d8da4bc372",
+      "size": 4801
+    },
+    "src/bringup/watering_grove_test.cpp": {
+      "sha256": "c857b1f296bd455fbd5026f9028e17b16893710e413fb54944b465eed39e1c10",
+      "size": 1836
+    },
+    "src/shared/ota_transfer.cpp": {
+      "sha256": "b87e9100addcfdd60fe7552d52bc24451537a8992c5d4a65ca33bc6939459305",
+      "size": 2511
+    },
+    "src/shared/config.h": {
+      "sha256": "6241e19e4baaf09b9b8882d0721fae424d8c2dbbed124e712406250608bc0330",
+      "size": 1787
+    },
+    "src/shared/ota_writer.h": {
+      "sha256": "4aede921fefd96b24f6514e2c809e3329c794787c7c22d23426e9a513023e0aa",
+      "size": 552
+    },
+    "src/shared/preferences_store.cpp": {
+      "sha256": "6877fa30a6bf3a8a7dd9175476ad1d55f3fbfcd7ab3b80a7c7359dabf24b7f31",
+      "size": 1429
+    },
+    "src/shared/esp_now_transport.h": {
+      "sha256": "8f79dc87d5305ec9452021873b07b662008e4a08af0aa9f76659b73798587b89",
+      "size": 3065
+    },
+    "src/shared/esp_now_transport.cpp": {
+      "sha256": "39edb0e554b10dfb0f07061cbfb5a27be38a26ca3c587518dd5e94c48dfd3211",
+      "size": 3548
+    },
+    "src/shared/preferences_store.h": {
+      "sha256": "702097f74b779fd36457df932463ca8aed83a67b8ab8e700b34e2e4aa7ecb9ca",
+      "size": 1044
+    },
+    "src/shared/ota_transfer.h": {
+      "sha256": "71be29850032d26a7b1f228e64ec568f760d71cbd593e8f86c923e28efee778b",
+      "size": 3221
+    },
+    "src/shared/ota_writer.cpp": {
+      "sha256": "93ff08c09d9cdb6a4a92d865a3a9daf9d2ab5c6af6825db513181ca38e20a540",
+      "size": 3544
+    },
+    "src/domain/pairing_feedback.h": {
+      "sha256": "639d94e39c5db71e9883aee055a914114cc3fda983288d60cc9ce040ee1a0f9a",
+      "size": 1743
+    },
+    "src/domain/i_watering_zone.h": {
+      "sha256": "e94d7f73bd41365c0ffa3f7c578d86802e42c09d1ba6040158540078ccc29273",
+      "size": 504
+    },
+    "src/domain/pump_status.h": {
+      "sha256": "5439141b6460d002274367b72c4a2faf5ff8210cdd062bbaf517b15706886e4f",
+      "size": 2169
+    },
+    "src/domain/channel_scan.h": {
+      "sha256": "4df5a1140b8c62c6e2e315cbb121f8012c2d74932ccaa2099725fd6bbf0b342e",
+      "size": 3577
+    },
+    "src/domain/irrigation_policy.h": {
+      "sha256": "f36306f0218490a44509d9cfb3db6ae56f726fd0ba60f0d7cee0b7433edeeadc",
+      "size": 20889
+    },
+    "src/domain/fleet_codec.h": {
+      "sha256": "d62275c9b060112cc25f9d1a817dc625b2248baaabe8be25ae9411f57358a3b2",
+      "size": 9640
+    },
+    "src/domain/button_guard.h": {
+      "sha256": "8bd72460403472882b42c9edf600d68e91dbe7472bf86f99a0688a83d0025492",
+      "size": 950
+    },
+    "src/domain/fleet_view.h": {
+      "sha256": "870be7a34f02a24f283eb9c767d3ceb444054e43e552fe3144efd396ff2810e3",
+      "size": 3365
+    },
+    "src/domain/ota_session.h": {
+      "sha256": "72238793d583b73d68ac773c910351ef1e8c9d3d850a4f2edda166337dcdb9ba",
+      "size": 634
+    },
+    "src/domain/fleet_message.h": {
+      "sha256": "248686de64c2b1655d652d229fec8fa3e3cdbe47c8b3c1315d0cea19127a6c64",
+      "size": 10421
+    },
+    "src/domain/node_status.h": {
+      "sha256": "45102880d5dcad563509c179d9c824e9a690d77276f0652d3607bdd305e1f244",
+      "size": 1324
+    },
+    "src/domain/env_metrics.h": {
+      "sha256": "1709d5e6e88a68413e5bba696b5de30884a9e8a4f1e2ea6c6f5233142f41c28a",
+      "size": 1744
+    },
+    "src/domain/i_clock.h": {
+      "sha256": "556016a1afb4de611c124f97c2e815dcb1b5af143bcfadb4543a946f45951ca5",
+      "size": 513
+    },
+    "src/domain/timetable.h": {
+      "sha256": "e32cc8216097f72568fbb32c69657f700fca0fd5199d42d446f05eaa08a485e9",
+      "size": 5896
+    },
+    "src/domain/vpd.h": {
+      "sha256": "fc27bd59e675628798a5b351cd2ea99450a074ed25a141e232a6467c5387e70f",
+      "size": 1252
+    },
+    "src/domain/plan.h": {
+      "sha256": "c6dcd96a5e0ba321b7e8f2c4fe401a62bea52ef11c80e668089761c4fe7cd684",
+      "size": 1446
+    },
+    "src/domain/env_reading.h": {
+      "sha256": "10a2f95e3e99d1f5b0f975fb3c73818a0c527a3775d9050e1aa7e766f1d9151c",
+      "size": 583
+    },
+    "src/domain/soil_history.h": {
+      "sha256": "243f43097aeab7e5f9f23d2c606dff6bfab35addb7d57cd58f95c9e4d156a02c",
+      "size": 2343
+    },
+    "src/domain/i_env_sensor.h": {
+      "sha256": "e6b0aaaeefc6fe98e73400d46770b4e5883b2fffb6e1c8980a8989bd0c89741f",
+      "size": 323
+    },
+    "src/domain/soil_reading.h": {
+      "sha256": "2ad12355bc8e5d3510c5eb0875196649d71a6466227301b2b3ded876376ea1e6",
+      "size": 251
+    },
+    "src/main_node/app/status_style.h": {
+      "sha256": "33d6440824cbdcbbe9387289dafb9ec914b75d50f2f8581e58c2b5cc07d39e44",
+      "size": 945
+    },
+    "src/main_node/app/nas_url.h": {
+      "sha256": "5643a9f05bd493da56c442bf1b68a54aa98daf0e6d3328b4fcd130752cf850fc",
+      "size": 1999
+    },
+    "src/main_node/app/main_display.cpp": {
+      "sha256": "4b8f1b5c0cf9de9cffae057d4ca89a847b584b8f02a565f929119158a4e37a5b",
+      "size": 10988
+    },
+    "src/main_node/app/main_display_model.h": {
+      "sha256": "f705872c5bf61512b80a9db2d01857b3a59586cc1b98847c82ca208a447c4486",
+      "size": 5688
+    },
+    "src/main_node/app/main_display.h": {
+      "sha256": "17af7e26475d89b905c127adef0799c10e39d3c430f57fb5eda1bc73f9a8f6ee",
+      "size": 1689
+    },
+    "src/main_node/app/main_runtime.h": {
+      "sha256": "3a7e71caf2246196d3e8ec109888d2c691bd4f66f293d9e5a04b04af5d0a51c8",
+      "size": 7052
+    },
+    "src/main_node/app/main_runtime.cpp": {
+      "sha256": "633b51e9a64ae2649daebdab9bfb4284d08329a953621d23f9bb78351857a04c",
+      "size": 20067
+    },
+    "src/main_node/app/fleet_roster.h": {
+      "sha256": "ca2401279924ec62fbece17be331fb2ba356e0b84e9443782d161fc57255553d",
+      "size": 4454
+    },
+    "src/main_node/app/mqtt_bridge.h": {
+      "sha256": "1b4e16f641935ad6d2b4c4ad7517162e435267757e96db841e63c78714aac44f",
+      "size": 28547
+    },
+    "src/main_node/app/ota.h": {
+      "sha256": "c0d625057656e03b7919a8129ed5b8d2dad61724cd9888e64c259f02bc5d6e6f",
+      "size": 4526
+    },
+    "src/main_node/app/provisioning.h": {
+      "sha256": "e58ed1e140cfc4050f85260537cfda715084bd9535a878bf508ba2fa4a27416a",
+      "size": 1274
+    },
+    "src/main_node/app/link_recovery.h": {
+      "sha256": "2ae7dd140b10b1837d428662e919ab5ddae6178ac8361bfa17f35467451b54e0",
+      "size": 1884
+    },
+    "src/main_node/hal/fleet_store.cpp": {
+      "sha256": "1cd7fc462f28d58188b27f82cef5ade12ab1986a4634a96a314b3c65615247d7",
+      "size": 796
+    },
+    "src/main_node/hal/pahub.cpp": {
+      "sha256": "99ffae70ef3f57bebbf7b66eaafaa9a4afedaa26e4969a2e359418b2dc7c75ed",
+      "size": 446
+    },
+    "src/main_node/hal/mqtt_link.cpp": {
+      "sha256": "a7e73f9512e51cd6dfd8e20e598a19f984799e5fac504625f9cbdc607fbb1578",
+      "size": 5904
+    },
+    "src/main_node/hal/env_iii_sensor.cpp": {
+      "sha256": "4b6a7e7f21a46cc95adbe83b04d756e3b8a149aac5615ce8e991fde77e22b253",
+      "size": 894
+    },
+    "src/main_node/hal/pahub.h": {
+      "sha256": "5332d9100bc80a3b03c6c32d53202e72a39cd55412f4bfdc4806ebf71389ac57",
+      "size": 607
+    },
+    "src/main_node/hal/fleet_store.h": {
+      "sha256": "23eb8f43ce2c33fddb73c169107b812d6d70ce5a68a3647ec4ab74babed918be",
+      "size": 478
+    },
+    "src/main_node/hal/main_clock.cpp": {
+      "sha256": "dcaff3560d90a8258cbed79d7dbd4e88a26bd811c16bce196e183ebc42463a48",
+      "size": 2732
+    },
+    "src/main_node/hal/composite_env_sensor.cpp": {
+      "sha256": "3a6981b8d057f6a63f3bf12ff06282f749d3fc20970c55f29ea766b4d013a977",
+      "size": 780
+    },
+    "src/main_node/hal/main_clock.h": {
+      "sha256": "51aeca949e2f627423c584f558a7531ff792627b6d971b644aec44dbe2e049c6",
+      "size": 3159
+    },
+    "src/main_node/hal/ota_store.h": {
+      "sha256": "7390ebaf0a2aaf60dc9a0369dd1f1b0e6f26430aa69f76e737db23ca9dd75afa",
+      "size": 979
+    },
+    "src/main_node/hal/mqtt_link.h": {
+      "sha256": "05a5637c08fb0f261a93d3d49bfb8a9777d257fd54f62fd9ed6249bcba499f06",
+      "size": 2201
+    },
+    "src/main_node/hal/bh1750_sensor.cpp": {
+      "sha256": "197cfbf678a6560f766d26ca0b1ec4ac8afee88b1ac6fa91e6eaf8c9b53b6ed7",
+      "size": 819
+    },
+    "src/main_node/hal/ota_updater.h": {
+      "sha256": "f68ed013a8c2778d9133204c4900674b47532e33124d5b4463f8e4b01f559a1f",
+      "size": 404
+    },
+    "src/main_node/hal/wifi_portal.cpp": {
+      "sha256": "29f86a33577f7dea5125333efda6dc4411605d3b70ce76731413f10b9df4cb50",
+      "size": 1306
+    },
+    "src/main_node/hal/composite_env_sensor.h": {
+      "sha256": "014614d0407d3815cf760c21767ed1f0d940bd12a906fffe2a0047e5fed4139a",
+      "size": 736
+    },
+    "src/main_node/hal/bh1750_sensor.h": {
+      "sha256": "83aa057d0e7b37755b4aaf62b264c3d08075dc2b48c339d2da1d247fb2f6652c",
+      "size": 717
+    },
+    "src/main_node/hal/env_iii_sensor.h": {
+      "sha256": "d7ed40af1835448fe179d0c424a46b6a9c391ca3b659cfc0518b1175e66e2ccc",
+      "size": 629
+    },
+    "src/main_node/hal/wifi_portal.h": {
+      "sha256": "7fdbe624d5ff374607cca0019e4bdb2cced24bfd8e842b021befd3f4e408bea7",
+      "size": 922
+    },
+    "src/main_node/hal/ota_store.cpp": {
+      "sha256": "bf7edc9a1ac26c5dcd6a3ace97910bcb6ac6183c28c5938dd55ffc3c9ca19622",
+      "size": 818
+    },
+    "src/main_node/hal/ota_updater.cpp": {
+      "sha256": "2fb39667c61be4ea98f772776b5308358969bd8f8f7c0303c07342a6aecefe92",
+      "size": 320
+    },
+    "src/main_node/hal/provisioning_store.cpp": {
+      "sha256": "cc54239373cfaa9f878a372618490f3c46758bc87b9ad0394a4faae16a45ee4e",
+      "size": 557
+    },
+    "src/main_node/hal/provisioning_store.h": {
+      "sha256": "aa36d74a3e9c13f59a0d5fe9eb4ef0c1d7e7b21dbe1a30ae9e8c6bf61c6e3a87",
+      "size": 458
+    },
+    "src/sub_node/app/timetable_executor.h": {
+      "sha256": "cf44e2fedac896fecc2e49ca1b014ba346228d47af8a766a530d5ef33e9c337d",
+      "size": 7954
+    },
+    "src/sub_node/app/sub_runtime.cpp": {
+      "sha256": "a8863496e1c1f3216c37a95c2c5a4ae7dbec47d732eeee9498803b03bd1bb9de",
+      "size": 13049
+    },
+    "src/sub_node/app/sub_runtime_config.h": {
+      "sha256": "7075553ffbe88c135a590bf641b833b01121e8dc936af52581561ab647a8e9b0",
+      "size": 571
+    },
+    "src/sub_node/app/irrigation_controller.cpp": {
+      "sha256": "b657ea2c55b641846a8401e53940ae41cdaba50e8efda11cf487fb4ebbca2c9e",
+      "size": 17829
+    },
+    "src/sub_node/app/irrigation_controller.h": {
+      "sha256": "1183f4fdd011bfa0b3ef5d98e2dc09c02e8ca43967dd910a53a4f57fc124e960",
+      "size": 5945
+    },
+    "src/sub_node/app/irrigation_config.h": {
+      "sha256": "c9908f1c8db5249cf0fdefd5cfbb1921c31a7fd1b10112738c5fd606a529a08b",
+      "size": 3325
+    },
+    "src/sub_node/app/sub_runtime.h": {
+      "sha256": "77b644a5b8e1f4e7da92630a0ff3c953d945c17880317d7c2e3c26763704f1e1",
+      "size": 3393
+    },
+    "src/sub_node/hal/wifi_creds.h": {
+      "sha256": "a8981c8fd8a6facfb775a5f01e2813daab6b527c9fd7b499ddd84b63d5c0c8d8",
+      "size": 1097
+    },
+    "src/sub_node/hal/wifi_creds.cpp": {
+      "sha256": "2f40a7091daa18dccf174712ea03f882a7c75a270733cdfa3931bc86fe34740c",
+      "size": 1405
+    },
+    "src/sub_node/hal/gpio_watering_zone.cpp": {
+      "sha256": "20bfe2f1092257d0ff0aeaa8a2688c818d3264b840634170b98a41866b3aac93",
+      "size": 3933
+    },
+    "src/sub_node/hal/gpio_watering_zone.h": {
+      "sha256": "866278b87d01e294482d489939df92c61b78507887667e167c5c72391f52b849",
+      "size": 1627
+    },
+    "src/sub_node/hal/ota_store.h": {
+      "sha256": "eeb48c4a9d5d6f5468a3c4b53c31133e01e7663c468a0d6fd01986e755d3e927",
+      "size": 983
+    },
+    "src/sub_node/hal/wire_clock.h": {
+      "sha256": "7c01304e4f0fc4fe0ab871495b83520c1dc4d1dcb05ac2f6e38960e58b5733ab",
+      "size": 1947
+    },
+    "src/sub_node/hal/node_identity.h": {
+      "sha256": "3a7569fc3c56431d8cbb6a55b5ebd38ca6df21e63702f15d3e41ffe00f5369a2",
+      "size": 604
+    },
+    "src/sub_node/hal/node_identity.cpp": {
+      "sha256": "30788ec5fc359ec3c6b7064a645f3e1cd184fc5e2c3e74da2894de04eec1c053",
+      "size": 820
+    },
+    "src/sub_node/hal/watering_zone_config.h": {
+      "sha256": "1819234b3aee90810a7a3bba224156026422bec532064d25c9077170227f1f30",
+      "size": 433
+    },
+    "src/sub_node/hal/ota_store.cpp": {
+      "sha256": "67f710c2651227d3bcf3882ba98117d04184101636cb522835ae436a71677fe6",
+      "size": 795
+    },
+    "test/test_main_clock/test_main.cpp": {
+      "sha256": "e0d463df3e4f8acdd6bfa26285a49424fbf52899f1846c8fa3e525f03dcce10b",
+      "size": 3710
+    },
+    "test/test_ota_command/test_main.cpp": {
+      "sha256": "8ce01c88afe035b0760e1a5624d275121153be07fdf443ec540bb8638f813424",
+      "size": 6708
+    },
+    "test/test_ota_announce/test_main.cpp": {
+      "sha256": "9de963af2f0c11c8c2905437e28cf3ddd9f6cf80a4d63086a67d0c5fa925df11",
+      "size": 2804
+    },
+    "test/test_main_display_model/test_main.cpp": {
+      "sha256": "c7c30bcf3539237a6bad95e5ca1188cb7792a7dc02b7aec65491f773e68b11c9",
+      "size": 6339
+    },
+    "test/test_soil_history/test_main.cpp": {
+      "sha256": "92f201b7629828b2054c05325e7f02dcdf3e050a1bfe36ae921c3aae7b24d269",
+      "size": 3418
+    },
+    "test/test_env_metrics/test_main.cpp": {
+      "sha256": "0baf18afdf6d8e532d146ebbdcc1d47023bce95fe512e2a963b3c5f2063640d5",
+      "size": 2066
+    },
+    "test/test_ota_session/test_main.cpp": {
+      "sha256": "cba3691972a4269ccba07278d229997fd56b8964fd9da742c9d8dae44ed541af",
+      "size": 1335
+    },
+    "test/test_pump_status/test_main.cpp": {
+      "sha256": "7e936277010163dcf3fad25d26150b45afb0528674d5720335b7496ab04cd290",
+      "size": 3192
+    },
+    "test/test_ota_transfer/test_main.cpp": {
+      "sha256": "20cbe3d14f834a78adf914b7575a0d1f787ce5b1d3b3f7d7f622d039934bcd73",
+      "size": 2718
+    },
+    "test/test_main_runtime/test_main.cpp": {
+      "sha256": "6ba8de974fd18d75722c7ffd81207d1ba7e30eda02d0ef233a4c0f324a3a9150",
+      "size": 3005
+    },
+    "test/test_channel_scan/test_main.cpp": {
+      "sha256": "1a3cf2010f062eaf3aeaccfd2e0e9a7e5b81d695fe2ac13a3e67717b5c39082a",
+      "size": 3787
+    },
+    "test/test_timetable_executor/test_main.cpp": {
+      "sha256": "060599146763060deda3e10e3166e1b5bc96b1adf16d702f0a68e73eafb35e41",
+      "size": 21810
+    },
+    "test/test_sub_runtime/test_main.cpp": {
+      "sha256": "cfddd7b83fcc5ba06e1529b0b5fc42dd7a472bb77e5dd314e3fd283c47be7d0f",
+      "size": 2422
+    },
+    "test/test_pairing_feedback/test_main.cpp": {
+      "sha256": "1d1632e12e5f9d763e4dd5023262e356a429aa42355fae9c7ffee59ef8fdad55",
+      "size": 2117
+    },
+    "test/test_button_guard/test_main.cpp": {
+      "sha256": "bf446f338e7c072728799eef59b81d7500a512e124a32e4c2c68a454ad4aeff3",
+      "size": 1517
+    },
+    "test/test_fleet_view/test_main.cpp": {
+      "sha256": "6b6864e82cc8e5e3c764bfdf468941114820ce28a30ebf724d82d9e9323134fd",
+      "size": 4735
+    },
+    "test/test_fleet_roster/test_main.cpp": {
+      "sha256": "1f090bbe51a24b5c0fc6fef5e878e0fe2bccb239c2256e9706989df62dc55fe1",
+      "size": 6475
+    },
+    "test/test_link_recovery/test_main.cpp": {
+      "sha256": "bc7f2e579f10376e20fc3b283f234dc09ed540dc01c8ec03ea1476fa34550679",
+      "size": 3004
+    },
+    "test/test_mqtt_bridge/test_main.cpp": {
+      "sha256": "564fa171033dce5597f4b65fd967a0c470883c37737ec56d6330fe4150923537",
+      "size": 40067
+    },
+    "test/test_policy/test_main.cpp": {
+      "sha256": "e2f6d0697b34689fe2914a917f31d337fb499eb28b766539dcd927ecccc0b87f",
+      "size": 36046
+    },
+    "test/test_fleet_codec/test_main.cpp": {
+      "sha256": "84f68098ed7450c225574cc842cff2d40156acf5c7ea0f8b1f9b0cf1c4ed8baf",
+      "size": 15015
+    },
+    "test/test_provisioning/test_main.cpp": {
+      "sha256": "be737d2bc33cb708fb66109bb69569c780cc437f115b97f1e99ffb2697f8b11d",
+      "size": 1851
+    },
+    "test/test_irrigation_controller/test_main.cpp": {
+      "sha256": "86d37ea3eaa9832ca98a4e6677d267e351fa4439343d97c9a26b463a44c1a74e",
+      "size": 32144
+    },
+    "test/test_nas_url/test_main.cpp": {
+      "sha256": "d61b352c094627805f9e1e1cc5998276b15ce32710026e2da32002318644f956",
+      "size": 1793
+    },
+    "test/test_wire_clock/test_main.cpp": {
+      "sha256": "540f7924356ae810f6bbd5015e2db0b50920db908784aa51feaa724a4addbf1f",
+      "size": 2424
+    },
+    "features/wifi_provisioning.feature": {
+      "sha256": "e92b648d03d57ab047d5818401524b9f5d33c8f33307a38cb71463243e2ad7b1",
+      "size": 2108
+    },
+    "features/env_metrics.feature": {
+      "sha256": "673fd3deede1c6d169857733c4fe09db674e6eadee030a734b61b0a93eb08c25",
+      "size": 2395
+    },
+    "features/homekit_mqtt.feature": {
+      "sha256": "fb629df499899ae6a2fd786243f48aa73ef3eb7a62fd456017b522829efdccff",
+      "size": 11389
+    },
+    "features/fleet_channel.feature": {
+      "sha256": "2d5f788939d12cb44fd6cdbb2fbeb73025da56187759db32f8a4d0659ef76836",
+      "size": 2198
+    },
+    "features/sub_node_runtime.feature": {
+      "sha256": "e3fa84901202ec1f9b9256b0d893958eed139fa5008626c9b60672fcc799ebca",
+      "size": 2571
+    },
+    "features/settings_menu.feature": {
+      "sha256": "27c3f877499e428f134200acc23ec2d7dfa17b9dfd82d5f2013abbe30b7e4267",
+      "size": 2030
+    },
+    "features/soil_history.feature": {
+      "sha256": "78d44d220e1ace1fe31a63fcc9fc19539ca4dfb2a9096c85c577018f9823174d",
+      "size": 2012
+    },
+    "features/fleet_status.feature": {
+      "sha256": "006c3ee987f8a77dbe373da3c8d5becccbc7c5908121d48ced10a31c26c534f5",
+      "size": 4547
+    },
+    "features/fleet_message.feature": {
+      "sha256": "11ada19e529c265f0ef4381fd1458f7214399aaac9c29e069ccf1ad8da389a2e",
+      "size": 9678
+    },
+    "features/main_node_time.feature": {
+      "sha256": "959ee53499f89315130e22336ace4927a6d7c07cb4c2a67777a623364c6340d1",
+      "size": 2145
+    },
+    "features/main_node_display.feature": {
+      "sha256": "b9757241d9bd5cb28d87ab4bf70ca2564e3c772cc6fd640c73a284bcceb439a2",
+      "size": 2806
+    },
+    "features/main_node_ota.feature": {
+      "sha256": "9f349f73fec2c4b5a2fbde4a69ad90dc6d6325a5138a9aa86c9941c561ab9ed2",
+      "size": 3082
+    },
+    "features/fleet_pairing.feature": {
+      "sha256": "b1c33ddad3ee11a1feb3f65602b9df3584aceaf390fbfbbe2bf1d63813993976",
+      "size": 4716
+    },
+    "features/ota_announce.feature": {
+      "sha256": "9afd3117e2aea748e26c4f0f70cd223abfca81f0a3bacbacd5fd08f80f98efa0",
+      "size": 2682
+    },
+    "features/light_sensor.feature": {
+      "sha256": "3e28c020685671db9039ba601fb321e0a24bcc64f7a03af6944b935dc5b2bb05",
+      "size": 1042
+    },
+    "features/irrigation.feature": {
+      "sha256": "9d132ef9d7d53c80403c0818bf3eeecb3a91b55eacee9e38ff30b2594ab5d50e",
+      "size": 25984
+    },
+    "features/main_node_runtime.feature": {
+      "sha256": "e3396870794b2293b8432f0c0739c4c62d4f37b0696b829a82edc27070a1446d",
+      "size": 3020
+    },
+    "features/timetable.feature": {
+      "sha256": "e37b3e3f218bb66b54c394db96fa3721f8deebae0f0d8aacecb9e6fc147165bf",
+      "size": 10185
+    },
+    "boards/m5stick-c.json": {
+      "sha256": "c666388eedad60f6ddaba4016b4e45bdd0586b31691124fc250f964890da4691",
+      "size": 677
+    },
+    "boards/M5NanoC6.json": {
+      "sha256": "067e4ce200d3d169f2f69c54bc4224b92fa53d95b100e7e28dd098023c9d8634",
+      "size": 740
+    },
+    "partitions/hydra_ota.csv": {
+      "sha256": "638fc57521471daf73cba0c98e8c8893ee87eb518b830737b9cb22e22d36763b",
+      "size": 587
+    },
+    "platformio.ini": {
+      "sha256": "b58799deed1810ddec4805bc8209e0eda3b50497590e244ff166842afe8c85c2",
+      "size": 2043
+    },
+    ".clang-format": {
+      "sha256": "5ca5ae850464c05a0f44458792fe0c7a5ca2d5723c78af59327af21ce6c42c18",
+      "size": 204
+    },
+    "LICENSE": {
+      "sha256": "f2d395098e3c1bbe573524ace86a29098ab3018eb8029778585a7bbe482e64c6",
+      "size": 1065
+    }
+  },
+  "buildDependencies": {
+    "platform": {
+      "repository": "https://github.com/pioarduino/platform-espressif32",
+      "revision": "dc84ada571d08cbecfd74e026fa2d83f31bb5945",
+      "installedSourceComparison": "666 archive files compared; platform.json differs only in the explicit local framework package override"
+    },
+    "arduinoFramework": {
+      "repository": "https://github.com/espressif/arduino-esp32",
+      "revision": "e7c1e8cd47bcaf02da3a00d81b886d057d93c7d9",
+      "version": "3.3.11"
+    },
+    "libraries": {
+      "M5NanoC6": "7cf509694316c9acb41e98658fb0ddb8ab6db790",
+      "Adafruit NeoPixel": "1.15.5",
+      "M5Unified": "0.2.17",
+      "M5Unit-ENV": "1.5.0",
+      "PubSubClient": "2.8.0",
+      "WiFiManager": "2.0.17"
+    },
+    "resolvedLibraryCaches": {
+      "main-node": {
+        "BME68x Sensor library": {
+          "version": "1.3.40408",
+          "files": 21,
+          "treeSha256": "a0ad2cc4f32c33ad32247c3468c52309012e54357a187dac07bd5295c3c2f96b"
+        },
+        "M5GFX": {
+          "version": "0.2.24",
+          "files": 275,
+          "treeSha256": "d3c7c4373ada7fad50cd2ab107c20910af9c1d52dcbadb3e7b858db7be307f29"
+        },
+        "M5HAL": {
+          "version": "0.1.2",
+          "files": 37,
+          "treeSha256": "12d534f0f5ab58df6c3abfdc19614937e759231cfd80c14b248c9cae909bcc0e"
+        },
+        "M5Unified": {
+          "version": "0.2.17",
+          "files": 109,
+          "treeSha256": "ad895b5e4ac33861de55613b33fbed26654d178dc3e74c11da7e5be8a9519bbd"
+        },
+        "M5Unit-ENV": {
+          "version": "1.5.0",
+          "files": 186,
+          "treeSha256": "d387430d8fbbd96066c8d9d2d2fac15e184afb962be4b0ed0aa141d3c6a33d8b"
+        },
+        "M5UnitUnified": {
+          "version": "0.5.5",
+          "files": 50,
+          "treeSha256": "6e4a16d0ba2addca0e1ca8d1fda09f74754f0a8c43d631e16e3e74b313462138"
+        },
+        "M5Utility": {
+          "version": "0.1.0",
+          "files": 97,
+          "treeSha256": "08e5cb3aaa89c6f8e51ea970bfc7c00a46ec7ee7659613a420403b94e9710f51"
+        },
+        "PubSubClient": {
+          "version": "2.8",
+          "files": 15,
+          "treeSha256": "267044fab25fc559e1840c4999da81d217025ffcd0af64d38061ef3907b48bd8"
+        },
+        "Unity": {
+          "version": "2.6.1",
+          "files": 78,
+          "treeSha256": "2528698f9318d1577481d56c0b434cb306dd8ef53b7a00577268701bb3362ddf"
+        },
+        "WiFiManager": {
+          "version": "2.0.17",
+          "files": 31,
+          "treeSha256": "05b04112172e0aa505812dd1aabf06b12a71790e6bbddff357a4345bae56e528"
+        },
+        "bsec2": {
+          "version": "1.10.2610",
+          "files": 116,
+          "treeSha256": "5c51502797d90b5628bc308d7100e73c82fd0bf6d708c16c32132f30e744adbe"
+        }
+      },
+      "sub-node": {
+        "Adafruit NeoPixel": {
+          "version": "1.15.5",
+          "files": 28,
+          "treeSha256": "5393751674b84512dc147d7d137e51a32477ba41ffd2f6451fc2ea81d3cc8796"
+        },
+        "M5NanoC6": {
+          "version": "1.0.0",
+          "files": 12,
+          "treeSha256": "5f1d9968cf7e1f13d8301e464f7b99d96bb0f01f5b9e92356771316cdf764a41"
+        },
+        "Unity": {
+          "version": "2.6.1",
+          "files": 78,
+          "treeSha256": "2528698f9318d1577481d56c0b434cb306dd8ef53b7a00577268701bb3362ddf"
+        }
+      }
+    }
+  }
+}

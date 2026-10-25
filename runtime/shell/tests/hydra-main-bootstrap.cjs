@@ -39,6 +39,16 @@ sourceModule.createHydraSource = options => {
   assert.ok(!signed || runtime, 'Signed startup must not construct default Hydra outside runtime restoration')
   return defaultCreate(options)
 }
+// Keep this MQTT reference fixture's prior dependency graph as well as its
+// explicit legacy factory. It does not certify production's ESP-NOW default.
+const composition = require('../src/plugins/main-composition')
+const compose = composition.createMainPlugins
+composition.createMainPlugins = options => {
+  const legacyGraph = definitions => definitions.map(definition => definition.manifest.id === 'odk.source.hydra' && definition.manifest.version === '1.0.0'
+    ? { ...definition, manifest: { ...definition.manifest, requires: definition.manifest.requires.filter(port => port.interface !== 'odk:source/device-gateway/v1') } }
+    : definition)
+  return legacyGraph(compose({ ...options, onDefaults: definitions => options?.onDefaults?.(legacyGraph(definitions)) }))
+}
 const updates = new EventEmitter()
 const hostModule = require('../src/plugin-host')
 const createHost = hostModule.createPluginHost
@@ -47,6 +57,9 @@ hostModule.createPluginHost = options => {
   if (options?.capabilities?.['source.hydra']) {
     const capability = options.capabilities['source.hydra']
     assert.equal(capability.connect, sourceModule.connectHydraMqtt)
+    // This loopback MQTT fixture explicitly selects the retained legacy factory.
+    // Production default Hydra uses Bridge and never falls back to this path.
+    delete capability.createDefault
     const notify = capability.options.onUpdate
     capability.options = { ...capability.options, now: () => 1700000000000,
       onUpdate() { notify(); updates.emit('update') } }

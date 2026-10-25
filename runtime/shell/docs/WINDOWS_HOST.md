@@ -190,7 +190,7 @@ Display state is under `%LOCALAPPDATA%\odk`. The central Personal Agent owns its
 
 - Keep Personal Agent model and transcription credentials on CM5, outside Shell settings and command lines.
 - `WEREAD_API_KEY` is the operator-provisioned WeRead credential. Historical handheld acceptance used the same authorized credential as CM5 and produced a live cache.
-- `ODK_HYDRA_MQTT_URL` declares the local MQTT endpoint. Provision authentication separately if the broker requires it.
+- Hydra uses the [shared ESP-NOW Bridge](HYDRA_ESPNOW.md) by default. `ODK_HYDRA_MQTT_URL` applies only to explicitly selected legacy sources.
 - Fixed weather coordinates disable third-party location lookup. An unconfigured mobile desk uses device location.
 - CLIProxyAPI uses this host's forwarding-only SSH identity/tunnel and management key file.
 - Open DeskOS Link and SSH collection use this host's own credentials. Do not copy a reference-host control token to a report-only desk.

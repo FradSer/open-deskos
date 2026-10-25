@@ -129,6 +129,8 @@ Package reads use the shared cached snapshot. They do not open a device.
 The S3 Remote peer rejects arbitrary package sends.
 Its reserved control packets never become package events.
 Package removal, revision changes, or grant revocation stop further access.
+The [Hydra integration](HYDRA_ESPNOW.md) uses one configured controller peer and the same Bridge facade.
+Devices manages its association while the existing Hydra surfaces display validated readings.
 The package [sandbox](USER_APPLICATIONS.md#runtime-safety-and-limits) remains in effect.
 The existing Declared Data bridge publishes package data; it does not read peripherals or issue device commands.
 Trusted [native plugins](NATIVE_PLUGINS.md) retain their separate trust contract and process authority.

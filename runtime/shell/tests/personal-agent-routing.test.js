@@ -74,6 +74,7 @@ test('Remote MIC requests a Shell decision and main rejects busy or duplicate ca
     // choice rather than a module that silently fails to resolve.
     './panel': { KIOSK_WINDOW_LOCK: {}, enterPanel() {}, resolvePanelBounds: () => null },
     './hydra-mqtt': { createHydraSource: () => ({ snapshot() {} }) },
+    './hydra-espnow': { createHydraEspNowSource: () => ({ snapshot() {} }) },
     './weread-source': { createWeReadSource: () => ({ refresh: async () => {}, snapshot: () => ({ status: 'unconfigured' }) }) },
     './weather-source': { createWeatherSource: () => ({ refresh: async () => ({ status: 'unconfigured' }), snapshot: () => ({ status: 'unconfigured' }) }) },
     './futu-source': { createFutuSource: () => ({ refreshServices: async () => {}, snapshot: () => ({ state: 'unconfigured' }) }), STALE_MS: 60000 },
