@@ -101,7 +101,7 @@ app.whenReady().then(async () => {
   assert.equal(await run(`document.querySelector('.agent-suggestions').closest('.agent-composer') === document.querySelector('.agent-composer') && !document.querySelector('.agent-suggestions').hidden`), true, 'Recommendations stay inside the Personal Agent composer')
   assert.equal(await run(`document.querySelector('.agent-composer textarea').value`), 'Keep this unfinished draft.')
   assert.equal(await run(`!!document.querySelector('.personal-bot-proposal-sources, .personal-bot-ride-details, button[data-proposal-action="view-sources"]')`), false)
-  assert.equal(await run(`document.getElementById('personal-bot-status').getAttribute('aria-modal')`), 'false')
+  assert.equal(await run(`[...document.querySelectorAll('[aria-modal="true"]')].some(node => node.checkVisibility())`), false, 'An inline recommendation must not open any modal surface')
   assert.equal(await run(`!!document.querySelector('.personal-bot-proposals script')`), false)
   assert.equal(commands[0].type, 'proposal_presented')
   await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === '保存检查盆土备忘').click()`)
