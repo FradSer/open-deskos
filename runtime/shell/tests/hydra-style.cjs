@@ -50,8 +50,10 @@ const CELLS = [
   ['below wide width', 479, 300, 'compact'],
   ['below wide height', 480, 299, 'compact'],
   ['reference tall', 348, 724, 'tall'],
-  ['wide reading boundary', 336, 724, 'tall'],
-  ['narrow reading boundary', 332, 724, 'tall'],
+  // Outer Cell width includes 28px padding and the Shell-owned 1px frame on each side.
+  ['wide reading boundary', 338, 724, 'tall'],
+  ['below reading boundary', 337, 724, 'tall'],
+  ['narrow reading boundary', 334, 724, 'tall'],
   ['handheld tall', 186, 400, 'tall'],
   ['short panel tall', 168, 336, 'tall'],
   ['narrow tall floor', 120, 240, 'tall'],
@@ -214,7 +216,10 @@ app.whenReady().then(async () => {
   for (const row of result.cases) {
     const where = JSON.stringify(row)
     assert.deepEqual(row.escaping, [], where)
+    const readingWidth = { 'wide reading boundary': 280, 'below reading boundary': 279, 'narrow reading boundary': 276 }[row.name]
+    if (readingWidth !== undefined) assert.equal(row.contentWidth, readingWidth, where)
     if (row.theme === 'pixel' && row.name === 'wide reading boundary') { assert.equal(row.contentWidth, 280, where); assert.equal(row.environmentFont, 40, where) }
+    if (row.theme === 'pixel' && row.name === 'below reading boundary') { assert.equal(row.contentWidth, 279, where); assert.equal(row.environmentFont, 32, where) }
     if (row.theme === 'pixel' && row.name === 'narrow reading boundary') { assert.equal(row.contentWidth, 276, where); assert.equal(row.environmentFont, 32, where) }
     for (const [index, meter] of row.meters.entries()) {
       assert.equal(meter.layoutWidth, meter.trackWidth, where)
@@ -250,6 +255,7 @@ app.whenReady().then(async () => {
     if (!reportDensity) assert.deepEqual(measured.violations, [], `${row.theme} wide instrument: ${JSON.stringify(measured)}`)
     return { theme: row.theme, ...measured }
   })
+  console.log('HYDRA_READING_BOUNDARY_RESULT ' + JSON.stringify(result.cases.filter(row => row.name.endsWith('reading boundary'))))
   console.log('HYDRA_WIDE_DENSITY ' + JSON.stringify(wideDensity))
   console.log('HYDRA_DENSITY_RESULT ' + JSON.stringify({ ok: wideDensity.every(row => row.violations.length === 0), reportOnly: reportDensity, gate: reportDensity ? 'comparison-only' : 'enforced', findings: wideDensity.filter(row => row.violations.length) }))
   // The declared shapes, at the cells they are drawn for.

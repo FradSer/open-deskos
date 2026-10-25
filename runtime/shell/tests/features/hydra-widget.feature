@@ -315,6 +315,7 @@ Feature: Hydra plant and environment Widget on the Desk page
     And the three-column strip and Pixel reading scale remain unchanged
 
   Scenario: Shared frame changes preserve the reading threshold checks
-    Given the Pixel frame has no layout border
-    When the fixture supplies content lanes of 280 and 276 pixels
-    Then environment readings use 40 and 32 pixels respectively
+    Given each theme has a Shell-owned one-pixel frame and 28-pixel padding on each side
+    When the fixture supplies outer Cell widths of 338, 337, and 334 pixels
+    Then the measured content lanes are 280, 279, and 276 pixels in each theme
+    And Pixel environment readings use 40, 32, and 32 pixels respectively
