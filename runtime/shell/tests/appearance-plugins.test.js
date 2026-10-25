@@ -256,7 +256,7 @@ test('the actual browser scripts preserve first paint, live selection and port d
   let stored
   const window = { localStorage: { getItem: () => stored, setItem: (_key, value) => { stored = value } } }
   const document = { documentElement: { dataset: {} }, hidden: false, addEventListener() {} }
-  const context = vm.createContext({ window, document, structuredClone, AbortController, console })
+  const context = vm.createContext({ window, document, structuredClone, AbortController, CSSStyleSheet: class { replaceSync() {} }, console })
   for (const file of files) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), context)
   assert.equal(window.odkTheme.get(), 'pixel', 'theme must be selected synchronously before body content')
   await window.odkTheme.ready
@@ -281,7 +281,7 @@ test('operator startup disables apply before first paint and preserve the saved 
     const window = { location: { search: '?disabledPlugins=' + encodeURIComponent(disabled) },
       localStorage: { getItem: () => stored, setItem: (_key, value) => { stored = value } } }
     const document = { documentElement: { dataset: {} }, hidden: false, addEventListener() {} }
-    const context = vm.createContext({ window, document, structuredClone, AbortController, URLSearchParams, console })
+    const context = vm.createContext({ window, document, structuredClone, AbortController, URLSearchParams, CSSStyleSheet: class { replaceSync() {} }, console })
     for (const file of ['src/plugin-host.js', 'src/renderer/core/appearance-plugins.js', 'src/renderer/core/theme.js']) {
       vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), context)
     }

@@ -36,11 +36,13 @@
   const activations = new Map()
   const appearanceSheets = new Map()
   function ensureStyles(appearance) {
-    const tokens = plugins.find(plugin => plugin.appearance.theme === appearance?.theme)?.shellTokens
+    // Publish the resolved tokens before data-theme notifies package frames.
+    // A local stylesheet can still be loading when another document switches.
+    const tokens = api.resolveShellTokens(appearance)
     if (tokens && !appearanceSheets.has(appearance.theme)) {
       const sheet = new CSSStyleSheet()
       sheet.replaceSync(`html[data-theme="${appearance.theme}"]{${Object.entries(tokens).map(([key, value]) => `${key}:${value}`).join(';')}}`)
-      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet]
+      document.adoptedStyleSheets = [...(document.adoptedStyleSheets || []), sheet]
       appearanceSheets.set(appearance.theme, sheet)
     }
     if (!appearance?.css || !document.head || document.querySelector(`link[href="${appearance.css}"]`)) return

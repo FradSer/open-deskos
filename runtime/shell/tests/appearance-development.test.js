@@ -125,7 +125,7 @@ test('invalid renderer selections restore packaged themes without applying token
     const window = { location: { search: '?appearanceReplacements=' + encodeURIComponent(selection) },
       localStorage: { getItem: () => 'pixel', setItem() {} } }
     const document = { documentElement: { dataset: {} }, hidden: false, addEventListener() {} }
-    const context = vm.createContext({ window, document, structuredClone, AbortController, URLSearchParams,
+    const context = vm.createContext({ window, document, structuredClone, AbortController, URLSearchParams, CSSStyleSheet: class { replaceSync() {} },
       console: { error: error => errors.push(error) } })
     for (const file of ['src/plugin-host.js', 'src/renderer/core/appearance-plugins.js', 'src/renderer/core/theme.js']) {
       vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), context)

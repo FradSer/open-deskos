@@ -8,6 +8,7 @@ const vm = require('node:vm')
 const run = require('node:util').promisify(require('node:child_process').execFile)
 const { resolveConfigPath } = require('../src/plugin-config')
 const { resolveShellHost } = require('../src/platform')
+const { capturePaintedPage } = require('./helpers/native-page-capture')
 const profile = process.env.ODK_APPEARANCE_PROFILE
 assert.ok(profile && path.isAbsolute(profile), 'Appearance acceptance requires a private parent-owned profile')
 assert.notEqual(process.platform, 'win32', 'Windows management requires private named-pipe isolation')
@@ -17,6 +18,9 @@ app.getAppPath = () => path.resolve(__dirname, '..')
 if (process.platform === 'darwin') app.dock.hide()
 BrowserWindow.prototype.show = function () {}
 const emptyStartup = process.env.ODK_APPEARANCE_EMPTY === '1'
+const holdStylesheet = process.env.ODK_APPEARANCE_HOLD_STYLESHEET === '1'
+const heldRequests = new Set()
+let holdingStylesheet = holdStylesheet
 const rejectPackage = process.env.ODK_APPEARANCE_REJECT_PACKAGE === '1'
 const verifierModule = require('../src/user-app-verifier')
 const createVerifier = verifierModule.createUserAppVerifier
@@ -76,6 +80,14 @@ app.on('browser-window-created', (_event, win) => {
       await win.loadURL('about:blank')
       win.webContents.debugger.attach('1.3')
       await win.webContents.debugger.sendCommand('Page.enable')
+      if (holdStylesheet) {
+        win.webContents.debugger.on('message', (_event, method, params) => {
+          if (method === 'Fetch.requestPaused') heldRequests.add(params.requestId)
+        })
+        await win.webContents.debugger.sendCommand('Fetch.enable', {
+          patterns: [{ urlPattern: '*themes/liquid-glass.css', resourceType: 'Stylesheet', requestStage: 'Response' }],
+        })
+      }
       await win.webContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: `
         const NativeDate = Date;
         const fixtureTime = NativeDate.parse('2026-10-09T12:34:00+08:00');
@@ -140,6 +152,39 @@ app.on('browser-window-created', (_event, win) => {
       const appFrame = win.webContents.mainFrame.frames.find(frame => frame.url.startsWith('odk-user-app://app/counter/'))
       assert.ok(appFrame)
       await appFrame.executeJavaScript('counter.click()')
+      let capturedBaseline = false
+      const evidence = []
+      const evidenceDir = process.env.ODK_APPEARANCE_EVIDENCE_DIR
+      if (evidenceDir) assert.ok(path.isAbsolute(evidenceDir), 'Appearance evidence requires an absolute directory')
+      const settleCapturePage = pageId => js(`(async () => {
+        const page = [...document.querySelectorAll('#pages-track > .page')]
+          .find(node => node.dataset.pageId === ${JSON.stringify(pageId)});
+        if (!page) throw Error('Capture page is absent');
+        const track = document.querySelector('#pages-track');
+        const viewport = document.querySelector('#pages-viewport');
+        const deadline = performance.now() + 4000;
+        let stable = 0;
+        while (stable < 2) {
+          const box = page.getBoundingClientRect();
+          const bounds = viewport.getBoundingClientRect();
+          const moving = track.getAnimations().some(animation =>
+            animation.playState === 'running' || animation.pending);
+          stable = !moving && Math.abs(box.left - bounds.left) < 0.5
+            && Math.abs(box.width - bounds.width) < 0.5 ? stable + 1 : 0;
+          if (performance.now() > deadline) throw Error('Capture pager did not settle');
+          await new Promise(resolve => requestAnimationFrame(resolve));
+        }
+        const box = page.getBoundingClientRect();
+        const bounds = viewport.getBoundingClientRect();
+        const reading = page.querySelector('.year-pct');
+        const readingBox = reading?.getBoundingClientRect();
+        return { pageId: page.dataset.pageId, leftOffset: box.left - bounds.left,
+          pageWidth: box.width, viewportWidth: bounds.width, stableFrames: stable,
+          ...(readingBox ? { fixtureReading: { text: reading.textContent, left: readingBox.left,
+            right: readingBox.right, width: readingBox.width,
+            clipped: readingBox.left < bounds.left || readingBox.right > bounds.right } } : {}) };
+
+      })()`)
       const measure = async () => {
         const results = {}
         for (const theme of ['pixel', 'instrument', 'border-beam', 'liquid-glass']) {
@@ -155,6 +200,14 @@ app.on('browser-window-created', (_event, win) => {
               radius: getComputedStyle(document.documentElement).getPropertyValue('--odk-radius-card').trim() };
           })()`)
           assert.ok(shell.width > 0 && shell.height > 0, JSON.stringify(shell))
+          let shellCapture
+          if (evidenceDir && !capturedBaseline) {
+            shellCapture = await settleCapturePage('home')
+            fs.mkdirSync(evidenceDir, { recursive: true })
+            if (!(holdingStylesheet && theme === 'liquid-glass')) {
+              fs.writeFileSync(path.join(evidenceDir, `${theme}-shell.png`), (await capturePaintedPage(win)).toPNG())
+            }
+          }
           await js(`document.querySelector('#dots .dot[aria-label^="Counter, page "]').click()`)
           const installedApp = await appFrame.executeJavaScript(`(async () => {
             const until = performance.now() + 4000;
@@ -174,6 +227,25 @@ app.on('browser-window-created', (_event, win) => {
           assert.equal(installedApp.confined, true)
           assert.equal(installedApp.preload, 'undefined')
           assert.equal(installedApp.loaded, true)
+          if (holdingStylesheet && theme === 'liquid-glass') {
+            assert.equal(heldRequests.size, 1, 'the theme response must still be held at the color comparison')
+            assert.equal(await js(`Boolean(document.querySelector('link[href="themes/liquid-glass.css"]').sheet)`), false)
+          }
+          if (evidenceDir && !capturedBaseline) {
+            const appCapture = await settleCapturePage('installed:counter')
+            const image = await capturePaintedPage(win)
+            fs.writeFileSync(path.join(evidenceDir, `${theme}-app.png`), image.toPNG())
+            evidence.push({ synthetic: true, emptyStartup, theme, viewport: win.getContentSize(),
+              captures: { shell: { ...shellCapture, phase: holdingStylesheet && theme === 'liquid-glass' ? 'held-css-comparison-only' : 'resolved-theme' },
+                app: { ...appCapture, phase: holdingStylesheet && theme === 'liquid-glass' ? 'held-css-comparison' : 'resolved-theme' } },
+              sources: { clockAndYear: 'Fixture Date fixed to 2026-10-09T12:34:00+08:00',
+                counter: 'Temporary locally installed synthetic package; one programmatic click',
+                serviceReadings: 'Provider, account, remote, camera and resident Bot plugins disabled; private configuration and state',
+                networkIndicator: 'Browser navigator.onLine capability; no account or remote service reading' },
+              heldThemeResponses: heldRequests.size, imagePixels: image.getSize(),
+              rendering: await js('({ deviceScaleFactor: devicePixelRatio, zoom: visualViewport.scale, fonts: document.fonts.status })'), shell, installedApp })
+            fs.writeFileSync(path.join(evidenceDir, 'measurements.json'), JSON.stringify(evidence, null, 2))
+          }
           assert.equal(installedApp.primary, shell.primary)
           assert.equal(installedApp.radius, shell.radius)
           results[theme] = { shell, installedApp }
@@ -182,6 +254,47 @@ app.on('browser-window-created', (_event, win) => {
         return results
       }
       const baseline = await measure()
+      capturedBaseline = true
+      if (holdStylesheet) {
+        const stylesheetLoaded = js(`(async () => {
+          const link = document.querySelector('link[href="themes/liquid-glass.css"]');
+          if (link.sheet) return;
+          await new Promise((resolve, reject) => {
+            const cleanup = () => {
+              clearTimeout(timer);
+              link.removeEventListener('load', loaded);
+              link.removeEventListener('error', failed);
+            };
+            const loaded = () => { cleanup(); resolve(); };
+            const failed = () => { cleanup(); reject(Error('Released theme stylesheet failed to load')); };
+            const timer = setTimeout(() => { cleanup(); reject(Error('Released theme stylesheet did not load')); }, 4000);
+            link.addEventListener('load', loaded, { once: true });
+            link.addEventListener('error', failed, { once: true });
+          });
+        })()`)
+        for (const requestId of heldRequests) await win.webContents.debugger.sendCommand('Fetch.continueResponse', { requestId })
+        await stylesheetLoaded
+        assert.equal(await js(`Boolean(document.querySelector('link[href="themes/liquid-glass.css"]').sheet)`), true)
+        await win.webContents.debugger.sendCommand('Fetch.disable')
+        heldRequests.clear()
+        holdingStylesheet = false
+        if (evidenceDir) {
+          await js(`(async () => {
+            document.querySelector('#dots .dot[aria-label^="Home, page "]').click();
+            await odkTheme.set('liquid-glass');
+            await document.fonts.ready;
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          })()`)
+          const completedShell = await settleCapturePage('home')
+          fs.writeFileSync(path.join(evidenceDir, 'liquid-glass-shell.png'), (await capturePaintedPage(win)).toPNG())
+          const row = evidence.find(entry => entry.theme === 'liquid-glass')
+          row.captures.heldCssShell = row.captures.shell
+          row.captures.shell = { ...completedShell, phase: 'after-stylesheet-load', heldThemeResponses: 0,
+            stylesheetLoaded: true, primary: await js(`getComputedStyle(document.documentElement).getPropertyValue('--odk-primary').trim()`) }
+          fs.writeFileSync(path.join(evidenceDir, 'measurements.json'), JSON.stringify(evidence, null, 2))
+          await js("odkTheme.set('pixel')")
+        }
+      }
       const retained = async () => {
         assert.equal(await js(`document === __retainedDocument &&
           document.querySelector('.sb-time') === __retainedClock &&

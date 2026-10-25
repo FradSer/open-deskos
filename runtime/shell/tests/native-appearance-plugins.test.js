@@ -101,7 +101,7 @@ async function browser(entries, scripts, list) {
       element.onload()
     } } }
   root.document = document
-  const context = vm.createContext({ window: root, document, structuredClone, AbortController, URLSearchParams, setTimeout, clearTimeout,
+  const context = vm.createContext({ window: root, document, structuredClone, AbortController, URLSearchParams, CSSStyleSheet: class { replaceSync() {} }, setTimeout, clearTimeout,
     console: { error() {} } })
   for (const file of ['plugin-host.js', 'renderer/core/appearance-plugins.js', 'renderer/core/development-plugins.js',
     'renderer/core/native-appearance.js', 'renderer/core/theme.js']) vm.runInContext(await fs.readFile(path.join(__dirname, '../src', file), 'utf8'), context)

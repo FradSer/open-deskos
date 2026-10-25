@@ -112,6 +112,13 @@
     }
   }
 
+  // Package cell geometry is not a Shell root token. Share only the semantic
+  // palette, spacing and frame values when applying a selected declaration.
+  function resolveShellTokens(appearance) {
+    if (!appearance) return null
+    return Object.fromEntries(Object.keys(SHARED_TOKENS).map(key => [key, appearance.tokens[key]]))
+  }
+
   function createAppearancePlugins() {
     return Object.entries(THEME_RULES).map(([theme, rule]) => createAppearancePlugin({
       theme, name: { instrument: 'Instrument', pixel: 'Pixel', 'border-beam': 'Border Beam', 'liquid-glass': 'Liquid Glass' }[theme],
@@ -146,7 +153,7 @@
       if (selected.has(manifest.id)) throw Error('duplicate appearance selection')
       const original = createAppearancePlugins().find(plugin => plugin.manifest.id === manifest.id)
       const plugin = createAppearancePlugin({ ...manifest.appearance, tokens: { ...original.appearance.tokens, ...manifest.appearance.tokens } })
-      selected.set(manifest.id, { ...plugin, manifest, shellTokens: { ...manifest.appearance.tokens } })
+      selected.set(manifest.id, { ...plugin, manifest })
     }
     return createAppearancePlugins().map(plugin => selected.get(plugin.manifest.id) || plugin)
   }
@@ -326,5 +333,5 @@
     return candidate
   }
 
-  return { createAppearancePlugin, createAppearancePlugins, createAppearanceHost, validateAppearanceReplacement, selectAppearancePlugins, selectAppearanceFactories, DEFAULT_THEME, SHELL_DEFAULT_THEME, FONTS }
+  return { createAppearancePlugin, resolveShellTokens, createAppearancePlugins, createAppearanceHost, validateAppearanceReplacement, selectAppearancePlugins, selectAppearanceFactories, DEFAULT_THEME, SHELL_DEFAULT_THEME, FONTS }
 })

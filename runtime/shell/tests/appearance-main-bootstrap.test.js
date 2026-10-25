@@ -14,8 +14,8 @@ const { resolveShellHost } = require('../src/platform')
 const appearanceChildTimeout = process.platform === 'linux' && process.arch === 'arm64' ? 100000 : 55000
 const appearanceTestTimeout = process.platform === 'linux' && process.arch === 'arm64' ? 110000 : 65000
 
-for (const { emptyStartup, rejectPackage } of [{ emptyStartup: false, rejectPackage: false },
-  { emptyStartup: true, rejectPackage: false }, { emptyStartup: false, rejectPackage: true }]) {
+for (const { emptyStartup, rejectPackage, heldStylesheet } of [{ emptyStartup: false, rejectPackage: false },
+  { emptyStartup: true, rejectPackage: false, heldStylesheet: true }, { emptyStartup: false, rejectPackage: true }]) {
   test(`production Main Appearance activation preserves installed App context (${emptyStartup ? 'empty' : 'signed'} startup${rejectPackage ? ', rejected package' : ''})`,
     { timeout: appearanceTestTimeout, skip: posixOnlyReason('isolated-native-activation') }, async t => {
       const fixture = path.join(__dirname, 'appearance-main-bootstrap.cjs')
@@ -25,6 +25,7 @@ for (const { emptyStartup, rejectPackage } of [{ emptyStartup: false, rejectPack
         LOCALAPPDATA: path.join(root, 'state'), XDG_RUNTIME_DIR: path.join(root, 'runtime'), ODK_WORKSPACE: path.join(root, 'workspace'),
         ODK_SHELL_KIOSK: '0', ODK_SHELL_WIDTH: '1920', ODK_SHELL_HEIGHT: '1280', ODK_DISABLE_GPU: '1',
         ODK_APPEARANCE_PROFILE: path.join(root, 'profile'), ODK_APPEARANCE_EMPTY: emptyStartup ? '1' : '0',
+        ODK_APPEARANCE_HOLD_STYLESHEET: heldStylesheet ? '1' : '0',
         ODK_APPEARANCE_REJECT_PACKAGE: rejectPackage ? '1' : '0' }
       const enabled = new Set(['odk.system.renderer-development', 'odk.system.renderer-control', 'odk.system.package-catalog',
         'odk.system.user-apps', 'odk.system.data', 'odk.system.app-manager'])
@@ -70,7 +71,7 @@ for (const { emptyStartup, rejectPackage } of [{ emptyStartup: false, rejectPack
         await fs.writeFile(path.join(draft, 'manifest.json'), JSON.stringify({ schemaVersion: 1, id: 'counter', name: 'Counter', version: '1', kind: 'app' }))
         await fs.writeFile(path.join(draft, 'index.html'), rejectPackage
           ? '<!doctype html><html><body>Counter<script>console.error("Controlled Appearance verification rejection")</script></body></html>'
-          : '<!doctype html><html><body><button id="counter">0</button><script>counter.onclick=()=>counter.textContent=Number(counter.textContent)+1</script></body></html>')
+          : '<!doctype html><html><style>body{margin:0;padding:32px;background:var(--odk-bg);color:var(--odk-primary);font:20px var(--odk-font)}button{display:block;margin-top:16px;min-width:80px;min-height:48px;font:inherit;color:inherit;background:var(--odk-surface);border:1px solid var(--odk-stroke);border-radius:var(--odk-radius-card)}</style><body><p>Synthetic Appearance fixture</p><label for="counter">Counter</label><button id="counter">0</button><script>counter.onclick=()=>counter.textContent=Number(counter.textContent)+1</script></body></html>')
         if (!emptyStartup) await execute(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'),
           'native', 'install', env.ODK_APPEARANCE_FIRST, '--trust', '--keyring', env.ODK_NATIVE_KEYRING], { env, signal: t.signal })
         const operation = execute(require('electron'), [`--user-data-dir=${env.ODK_APPEARANCE_PROFILE}`, fixture],
