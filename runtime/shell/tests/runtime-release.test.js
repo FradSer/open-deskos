@@ -251,7 +251,7 @@ test('user migrations are idempotent and base migration never enables experiment
   }
 })
 
-test('reclaims releases that neither the active nor the rollback pointer references', () => {
+test('reports historical releases for dry-run review without deleting any release', () => {
   const runtime = makeRuntime()
   try {
     const oldest = makeRelease(runtime, 'oldest')
@@ -272,14 +272,16 @@ test('reclaims releases that neither the active nor the rollback pointer referen
     })
 
     assert.equal(result.ok, true)
-    assert.deepEqual(result.pruned.sort(), ['oldest', 'previous'])
+    assert.deepEqual(result.pruned, [])
+    assert.equal(result.plannedGc.dryRun, true)
+    assert.equal(result.plannedGc.executionAvailable, false)
     assert.equal(currentRelease(runtime), 'candidate')
     assert.equal(path.basename(fs.realpathSync(runtime.rollbackLink)), 'stable')
     assert.ok(fs.existsSync(candidate), 'the active release survives')
     assert.ok(fs.existsSync(stable), 'the rollback release survives even though it is not the newest')
     assert.ok(fs.existsSync(unrelated), 'a non-release directory under releases/ is left alone')
-    assert.equal(fs.existsSync(oldest), false)
-    assert.equal(fs.existsSync(previous), false)
+    assert.equal(fs.existsSync(oldest), true)
+    assert.equal(fs.existsSync(previous), true)
   } finally {
     fs.rmSync(runtime.root, { recursive: true, force: true })
   }

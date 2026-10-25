@@ -163,9 +163,17 @@ Do not treat Mesa GLX/llvmpipe as acceleration evidence. Check EGL vendor/versio
 Post-activation smoke runs `bash scripts/verify-release.sh` directly. `pnpm run verify-release` can install dependencies inside a sealed release and caused `ERR_PNPM_CMD_SHIM_CHMOD`. A sealed release must not run a dependency pass. `tests/update-runtime-cli.test.js` guards this contract; [runtime README](../README.md) owns release operations.
 
 <a id="adr-0018"></a>
-### ADR-0018: Pointer-owned release retention
+### ADR-0018: Reference-aware release planning
 
-After successful activation and smoke, the locked transaction prunes only `releases/` directories with `release.json` that neither `current` nor `previous` references. Stray directories survive. Cleanup failure reports stderr without failing activation; CLI `pruned` names reclaimed IDs. Failed activation reclaims nothing. Rollback depth is one release, not arbitrary historical recovery. `tests/runtime-release.test.js` guards success/failure/stray-directory cases.
+Successful activation returns `pruned: []` and `plannedGc`; it never deletes historical releases.
+The unified planner protects current, previous, process and service references, candidate leases, recovery records, explicit pins, and backups.
+Incomplete observations block all reclamation candidates. Proposed reclamation never increases available admission capacity.
+The planner is read-only. Legacy execution has not migrated to mandatory capacity admission.
+Durable admission and interruption tests use disposable fixture directories, not production deployment state.
+Trusted terminal receipts can reconcile individual legacy transactions while their backups remain on disk.
+Idle gate files require matching closeout coverage and kernel lock observations; an exited worker alone is insufficient.
+[RELEASE_CONTROL](RELEASE_CONTROL.md) owns the schema, operating limits, and verification scope.
+`tests/runtime-release.test.js` guards activation and historical-release preservation.
 
 <a id="adr-0019"></a>
 ### ADR-0019: Ready Hosted Pi endpoint descriptor

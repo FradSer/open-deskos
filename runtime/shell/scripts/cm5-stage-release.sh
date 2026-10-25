@@ -3,6 +3,17 @@
 # then lets the device-owned installer build or update its immutable release.
 set -euo pipefail
 
+# Route planning before SSH, directory preparation, or the cleanup trap.
+for argument in "$@"; do
+  if [ "$argument" = --dry-run ] || [ "$argument" = --help ]; then
+    exec node "$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/cm5-release.js" "$@"
+  fi
+done
+if [ "$#" -gt 0 ]; then
+  echo '{"dryRun":true,"executionAvailable":false,"error":"invalid_arguments"}'
+  exit 64
+fi
+
 ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." >/dev/null && pwd -P)"
 source "${ROOT}/runtime/shell/scripts/cm5-personal-bot.sh"
 TARGET="${ODK_CM5_TARGET:-cm5}"

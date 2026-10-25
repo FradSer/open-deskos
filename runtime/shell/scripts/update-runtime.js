@@ -195,7 +195,13 @@ function main() {
 }
 
 try {
-  main()
+  const arguments_ = process.argv?.slice(2) ?? []
+  if (arguments_.includes('--dry-run') || arguments_.includes('--help')) {
+    process.exitCode = require('./cm5-release').runCli(arguments_)
+  } else if (arguments_.length) {
+    console.log(JSON.stringify({ dryRun: true, executionAvailable: false, error: 'invalid_arguments' }))
+    process.exitCode = 64
+  } else main()
 } catch (error) {
   console.error(`Open DeskOS update failed: ${error.message}`)
   process.exitCode = 1

@@ -45,3 +45,11 @@ Feature: Package appearance context
     When the system verifier renders it
     Then it loads with the base appearance's context
     And it becomes visible without reaching the network
+
+  Scenario: A slow theme stylesheet cannot split the Shell and installed App palette
+    Given an isolated Shell starts with an installed App and no signed Appearance selection
+    And the Liquid Glass stylesheet request is held before its response
+    When the active theme changes to Liquid Glass
+    Then the Shell and the retained App immediately resolve the same declared primary color
+    And the App keeps its counter state and sandbox
+    And releasing the stylesheet leaves their declared palette unchanged

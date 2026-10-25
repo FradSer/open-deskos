@@ -2,6 +2,79 @@ Feature: Immutable runtime release deployment
   Device preflight must validate a staged candidate exactly as the kiosk
   session will run it, without depending on ambient installer environment.
 
+  Scenario: All dry-run entry points use one read-only planner
+    Given a runtime snapshot and a publication capacity request
+    When the unified CLI or a legacy entry point receives --dry-run
+    Then it reports admission, protection, and recovery decisions without changing files
+    And it does not install, deploy, restart, reserve capacity, or delete releases
+    And invalid arguments cannot enter a legacy execution path
+
+  Scenario: Concurrent reservations cannot spend the same capacity
+    Given an isolated admission ledger with capacity for one publication
+    When independent processes request two reservations concurrently
+    Then exactly one reservation is committed
+    And all remaining reservations count against capacity before another admission
+
+  Scenario: Interrupted admission preserves uncertain reservations
+    Given a reservation process stops while holding its transaction lock
+    When another process inspects or attempts admission
+    Then admission fails closed and recovery reports the exact lock identity
+    And a dead PID cannot remove a lock, candidate lease, or recovery pin
+
+  Scenario: Recovery requires an unchanged transaction identity
+    Given an interrupted fixture admission and a complete observed process identity
+    When explicit fixture recovery supplies its lock identity, nonce, and ledger revision
+    Then it reconciles only that transaction
+    And it retains committed reservations until explicit revision-checked settlement
+    And replaced, pinned, live, or uncertain locks prevent recovery
+
+  Scenario: Reclamation planning protects every known owner
+    Given current, previous, process and unit references, candidate leases, recovery pins, and backups
+    When the planner evaluates old releases
+    Then every referenced release remains protected
+    And incomplete or changing observations block reclamation candidates
+    And reclamation estimates never increase available admission capacity
+
+  Scenario: Explicit transaction closeout preserves historical evidence
+    Given trusted terminal records cover each legacy publication transaction
+    And each record matches the candidate, owner, source, and retained evidence identities
+    And the retained deployment gate has no kernel lock holder
+    When the read-only collector reconciles those transactions
+    Then historical backups and inputs remain unchanged
+    And only the closed transaction loses its recovery protection
+    And current, previous, references, candidate leases, recovery candidates, and pins remain protected
+
+  Scenario: Failed execution is not transaction closeout
+    Given a publication worker exited with a failed preflight receipt
+    And its retained gate has no kernel lock holder
+    When no trusted terminal closeout covers that transaction
+    Then admission and reclamation remain blocked
+    And the collector does not create closeout records or remove the gate
+
+  Scenario: Changed or incomplete closeout evidence blocks planning
+    Given a closeout index omits a transaction or has conflicting or replaced evidence
+    When the collector checks identities before and after observation
+    Then the snapshot is incomplete and reclamation has no candidates
+    And concurrent restarts, live locks, and unknown lock observations preserve recovery protection
+
+  Scenario: Retained backups preserve their reachable release contents
+    Given each declared backup scope has a complete reference observation
+    And a retained backup links to a historical release through an external alias
+    When the collector checks backup references and the alias changes
+    Then the snapshot becomes incomplete and reclamation remains blocked
+    And missing external backup coverage never proves that a release is unreferenced
+
+  Scenario: An ancestor recovery pin protects its deployment gate
+    Given a manual pin covers the directory containing a retained deployment gate
+    When complete closeout records would otherwise classify that gate as idle
+    Then the pin preserves recovery protection and blocks reclamation
+
+  Scenario: A successful activation does not delete historical releases
+    Given a candidate passes its existing activation verification
+    When activation returns its result
+    Then it reports a dry-run reclamation plan
+    And every historical release remains unchanged
+
   Scenario: Preflight uses integrations inside its own artifact
     Given a checkout or a sealed CM5 release with integration sources
     When runtime contract tests load an integration module or publisher

@@ -97,6 +97,10 @@ For a native MIPI DSI extension, verify the exact carrier, panel and kernel toge
 
 ## Approved CM5 deployment
 
+Use [release control planning](docs/RELEASE_CONTROL.md) before a future authorized publication.
+The unified planner and legacy `--dry-run` options only report decisions.
+They do not reserve capacity or authorize deployment. Legacy execution has not migrated to mandatory admission.
+
 Run from the repository root after deployment authorization:
 
 ```sh
@@ -129,6 +133,9 @@ node scripts/update-runtime.js
 ```
 
 Only one transaction can update pointers. State, rollback selection and per-user migration markers live under `/opt/odk/state/`. Runtime rollback excludes system packages, kernel, host desktop and experiment services.
+
+Successful activation returns `pruned: []` and a read-only `plannedGc` report. It does not delete historical releases.
+Unknown process, service, or recovery observations block reclamation candidates.
 
 `cm5-acceptance.sh` reports active/rollback releases, migrations, base Shell, peripheral services and hardware separately. A host/no-display report is diagnostic evidence, not physical CM5 acceptance.
 

@@ -4,6 +4,17 @@
 # and registers a kiosk autostart entry backed by scripts/start-kiosk.sh.
 set -euo pipefail
 
+# Route planning before architecture detection or any host installation.
+for argument in "$@"; do
+  if [ "$argument" = --dry-run ] || [ "$argument" = --help ]; then
+    exec node "$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/cm5-release.js" "$@"
+  fi
+done
+if [ "$#" -gt 0 ]; then
+  echo '{"dryRun":true,"executionAvailable":false,"error":"invalid_arguments"}'
+  exit 64
+fi
+
 if [ "$(uname -m)" != "aarch64" ]; then
   echo "This installer targets arm64 (CM5). Current arch: $(uname -m)" >&2
   exit 1
