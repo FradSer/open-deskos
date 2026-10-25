@@ -101,6 +101,18 @@ object PersonalAgentFrame {
             }
             val feedback = p.opt("feedback")
             if (feedback is String && feedback in setOf("done", "snooze", "useful", "irrelevant", "incorrect")) row.put("feedback", feedback)
+            if (p.has("feedbackLearning")) {
+                val learning = p.optJSONObject("feedbackLearning") ?: return null
+                val revision = learning.opt("revision")
+                val decision = learning.opt("decision")
+                val status = learning.opt("status")
+                if (revision !is Number || !revision.toDouble().isFinite() || revision.toDouble() < 1 ||
+                    revision.toDouble() > 9007199254740991.0 || revision.toDouble() % 1.0 != 0.0 ||
+                    decision !is String || decision !in setOf("done", "snooze", "useful", "irrelevant", "incorrect", "ignore", "mute") ||
+                    status !is String || status !in setOf("queued", "running", "applied", "failed", "unavailable", "stale")) return null
+                row.put("feedbackLearning", JSONObject().put("revision", revision)
+                    .put("decision", decision).put("status", status))
+            }
             val snoozed = p.opt("snoozedUntil")
             if (snoozed is Number && snoozed.toDouble().isFinite() && snoozed.toDouble() >= 0) row.put("snoozedUntil", snoozed)
             val evidence = p.optJSONArray("evidence") ?: return null

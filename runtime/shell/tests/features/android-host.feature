@@ -146,10 +146,22 @@ Feature: Android Shell Host renders the shared Personal Agent
     And control characters and oversized reason text cannot enter the reason
     And signed owner command text is never truncated
 
-  Scenario: Android preserves reminder recovery without response authority
-    Given the owner closed a reminder panel on the phone
+  Scenario: Android preserves recommendation recovery without response authority
+    Given the phone shows the shared Personal Agent composer
     When a readable recovery frame arrives from the desk
-    Then Android retains the recovery marker and the panel stays closed
-    And ordinary new reminders can open the panel
+    Then Android retains the recovery marker and the recommendation appears inside the composer
+    And no recommendation popup opens or takes draft focus
     And withdrawn read access clears the recovery marker
     And recovery grants no response or presentation authority
+
+  Scenario: Android reads asynchronous feedback memory status
+    Given the desk saved feedback and published its memory refinement status
+    When Android projects the readable recommendation
+    Then a positive safe integer revision and the supported decision and status survive
+    And queued, running, applied, failed, unavailable, and stale states remain distinct
+    And only revision, decision, and status cross in the feedback learning metadata
+    And extra worker fields and private data are removed
+    And malformed feedback learning metadata clears readable recommendations
+    And legacy recommendations do not acquire a memory refinement status
+    And feedback, recovery, and typed input keep their existing contracts
+    And response and presentation authority remain unavailable
