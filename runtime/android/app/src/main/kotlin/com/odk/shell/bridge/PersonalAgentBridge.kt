@@ -44,7 +44,7 @@ class PersonalAgentBridge(private val link: PersonalAgentLink?) {
 
     fun close() { closed = true; worker.shutdownNow() }
     companion object {
-        private const val NO_LINK = "Personal Bot link unavailable"
+        private const val NO_LINK = "Personal Agent link unavailable"
         fun permitsDocument(isCurrentView: Boolean, isMainFrame: Boolean, origin: String, document: String?): Boolean =
             isCurrentView && isMainFrame && origin == "https://appassets.androidplatform.net" &&
                 document == "https://appassets.androidplatform.net/assets/web/renderer/index.html"

@@ -8,7 +8,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
-ipcMain.handle('odk-personal-bot-consumer-ready', () => ({ accepted: false }))
+ipcMain.handle('odk-personal-agent-consumer-ready', () => ({ accepted: false }))
 
 const root = path.resolve(__dirname, '..')
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-board-shot-'))

@@ -18,10 +18,10 @@ if (process.platform === 'darwin') app.dock.hide()
 BrowserWindow.prototype.show = function () {}
 require('./helpers/app-manager-composition-isolation').isolateComposition(root)
 // Injected frames own this comparison; an absent transport must not publish reconnect states over them.
-const botModule = require('../src/personal-bot-client')
-const createBot = botModule.createPersonalBotClient
+const botModule = require('../src/personal-agent-client')
+const createBot = botModule.createPersonalAgentClient
 let botClients = 0
-botModule.createPersonalBotClient = options => {
+botModule.createPersonalAgentClient = options => {
   botClients++
   return createBot({ ...options, socketPath: null })
 }
@@ -162,7 +162,7 @@ async function exercise() {
     await js(`odkTheme.set(${JSON.stringify(theme)})`)
     const views=[]
     for (const current of frames) {
-      win.webContents.send('odk-personal-bot-status',{state:'idle',message:'',briefing:current})
+      win.webContents.send('odk-personal-agent-status',{state:'idle',message:'',briefing:current})
       views.push(await js(`(async()=>{
         const expected=${JSON.stringify(current)},until=performance.now()+3000;
         while(JSON.stringify(odkServices.homeBriefing.snapshot())!==JSON.stringify(expected)){

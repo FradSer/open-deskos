@@ -2,7 +2,7 @@
 # task using the Shell user's principal. Does not stop or reconfigure the Shell.
 param(
   [Parameter(Mandatory=$true)][string]$RuntimeRoot,
-  [Parameter(Mandatory=$true)][string]$PersonalBotRoot,
+  [Parameter(Mandatory=$true)][string]$PersonalAgentRoot,
   [Parameter(Mandatory=$true)][string]$JevKey,
   [Parameter(Mandatory=$true)][string]$Receipt,
   [switch]$GeneratedE2E,
@@ -17,7 +17,7 @@ $dir=[IO.Path]::GetDirectoryName($Receipt)
 New-Item -ItemType Directory -Path $dir -Force | Out-Null
 $electron=Join-Path $RuntimeRoot 'node_modules\electron\dist\electron.exe'
 $harness=Join-Path $PSScriptRoot 'proactive-jev-e2e.cjs'
-$arguments='"'+$harness+'" --live-jev-e2e --runtime-root "'+$RuntimeRoot+'" --personal-bot-root "'+$PersonalBotRoot+'" --jev-key "'+$JevKey+'" --receipt "'+$Receipt+'"'
+$arguments='"'+$harness+'" --live-jev-e2e --runtime-root "'+$RuntimeRoot+'" --personal-agent-root "'+$PersonalAgentRoot+'" --jev-key "'+$JevKey+'" --receipt "'+$Receipt+'"'
 if($GeneratedE2E){$arguments+=' --generated-e2e'}
 if($ActualWidgetE2E){
   if(-not $GeneratedE2E -or -not $Owner -or $Owner.Contains('"')){throw 'Actual Widget E2E requires GeneratedE2E and a valid owner path'}

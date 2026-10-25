@@ -28,7 +28,7 @@ test('CM5 updater serializes transactions and preflights before activating a rel
   // Required components are part of the activation transaction: an enabled one is restarted onto
   // the new release and a failure rolls the update back, while a host that has not enabled it keeps
   // the unit staged and stopped.
-  assert.match(updater, /restartRequiredService\(releaseId, kiosk, 'odk-personal-bot\.service', 'required Personal Bot component'\)/)
+  assert.match(updater, /restartRequiredService\(releaseId, kiosk, 'odk-personal-agent\.service', 'required Personal Agent component'\)/)
   assert.match(updater, /restartRequiredService\(releaseId, kiosk, 'odk-pi-tasks\.service', 'required Hosted Pi control'\)/)
   // The Open DeskOS Link Service resolves the Hosted Pi endpoint from the descriptor the daemon publishes,
   // so it has to be restarted onto the active release too — under the same enabled gate, and without
@@ -36,7 +36,7 @@ test('CM5 updater serializes transactions and preflights before activating a rel
   assert.match(updater, /restartRequiredService\(releaseId, kiosk, 'odk-link\.service', 'Open DeskOS Link service'\)/)
   assert.match(updater, /Open DeskOS Link restart did not complete/)
   assert.match(updater, /is-enabled/)
-  assert.match(updater, /required Personal Bot component restart failed|\$\{component\} restart failed/)
+  assert.match(updater, /required Personal Agent component restart failed|\$\{component\} restart failed/)
   assert.match(updater, /odk-shell\.service/)
   assert.match(updater, /ODK_KIOSK_USER/)
   assert.match(updater, /ODK_RUNTIME_ROOT=\$\{releasePath\}/)

@@ -382,7 +382,7 @@ Feature: Active product components use replaceable plugin contracts
     And inventory requests contain no voice, input, or private error data
 
   Scenario: Unified runtime management controls resident components
-    Given Personal Bot has an independent authenticated management channel
+    Given Personal Agent has an independent authenticated management channel
     When the owner disables or enables a resident component through the runtime CLI
     Then its dependents follow the existing lifecycle graph
     And runtime changes preserve service and voice channel identity
@@ -397,7 +397,7 @@ Feature: Active product components use replaceable plugin contracts
     Then initialization drains and the runtime remains disabled
 
   Scenario: Resident runtime stop preserves its providers and drains voice work
-    Given a Personal Bot runtime depends on a resident service and channel
+    Given a Personal Agent runtime depends on a resident service and channel
     When the owner disables that runtime
     Then the Agent stops and active voice work drains
     And the service and channel remain owned by their running plugins
@@ -525,8 +525,8 @@ Feature: Active product components use replaceable plugin contracts
     And strict discovery still rejects the invalid selection
     And global composition still rejects dependency and port conflicts
 
-  Scenario: Diagnosis discovers Personal Bot through a runtime provider
-    Given the Personal Bot channel plugin provides the resident client
+  Scenario: Diagnosis discovers Personal Agent through a runtime provider
+    Given the Personal Agent channel plugin provides the resident client
     When diagnosis requests the personal-agent runtime port
     Then the provider returns the current resident plugin composition
     And an older or unavailable channel reports unavailable
@@ -878,9 +878,9 @@ Feature: Active product components use replaceable plugin contracts
   Scenario: Plugins route service notifications and initial frame status
     Given the default Main plugin composition
     When a source publishes changed reading identities
-    Then the notification plugin forwards those identities to the current Personal Bot
+    Then the notification plugin forwards those identities to the current Personal Agent
     When a Shell frame finishes loading
-    Then the status plugin broadcasts the current Personal Bot status
+    Then the status plugin broadcasts the current Personal Agent status
     And only that frame receives the current Remote Link status
     When either provider is disabled
     Then new frames receive the existing unavailable or disconnected fallback
@@ -888,7 +888,7 @@ Feature: Active product components use replaceable plugin contracts
     Then consumers use its replacement instance
     When either consumer plugin stops
     Then its retained callbacks cannot publish further messages
-    And stopping the notification plugin does not stop the Personal Bot
+    And stopping the notification plugin does not stop the Personal Agent
 
   Scenario: Trusted composition replaces a built-in plugin implementation
     Given a replacement preserves its built-in identity, host, kind, and provided ports
@@ -1054,7 +1054,7 @@ Feature: Active product components use replaceable plugin contracts
     And concurrent requests are not combined into one selection
 
   Scenario: System channel clients retain failed stop responsibility
-    Given a Personal Bot or Remote Link client fails during stop
+    Given a Personal Agent or Remote Link client fails during stop
     When the operator disables and enables that plugin
     Then the host retries the actual client stop before creating another instance
     And independent channel plugins remain running
@@ -1174,7 +1174,7 @@ Feature: Active product components use replaceable plugin contracts
 
   Scenario: Shared enable preferences reach each JavaScript runtime
     Given the Plugin CLI saves enable preferences in the common plugin configuration
-    When Personal Bot, Hosted Pi, or Remote Bridge starts or inspects its declarations
+    When Personal Agent, Hosted Pi, or Remote Bridge starts or inspects its declarations
     Then each runtime applies the same saved disable preferences and environment exclusions
     And a disabled plugin does not execute its factory or start dependent components
     And unrelated plugins retain their existing behavior
@@ -1510,7 +1510,7 @@ Feature: Active product components use replaceable plugin contracts
     And the task socket remains available
 
   Scenario: Selected resident diagnosis preserves client authority
-    Given the default or independent resident diagnosis plugin uses the authenticated Personal Bot client
+    Given the default or independent resident diagnosis plugin uses the authenticated Personal Agent client
     When public and CLI consumers request runtime diagnosis
     Then both consumers retain current runtime states and exclude private errors
     And diagnosis does not toggle the resident service

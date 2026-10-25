@@ -6,7 +6,7 @@ const path = require('node:path')
 const { spawn } = require('node:child_process')
 const { createInterface } = require('node:readline')
 const { createHash } = require('node:crypto')
-const { createPersonalBotClient } = require('../src/personal-bot-client')
+const { createPersonalAgentClient } = require('../src/personal-agent-client')
 const { createPluginHost } = require('../src/plugin-host')
 const { createSystemChannelPlugins, SYSTEM_PORTS } = require('../src/plugins/system-channels')
 const { installGeometryFixtures } = require('./helpers/live-fixtures')
@@ -79,7 +79,7 @@ async function finish(code, error) {
 
 async function startResident(resume = false) {
   exited = false; diagnostics = ''; messages.length = 0
-  child = spawn('node', [path.resolve(__dirname, '../../../integrations/personal-bot/tests/helpers/agent-avatar-resident.mjs'), directory, socketPath,
+  child = spawn('node', [path.resolve(__dirname, '../../../integrations/personal-agent/tests/helpers/agent-avatar-resident.mjs'), directory, socketPath,
     ...(resume ? ['--resume'] : []), ...(resume && process.argv.includes('--stall-resident-close') ? ['--stall-close'] : [])], {
     env: { PATH: process.env.PATH, HOME: directory, USERPROFILE: directory, TMPDIR: directory, TEMP: directory, TMP: directory,
       PI_CODING_AGENT_DIR: path.join(directory, 'agent-settings'),
@@ -108,17 +108,17 @@ app.whenReady().then(async () => {
   installGeometryFixtures(ipcMain)
   const initial = await startResident()
   const token = process.platform === 'win32' ? fs.readFileSync(path.join(directory, 'channel.token'), 'utf8').trim() : ''
-  ipcMain.removeHandler('odk-personal-bot-status')
+  ipcMain.removeHandler('odk-personal-agent-status')
   win = new BrowserWindow({ width: 1280, height: 800, show: false, useContentSize: true, webPreferences: {
     preload: path.resolve(__dirname, '../src/preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false, offscreen: true, backgroundThrottling: false,
   } })
   channelHost = createPluginHost({ capabilities: { ipc: ipcMain,
     broadcast: (name, status) => { if (win && !win.isDestroyed()) win.webContents.send(name, status) },
-    'system.personal-bot': { create: createPersonalBotClient, options: { socketPath, token, reconnectDelayMs: 50 }, smokeMode: false },
+    'system.personal-agent': { create: createPersonalAgentClient, options: { socketPath, token, reconnectDelayMs: 50 }, smokeMode: false },
   } })
-  channelHost.register(createSystemChannelPlugins().find(plugin => plugin.manifest.id === 'odk.system.personal-bot'))
+  channelHost.register(createSystemChannelPlugins().find(plugin => plugin.manifest.id === 'odk.system.personal-agent'))
   await channelHost.start()
-  client = channelHost.get(SYSTEM_PORTS.personalBot)
+  client = channelHost.get(SYSTEM_PORTS.personalAgent)
   assert(client, 'The actual main-process channel plugin must start')
   await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'))
   await evaluate('document.fonts.ready')

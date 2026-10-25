@@ -1,7 +1,7 @@
 'use strict'
 
 const { app, BrowserWindow, ipcMain, protocol } = require('electron')
-ipcMain.handle('odk-personal-bot-consumer-ready', () => ({ accepted: false }))
+ipcMain.handle('odk-personal-agent-consumer-ready', () => ({ accepted: false }))
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
@@ -81,12 +81,12 @@ app.whenReady().then(async () => {
   const stateDir = shellHost.stateDir
   fs.writeFileSync(path.join(stateDir, 'plugins', 'native', 'revisions', revision, 'entry.js'), 'throw Error("unverified stored entry")')
   const values = { 'odk-pi-sessions': { ok: true, sessions: [] }, 'odk-pi-session-events': { ok: true, events: [] },
-    'odk-app-manager-list': [], 'odk-user-apps-list': [], 'odk-personal-bot-status': { state: 'unavailable' },
+    'odk-app-manager-list': [], 'odk-user-apps-list': [], 'odk-personal-agent-status': { state: 'unavailable' },
     'odk-remote-link-state': { state: 'disconnected', sequence: 0 } }
   for (const channel of ['odk-opencode-go-status', 'odk-camera-frame', 'odk-pi-sessions', 'odk-pi-session-events',
     'odk-hydra-status', 'odk-weread-highlight', 'odk-futu-holdings', 'odk-weather-status', 'odk-app-manager-list',
     'odk-app-manager-state', 'odk-app-manager-intent', 'odk-user-apps-list', 'odk-user-apps-dispatch', 'odk-user-apps-publish',
-    'odk-personal-bot-status', 'odk-personal-bot-toggle', 'odk-personal-bot-proposal', 'odk-remote-link-state', 'odk-remote-publish-page-state']) {
+    'odk-personal-agent-status', 'odk-personal-agent-toggle', 'odk-personal-agent-proposal', 'odk-remote-link-state', 'odk-remote-publish-page-state']) {
     ipcMain.handle(channel, () => values[channel] || { status: 'unconfigured', state: 'unavailable' })
   }
   win = new BrowserWindow({ show: false, width: 1920, height: 1280, useContentSize: true, webPreferences: {

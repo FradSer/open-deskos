@@ -49,13 +49,13 @@
       }, 22000)
       pending[id] = function (value) { clearTimeout(timer); resolve(value) }
       if (!native || typeof native.postMessage !== 'function') {
-        pending[id]({ accepted: false, reason: 'Personal Bot link unavailable' }); delete pending[id]; return
+        pending[id]({ accepted: false, reason: 'Personal Agent link unavailable' }); delete pending[id]; return
       }
       native.postMessage(JSON.stringify({ id: id, method: method, args: args || [] }))
     })
   }
 
-  window.odkPersonalBot = {
+  window.odkPersonalAgent = {
     supportsReplyTo: true,
     supportsVoiceInput: false,
     subscribe: function (listener) {

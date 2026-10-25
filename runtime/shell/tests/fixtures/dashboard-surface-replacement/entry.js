@@ -130,8 +130,8 @@
       }
       function markdown(parent, text, portfolio, live) {
         const content = make('div', '')
-        root.odkPersonalBotReply.render(content, text)
-        if (!content.classList.contains('personal-bot-status-markdown')) return false
+        root.odkPersonalAgentReply.render(content, text)
+        if (!content.classList.contains('personal-agent-status-markdown')) return false
         content.className = 'dash-markdown'
         const reader = doc.createTreeWalker(content, 4), leaves = []
         while (reader.nextNode()) leaves.push(reader.currentNode)

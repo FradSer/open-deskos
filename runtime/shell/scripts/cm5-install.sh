@@ -23,8 +23,8 @@ fi
 DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null && pwd -P)"
 REPOSITORY_ROOT="$(CDPATH= cd -- "${DIR}/../.." >/dev/null && pwd -P)"
 REMOTE_BRIDGE_SOURCE="${REPOSITORY_ROOT}/integrations/remote-bridge"
-PERSONAL_BOT_SOURCE="${REPOSITORY_ROOT}/integrations/personal-bot"
-source "${DIR}/scripts/cm5-personal-bot.sh"
+PERSONAL_AGENT_SOURCE="${REPOSITORY_ROOT}/integrations/personal-agent"
+source "${DIR}/scripts/cm5-personal-agent.sh"
 cd "$DIR"
 
 SUDO=""
@@ -61,11 +61,11 @@ if ! $SUDO fc-cache -f >/dev/null 2>&1; then
   echo "warning: fc-cache failed; restart the session before expecting the CJK face" >&2
 fi
 
-echo "== provisioning the Personal Bot browser infrastructure =="
+echo "== provisioning the Personal Agent browser infrastructure =="
 # Browser binaries are host tools. Never put them in an immutable release.
 # A missing browser degrades one capability without blocking the Shell.
 if ! $SUDO "${DIR}/scripts/cm5-agent-browser.sh" install; then
-  echo "warning: agent-browser was not provisioned; the Personal Bot browser capability stays unavailable" >&2
+  echo "warning: agent-browser was not provisioned; the Personal Agent browser capability stays unavailable" >&2
   echo "  remedy: run 'sudo ${DIR}/scripts/cm5-agent-browser.sh install' and read its diagnostics" >&2
 fi
 
@@ -108,7 +108,7 @@ run_as_target_user() {
     "$@"
   else
     # Installs and release commands use the pnpm each project declares (COREPACK_ENABLE_PROJECT_SPEC=1):
-    # runtime/shell and integrations/personal-bot pin pnpm 11.22.0, and pnpm refuses to run under a
+    # runtime/shell and integrations/personal-agent pin pnpm 11.22.0, and pnpm refuses to run under a
     # different major than a project's packageManager field. See docs/ARCHITECTURE.md#adr-0017.
     runuser -u "${TARGET_USER}" -- env \
       HOME="${TARGET_HOME}" \
@@ -223,7 +223,7 @@ if [ "$(CDPATH= cd -- "${DIR}" >/dev/null && pwd -P)" != "$(CDPATH= cd -- "${REL
     run_as_target_user cp -a "${REPOSITORY_ROOT}/DESIGN.md" "${RELEASE_DIR}/DESIGN.md"
   fi
 fi
-prepare_personal_bot_release
+prepare_personal_agent_release
 run_as_target_user node -e "require('node:fs').writeFileSync('${RELEASE_DIR}/release.json', JSON.stringify({ id: '${RELEASE_ID}', schemaVersion: 1, createdAt: new Date().toISOString() }) + '\\n')"
 $SUDO install -d -o "${TARGET_UID}" -g "${TARGET_GID}" -m 0755 "${RUNTIME_ROOT}/state/migrations/${TARGET_USER}"
 
@@ -281,9 +281,9 @@ if [ -z "${XAUTHORITY:-}" ] && [ -n "${KIOSK_XAUTHORITY}" ]; then
   export XAUTHORITY="${KIOSK_XAUTHORITY}"
 fi
 
-echo "== staging the required Personal Bot and Hosted Pi control components =="
-stage_personal_bot_service || {
-  echo "Required Personal Bot component could not be installed; check ALSA access and ${TARGET_HOME}/.config/odk/personal-bot.env, then re-run the installer." >&2
+echo "== staging the required Personal Agent and Hosted Pi control components =="
+stage_personal_agent_service || {
+  echo "Required Personal Agent component could not be installed; check ALSA access and ${TARGET_HOME}/.config/odk/perosnal-agent.env, then re-run the installer." >&2
   exit 1
 }
 stage_task_host_service || {
@@ -339,7 +339,7 @@ if [ -d "${REMOTE_BRIDGE_RELEASE}" ]; then
 fi
 
 start_required_services || {
-  echo "Required Personal Bot or Hosted Pi control service could not be started; check ${TARGET_HOME}/.config/odk/personal-bot.env and ${TARGET_HOME}/.config/odk/pi-tasks.json." >&2
+  echo "Required Personal Agent or Hosted Pi control service could not be started; check ${TARGET_HOME}/.config/odk/perosnal-agent.env and ${TARGET_HOME}/.config/odk/pi-tasks.json." >&2
   exit 1
 }
 

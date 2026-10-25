@@ -47,7 +47,7 @@ function parityScript() {
     const identity = document.querySelector('.agent-identity .agent-capsule')
     const mic = document.querySelector('.agent-mic')
     const send = document.querySelector('.agent-send')
-    const status = document.getElementById('personal-bot-status')
+    const status = document.getElementById('personal-agent-status')
     const overflow = [...document.querySelectorAll('.agent-panel, .agent-panel *')]
       .filter(visible)
       .filter((node) => { const r = node.getBoundingClientRect(); return r.left < -1 || r.right > innerWidth + 1 || r.top < -1 || r.bottom > innerHeight + 1 })
@@ -108,7 +108,7 @@ function parityScript() {
         insidePanel: !!panel && !!composer && composer.getBoundingClientRect().bottom <= panel.getBoundingClientRect().bottom + 1,
       },
       requestState: status ? status.dataset.state || 'unknown' : 'unknown',
-      voiceInput: !!(window.odkPersonalBot && window.odkPersonalBot.supportsVoiceInput !== false),
+      voiceInput: !!(window.odkPersonalAgent && window.odkPersonalAgent.supportsVoiceInput !== false),
       controls: {
         mic: { box: box(mic), hidden: !!(mic && mic.hidden), disabled: !!(mic && mic.disabled), label: (mic && mic.getAttribute('aria-label')) || '' },
         send: { box: box(send), hidden: !!(send && send.hidden), disabled: !!(send && send.disabled) },

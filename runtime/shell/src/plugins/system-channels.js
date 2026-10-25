@@ -1,9 +1,9 @@
 'use strict'
 
-const { parseReplyTo } = require('../personal-bot-reply-reference')
+const { parseReplyTo } = require('../personal-agent-reply-reference')
 
 const SYSTEM_PORTS = Object.freeze({
-  personalBot: 'odk:system/personal-bot/v1',
+  personalAgent: 'odk:system/personal-agent/v1',
   remoteLink: 'odk:transport/remote-link/v1',
   appManager: 'odk:system/app-manager/v1',
   serviceNotifications: 'odk:system/service-notifications/v1',
@@ -41,16 +41,16 @@ function createSystemChannelPlugins() {
   return [
     {
       manifest: {
-        schemaVersion: 1, id: 'odk.system.personal-bot-diagnostics', name: 'Personal Bot lifecycle diagnosis',
+        schemaVersion: 1, id: 'odk.system.personal-agent-diagnostics', name: 'Personal Agent lifecycle diagnosis',
         version: '1.0.0', kind: 'system', host: 'electron-main',
         provides: [{ interface: 'odk:plugin-runtime/personal-agent/v1' }],
-        requires: [{ interface: SYSTEM_PORTS.personalBot, optional: true }], permissions: [],
+        requires: [{ interface: SYSTEM_PORTS.personalAgent, optional: true }], permissions: [],
       },
       create(ctx) {
         return { ports: { 'odk:plugin-runtime/personal-agent/v1': { snapshot() {
           const unavailable = reason => [{ host: 'personal-agent', instance: 'resident', state: 'unavailable', reason, plugins: [] }]
           if (ctx.signal.aborted) return unavailable('stopped')
-          const client = ctx.get(SYSTEM_PORTS.personalBot)
+          const client = ctx.get(SYSTEM_PORTS.personalAgent)
           return typeof client?.diagnose === 'function' ? client.diagnose({ signal: ctx.signal }) : unavailable(client ? 'not-supported' : 'provider-unavailable')
         } } } }
       },
@@ -76,12 +76,12 @@ function createSystemChannelPlugins() {
         schemaVersion: 1, id: 'odk.system.service-notifications', name: 'Service notification routing',
         version: '1.0.0', kind: 'system', host: 'electron-main',
         provides: [{ interface: SYSTEM_PORTS.serviceNotifications }],
-        requires: [{ interface: SYSTEM_PORTS.personalBot, optional: true }], permissions: [],
+        requires: [{ interface: SYSTEM_PORTS.personalAgent, optional: true }], permissions: [],
       },
       create(ctx) {
         return { ports: { [SYSTEM_PORTS.serviceNotifications]: {
           publish: readingIds => {
-            if (!ctx.signal.aborted) return ctx.get(SYSTEM_PORTS.personalBot)?.servicePush(readingIds)
+            if (!ctx.signal.aborted) return ctx.get(SYSTEM_PORTS.personalAgent)?.servicePush(readingIds)
           },
         } } }
       },
@@ -90,16 +90,16 @@ function createSystemChannelPlugins() {
       manifest: {
         schemaVersion: 1, id: 'odk.system.frame-status', name: 'Initial frame status',
         version: '1.0.0', kind: 'system', host: 'electron-main', provides: [],
-        requires: [SYSTEM_PORTS.personalBot, SYSTEM_PORTS.remoteLink].map(interfaceName => ({ interface: interfaceName, optional: true })),
+        requires: [SYSTEM_PORTS.personalAgent, SYSTEM_PORTS.remoteLink].map(interfaceName => ({ interface: interfaceName, optional: true })),
         permissions: ['shell.frames', 'broadcast'],
       },
       create(ctx) {
         const broadcast = ctx.capability('broadcast')
         const frames = ctx.capability('shell.frames')
-        const provider = ctx.get(SYSTEM_PORTS.personalBot)
-        if (provider && frameProviders.get(frames) !== provider) broadcast('odk-personal-bot-status', { state: 'unavailable' })
+        const provider = ctx.get(SYSTEM_PORTS.personalAgent)
+        if (provider && frameProviders.get(frames) !== provider) broadcast('odk-personal-agent-status', { state: 'unavailable' })
         frameProviders.set(frames, provider)
-        const publishBotStatus = () => broadcast('odk-personal-bot-status', ctx.get(SYSTEM_PORTS.personalBot)?.snapshot() || { state: 'unavailable' })
+        const publishBotStatus = () => broadcast('odk-personal-agent-status', ctx.get(SYSTEM_PORTS.personalAgent)?.snapshot() || { state: 'unavailable' })
         publishBotStatus()
         ctx.onCleanup(frames.subscribe(frame => {
           if (ctx.signal.aborted) return
@@ -110,10 +110,10 @@ function createSystemChannelPlugins() {
       },
     },
     define({
-      id: 'odk.system.personal-bot', name: 'Personal Bot channel', port: SYSTEM_PORTS.personalBot,
-      permission: 'system.personal-bot', broadcast: true,
+      id: 'odk.system.personal-agent', name: 'Personal Agent channel', port: SYSTEM_PORTS.personalAgent,
+      permission: 'system.personal-agent', broadcast: true,
       create(ctx) {
-        const config = ctx.capability('system.personal-bot')
+        const config = ctx.capability('system.personal-agent')
         const broadcast = ctx.capability('broadcast')
         const client = config.create(config.options)
         const lifecycle = ownClient(ctx, client, config.smokeMode)
@@ -122,46 +122,71 @@ function createSystemChannelPlugins() {
           if (pendingToggle === 'starting' && status.state === 'idle') return
           if (['sending', 'cancelling'].includes(pendingToggle) && status.state === 'recording') return
           pendingToggle = null
-          broadcast('odk-personal-bot-status', status)
+          broadcast('odk-personal-agent-status', status)
         }))
-        bind(ctx, 'odk-personal-bot-status', () => client.snapshot())
-        bind(ctx, 'odk-personal-bot-consumer-ready', (event, id) => ({
+        bind(ctx, 'odk-personal-agent-status', () => client.snapshot())
+        bind(ctx, 'odk-personal-agent-consumer-ready', (event, id) => ({
           accepted: config.isConsumerFrame?.(event) === true && client.consumerReady?.(id) === true,
         }))
-        bind(ctx, 'odk-personal-bot-toggle', () => {
+        bind(ctx, 'odk-personal-agent-toggle', () => {
           const current = client.snapshot()
           if (pendingToggle || ['transcribing', 'thinking'].includes(current.state)) return { accepted: false }
           const sent = client.toggle()
           if (sent) {
             pendingToggle = current.state === 'recording' ? 'sending' : 'starting'
-            broadcast('odk-personal-bot-status', { ...current, state: pendingToggle, message: '' })
-          } else broadcast('odk-personal-bot-status', { ...current, activated: true })
+            broadcast('odk-personal-agent-status', { ...current, state: pendingToggle, message: '' })
+          } else broadcast('odk-personal-agent-status', { ...current, activated: true })
           return { accepted: sent }
         })
-        bind(ctx, 'odk-personal-bot-cancel', () => {
+        bind(ctx, 'odk-personal-agent-cancel', event => {
+          if (config.isConsumerFrame?.(event) !== true) return { accepted: false }
           const current = client.snapshot()
           if (pendingToggle || current.state !== 'recording' || current.cancelInput !== true) return { accepted: false }
           const sent = client.cancelRecording()
           if (sent) {
             pendingToggle = 'cancelling'
-            broadcast('odk-personal-bot-status', { ...current, state: 'sending', message: '' })
+            broadcast('odk-personal-agent-status', { ...current, state: 'sending', message: '' })
           }
           return { accepted: sent }
         })
-        bind(ctx, 'odk-personal-bot-text', async (_event, text, replyTo) => {
+        const authLinks = new WeakMap()
+        const configEpochs = new WeakMap()
+        bind(ctx, 'odk-personal-agent-config', async (event, command) => {
+          if (config.isConsumerFrame?.(event) !== true) throw Error('Pi configuration requires a trusted Shell frame')
+          const sender = event.sender
+          const epoch = {}
+          configEpochs.set(sender, epoch)
+          authLinks.delete(sender)
+          const result = await client.configure(command)
+          if (ctx.signal.aborted || config.isConsumerFrame?.(event) !== true || configEpochs.get(sender) !== epoch) return null
+          const url = result?.login?.event?.url
+          if (typeof url === 'string' && url.length <= 2048) {
+            try {
+              const parsed = new URL(url)
+              if (parsed.protocol === 'https:' && !parsed.username && !parsed.password) authLinks.set(sender, url)
+            } catch { /* A malformed login URL never grants external navigation. */ }
+          }
+          return result
+        })
+        bind(ctx, 'odk-personal-agent-auth-open', async (event, url) => {
+          if (ctx.signal.aborted || config.isConsumerFrame?.(event) !== true || typeof url !== 'string'
+            || authLinks.get(event.sender) !== url || !config.openExternal) return false
+          try { await config.openExternal(url); return true } catch { return false }
+        })
+        bind(ctx, 'odk-personal-agent-text', async (_event, text, replyTo) => {
           const reference = replyTo === undefined ? undefined : parseReplyTo(replyTo)
           if (reference === null) return { accepted: false }
           if (pendingToggle || typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 3000) return { accepted: false }
           if (client.sendTextReceipt) return client.sendTextReceipt(text, reference)
           return { accepted: await (reference ? client.sendText(text, reference) : client.sendText(text)) }
         })
-        bind(ctx, 'odk-personal-bot-proposal', (_event, command) => {
+        bind(ctx, 'odk-personal-agent-proposal', (_event, command) => {
           if (!command || !['proposal_list', 'proposal_presented', 'proposal_respond'].includes(command.type) || JSON.stringify(command).length > 4096) return { accepted: false }
           if (command.type === 'proposal_respond' && (typeof command.id !== 'string' || command.id.length !== 36 || !['accept', 'ignore', 'mute', 'done', 'snooze', 'useful', 'irrelevant', 'incorrect'].includes(command.decision) || (command.confirmation !== undefined && (typeof command.confirmation !== 'string' || command.confirmation.length > 2048)))) return { accepted: false }
           if (command.type === 'proposal_presented' && (!Array.isArray(command.ids) || command.ids.length > 64 || !command.ids.every(id => typeof id === 'string' && id.length === 36))) return { accepted: false }
           return { accepted: client.proposalCommand(command) }
         })
-        return { ports: { [SYSTEM_PORTS.personalBot]: client }, ...lifecycle }
+        return { ports: { [SYSTEM_PORTS.personalAgent]: client }, ...lifecycle }
       },
     }),
     define({
@@ -170,7 +195,7 @@ function createSystemChannelPlugins() {
       create(ctx) {
         const config = ctx.capability('system.remote-link')
         const broadcast = ctx.capability('broadcast')
-        const client = config.create({ ...config.options, onRemoteMic: () => broadcast('odk-personal-bot-mic') })
+        const client = config.create({ ...config.options, onRemoteMic: () => broadcast('odk-personal-agent-mic') })
         const lifecycle = ownClient(ctx, client, config.smokeMode)
         let sequence = 0
         ctx.onCleanup(client.onLinkState(state => {

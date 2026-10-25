@@ -76,9 +76,9 @@ function installHomePreviewFixtures(ipcMain, { now = Date.now() } = {}) {
     ...updates.map((text, index) => ({ id: `synthetic-update-${index}`, text, presentation: 'assistant_update', sources: [{ ...source, ...(index === 1 ? { key: 'c'.repeat(64), sessionId: 'synthetic-v8', project: '/synthetic/v8', taskName: '外壳模型调整' } : {}) }], verification: 'reported_unverified', synthesisVerification: 'passed' })).reverse(),
     { id: 'synthetic-earlier-report', text: 'Synthetic earlier report: source revision and execution audit remain available here.', sources: [source], verification: 'reported_unverified', synthesisVerification: 'passed' },
   ] }
-  replace('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'}, transcript: prompt, message: reply, briefing, remote })
-  ipcMain.handle('odk-personal-bot-text', () => ({ accepted: true }))
-  ipcMain.handle('odk-personal-bot-toggle', () => ({ accepted: true }))
+  replace('odk-personal-agent-status', { state: 'idle', jev: {status:'verified'}, transcript: prompt, message: reply, briefing, remote })
+  ipcMain.handle('odk-personal-agent-text', () => ({ accepted: true }))
+  ipcMain.handle('odk-personal-agent-toggle', () => ({ accepted: true }))
   return { synthetic: true, briefing, prompt, reply, updates, remote, highlight }
 }
 

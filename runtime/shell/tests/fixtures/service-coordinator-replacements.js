@@ -10,24 +10,24 @@ const factories = {
   'odk.system.service-notifications': ctx => ({ ports: {
     [SYSTEM_PORTS.serviceNotifications]: { publish(ids) {
       if (ctx.signal.aborted) return
-      const destination = ctx.get(SYSTEM_PORTS.personalBot)
+      const destination = ctx.get(SYSTEM_PORTS.personalAgent)
       return destination?.servicePush(ids)
     } },
   } }),
   'odk.system.frame-status': ctx => {
     const frames = ctx.capability('shell.frames')
-    const provider = ctx.get(SYSTEM_PORTS.personalBot)
-    if (provider && frameProviders.get(frames) !== provider) ctx.capability('broadcast')('odk-personal-bot-status', { state: 'unavailable' })
+    const provider = ctx.get(SYSTEM_PORTS.personalAgent)
+    if (provider && frameProviders.get(frames) !== provider) ctx.capability('broadcast')('odk-personal-agent-status', { state: 'unavailable' })
     frameProviders.set(frames, provider)
-    const publishBotStatus = () => {
-      const agent = ctx.get(SYSTEM_PORTS.personalBot)
-      ctx.capability('broadcast')('odk-personal-bot-status', agent ? agent.snapshot() : { state: 'unavailable' })
+    const publishAgentStatus = () => {
+      const agent = ctx.get(SYSTEM_PORTS.personalAgent)
+      ctx.capability('broadcast')('odk-personal-agent-status', agent ? agent.snapshot() : { state: 'unavailable' })
     }
-    publishBotStatus()
+    publishAgentStatus()
     const send = frame => {
       if (ctx.signal.aborted) return
       const remote = ctx.get(SYSTEM_PORTS.remoteLink)
-      publishBotStatus()
+      publishAgentStatus()
       frame.send('odk-remote-link-state', remote ? remote.status() : { state: 'disconnected', sequence: 0 })
     }
     ctx.onCleanup(frames.subscribe(send))

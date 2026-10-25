@@ -62,13 +62,13 @@ for (const sealed of [false, true]) test(`integration paths stay inside the ${se
   const root = makeTree([
     sealed ? 'scripts/cm5-install.sh' : 'runtime/shell/package.json',
     'peripherals/esp32-p4-camera/README.md',
-    'integrations/personal-bot/src/service.mjs',
+    'integrations/personal-agent/src/service.mjs',
   ])
   try {
     const start = path.join(root, ...(sealed ? ['tests'] : ['runtime', 'shell', 'tests']))
-    const expected = path.join(root, 'integrations', 'personal-bot', 'src', 'service.mjs')
-    assert.equal(integrationPath('personal-bot/src/service.mjs', start), expected)
-    assert.equal(integrationURL('personal-bot/src/service.mjs', start), require('node:url').pathToFileURL(expected).href)
+    const expected = path.join(root, 'integrations', 'personal-agent', 'src', 'service.mjs')
+    assert.equal(integrationPath('personal-agent/src/service.mjs', start), expected)
+    assert.equal(integrationURL('personal-agent/src/service.mjs', start), require('node:url').pathToFileURL(expected).href)
   } finally { fs.rmSync(root, { recursive: true, force: true }) }
 })
 
@@ -84,7 +84,7 @@ test('browser provisioning checks consume the flat release integration', { skip:
     fs.copyFileSync(path.join(runtime, relative), destination)
   }
   fs.mkdirSync(path.join(release, 'peripherals', 'esp32-p4-camera'), { recursive: true })
-  const feature = 'personal-bot/features/browser.feature'
+  const feature = 'personal-agent/features/browser.feature'
   const packagedFeature = path.join(release, 'integrations', feature)
   fs.mkdirSync(path.dirname(packagedFeature), { recursive: true })
   fs.copyFileSync(integrationPath(feature, __dirname), packagedFeature)
@@ -134,7 +134,7 @@ test('voice status checks consume the flat release integration', { skip: posixOn
     fs.mkdirSync(path.dirname(target), { recursive: true })
     fs.copyFileSync(path.join(runtime, relative), target)
   }
-  for (const relative of ['tests/personal-bot-client.test.js', 'tests/not-ported.js',
+  for (const relative of ['tests/personal-agent-client.test.js', 'tests/not-ported.js',
     'tests/helpers/repo-root.js', 'scripts/cm5-install.sh']) copy(relative)
   const modules = new Set()
   function copyModule(module) {
@@ -143,22 +143,22 @@ test('voice status checks consume the flat release integration', { skip: posixOn
     copy(path.relative(runtime, module.filename))
     module.children.forEach(copyModule)
   }
-  const client = require.resolve('../src/personal-bot-client')
+  const client = require.resolve('../src/personal-agent-client')
   require(client)
   copyModule(require.cache[client])
   fs.mkdirSync(path.join(release, 'peripherals/esp32-p4-camera'), { recursive: true })
   for (const name of ['service.mjs', 'errors.mjs']) {
-    const relative = `personal-bot/src/${name}`
+    const relative = `personal-agent/src/${name}`
     const target = path.join(release, 'integrations', relative)
     fs.mkdirSync(path.dirname(target), { recursive: true })
     fs.copyFileSync(integrationPath(relative, __dirname), target)
   }
-  const ambient = path.join(root, 'integrations/personal-bot/src/service.mjs')
+  const ambient = path.join(root, 'integrations/personal-agent/src/service.mjs')
   fs.mkdirSync(path.dirname(ambient), { recursive: true })
   fs.writeFileSync(ambient, 'throw Error("Ambient resident service must not run")\n')
   const env = { ...process.env }
   delete env.NODE_TEST_CONTEXT
-  const result = spawnSync(process.execPath, ['--test', '--test-name-pattern=voice levels and long Markdown', 'tests/personal-bot-client.test.js'], {
+  const result = spawnSync(process.execPath, ['--test', '--test-name-pattern=voice levels and long Markdown', 'tests/personal-agent-client.test.js'], {
     cwd: release, env, encoding: 'utf8', timeout: 10000,
   })
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)

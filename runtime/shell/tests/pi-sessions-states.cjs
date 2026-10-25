@@ -19,7 +19,7 @@
  * own 480x854 and 320x480 cases) instead of the 1920x1280 panel.
  */
 const { app, BrowserWindow, ipcMain } = require('electron')
-ipcMain.handle('odk-personal-bot-consumer-ready', () => ({ accepted: false }))
+ipcMain.handle('odk-personal-agent-consumer-ready', () => ({ accepted: false }))
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const fs = require('node:fs')
 const os = require('node:os')
@@ -514,8 +514,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('odk-app-manager-state', (_event, appId) => endpoint.get(appId))
   ipcMain.handle('odk-app-manager-intent', (_event, intent) => endpoint.dispatch(intent))
   ipcMain.handle('odk-remote-publish-page-state', () => true)
-  ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable', message: 'Personal Bot service unavailable' }))
-  ipcMain.handle('odk-personal-bot-toggle', () => false)
+  ipcMain.handle('odk-personal-agent-status', () => ({ state: 'unavailable', message: 'Personal Agent service unavailable' }))
+  ipcMain.handle('odk-personal-agent-toggle', () => false)
   try {
     const code = await main()
     clearTimeout(timeout)

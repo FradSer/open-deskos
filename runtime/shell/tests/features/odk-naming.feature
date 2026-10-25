@@ -8,7 +8,7 @@ Feature: One ODK technical namespace
     And no previous endpoint name is available
 
   Scenario: Data clients use the same namespace as the Shell
-    Given a Personal Bot on Windows or Linux
+    Given a Personal Agent on Windows or Linux
     When it resolves its default data endpoint
     Then it uses the Shell endpoint for that host
     And previous environment variable names do not override it
@@ -19,8 +19,8 @@ Feature: One ODK technical namespace
     Then its HMAC matches the published fixture proof
     And both packages contain the same fixture bytes
 
-  Scenario: The Personal Bot reads through an ODK tool
-    Given the Personal Bot loads the data capability
+  Scenario: The Personal Agent reads through an ODK tool
+    Given the Personal Agent loads the data capability
     When it registers that capability
     Then the tool is odk_data in the odk namespace
 

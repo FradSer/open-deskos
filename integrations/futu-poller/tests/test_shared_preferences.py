@@ -39,7 +39,7 @@ def test_actual_common_cli_disable_enable_and_environment_exclusion(tmp_path):
         subprocess.run([node, str(CLI), operation, "odk.futu.gateway"], env=env,
                        capture_output=True, text=True, timeout=10, check=True)
         assert disabled(command(env)) == expected
-    env["ODK_DISABLED_PLUGINS"] = "odk.futu.gateway, odk.source.weather odk.personal-bot.home"
+    env["ODK_DISABLED_PLUGINS"] = "odk.futu.gateway, odk.source.weather odk.personal-agent.home"
     assert disabled(command(env)) == {"odk.futu.gateway"}
 
 

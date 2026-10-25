@@ -11,21 +11,32 @@ if (process.platform === 'darwin') app.dock.hide()
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-agent-home-'))
 app.setPath('userData', profile)
 installGeometryFixtures(ipcMain)
-ipcMain.removeHandler('odk-personal-bot-status')
+ipcMain.removeHandler('odk-personal-agent-status')
 let initial = { state: 'idle', jev: {status:'verified'}, briefing: { state: 'empty', items: [], generatedAt: Date.now(), omittedSources: 0 } }
-ipcMain.handle('odk-personal-bot-status', () => initial)
+ipcMain.handle('odk-personal-agent-status', () => initial)
+let piCalls=[]
+let piLogin=false
+ipcMain.handle('odk-personal-agent-config',(_event,command)=>{
+  piCalls.push(command.action)
+  const base={providers:[{id:'fixture',name:'Fixture provider',methods:['api_key','oauth']}],models:[{provider:'fixture',id:'fixture-chat',name:'Fixture chat'}],selected:{provider:'fixture',id:'fixture-chat'},thinkingLevel:'off',thinkingLevels:['off','low'],busy:false}
+  if(command.action==='login'){piLogin=true;return {...base,login:{state:'prompt',prompt:{type:'secret',message:'Enter fixture API key'}}}}
+  if(command.action==='answer'){assert.equal(command.value,'synthetic-secret');piLogin=false;return {...base,login:{state:'done'}}}
+  if(command.action==='cancel')piLogin=false
+  return base
+})
+ipcMain.handle('odk-personal-agent-auth-open',()=>true)
 let win
 let micToggles = 0
 let micAccepted = true
 let micCancels = 0
 let cancelAccepted = true
-ipcMain.handle('odk-personal-bot-cancel', () => { micCancels++;if(cancelAccepted)publishStatus({state:'idle',cancelInput:true});return {accepted:cancelAccepted} })
+ipcMain.handle('odk-personal-agent-cancel', () => { micCancels++;if(cancelAccepted)publishStatus({state:'idle',cancelInput:true});return {accepted:cancelAccepted} })
 let sentText = []
 let sentReplyTo = []
 let textAccepted = true
 let textDelivery = 'refused'
 let completeBeforeReceipt = false
-ipcMain.handle('odk-personal-bot-text', async (_event, text, replyTo) => {
+ipcMain.handle('odk-personal-agent-text', async (_event, text, replyTo) => {
   sentText.push(text);sentReplyTo.push(replyTo)
   if (completeBeforeReceipt) {
     publishStatus({ state: 'thinking', transcript: text, message: 'Working' })
@@ -34,7 +45,7 @@ ipcMain.handle('odk-personal-bot-text', async (_event, text, replyTo) => {
   }
   return { accepted: textAccepted, delivery: textAccepted ? 'accepted' : textDelivery }
 })
-ipcMain.handle('odk-personal-bot-toggle', () => { micToggles++; return { accepted: micAccepted } })
+ipcMain.handle('odk-personal-agent-toggle', () => { micToggles++; return { accepted: micAccepted } })
 const timer = setTimeout(() => finish(1), 60000)
 const evaluate = async script => {
   try { return await win.webContents.executeJavaScript(script) }
@@ -65,17 +76,17 @@ async function resize(width, height) {
   }
   assert.fail(`Agent viewport did not settle at ${width}x${height}`)
 }
-function publishStatus(frame) { win.webContents.send('odk-personal-bot-status', {jev:{status:'verified'},...frame}) }
+function publishStatus(frame) { win.webContents.send('odk-personal-agent-status', {jev:{status:'verified'},...frame}) }
 async function send(briefing) {
   publishStatus({ state: 'idle', message: '', briefing })
   await evaluate(`new Promise(resolve => setTimeout(resolve, 30))`)
 }
 async function assertAllSourceOverview() {
   const previousView = await evaluate(`({width:innerWidth,height:innerHeight,theme:document.documentElement.dataset.theme})`)
-  const { HomeBriefing } = await import('../../../integrations/personal-bot/src/home-briefing.mjs')
-  const { generateHomeSelection } = await import('../../../integrations/personal-bot/src/home-template.mjs')
-  const { declaredSources } = await import('../../../integrations/personal-bot/tests/helpers/declared-sources.mjs')
-  const { createTaskReadings } = await import('../../../integrations/personal-bot/src/producer-readings.mjs')
+  const { HomeBriefing } = await import('../../../integrations/personal-agent/src/home-briefing.mjs')
+  const { generateHomeSelection } = await import('../../../integrations/personal-agent/src/home-template.mjs')
+  const { declaredSources } = await import('../../../integrations/personal-agent/tests/helpers/declared-sources.mjs')
+  const { createTaskReadings } = await import('../../../integrations/personal-agent/src/producer-readings.mjs')
   const { parseHomeBriefing } = require('../src/home-briefing-frame')
   const source = (id, label, icon, value) => ({ id, label, kind: 'app', state: 'live', value,
     home: { mode: 'optional', priority: 0, icon, fields: Object.keys(value) } })
@@ -116,7 +127,7 @@ async function assertAllSourceOverview() {
       assert.match(result.coverage, /Read 7 of 7/)
       assert.equal(result.overflow, false, theme)
       if (theme === 'pixel') fs.writeFileSync(path.join(os.tmpdir(), 'odk-overview-generated.png'), await capturePaintedFrame())
-      const { compileHomeSelection, homeFactVariables, resolveHomeTemplate } = await import('../../../integrations/personal-bot/src/home-template.mjs')
+      const { compileHomeSelection, homeFactVariables, resolveHomeTemplate } = await import('../../../integrations/personal-agent/src/home-template.mjs')
       const report = source('odk.remote.audit', 'Remote Pi report', 'sessions', { report: '**Permission gap** needs repair', verification: 'reported_unverified' })
       const facts = homeFactVariables([report])
       const raw = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':report'))] }] }, facts)
@@ -740,11 +751,11 @@ app.whenReady().then(async () => {
     const original = fs.readFileSync(selectedPreload,'utf8')
     assert.ok(original.includes('  supportsReplyTo: true,'))
     selectedPreload = path.join(profile,'legacy-single-argument-preload.cjs')
-    fs.writeFileSync(selectedPreload,original.replace('  supportsReplyTo: true,\n','').replace("sendText: (text, replyTo) => replyTo === undefined ? ipcRenderer.invoke('odk-personal-bot-text', text) : ipcRenderer.invoke('odk-personal-bot-text', text, replyTo)","sendText: text => ipcRenderer.invoke('odk-personal-bot-text', text)"),{mode:0o600,flag:'wx'})
+    fs.writeFileSync(selectedPreload,original.replace('  supportsReplyTo: true,\n','').replace("sendText: (text, replyTo) => replyTo === undefined ? ipcRenderer.invoke('odk-personal-agent-text', text) : ipcRenderer.invoke('odk-personal-agent-text', text, replyTo)","sendText: text => ipcRenderer.invoke('odk-personal-agent-text', text)"),{mode:0o600,flag:'wx'})
   }
   if (process.argv.includes('--composer-text-only')) {
     const original=fs.readFileSync(selectedPreload,'utf8');selectedPreload=path.join(profile,'text-only-preload.cjs')
-    fs.writeFileSync(selectedPreload,original.replace("contextBridge.exposeInMainWorld('odkPersonalBot', {","contextBridge.exposeInMainWorld('odkPersonalBot', { supportsVoiceInput: false,"))
+    fs.writeFileSync(selectedPreload,original.replace("contextBridge.exposeInMainWorld('odkPersonalAgent', {","contextBridge.exposeInMainWorld('odkPersonalAgent', { supportsVoiceInput: false,"))
   }
   win = new BrowserWindow({ width: 1920, height: 1280, show: false, frame: false, useContentSize: true,
     webPreferences: { preload: selectedPreload, sandbox: true, contextIsolation: true,
@@ -773,6 +784,43 @@ app.whenReady().then(async () => {
     console.log('TEXT_ONLY_COMPOSER_PASS');finish(0);return
   }
   if (process.argv.includes('--composer-input-only')) { await assertComposerInputs(); finish(0); return }
+  if(process.argv.includes('--pi-config-only')) {
+    await evaluate(`document.querySelector('.agent-keys').click()`)
+    for(const mode of ['login','model','thinking']) {
+      await evaluate(`(()=>{const select=document.querySelector('.agent-pi-command');select.value='${mode}';select.dispatchEvent(new Event('change'))})()`)
+      await evaluate('new Promise(r=>setTimeout(r,80))')
+      assert.equal(await evaluate(`document.querySelector('.agent-pi-form').hidden`),false)
+      assert.equal(await evaluate(`document.querySelector('.agent-pi-choice').getAttribute('aria-label')`),mode==='login'?'Provider':mode==='model'?'Model':'Thinking level')
+      if(mode==='login') {
+        await evaluate(`document.querySelector('.agent-pi-form').requestSubmit()`);await evaluate('new Promise(r=>setTimeout(r,80))')
+        assert.equal(await evaluate(`document.querySelector('.agent-pi-value').type`),'password')
+        await evaluate(`document.querySelector('.agent-pi-value').value='synthetic-secret';document.querySelector('.agent-pi-form').requestSubmit()`);await evaluate('new Promise(r=>setTimeout(r,80))')
+        assert.match(await evaluate(`document.querySelector('.agent-pi-status').textContent`),/Signed in/)
+        assert.equal(await evaluate(`document.querySelector('.agent-pi-value').value`),'')
+        assert(!await evaluate(`document.querySelector('.agent-conversation').textContent.includes('synthetic-secret')`))
+      } else {await evaluate(`document.querySelector('.agent-pi-form').requestSubmit()`);await evaluate('new Promise(r=>setTimeout(r,80))')}
+      await evaluate(`document.querySelector('.agent-pi-choice').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`)
+      assert.equal(await evaluate(`document.querySelector('.agent-pi-form').hidden`),true)
+      assert.equal(await evaluate(`document.activeElement===document.querySelector('.agent-composer textarea')`),true)
+    }
+    assert(piCalls.includes('login') && piCalls.includes('answer') && piCalls.includes('model') && piCalls.includes('thinking'))
+    for(const theme of ['instrument','pixel','border-beam','liquid-glass']) {
+      await evaluate(`document.documentElement.dataset.theme='${theme}'`)
+      for(const [w,h] of [[1920,1280],[480,854],[320,480]]) {
+        await resize(w,h);await evaluate('document.fonts.ready')
+        await evaluate(`(()=>{const select=document.querySelector('.agent-pi-command');select.value='model';select.dispatchEvent(new Event('change'))})()`)
+        await evaluate('new Promise(r=>setTimeout(r,80))')
+        const bounds=await evaluate(`(()=>{const r=document.querySelector('.agent-pi-form').getBoundingClientRect(),s=document.querySelector('.agent-pi-choice').getBoundingClientRect();return {width:r.width,left:r.left,right:r.right,choice:s.height,viewport:innerWidth}})()`)
+        assert(bounds.left>=0 && bounds.right<=bounds.viewport+1 && bounds.width>0,JSON.stringify(bounds));assert(bounds.choice>=44)
+        await evaluate(`document.querySelector('.agent-pi-close').click()`)
+      }
+    }
+    await resize(480,854)
+    await evaluate(`(()=>{const select=document.querySelector('.agent-pi-command');select.value='model';select.dispatchEvent(new Event('change'))})()`)
+    await evaluate('new Promise(r=>setTimeout(r,100))')
+    fs.writeFileSync(path.join(os.tmpdir(),'odk-pi-config.png'),await capturePaintedFrame())
+    console.log('PI_CONFIG_UI_PASS');finish(0);return
+  }
   if (process.argv.includes('--short-history-only')) {
     await resize(1920,5000)
     const replies=Array.from({length:26},(_,i)=>({id:`${String(i).padStart(8,'0')}-1111-4111-8111-111111111111`,at:i+1,threadId:'a'.repeat(64),sessionId:'short-session',text:`Request ${i}`,answer:`Answer ${i}`,status:'answered',replyTo:{messageId:'b'.repeat(64),sourceKey:'source',sourceRevision:'c'.repeat(64)}}))
@@ -1204,11 +1252,11 @@ app.whenReady().then(async () => {
         await resize(width,height)
         await evaluate(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));await document.fonts.ready;await new Promise(r=>setTimeout(r,100))})()`)
         const layout=await evaluate(`(()=>{
-          const avatar=document.querySelector('.agent-avatar').getBoundingClientRect(),identity=document.querySelector('.agent-identity'),pill=identity.querySelector('.agent-capsule').getBoundingClientRect(),panel=document.querySelector('.agent-panel').getBoundingClientRect(),conversation=document.querySelector('.agent-conversation').getBoundingClientRect(),composer=document.querySelector('.agent-composer').getBoundingClientRect();
+          const inputRow=document.querySelector('.agent-input-row').getBoundingClientRect(),piCommand=document.querySelector('.agent-pi-command').getBoundingClientRect(),avatar=document.querySelector('.agent-avatar').getBoundingClientRect(),identity=document.querySelector('.agent-identity'),pill=identity.querySelector('.agent-capsule').getBoundingClientRect(),panel=document.querySelector('.agent-panel').getBoundingClientRect(),conversation=document.querySelector('.agent-conversation').getBoundingClientRect(),composer=document.querySelector('.agent-composer').getBoundingClientRect();
           const head=document.querySelector('.agent-head'),headStyle=getComputedStyle(head),headBounds=head.getBoundingClientRect();
           const onee=document.querySelector('.agent-avatar .bs-avatar svg'),pillStyle=getComputedStyle(identity.querySelector('.agent-capsule'));
           const bounds=onee.getBBox(),matrix=onee.getScreenCTM(),artTop=new DOMPoint(bounds.x,bounds.y).matrixTransform(matrix).y,artBottom=new DOMPoint(bounds.x,bounds.y+bounds.height).matrixTransform(matrix).y;
-          return {visibleTop:Math.abs(artTop-conversation.top)<=6,artSize:Math.abs(onee.getBoundingClientRect().height-avatar.width)<1,unclipped:getComputedStyle(document.querySelector('.agent-avatar')).overflow==='visible',visibleOverlap:artBottom>pill.top&&artBottom-pill.top<avatar.height*0.25,onee:!!onee&&onee.getAttribute('viewBox')==='-150 -150 300 300'&&onee.querySelectorAll('path[d]').length>=4,sharedCapsule:(pillStyle.backgroundColor!=='rgba(0, 0, 0, 0)'||pillStyle.backgroundImage!=='none')&&pillStyle.borderTopWidth==='1px'&&identity.querySelector('.agent-capsule').contains(document.querySelector('.agent-state')), centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,topAligned:Math.abs(avatar.top-conversation.top)<1,overlap:avatar.bottom-pill.top>=avatar.height*0.12&&avatar.bottom-pill.top<=avatar.height*0.2,transparent:headStyle.backgroundColor==='rgba(0, 0, 0, 0)'&&headStyle.backgroundImage==='none'&&headStyle.backdropFilter==='none',underlay:conversation.top<=headBounds.top&&conversation.bottom>headBounds.bottom,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&composer.width>=panel.width-45,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
+          return {visibleTop:Math.abs(artTop-conversation.top)<=6,artSize:Math.abs(onee.getBoundingClientRect().height-avatar.width)<1,unclipped:getComputedStyle(document.querySelector('.agent-avatar')).overflow==='visible',visibleOverlap:artBottom>pill.top&&artBottom-pill.top<avatar.height*0.25,onee:!!onee&&onee.getAttribute('viewBox')==='-150 -150 300 300'&&onee.querySelectorAll('path[d]').length>=4,sharedCapsule:(pillStyle.backgroundColor!=='rgba(0, 0, 0, 0)'||pillStyle.backgroundImage!=='none')&&pillStyle.borderTopWidth==='1px'&&identity.querySelector('.agent-capsule').contains(document.querySelector('.agent-state')), centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,topAligned:Math.abs(avatar.top-conversation.top)<1,overlap:avatar.bottom-pill.top>=avatar.height*0.12&&avatar.bottom-pill.top<=avatar.height*0.2,transparent:headStyle.backgroundColor==='rgba(0, 0, 0, 0)'&&headStyle.backgroundImage==='none'&&headStyle.backdropFilter==='none',underlay:conversation.top<=headBounds.top&&conversation.bottom>headBounds.bottom,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&inputRow.width>=panel.width-45&&composer.left>=piCommand.right&&composer.width>=120&&piCommand.height>=44&&piCommand.width>=44,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
         })()`)
         for(const [name,ok] of Object.entries(layout))if(!ok)failures.push(theme+' '+width+': '+name)
       }
@@ -1568,7 +1616,7 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('.agent-name').textContent === 'Mori 中文' && document.querySelector('.agent-message-assistant').getAttribute('aria-label') === 'Mori 中文' && document.querySelector('.agent-composer textarea').getAttribute('aria-label').includes('Mori 中文')`), true)
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-name, .agent-caption, .agent-message time, .agent-message-avatar').length`), 0, 'name is shown once and messages have no timestamps or avatars')
   assert.equal(await evaluate(`document.querySelectorAll('.agent-avatar').length===1 && !!document.querySelector('.agent-avatar .bs-avatar svg') && !document.querySelector('.agent-input-avatar')`), true,'one live avatar stays in the header')
-  assert.equal(await evaluate(`document.querySelector('#personal-bot-status').hidden && !document.querySelector('#home-desk').inert`), true)
+  assert.equal(await evaluate(`document.querySelector('#personal-agent-status').hidden && !document.querySelector('#home-desk').inert`), true)
   await evaluate(`document.querySelector('.agent-keys').click();document.querySelector('.agent-composer textarea').value = 'Typed question'; document.querySelector('textarea').dispatchEvent(new Event('input'));document.querySelector('.agent-composer').requestSubmit(); new Promise(r => setTimeout(r, 30))`)
   assert.deepEqual(sentText, ['Typed question'])
   assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').value`), '')

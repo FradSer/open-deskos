@@ -1,5 +1,5 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
-if (!process.argv.includes('--reconnect-only')) ipcMain.handle('odk-personal-bot-consumer-ready', () => ({ accepted: false }))
+if (!process.argv.includes('--reconnect-only')) ipcMain.handle('odk-personal-agent-consumer-ready', () => ({ accepted: false }))
 ipcMain.handle('odk-renderer-development-plugins', () => [])
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const assert = require('node:assert/strict')
@@ -19,12 +19,12 @@ app.whenReady().then(async () => {
   const commands = []
   const ownerTurns = []
   let rejectResponse = false
-  for (const channel of ['odk-opencode-go-status', 'odk-pi-sessions', 'odk-hydra-status', 'odk-weread-highlight', 'odk-futu-holdings', 'odk-weather-status', 'odk-user-apps-list', 'odk-camera-frame', 'odk-app-manager-list', 'odk-personal-bot-status', 'odk-remote-publish-page-state']) ipcMain.handle(channel, () => ({ ok: false, sessions: [], workspaces: [], apps: [] }))
-  ipcMain.handle('odk-personal-bot-text', (_event, text) => { ownerTurns.push(text); return { accepted: true } })
-  ipcMain.handle('odk-personal-bot-proposal', (_event, command) => { commands.push(command); if (rejectResponse && command.type === 'proposal_respond') throw Error('Controlled offline delivery failure'); return { accepted: true } })
+  for (const channel of ['odk-opencode-go-status', 'odk-pi-sessions', 'odk-hydra-status', 'odk-weread-highlight', 'odk-futu-holdings', 'odk-weather-status', 'odk-user-apps-list', 'odk-camera-frame', 'odk-app-manager-list', 'odk-personal-agent-status', 'odk-remote-publish-page-state']) ipcMain.handle(channel, () => ({ ok: false, sessions: [], workspaces: [], apps: [] }))
+  ipcMain.handle('odk-personal-agent-text', (_event, text) => { ownerTurns.push(text); return { accepted: true } })
+  ipcMain.handle('odk-personal-agent-proposal', (_event, command) => { commands.push(command); if (rejectResponse && command.type === 'proposal_respond') throw Error('Controlled offline delivery failure'); return { accepted: true } })
   const win = new BrowserWindow({ show: false, width: 480, height: 854, useContentSize: true, webPreferences: { preload: path.resolve(__dirname, '../src/preload.js'), contextIsolation: true, sandbox: true, backgroundThrottling: false, offscreen: true } })
   if (reconnect) {
-    for (const name of ['odk-personal-bot-status', 'odk-personal-bot-text', 'odk-personal-bot-proposal']) ipcMain.removeHandler(name)
+    for (const name of ['odk-personal-agent-status', 'odk-personal-agent-text', 'odk-personal-agent-proposal']) ipcMain.removeHandler(name)
     reconnect.bindMain(ipcMain, win)
   }
   win.webContents.session.webRequest.onBeforeRequest((details, callback) => callback({ cancel: /^https?:/.test(details.url) }))
@@ -43,23 +43,23 @@ app.whenReady().then(async () => {
     try { await reconnect.verify(win, run) } finally { await reconnect.close() }
     clearTimeout(timer); win.destroy(); app.exit(0); return
   }
-  const send = async status => { win.webContents.send('odk-personal-bot-status', status); await delay() }
+  const send = async status => { win.webContents.send('odk-personal-agent-status', status); await delay() }
   const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry-soil', status: 'pending', offered: true, presented: false, reason: 'A current soil reading is below the selected threshold.', advice: '<script>untrusted reading</script> 检查盆土。', action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土' } }, confirmation: '记住 watering：检查盆土', evidence: [{ readingId: 'odk.tile.hydra', field: 'plants.0.soilPercent', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z', ruleId: 'dry-soil' }] }
   async function longAdviceVisibility() {
     await viewport(320, 480)
     const long = { ...p, id: 'b311a280-c0b9-4411-96cd-4e1e92385349', advice: '检查当前读数并决定下一步。'.repeat(100).slice(0, 1000) }
     commands.length = 0
     await send({ state: 'idle', proposals: [long], proposalPopup: true, proposalCapabilities: { read: true, respond: true, acknowledge: true } })
-    await run(`document.querySelector('.personal-bot-proposal-advice').scrollIntoView({block:'center'})`)
+    await run(`document.querySelector('.personal-agent-proposal-advice').scrollIntoView({block:'center'})`)
     await delay()
-    const geometry = await run(`(() => { const body = document.querySelector('.personal-bot-proposal-advice').getBoundingClientRect(); const viewport = document.querySelector('.personal-bot-status-content').getBoundingClientRect(); return { body: body.height, viewport: viewport.height } })()`)
+    const geometry = await run(`(() => { const body = document.querySelector('.personal-agent-proposal-advice').getBoundingClientRect(); const viewport = document.querySelector('.personal-agent-status-content').getBoundingClientRect(); return { body: body.height, viewport: viewport.height } })()`)
     assert.ok(geometry.body > geometry.viewport * 2, JSON.stringify(geometry))
     assert.ok(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(long.id)), 'Visible long advice must be acknowledged even when less than half of the entire paragraph fits')
     const before = commands.length
     await send({ state: 'idle', proposals: [{ ...long, id: 'b311a280-c0b9-4411-96cd-4e1e92385350' }], proposalPopup: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
-    await run(`document.querySelector('.personal-bot-proposal-advice').scrollIntoView({block:'center'})`)
+    await run(`document.querySelector('.personal-agent-proposal-advice').scrollIntoView({block:'center'})`)
     await delay(); assert.equal(commands.length, before, 'Long read-only advice cannot acknowledge itself')
-    await run(`odkPersonalBotStatus.close()`)
+    await run(`odkPersonalAgentStatus.close()`)
     await viewport(480, 854)
     commands.length = 0
   }
@@ -72,33 +72,33 @@ app.whenReady().then(async () => {
   await send({ state: 'idle', proposals: [p], proposalPopup: true })
   assert.equal(await run(`document.activeElement.matches('#dots .dot')`), true)
   assert.equal(await run(`document.getElementById('pages-viewport').inert`), false)
-  assert.equal(await run(`odkPersonalBotStatus.visible()`), false)
-  assert.equal(await run(`document.getElementById('personal-bot-status').getAttribute('aria-modal')`), 'false')
-  assert.equal(await run(`!!document.querySelector('.personal-bot-proposals script')`), false)
+  assert.equal(await run(`odkPersonalAgentStatus.visible()`), false)
+  assert.equal(await run(`document.getElementById('personal-agent-status').getAttribute('aria-modal')`), 'false')
+  assert.equal(await run(`!!document.querySelector('.personal-agent-proposals script')`), false)
   assert.equal(commands[0].type, 'proposal_presented')
-  await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'Accept').click()`)
+  await run(`[...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === 'Accept').click()`)
   await delay(); assert.equal(commands.some(c => c.type === 'proposal_respond'), false)
-  await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === '记住 watering：检查盆土').click()`)
+  await run(`[...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === '记住 watering：检查盆土').click()`)
   await delay(); assert.equal(commands.at(-1).confirmation, p.confirmation)
   await send({ state: 'idle', proposals: [p], proposalHiddenCount: 0, proposalPopup: true, proposalError: 'generation_unavailable' })
-  assert.equal(await run(`document.querySelector('.personal-bot-proposal-error')?.textContent`), 'generation_unavailable')
-  await run(`window.__proposalControls = [...document.querySelectorAll('.personal-bot-proposals button')]`)
+  assert.equal(await run(`document.querySelector('.personal-agent-proposal-error')?.textContent`), 'generation_unavailable')
+  await run(`window.__proposalControls = [...document.querySelectorAll('.personal-agent-proposals button')]`)
   await send({ state: 'idle', proposals: [p], proposalHiddenCount: 0, proposalPopup: false })
-  assert.equal(await run(`!!document.querySelector('.personal-bot-proposal-error')`), false)
-  assert.equal(await run(`window.__proposalControls.every((node, index) => document.querySelectorAll('.personal-bot-proposals button')[index] === node)`), true)
+  assert.equal(await run(`!!document.querySelector('.personal-agent-proposal-error')`), false)
+  assert.equal(await run(`window.__proposalControls.every((node, index) => document.querySelectorAll('.personal-agent-proposals button')[index] === node)`), true)
   await send({ state: 'idle', proposals: [p], proposalHiddenCount: 0, proposalPopup: false, proposalError: 'checkpoint_failed' })
-  assert.equal(await run(`!!document.querySelector('.personal-bot-proposal-error')`), true)
+  assert.equal(await run(`!!document.querySelector('.personal-agent-proposal-error')`), true)
   const uncertain = { ...p, id: 'a91cb070-410b-42a8-b15e-f0508d2f9dbf' }
   await send({ state: 'idle', proposals: [uncertain], proposalHiddenCount: 0, proposalPopup: true })
   rejectResponse = true
-  await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'Accept').click()`)
-  await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === '记住 watering：检查盆土').click()`)
+  await run(`[...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === 'Accept').click()`)
+  await run(`[...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === '记住 watering：检查盆土').click()`)
   await delay()
   const commandCount = commands.filter(c => c.type === 'proposal_respond').length
-  await run(`window.__disabledConfirmation = [...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === '记住 watering：检查盆土')`)
+  await run(`window.__disabledConfirmation = [...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === '记住 watering：检查盆土')`)
   await send({ state: 'idle', proposals: [uncertain], proposalHiddenCount: 0, proposalPopup: false, proposalError: 'generation_unavailable' })
   await send({ state: 'idle', proposals: [uncertain], proposalHiddenCount: 0, proposalPopup: false })
-  assert.match(await run(`document.querySelector('.personal-bot-proposal-error')?.textContent ?? ''`), /not delivered.*do not repeat an uncertain action/)
+  assert.match(await run(`document.querySelector('.personal-agent-proposal-error')?.textContent ?? ''`), /not delivered.*do not repeat an uncertain action/)
   assert.equal(await run(`window.__disabledConfirmation.isConnected && window.__disabledConfirmation.disabled`), true)
   assert.equal(commands.filter(c => c.type === 'proposal_respond').length, commandCount)
   rejectResponse = false
@@ -108,15 +108,15 @@ app.whenReady().then(async () => {
       to: [{ handle: '44444444-4444-4444-8444-444444444444', name: '测试终点', city: '测试市' }], items: [{ productName: '测试车型', productCategory: '1', priceText: '20元' }] } }
   await send({ state: 'idle', proposals: [ride], proposalPopup: true })
   const beforeDetails = commands.length
-  await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'View ride details').click()`)
+  await run(`[...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === 'View ride details').click()`)
   assert.equal(ownerTurns.length, 0); assert.equal(commands.length, beforeDetails)
-  assert.equal(await run(`!!document.querySelector('.personal-bot-ride-details script')`), false)
-  assert.equal(await run(`document.querySelector('.personal-bot-ride-details').hidden`), false)
-  assert.match(await run(`document.querySelector('.personal-bot-ride-details').textContent`), /Sandbox preview; no real vehicle or trip\./)
-  assert.match(await run(`document.querySelector('.personal-bot-ride-details').textContent`), /20元/)
-  await run(`[...document.querySelectorAll('.personal-bot-ride-details button')].find(b => b.textContent === 'Get current quote').click()`)
+  assert.equal(await run(`!!document.querySelector('.personal-agent-ride-details script')`), false)
+  assert.equal(await run(`document.querySelector('.personal-agent-ride-details').hidden`), false)
+  assert.match(await run(`document.querySelector('.personal-agent-ride-details').textContent`), /Sandbox preview; no real vehicle or trip\./)
+  assert.match(await run(`document.querySelector('.personal-agent-ride-details').textContent`), /20元/)
+  await run(`[...document.querySelectorAll('.personal-agent-ride-details button')].find(b => b.textContent === 'Get current quote').click()`)
   await delay(); assert.equal(ownerTurns.length, 0)
-  await run(`document.querySelector('.personal-bot-ride-details select').value = '33333333-3333-4333-8333-333333333333'; [...document.querySelectorAll('.personal-bot-ride-details button')].find(b => b.textContent === 'Get current quote').click()`)
+  await run(`document.querySelector('.personal-agent-ride-details select').value = '33333333-3333-4333-8333-333333333333'; [...document.querySelectorAll('.personal-agent-ride-details button')].find(b => b.textContent === 'Get current quote').click()`)
   await delay()
   assert.deepEqual(ownerTurns, ['查看报价 11111111-1111-4111-8111-111111111111 33333333-3333-4333-8333-333333333333 44444444-4444-4444-8444-444444444444'])
   assert.equal(commands.filter(c => c.type === 'proposal_respond').length, 2, 'Ride details add no proposal action')
@@ -125,18 +125,18 @@ app.whenReady().then(async () => {
     for (const [width, height] of [[320, 480], [480, 854], [1920, 1280]]) {
       await viewport(width, height)
       await send({ state: 'idle', proposals: [ride], proposalPopup: true })
-      await run(`(() => { const open = [...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'View ride details'); if (open.getAttribute('aria-expanded') === 'false') open.click(); return document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) })()`)
-      const rideGeometry = await run(`(() => { const node = document.querySelector('.personal-bot-status-content'); return { detailsHidden: document.querySelector('.personal-bot-ride-details').hidden, overflow: node.scrollWidth > node.clientWidth + 1, heights: [...document.querySelectorAll('.personal-bot-ride-details select, .personal-bot-ride-details button')].map(n => n.getBoundingClientRect().height) } })()`)
+      await run(`(() => { const open = [...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === 'View ride details'); if (open.getAttribute('aria-expanded') === 'false') open.click(); return document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) })()`)
+      const rideGeometry = await run(`(() => { const node = document.querySelector('.personal-agent-status-content'); return { detailsHidden: document.querySelector('.personal-agent-ride-details').hidden, overflow: node.scrollWidth > node.clientWidth + 1, heights: [...document.querySelectorAll('.personal-agent-ride-details select, .personal-agent-ride-details button')].map(n => n.getBoundingClientRect().height) } })()`)
       assert.equal(rideGeometry.detailsHidden, false, JSON.stringify({ theme, width, height, ...rideGeometry })); assert.equal(rideGeometry.overflow, false); assert.ok(rideGeometry.heights.length >= 3); assert.ok(rideGeometry.heights.every(h => h >= 44), JSON.stringify({ theme, width, height, ...rideGeometry }))
       for (const status of ['pending', 'expired', 'ignored', 'completed', 'unknown']) {
         await send({ state: 'idle', proposals: [{ ...p, status, advice: 'Long CJK 长句测试 '.repeat(40), result: status === 'unknown' ? 'Outcome unknown; do not retry.' : '' }], proposalPopup: true })
         const geometry = await run(`(() => {
-          const node = document.querySelector('.personal-bot-status-content'); const r = node.getBoundingClientRect();
-          const controls = [...document.querySelectorAll('.personal-bot-proposals button')].filter(n => n.checkVisibility());
+          const node = document.querySelector('.personal-agent-status-content'); const r = node.getBoundingClientRect();
+          const controls = [...document.querySelectorAll('.personal-agent-proposals button')].filter(n => n.checkVisibility());
           return { contained: r.x >= 0 && r.y >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
             overflow: node.scrollWidth > node.clientWidth + 1,
             controls: controls.every(b => b.getBoundingClientRect().height >= 44),
-            font: parseFloat(getComputedStyle(document.querySelector('.personal-bot-proposal-evidence')).fontSize),
+            font: parseFloat(getComputedStyle(document.querySelector('.personal-agent-proposal-evidence')).fontSize),
             accept: controls.some(b => b.textContent === 'Accept') }
         })()`)
         assert.equal(geometry.contained, true); assert.equal(geometry.overflow, false); assert.equal(geometry.controls, true); assert.ok(geometry.font >= 14)
@@ -153,14 +153,14 @@ app.whenReady().then(async () => {
   const seen = () => commands.filter(c => c.type === 'proposal_presented').flatMap(c => c.ids)
   assert.ok(seen().length > 0 && seen().length < queued.length, JSON.stringify({ seen: seen() }))
   assert.ok(!seen().includes(queued.at(-1).id), 'An offscreen suggestion must remain unread')
-  await run(`document.querySelectorAll('.personal-bot-proposal-advice')[7].scrollIntoView({block:'center'})`)
+  await run(`document.querySelectorAll('.personal-agent-proposal-advice')[7].scrollIntoView({block:'center'})`)
   await delay()
   assert.ok(seen().includes(queued.at(-1).id), 'Scrolling the actual advice into view acknowledges that suggestion')
   const expectedFeedback = [['Done', 'done'], ['Later', 'snooze'], ['Useful', 'useful'], ['Not relevant', 'irrelevant'], ['Incorrect', 'incorrect']]
   for (const [label, decision] of expectedFeedback) {
     const next = { ...p, id: `d311a280-c0b9-4411-96cd-4e1e92385${String(360 + expectedFeedback.findIndex(row => row[0] === label)).padStart(3, '0')}`, action: null, confirmation: '' }
     await send({ state: 'idle', proposals: [next], proposalPopup: true })
-    await run(`(() => { const details = document.querySelector('.personal-bot-proposal-feedback-options'); details.open = true; const control = [...document.querySelectorAll('.personal-bot-proposal button')].find(b => b.textContent === ${JSON.stringify(label)}); control.scrollIntoView({block:'center'}); control.focus(); return control.getBoundingClientRect().height })()`)
+    await run(`(() => { const details = document.querySelector('.personal-agent-proposal-feedback-options'); details.open = true; const control = [...document.querySelectorAll('.personal-agent-proposal button')].find(b => b.textContent === ${JSON.stringify(label)}); control.scrollIntoView({block:'center'}); control.focus(); return control.getBoundingClientRect().height })()`)
     // Keyboard activation uses the same candidate-specific command as touch/click.
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
     await delay()
@@ -171,7 +171,7 @@ app.whenReady().then(async () => {
   }
   const touched = { ...p, id: 'f311a280-c0b9-4411-96cd-4e1e92385349', action: null, confirmation: '' }
   await send({ state: 'idle', proposals: [touched], proposalPopup: true })
-  const touch = await run(`(() => { const node = [...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'Done'); node.scrollIntoView({block:'center'}); const r = node.getBoundingClientRect(); return { x: r.x+r.width/2, y: r.y+r.height/2 } })()`)
+  const touch = await run(`(() => { const node = [...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === 'Done'); node.scrollIntoView({block:'center'}); const r = node.getBoundingClientRect(); return { x: r.x+r.width/2, y: r.y+r.height/2 } })()`)
   await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: true })
   await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...touch, id: 1 }] })
   await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
@@ -182,28 +182,28 @@ app.whenReady().then(async () => {
   await send({ state: 'idle', proposals: [ride], proposalPopup: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
   await delay()
   assert.equal(commands.length, beforeReadOnly)
-  assert.equal(await run(`!![...document.querySelectorAll('.personal-bot-proposals button')].find(b => ['Accept','Done','Later','Useful','Not relevant','Incorrect','Ignore','Get current quote','Refresh preview'].includes(b.textContent))`), false)
-  assert.match(await run(`document.querySelector('.personal-bot-proposal-capability').textContent`), /read-only on this device/)
+  assert.equal(await run(`!![...document.querySelectorAll('.personal-agent-proposals button')].find(b => ['Accept','Done','Later','Useful','Not relevant','Incorrect','Ignore','Get current quote','Refresh preview'].includes(b.textContent))`), false)
+  assert.match(await run(`document.querySelector('.personal-agent-proposal-capability').textContent`), /read-only on this device/)
   assert.equal(ownerTurns.length, beforeReadOnlyTurns)
-  await run(`odkPersonalBotStatus.close()`)
+  await run(`odkPersonalAgentStatus.close()`)
   await send({ state: 'idle', proposals: [ride], proposalPopup: true, proposalRecovery: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
-  assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), true, 'Read-only recovery preserves Close dismissal')
+  assert.equal(await run(`document.getElementById('personal-agent-status').hidden`), true, 'Read-only recovery preserves Close dismissal')
   await send({ state: 'idle', proposals: [{ ...ride, id: '11111111-1111-4111-8111-111111111111' }], proposalPopup: true, proposalRecovery: false, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
-  assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), false, 'An ordinary new read-only reminder can open')
+  assert.equal(await run(`document.getElementById('personal-agent-status').hidden`), false, 'An ordinary new read-only reminder can open')
   assert.equal(commands.length, beforeReadOnly, 'Read-only recovery grants no acknowledgement or response authority')
-  await run(`document.querySelector('.personal-bot-proposal-sources summary').focus()`)
+  await run(`document.querySelector('.personal-agent-proposal-sources summary').focus()`)
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
-  await delay(); assert.equal(await run(`document.querySelector('.personal-bot-proposal-sources').open`), true)
+  await delay(); assert.equal(await run(`document.querySelector('.personal-agent-proposal-sources').open`), true)
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     await run(`odkTheme.set(${JSON.stringify(theme)})`)
     for (const revoked of [{ state: 'unavailable' }, { state: 'idle', proposalCapabilities: { read: false, respond: false, acknowledge: false } }]) {
       await send({ state: 'idle', proposals: [{ ...p, action: null, confirmation: '' }], proposalPopup: true })
-      assert.equal(await run(`document.querySelector('.personal-bot-proposals').hidden`), false)
+      assert.equal(await run(`document.querySelector('.personal-agent-proposals').hidden`), false)
       const beforeWithdrawal = commands.length
       await send(revoked)
-      assert.deepEqual(await run(`(() => { const section = document.querySelector('.personal-bot-proposals'); return { hidden: section.hidden, children: section.children.length } })()`), { hidden: true, children: 0 })
+      assert.deepEqual(await run(`(() => { const section = document.querySelector('.personal-agent-proposals'); return { hidden: section.hidden, children: section.children.length } })()`), { hidden: true, children: 0 })
       await send({ state: 'idle' })
-      assert.equal(await run(`document.querySelectorAll('.personal-bot-proposal').length`), 0, `${theme} legacy status retains no withdrawn proposal`)
+      assert.equal(await run(`document.querySelectorAll('.personal-agent-proposal').length`), 0, `${theme} legacy status retains no withdrawn proposal`)
       assert.equal(commands.length, beforeWithdrawal, `${theme} withdrawn content sends no acknowledgement`)
     }
   }
@@ -211,17 +211,17 @@ app.whenReady().then(async () => {
   // Populated fixture preview: the capture waits for the current native compositor frame.
   const preview = { ...p, id: 'c311a280-c0b9-4411-96cd-4e1e92385349', action: null, confirmation: '', advice: '检查书桌旁植物的盆土，再决定是否浇水。', reason: '最新土壤湿度为10%，低于你选择的提醒阈值。' }
   await send({ state: 'idle', proposals: [preview], proposalPopup: true })
-  await run(`document.querySelector('.personal-bot-status-content').scrollTop = 0; document.fonts.ready.then(() => true)`)
+  await run(`document.querySelector('.personal-agent-status-content').scrollTop = 0; document.fonts.ready.then(() => true)`)
   const { capturePaintedPage } = require('./helpers/native-page-capture')
   const output = process.env.ODK_PROACTIVE_PREVIEW_FILE
   if (output) fs.writeFileSync(output, (await capturePaintedPage(win)).toPNG())
-  await run(`odkPersonalBotStatus.close()`)
+  await run(`odkPersonalAgentStatus.close()`)
   await send({ state: 'idle', proposals: [], proposalPopup: false })
-  assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), true)
+  assert.equal(await run(`document.getElementById('personal-agent-status').hidden`), true)
   await send({ state: 'starting' })
   await send({ state: 'recording' })
-  assert.equal(await run(`document.getElementById('personal-bot-status').dataset.proactive`), 'false')
-  assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), true)
+  assert.equal(await run(`document.getElementById('personal-agent-status').dataset.proactive`), 'false')
+  assert.equal(await run(`document.getElementById('personal-agent-status').hidden`), true)
   assert.equal(await run(`document.querySelector('.agent-state').textContent`), 'Listening…')
   assert.equal(await run(`document.querySelector('.agent-mic').getAttribute('aria-label')`), 'Stop recording')
   assert.equal(await run(`document.getElementById('pages-viewport').inert || document.getElementById('home-desk').inert`), false)

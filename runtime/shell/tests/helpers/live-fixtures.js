@@ -55,8 +55,8 @@ function installGeometryFixtures(ipcMain, { state = 'unavailable', wide = false,
   ipcMain.handle('odk-user-apps-changed', () => ({ ok: true }))
   ipcMain.handle('odk-app-manager-list', () => ({ ok: true, apps: [] }))
   ipcMain.handle('odk-app-manager-state', () => ({ ok: true }))
-  ipcMain.handle('odk-personal-bot-status', () => ({ state: 'idle' }))
-  ipcMain.handle('odk-personal-bot-consumer-ready', () => ({ accepted: false }))
+  ipcMain.handle('odk-personal-agent-status', () => ({ state: 'idle' }))
+  ipcMain.handle('odk-personal-agent-consumer-ready', () => ({ accepted: false }))
   ipcMain.handle('odk-camera-frame', () => ({ ok: false }))
   ipcMain.handle('odk-weather-status', () => (live
     ? wide

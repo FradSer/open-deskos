@@ -22,7 +22,7 @@ function node(document) {
 }
 
 async function fixture(t, { failUnsubscribe = false, fit = false } = {}) {
-  const root = { odkPluginHost: { createPluginHost }, odkPersonalBotReply: { render(target, text) { target.textContent = text } } }
+  const root = { odkPluginHost: { createPluginHost }, odkPersonalAgentReply: { render(target, text) { target.textContent = text } } }
   const fitResources = { observers: new Set(), callbacks: [], frames: new Map(), fontListeners: new Set() }
   if (fit) {
     const observer = class {

@@ -82,10 +82,10 @@ test('CM5 acceptance reports release, migration, service, runtime, and hardware 
 test('CM5 acceptance reports duplicated and leftover device-local configuration', t => {
   const home = fixture(t, {
     '.config/odk/runtime.env': 'ODK_WORKSPACE=/home/kiosk/Developer/odk\nODK_STT_PORT=17840\n',
-    '.config/odk/personal-bot.env': 'ODK_PERSONAL_BOT_STT_URL=http://127.0.0.1:19999/inference\nODK_WORKSPACE=/home/kiosk/Developer/odk\n',
-    '.config/systemd/user/odk-personal-bot.service.d/tasks.conf': '[Service]\nEnvironment=ODK_WORKSPACE=/home/kiosk/Developer/odk\n',
-    '.config/systemd/user/odk-personal-bot.service.d/personal-bot.conf.disabled': '[Service]\n',
-    '.local/share/odk/personal-bot-releases/personal-1/src/main.mjs': '',
+    '.config/odk/perosnal-agent.env': 'ODK_PERSONAL_AGENT_STT_URL=http://127.0.0.1:19999/inference\nODK_WORKSPACE=/home/kiosk/Developer/odk\n',
+    '.config/systemd/user/odk-personal-agent.service.d/tasks.conf': '[Service]\nEnvironment=ODK_WORKSPACE=/home/kiosk/Developer/odk\n',
+    '.config/systemd/user/odk-personal-agent.service.d/personal-agent.conf.disabled': '[Service]\n',
+    '.local/share/odk/personal-agent-releases/personal-1/src/main.mjs': '',
   })
   const check = acceptance(home)
   const endpoint = check('stt-endpoint-consistency')
@@ -96,7 +96,7 @@ test('CM5 acceptance reports duplicated and leftover device-local configuration'
   assert.equal(shadowed.ok, false)
   assert.match(shadowed.detail, /ODK_WORKSPACE/)
   assert.equal(check('no-zombie-config').ok, false)
-  assert.match(check('no-zombie-config').detail, /personal-bot\.conf\.disabled/)
+  assert.match(check('no-zombie-config').detail, /personal-agent\.conf\.disabled/)
   assert.equal(check('single-bot-installation').ok, false)
   assert.equal(check('single-bot-installation').required, true)
 })
@@ -104,8 +104,8 @@ test('CM5 acceptance reports duplicated and leftover device-local configuration'
 test('CM5 acceptance accepts one declaration per fact', t => {
   const home = fixture(t, {
     '.config/odk/runtime.env': 'ODK_WORKSPACE=/home/kiosk/Developer/odk\nODK_STT_PORT=17840\n',
-    '.config/odk/personal-bot.env': 'ODK_PERSONAL_BOT_AUDIO_DEVICE=default\n',
-    '.config/systemd/user/odk-personal-bot.service.d/tasks.conf': '[Service]\nEnvironment=ODK_TASK_TARGETS_FILE=/home/kiosk/.config/odk/task-targets.json\n',
+    '.config/odk/perosnal-agent.env': 'ODK_PERSONAL_AGENT_AUDIO_DEVICE=default\n',
+    '.config/systemd/user/odk-personal-agent.service.d/tasks.conf': '[Service]\nEnvironment=ODK_TASK_TARGETS_FILE=/home/kiosk/.config/odk/task-targets.json\n',
   })
   const check = acceptance(home)
   assert.equal(check('stt-endpoint-consistency').ok, true)
@@ -182,7 +182,7 @@ test('CM5 acceptance accepts a display that answers even from a non-graphical se
 test('CM5 acceptance reports runtime code copied outside the release', t => {
   const home = fixture(t, {
     '.config/odk/runtime.env': 'ODK_WORKSPACE=/home/kiosk/Developer/odk\n',
-    'runtime/integrations/personal-bot/src/main.mjs': '// stale copy\n',
+    'runtime/integrations/personal-agent/src/main.mjs': '// stale copy\n',
   })
   const check = acceptance(home, { ODK_RUNTIME_ROOT: path.join(home, 'runtime') })
   const stray = check('no-stray-runtime-code')
@@ -192,7 +192,7 @@ test('CM5 acceptance reports runtime code copied outside the release', t => {
 })
 
 
-test('CM5 acceptance accepts legacy Personal Bot upgrade configuration', t => {
+test('CM5 acceptance accepts legacy Personal Agent upgrade configuration', t => {
   const home = fixture(t, {
     '.config/odk/runtime.env': 'ODK_STT_PORT=17840\n',
     '.config/odk/voice-agent.env': 'ODK_VOICE_STT_URL=http://127.0.0.1:19999/inference\n',

@@ -1,6 +1,6 @@
 # Voice feedback contract
 
-The Personal Bot owns recording, transcription, execution and response. [PERSONAL_BOT_DEPLOYMENT](PERSONAL_BOT_DEPLOYMENT.md) owns host configuration. [Personal Bot README](../../../integrations/personal-bot/README.md) owns coordination and Hosted Pi operations.
+The Personal Agent owns recording, transcription, execution and response. [PERSONAL_AGENT_DEPLOYMENT](PERSONAL_AGENT_DEPLOYMENT.md) owns host configuration. [Personal Agent README](../../../integrations/personal-agent/README.md) owns coordination and Hosted Pi operations.
 
 ## MIC and dismissal
 
@@ -51,7 +51,7 @@ While thinking, `message` holds accumulated public text. Idle holds the complete
 
 Use OpenCC to normalize validated transcripts to Simplified Chinese. Preserve Latin spelling, punctuation and identifiers. Display and agent prompt use the same normalized text. Agent replies default to Simplified Chinese unless the user selects another language. Do not guess recognition substitutions.
 
-`ODK_PERSONAL_BOT_STT_PROMPT` supplies or disables the recognition context. Limit it to 1024 UTF-16 code units. Default language is `zh`. Accept two/three-letter language codes; do not send unsupported `zh-CN` locale tags.
+`ODK_PERSONAL_AGENT_STT_PROMPT` supplies or disables the recognition context. Limit it to 1024 UTF-16 code units. Default language is `zh`. Accept two/three-letter language codes; do not send unsupported `zh-CN` locale tags.
 
 - Standard OpenAI-style recognition sends multipart audio. Omit language for `auto`.
 - The known loopback whisper.cpp `/inference` endpoint requires explicit `auto`; omission selects its English default. Send `translate=false` only to that local contract.
@@ -63,6 +63,6 @@ Declare the provider; never infer it from a URL. A wrong credential, missing aud
 
 Use service/recorder tests for startup/shutdown, capture cleanup, fragmented PCM, backpressure, disk failure, VAD, bounds and manual/automatic submission races. Use the real socket for transcript-before-reply ordering, streaming-before-completion and maximum escaped frames. Use the Electron voice DOM for MIC restore, safe Markdown, focus, dismissal, scroll and theme/size geometry.
 
-Run `node --test tests/personal-bot-client.test.js tests/voice-stream-integration.test.js` from the runtime. Run `pnpm exec electron tests/voice-input-ui.cjs`, `tests/personal-bot-status.cjs` and `tests/personal-bot-floating-panel.cjs` in the required graphical test session. Run the affected bot suite/typecheck from `integrations/personal-bot`. The full E2E result requires all required subprocesses to pass.
+Run `node --test tests/personal-agent-client.test.js tests/voice-stream-integration.test.js` from the runtime. Run `pnpm exec electron tests/voice-input-ui.cjs`, `tests/personal-agent-status.cjs` and `tests/personal-agent-floating-panel.cjs` in the required graphical test session. Run the affected bot suite/typecheck from `integrations/personal-agent`. The full E2E result requires all required subprocesses to pass.
 
 Fixtures do not prove acoustic accuracy, quiet speech/noise performance, Chinese/English recognition, CM5 CPU/GPU cost, physical MIC/Remote/touch or screen-reader announcements. Live capture, provider/model calls and deployment require authorization and separate host/device evidence. This contract adds no wake-word or speech-synthesis feature.

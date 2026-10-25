@@ -18,7 +18,7 @@ const { KIOSK_WINDOW_LOCK, enterPanel, resolvePanelBounds } = require('./panel')
 const { createPiSessionEventsSource } = require('./pi-session-events-source')
 const { readSessionEvents } = require('./pi-sessions')
 const { createHydraSource, connectHydraMqtt } = require('./hydra-mqtt')
-const { createPersonalBotClient, resolvePersonalBotSocketPath } = require('./personal-bot-client')
+const { createPersonalAgentClient, resolvePersonalAgentSocketPath } = require('./personal-agent-client')
 const { createWeReadSource } = require('./weread-source')
 const { createFutuSource } = require('./futu-source')
 const { createWeatherSource } = require('./weather-source')
@@ -329,8 +329,8 @@ async function main() {
       'desk.link': { listen: listenOdkData, smokeMode, enabled: shellHost.provisionsOdkData, report: message => console.error(message), options: {
         endpoint: shellHost.odkDataEndpoint, stateDir: shellHost.stateDir, platform: shellHost.platform,
       } },
-      'system.personal-bot': { create: createPersonalBotClient, smokeMode, isConsumerFrame: event => diagnosisFrames.has(event.sender) && event.senderFrame === event.sender.mainFrame, options: {
-        socketPath: smokeMode ? null : resolvePersonalBotSocketPath(process.env, shellHost), host: shellHost,
+      'system.personal-agent': { create: createPersonalAgentClient, smokeMode, openExternal: url => require('electron').shell.openExternal(url), isConsumerFrame: event => diagnosisFrames.has(event.sender) && event.senderFrame === event.sender.mainFrame, options: {
+        socketPath: smokeMode ? null : resolvePersonalAgentSocketPath(process.env, shellHost), host: shellHost,
       } },
       'system.remote-link': { create: createRemoteBridgeClient, smokeMode, options: { socketPath: remoteSocketPath } },
       'system.app-manager': { create: createAppManagerEndpoint },
@@ -338,7 +338,7 @@ async function main() {
       'source.pi-sessions': { create: createPiSessionsSource, configured: createConfiguredPiSessionReader },
       'source.pi-events': { create: createPiSessionEventsSource, readLocal: readSessionEvents },
       'source.camera': { create: createCameraSource, provider: createCameraCaptureProvider },
-      'source.personal-agent-readings': { endpoint: smokeMode ? null : shellHost.endpoint('personal-bot-control'), tokenFile: shellHost.localChannelTokenFile, platform: shellHost.platform },
+      'source.personal-agent-readings': { endpoint: smokeMode ? null : shellHost.endpoint('personal-agent-control'), tokenFile: shellHost.localChannelTokenFile, platform: shellHost.platform },
       'source.quota': { read: options => fetchOpenCodeGo(resolveOpenCodeGoConfig(), options) },
       'source.hydra': { create: createHydraSource, connect: connectHydraMqtt, options: smokeMode ? {} : {
         url: process.env.ODK_HYDRA_MQTT_URL,

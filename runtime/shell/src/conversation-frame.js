@@ -1,5 +1,5 @@
 'use strict'
-const { parseReplyTo } = require('./personal-bot-reply-reference')
+const { parseReplyTo } = require('./personal-agent-reply-reference')
 const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value)
 const text = (value, limit) => typeof value === 'string' && value.length <= limit && !/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(value)
 /** Read-only display history. It grants no dispatch or receipt authority. */

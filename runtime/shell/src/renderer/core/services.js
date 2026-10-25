@@ -315,9 +315,9 @@
     root.odkRemote?.subscribeLinkState?.(guard(updateRemoteLinkState)))
   registerService('odk.service.briefing', briefing)
   registerDefaultService('odk.service.homeBriefing', homeBriefing, guard => {
-    const release = root.odkPersonalBot?.subscribe(guard(receiveHome))
+    const release = root.odkPersonalAgent?.subscribe(guard(receiveHome))
     const initialHomeRevision = homeRevision
-    root.odkPersonalBot?.getStatus().then(guard(status => {
+    root.odkPersonalAgent?.getStatus().then(guard(status => {
       if (homeRevision === initialHomeRevision) receiveHome(status)
     })).catch(guard(() => {
       if (homeRevision === initialHomeRevision) receiveHome({ state: 'unavailable' })

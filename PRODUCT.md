@@ -25,7 +25,7 @@ The Shell remains useful when peripherals, providers, or experimental services f
 | Component | Responsibility |
 | --- | --- |
 | Shared Display Shell | Display, direct input, local data, services, and application orchestration |
-| Personal Bot | CM5 resident agent; Windows displays state and relays input; its runtime role and vocabulary are defined in [Shell context](runtime/shell/CONTEXT.md) |
+| Personal Agent | CM5 resident agent; Windows displays state and relays input; its runtime role and vocabulary are defined in [Shell context](runtime/shell/CONTEXT.md) |
 | Hosted Pi / Open DeskOS Link | Host sessions and attribute Console control; local input keeps authority |
 | ESP32-S3 Remote / Remote Bridge | Touch Remote Control and its transport |
 | ESP32-P4 SC2336 Camera | Generic UVC webcam and UAC microphone; no recognition, expression analysis, or identity storage |
@@ -47,7 +47,7 @@ The semantic palette and interaction rules are owned by [DESIGN.md](DESIGN.md).
 
 ## Product Principles
 
-1. **Host ownership.** Shell services live on each Shell Host. CM5 owns shared Personal Bot inference and state.
+1. **Host ownership.** Shell services live on each Shell Host. CM5 owns shared Personal Agent inference and state.
 2. **Truth before detail.** Show local or provider-sourced facts with provenance; never invent personal activity, health, calendar, or usage data.
 3. **Independent peripheral gates.** Missing S3 or P4 hardware cannot block touch and keyboard.
 4. **Explicit experiments.** C6/S31 gateways and future packages stay opt-in until promoted by a product decision.

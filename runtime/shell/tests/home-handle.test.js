@@ -40,10 +40,10 @@ for (const [name, dx, dy] of [['short', 0, -16], ['down', 0, 96], ['horizontal',
     assert.equal(f.calls(), 0); assert.equal(f.styles.size, 0); f.controller.destroy()
   })
 }
-for (const boundary of ['pointercancel', 'lostpointercapture', 'blur', 'resize', 'odk-personal-bot-visibility']) {
+for (const boundary of ['pointercancel', 'lostpointercapture', 'blur', 'resize', 'odk-personal-agent-visibility']) {
   test(`${boundary} cancels return`, async () => {
     const f = fixture(); f.move(0, -96)
-    f.send(boundary, {}, ['blur', 'resize', 'odk-personal-bot-visibility'].includes(boundary) ? f.root : f.handle)
+    f.send(boundary, {}, ['blur', 'resize', 'odk-personal-agent-visibility'].includes(boundary) ? f.root : f.handle)
     f.release(); await f.tick()
     assert.equal(f.calls(), 0); assert.equal(f.styles.size, 0); assert.equal(f.capture.size, 0); f.controller.destroy()
   })
@@ -148,7 +148,7 @@ for (const [name, points] of [
   assert.equal(event.defaultPrevented, false); f.send('touchend', { touches: [] }, f.root)
   await f.tick(); assert.equal(f.calls(), 0); f.controller.destroy()
 })
-for (const boundary of ['touchcancel', 'blur', 'resize', 'odk-personal-bot-visibility', 'modal', 'closed', 'third touch', 'foreign touch', 'changed identity']) {
+for (const boundary of ['touchcancel', 'blur', 'resize', 'odk-personal-agent-visibility', 'modal', 'closed', 'third touch', 'foreign touch', 'changed identity']) {
   test(`pinch ${boundary} cancels without rearming before all fingers lift`, async () => {
     const f = fixture(); pinch(f)
     if (boundary === 'modal') f.setBlocked(true)

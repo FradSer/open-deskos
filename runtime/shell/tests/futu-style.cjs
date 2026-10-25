@@ -145,7 +145,7 @@ app.whenReady().then(async () => {
       assert.ok(row.compact, where)
       assert.ok(row.holdingsFont >= 14 && row.holdingsFont < 20, where + ' font ' + row.holdingsFont)
     } else {
-      assert.ok(row.holdingsFont >= 20 && row.holdingsFont <= 24, where + ' readable holdings range')
+      assert.ok(row.holdingsFont >= 20 && row.holdingsFont <= 24, where + ' adaptive holdings size')
       if (row.name === 'narrow') assert.equal(row.priceShown, false, where)
       else { assert.equal(row.priceShown, true, where); assert.equal(row.compact, false, where) }
     }

@@ -437,7 +437,7 @@ Feature: Open DeskOS 跨平台 Display Shell
     When the original implementation is restored
     Then it acquires one new set of listeners
     And only current callbacks can update its readings
-    And Home Briefing reads the current Personal Bot status
+    And Home Briefing reads the current Personal Agent status
     And repeated selection does not acquire duplicate listeners
     And restored services read current input state after changes during replacement
     And failed listener release retains ownership for a later retry
@@ -447,3 +447,12 @@ Feature: Open DeskOS 跨平台 Display Shell
     Given a non-Widget entry has opened an App
     When the user focuses the bottom handle and presses Escape
     Then the App closes and restores its source focus
+
+  Scenario: Personal Agent offers native Pi command menus
+    Given the composer is available without model authentication
+    When the owner enters a slash command or opens the command dropdown
+    Then /login, /model, and /thinking open labelled native selection controls
+    And Escape closes the panel and returns focus to the composer
+    And the dropdown and composer share one full-width input row
+    And compact reply views retain a scrollable conversation
+    And authentication secrets never enter the conversation

@@ -88,8 +88,8 @@
 
   function appendMarkdown(el, text, portfolioLive, portfolio) {
     const body = el.ownerDocument.createElement('div')
-    root.odkPersonalBotReply.render(body, text)
-    if (!body.classList.contains('personal-bot-status-markdown')) return false
+    root.odkPersonalAgentReply.render(body, text)
+    if (!body.classList.contains('personal-agent-status-markdown')) return false
     body.className = 'dash-markdown'
     const walker = el.ownerDocument.createTreeWalker(body, 4)
     const nodes = []

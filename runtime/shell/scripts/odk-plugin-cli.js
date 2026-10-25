@@ -36,8 +36,8 @@ Usage:
 
 list includes Main plugins and installed Widget/App packages.
 Runtime snapshots are reported separately when their channels are available.
-enable and disable save next-startup preferences for Shell, Personal Bot, Hosted Pi, Remote Bridge, and Futu Python.
---runtime changes components on an available Main, Renderer, Bridge, Personal Bot, Hosted Pi, or Python management endpoint without saving preferences.
+enable and disable save next-startup preferences for Shell, Personal Agent, Hosted Pi, Remote Bridge, and Futu Python.
+--runtime changes components on an available Main, Renderer, Bridge, Personal Agent, Hosted Pi, or Python management endpoint without saving preferences.
 remove manages installed Widget/App packages and development links.
 update manages installed Widget/App packages.
 rollback verifies and restores the previous installed Widget/App revision.

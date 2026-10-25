@@ -165,7 +165,7 @@ app.whenReady().then(async () => {
     let index = 0
     for (const theme of ['instrument', 'pixel', 'border-beam']) for (const current of frames) {
       await js(`window.odkTheme.set(${JSON.stringify(theme)})`)
-      win.webContents.send('odk-personal-bot-status', { state: 'idle', message: '', briefing: current })
+      win.webContents.send('odk-personal-agent-status', { state: 'idle', message: '', briefing: current })
       const view = await js(`(async () => {
         const expected = ${JSON.stringify(current)};
         const deadline = performance.now() + 3000;

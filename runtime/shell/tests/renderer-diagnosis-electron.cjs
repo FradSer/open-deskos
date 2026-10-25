@@ -1,7 +1,7 @@
 'use strict'
 
 const { app, BrowserWindow, ipcMain, protocol } = require('electron')
-ipcMain.handle('odk-personal-bot-consumer-ready', () => ({ accepted: false }))
+ipcMain.handle('odk-personal-agent-consumer-ready', () => ({ accepted: false }))
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -136,13 +136,13 @@ app.whenReady().then(async () => {
   const values = {
     'odk-pi-sessions': { ok: true, sessions: [] }, 'odk-pi-session-events': { ok: true, events: [] },
     'odk-app-manager-list': [], 'odk-user-apps-list': [],
-    'odk-personal-bot-status': { state: 'unavailable' }, 'odk-remote-link-state': { state: 'disconnected', sequence: 0 },
+    'odk-personal-agent-status': { state: 'unavailable' }, 'odk-remote-link-state': { state: 'disconnected', sequence: 0 },
   }
   const remoteStates = []
   for (const channel of ['odk-opencode-go-status', 'odk-camera-frame', 'odk-pi-sessions', 'odk-pi-session-events',
     'odk-hydra-status', 'odk-weread-highlight', 'odk-futu-holdings', 'odk-weather-status', 'odk-app-manager-list',
     'odk-app-manager-state', 'odk-app-manager-intent', 'odk-user-apps-list', 'odk-user-apps-dispatch',
-    'odk-user-apps-publish', 'odk-personal-bot-status', 'odk-personal-bot-toggle', 'odk-personal-bot-proposal',
+    'odk-user-apps-publish', 'odk-personal-agent-status', 'odk-personal-agent-toggle', 'odk-personal-agent-proposal',
     'odk-remote-link-state', 'odk-remote-publish-page-state']) {
     ipcMain.handle(channel, (_event, payload) => {
       if (channel === 'odk-remote-publish-page-state') remoteStates.push(payload)

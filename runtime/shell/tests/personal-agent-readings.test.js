@@ -8,7 +8,7 @@ const contract = 'odk:producer-projection/v1'
 const entry = { id: 'odk.agent.task', label: 'Helper', kind: 'service', home: { mode: 'optional', priority: 0, icon: 'tasks', fields: ['state', 'goal'] } }
 
 test('JSON wire inventories isolate incompatible declarations and reject ambiguous identities', async () => {
-  const { createProducerControl, PRODUCER_INTERFACE } = await import(integrationURL('personal-bot/src/producer-readings.mjs', __dirname))
+  const { createProducerControl, PRODUCER_INTERFACE } = await import(integrationURL('personal-agent/src/producer-readings.mjs', __dirname))
   const arrayEntry = Object.assign([], { ...entry, id: 'array.entry' })
   const arrayHome = { ...entry, id: 'array.home', home: Object.assign([], entry.home) }
   const healthy = { list: () => [entry], read: id => ({ id, state: 'live', value: { state: 'current', goal: 'Current goal' } }) }

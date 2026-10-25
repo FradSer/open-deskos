@@ -31,8 +31,8 @@ app.whenReady().then(async () => {
     (_request, callback) => callback({ cancel: true }))
   installGeometryFixtures(ipcMain)
   let homeStatus = { state: 'idle', briefing: { state: 'empty', items: [], generatedAt: 0, omittedSources: 0 } }
-  ipcMain.removeHandler('odk-personal-bot-status')
-  ipcMain.handle('odk-personal-bot-status', () => homeStatus)
+  ipcMain.removeHandler('odk-personal-agent-status')
+  ipcMain.handle('odk-personal-agent-status', () => homeStatus)
   win = new BrowserWindow({ show: false, width: 1920, height: 1280,
     webPreferences: { preload: path.resolve(__dirname, '../src/preload.js'), contextIsolation: true,
       nodeIntegration: false, sandbox: true, backgroundThrottling: false } })
@@ -56,11 +56,11 @@ app.whenReady().then(async () => {
       || !/failed.*retry/i.test(document.querySelector('.dash-presence').getAttribute('aria-label')))
       throw Error('Dashboard bypassed selected Home Briefing service');
     window.homeDelivery = new Promise(resolve => {
-      const release = window.odkPersonalBot.subscribe(() => { release(); resolve(); });
+      const release = window.odkPersonalAgent.subscribe(() => { release(); resolve(); });
     });
   })()`)
   homeStatus = { state: 'unavailable' }
-  win.webContents.send('odk-personal-bot-status', homeStatus)
+  win.webContents.send('odk-personal-agent-status', homeStatus)
   await js('homeDelivery')
   assert.equal(await js('selectedHomeOriginal.snapshot() === selectedHomeRetained'), true,
     'Deselected Home Briefing still received actual preload updates')
@@ -141,7 +141,7 @@ app.whenReady().then(async () => {
       element.remove();
     }
     await window.odkRendererRuntime.stop();
-    return { actualPreload: Boolean(window.odkPersonalBot), scenarios: 2, selectedServices: 1, released: true };
+    return { actualPreload: Boolean(window.odkPersonalAgent), scenarios: 2, selectedServices: 1, released: true };
   })()`)
   console.log(JSON.stringify({ ...result, documentLoads: loads }))
   await finish(0)

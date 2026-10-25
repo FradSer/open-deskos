@@ -59,7 +59,7 @@
     }, touchOptions)
     root.addEventListener('blur', cancel, options)
     root.addEventListener('resize', cancel, options)
-    root.addEventListener('odk-personal-bot-visibility', cancel, options)
+    root.addEventListener('odk-personal-agent-visibility', cancel, options)
     return { cancel }
   }
 
@@ -133,7 +133,7 @@
     const pinchGesture = bindPinch({ root, owns: target => card.contains(target),
       enabled: () => isOpen() && canPinch() && !blocked() && !returning,
       onStart: cancelDrag, onReturn: requestReturn, signal: events.signal })
-    for (const type of ['blur', 'resize', 'odk-personal-bot-visibility']) root.addEventListener(type, cancel, options)
+    for (const type of ['blur', 'resize', 'odk-personal-agent-visibility']) root.addEventListener(type, cancel, options)
     handle.addEventListener('keydown', event => {
       if (!isOpen() || !['ArrowUp', 'Enter', ' '].includes(event.key)) return
       event.preventDefault()

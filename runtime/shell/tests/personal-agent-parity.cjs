@@ -31,16 +31,16 @@ app.setPath('userData', profile)
 let preload = path.join(__dirname, '../src/preload.js')
 if (args.get('voice-input') === 'false') {
   const source = fs.readFileSync(preload, 'utf8')
-  const declaration = "contextBridge.exposeInMainWorld('odkPersonalBot', {"
+  const declaration = "contextBridge.exposeInMainWorld('odkPersonalAgent', {"
   if (!source.includes(declaration)) throw new Error('Personal Agent preload declaration changed')
   preload = path.join(profile, 'text-only-preload.cjs')
   fs.writeFileSync(preload, source.replace(declaration, declaration + '\n  supportsVoiceInput: false,'))
 }
 installGeometryFixtures(ipcMain)
-ipcMain.removeHandler('odk-personal-bot-status')
-ipcMain.handle('odk-personal-bot-status', () => status)
-ipcMain.handle('odk-personal-bot-text', () => ({ accepted: false }))
-ipcMain.handle('odk-personal-bot-toggle', () => ({ accepted: false }))
+ipcMain.removeHandler('odk-personal-agent-status')
+ipcMain.handle('odk-personal-agent-status', () => status)
+ipcMain.handle('odk-personal-agent-text', () => ({ accepted: false }))
+ipcMain.handle('odk-personal-agent-toggle', () => ({ accepted: false }))
 
 let win
 const timer = setTimeout(() => finish(1, 'timed out'), 60000)
@@ -78,7 +78,7 @@ app.whenReady().then(async () => {
   await win.webContents.debugger.sendCommand('Emulation.setScrollbarsHidden', { hidden: true })
 
   // One frame is the whole conversation, exactly as the desk sends it.
-  win.webContents.send('odk-personal-bot-status', status)
+  win.webContents.send('odk-personal-agent-status', status)
   await evaluate('new Promise((resolve) => setTimeout(resolve, 80))')
   await evaluate(parityPrepareScript())
 

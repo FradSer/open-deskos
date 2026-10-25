@@ -12,7 +12,7 @@
 'use strict'
 
 const { app, BrowserWindow, ipcMain, protocol } = require('electron')
-ipcMain.handle('odk-personal-bot-consumer-ready', () => ({ accepted: false }))
+ipcMain.handle('odk-personal-agent-consumer-ready', () => ({ accepted: false }))
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
@@ -55,8 +55,8 @@ const fixtures = {
   'odk-weather-status': { status: 'unconfigured', place: null, current: null, daily: null, updatedAt: null, hint: 'Set ODK_WEATHER_LAT and ODK_WEATHER_LON', error: null },
   'odk-remote-publish-page-state': true,
   'odk-camera-frame': { state: 'unavailable' },
-  'odk-personal-bot-status': { phase: 'idle', text: '', active: false },
-  'odk-personal-bot-toggle': { ok: false, error: 'harness' },
+  'odk-personal-agent-status': { phase: 'idle', text: '', active: false },
+  'odk-personal-agent-toggle': { ok: false, error: 'harness' },
   'odk-app-manager-list': { ok: true, apps: [] },
   'odk-app-manager-state': { ok: true, apps: [] },
   'odk-app-manager-intent': { ok: false, error: 'harness' },

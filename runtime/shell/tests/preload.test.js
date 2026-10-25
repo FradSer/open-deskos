@@ -95,15 +95,15 @@ test('Remote Link subscriptions read current state and fence initial replies aft
 test('session reply references cross the narrow preload bridge without adding target authority',async()=>{
  const {exposed,invokes}=loadPreload()
  const replyTo={messageId:'a'.repeat(64),sourceKey:'b'.repeat(64),sourceRevision:'c'.repeat(64)}
- assert.equal(exposed.odkPersonalBot.supportsReplyTo,true)
- await exposed.odkPersonalBot.sendText('继续',replyTo)
- assert.deepEqual(invokes.at(-1),['odk-personal-bot-text','继续',replyTo])
- await exposed.odkPersonalBot.sendText('Ordinary')
- assert.deepEqual(invokes.at(-1),['odk-personal-bot-text','Ordinary'])
+ assert.equal(exposed.odkPersonalAgent.supportsReplyTo,true)
+ await exposed.odkPersonalAgent.sendText('继续',replyTo)
+ assert.deepEqual(invokes.at(-1),['odk-personal-agent-text','继续',replyTo])
+ await exposed.odkPersonalAgent.sendText('Ordinary')
+ assert.deepEqual(invokes.at(-1),['odk-personal-agent-text','Ordinary'])
 })
 
 test('consumer readiness has a dedicated narrow bridge', async () => {
   const { exposed, invokes } = loadPreload()
-  await exposed.odkPersonalBot.consumerReady('11111111-1111-4111-8111-111111111111')
-  assert.deepEqual(invokes, [['odk-personal-bot-consumer-ready', '11111111-1111-4111-8111-111111111111']])
+  await exposed.odkPersonalAgent.consumerReady('11111111-1111-4111-8111-111111111111')
+  assert.deepEqual(invokes, [['odk-personal-agent-consumer-ready', '11111111-1111-4111-8111-111111111111']])
 })

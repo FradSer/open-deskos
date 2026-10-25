@@ -1,9 +1,9 @@
 const { parseConversation } = require('./conversation-frame')
-const { parseReplyTo } = require('./personal-bot-reply-reference')
+const { parseReplyTo } = require('./personal-agent-reply-reference')
 /**
  * The Personal Agent frame the Android Shell Host receives.
  *
- * The resident Personal Bot produces every briefing, reply and notification.
+ * The resident Personal Agent produces every briefing, reply and notification.
  * Android holds no generator, so this projection is the only content that
  * crosses the link: it keeps the fields the Shell renderer reads and drops
  * everything else. An oversized or malformed status degrades to an explicit

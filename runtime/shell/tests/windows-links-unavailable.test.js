@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 
-const { createPersonalBotClient, resolvePersonalBotSocketPath } = require('../src/personal-bot-client')
+const { createPersonalAgentClient, resolvePersonalAgentSocketPath } = require('../src/personal-agent-client')
 const { createRemoteBridgeClient, resolveRemoteBridgeSocketPath } = require('../src/remote-bridge-client')
 const { createOdkLinkClient, resolveOdkLinkSocketPath } = require('../src/odk-link-client')
 const { resolveShellHost } = require('../src/platform')
@@ -14,14 +14,14 @@ const WINDOWS_ENV = {}
 const WINDOWS_HOST = process.platform === 'win32'
 
 test('a link that is not ported to this host resolves no endpoint', () => {
-  assert.equal(resolvePersonalBotSocketPath(WINDOWS_ENV), WINDOWS_HOST ? '\\\\.\\pipe\\odk-personal-bot' : null)
+  assert.equal(resolvePersonalAgentSocketPath(WINDOWS_ENV), WINDOWS_HOST ? '\\\\.\\pipe\\odk-personal-agent' : null)
   assert.equal(resolveOdkLinkSocketPath(WINDOWS_ENV), WINDOWS_HOST ? '\\\\.\\pipe\\odk-link' : null)
   assert.equal(resolveRemoteBridgeSocketPath(WINDOWS_ENV), null)
 
   // A Unix host needs a runtime directory for a ported link; a Windows host has no
   // such directory and binds the named pipe instead, which the channel token
   // authenticates because a pipe carries no owner.
-  for (const [name, pipe] of [['personal-bot', 'odk-personal-bot'], ['odk-link', 'odk-link']]) {
+  for (const [name, pipe] of [['personal-agent', 'odk-personal-agent'], ['odk-link', 'odk-link']]) {
     assert.equal(
       resolveShellHost({ platform: 'win32', arch: 'x64', env: WINDOWS_ENV, homedir: 'C:\\Users\\desk' }).endpoint(name),
       `\\\\.\\pipe\\${pipe}`,
@@ -37,7 +37,7 @@ test('a link that is not ported to this host resolves no endpoint', () => {
 })
 
 test('the voice surface reads unavailable without a local endpoint', t => {
-  const client = createPersonalBotClient({ socketPath: null })
+  const client = createPersonalAgentClient({ socketPath: null })
   t.after(() => client.stop())
 
   assert.equal(client.snapshot().state, 'unavailable')

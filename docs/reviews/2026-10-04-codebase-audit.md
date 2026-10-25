@@ -2,14 +2,14 @@
 
 ## 范围与结论
 
-本轮检查覆盖 Shell、Personal Bot、外部集成、Remote/Camera 外设、研究固件、Apple 工具和构建脚本。已修复能够复现的问题，删除确认未被使用的代码和重复测试设施，并保留不同场景的行为断言。检查和验证均在本机或隔离夹具中进行。
+本轮检查覆盖 Shell、Personal Agent、外部集成、Remote/Camera 外设、研究固件、Apple 工具和构建脚本。已修复能够复现的问题，删除确认未被使用的代码和重复测试设施，并保留不同场景的行为断言。检查和验证均在本机或隔离夹具中进行。
 
 起始盘点包含 1,914 个现存受版本控制的文件，其中包含第三方源码。检查结合文件盘点、静态检查、模块人工审阅、现有测试和新增回归；没有逐行审阅全部第三方代码，也没有完成所有支持平台的实机验收。
 
 | 范围 | 实际覆盖 |
 | --- | --- |
 | Shell | 主进程、preload、应用存储与验证、控制通道、服务生命周期、平台边界；Desk Data、Pi Sessions、Hydra 相关路径；脚本、配置和完整 Node 测试入口 |
-| Personal Bot | 43 个应用源模块的审阅，意图路由、任务、主动建议、私有状态和通道边界；完整测试入口和类型检查 |
+| Personal Agent | 43 个应用源模块的审阅，意图路由、任务、主动建议、私有状态和通道边界；完整测试入口和类型检查 |
 | 集成与外设 | Futu、STT、Remote Bridge 的传输及配置边界；S3 帧解析、描述符生成和固件构建；P4 Camera 的源代码检查 |
 | 研究代码 | 领域版本匹配、应用管理与生成管线、选定 C 模块静态分析、主机 C/Lua 检查；Apple CLI 与管理夹具；Web 前端构建 |
 | 冗余检查 | JS/TS 私有函数引用检查、非第三方源码内容重复扫描、206 个测试文件中 1,147 个测试体的精确重复扫描 |
@@ -58,9 +58,9 @@
 | 检查 | 结果 |
 | --- | --- |
 | Shell 完整 Node 入口 | 755 项：753 通过、2 平台跳过、0 失败；测试期间 325 个源代码、测试和脚本文件哈希不变 |
-| Personal Bot 完整入口 | 466 项：464 通过、2 平台跳过、0 失败；测试期间 130 个源代码、测试和场景文件哈希不变 |
+| Personal Agent 完整入口 | 466 项：464 通过、2 平台跳过、0 失败；测试期间 130 个源代码、测试和场景文件哈希不变 |
 | 完整复跑后并行新增的验收助手单元检查 | 5 项通过；新增和更新助手语法检查通过，未执行其真实模型与设备操作 |
-| Personal Bot 类型检查 | 通过 |
+| Personal Agent 类型检查 | 通过 |
 | Futu Python | 20 项通过 |
 | Remote Bridge | 19 项通过 |
 | STT 端口边界夹具 | 通过 |
@@ -85,7 +85,7 @@
 ```sh
 # 在 runtime/shell 内
 pnpm test
-# 在 integrations/personal-bot 内
+# 在 integrations/personal-agent 内
 pnpm test
 pnpm typecheck
 # 仓库根目录，主机构建产物放在 /tmp
@@ -94,7 +94,7 @@ ctest --test-dir /tmp/odk-audit-round2-s3-host --output-on-failure
 uv run --no-project python peripherals/esp32-s3-remote/tests/test_codegen.py
 ```
 
-本机证据保存在 `/tmp/odk-audit-round2-*.log`、`/tmp/open-deskos-personal-bot-pnpm-test-stable-20261004.log` 和相关源文件哈希记录中，未加入提交。Shell 与 Bot 最终记录分别为 `/tmp/odk-audit-round2-shell-final.log`、`/tmp/odk-audit-round2-bot-final.log`；针对目录、认证和布局的最后独立复核为 37 项通过、1 平台跳过。
+本机证据保存在 `/tmp/odk-audit-round2-*.log`、`/tmp/open-deskos-personal-agent-pnpm-test-stable-20261004.log` 和相关源文件哈希记录中，未加入提交。Shell 与 Bot 最终记录分别为 `/tmp/odk-audit-round2-shell-final.log`、`/tmp/odk-audit-round2-bot-final.log`；针对目录、认证和布局的最后独立复核为 37 项通过、1 平台跳过。
 
 ## 未覆盖的验收
 

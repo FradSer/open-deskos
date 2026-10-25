@@ -2,7 +2,7 @@
 # Run ON the CM5 (Debian/Ubuntu, arm64) as root.
 # Idempotently provisions the agent-browser CLI and its Chrome for Testing
 # browser under /opt/agent-browser, then verifies a real headless interaction
-# as the kiosk user. The CLI is the Personal Bot's browser infrastructure.
+# as the kiosk user. The CLI is the Personal Agent's browser infrastructure.
 #
 # Subcommands:
 #   install  (default) install the pinned pair, resolve dependencies, then verify

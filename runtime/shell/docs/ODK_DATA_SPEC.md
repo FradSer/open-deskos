@@ -1,6 +1,6 @@
 # Open DeskOS Data contract
 
-The Shell owns one registry. The screen and Personal Bot read the same source. [ADR-0033](ARCHITECTURE.md#adr-0033) records the decision and rejected alternatives. [odk-data.feature](../tests/features/odk-data.feature) owns executable scenarios.
+The Shell owns one registry. The screen and Personal Agent read the same source. [ADR-0033](ARCHITECTURE.md#adr-0033) records the decision and rejected alternatives. [odk-data.feature](../tests/features/odk-data.feature) owns executable scenarios.
 
 ## Registration and reading
 
@@ -66,7 +66,7 @@ A source registers its projection with the state mapping. The projection can ren
 
 ## Read-only channel
 
-The Shell listens on the host's `odk-data` Runtime Channel. Personal Bot is the client. Use Unix ownership or the host token for pipes/TCP. Transport and authentication belong to `local-channel`.
+The Shell listens on the host's `odk-data` Runtime Channel. Personal Agent is the client. Use Unix ownership or the host token for pipes/TCP. Transport and authentication belong to `local-channel`.
 
 A connection carries one version-1 JSON request line and one response line. Echo request `id`; use `readingId` for the source identity. Requests are limited to 4096 UTF-8 bytes. Registered values are limited to 64 KiB. Refuse an oversized reading; do not truncate it into a plausible partial instrument value.
 
@@ -92,7 +92,7 @@ An older response cannot restore removed packages or replace current publication
 
 Owner-watch package readings declare and publish `measured_at` as an ISO 8601 UTC string. Use the measurement time, not a display tick. The registry still reports a published value as live. The watch rejects absent, invalid, future or over-age times under owner `maxAgeMs`. Built-ins keep `asOf`/`measuredAt`.
 
-Private owner configuration owns thresholds, combinations, quiet hours, cooldown and suppression. Source fields are data, never rules or authorization. Proposal processing/history stays in agent state, outside Open DeskOS Data. Hosted Pi status/history is a separately identified data source. See [proposal contract](../../../integrations/personal-bot/docs/CONTRACT.md#proposals).
+Private owner configuration owns thresholds, combinations, quiet hours, cooldown and suppression. Source fields are data, never rules or authorization. Proposal processing/history stays in agent state, outside Open DeskOS Data. Hosted Pi status/history is a separately identified data source. See [proposal contract](../../../integrations/personal-agent/docs/CONTRACT.md#proposals).
 
 The registry adds no binary readings, provider credentials, history, scheduling or remote-desk sharing. Reads still obey source refresh policy.
 
@@ -100,4 +100,4 @@ The registry adds no binary readings, provider credentials, history, scheduling 
 
 Test dispatch and publication at the control boundary. Test `odk_data` over a real local channel for list/read, unknown IDs, unavailable channels and bounds. Drive tile IPC and registry from one source to prove shared readings. Keep source tests for Hydra/weather/WeRead/Futu and host endpoint tests. Assertions concern returned values, state and trust labels, not private storage.
 
-Use `tests/odk-data.test.js`, `tests/odk-data-shell.test.js`, `tests/odk-data-wiring.test.js` and the package declaration/frame tests. The bot client tests are in `integrations/personal-bot/tests/odk-data.test.mjs`. Fixture passes do not prove spoken/model/device acceptance.
+Use `tests/odk-data.test.js`, `tests/odk-data-shell.test.js`, `tests/odk-data-wiring.test.js` and the package declaration/frame tests. The bot client tests are in `integrations/personal-agent/tests/odk-data.test.mjs`. Fixture passes do not prove spoken/model/device acceptance.

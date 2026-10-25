@@ -21,7 +21,7 @@ Use [ARCHITECTURE](docs/ARCHITECTURE.md) for decisions and safety boundaries. Us
 Use **Open DeskOS Link** and **Open DeskOS Data** as product names.
 Use `odk` for technical prefixes and `ODK_` for environment variables.
 Use `odk-link` and `odk-data` for their modules, services, and local endpoints.
-The Personal Bot data tool is `odk_data`.
+The Personal Agent data tool is `odk_data`.
 Previous names have no aliases or automatic fallback.
 Deployment must transfer required configuration and state to the new paths before activation.
 Keep repository addresses, public domains, and historical evidence unchanged.
@@ -55,7 +55,7 @@ Keep the Pi extension directory at `pi-packages/packages/open-deskos`.
 
 **Service Plugin Endpoint**: Absolute socket, named pipe or TCP address selected by its declaration. See ADR-0026.
 
-**Open DeskOS Data**: One main-owned registry of source measurements used by tiles and Personal Bot. Values are untrusted data, never rules or authorization.
+**Open DeskOS Data**: One main-owned registry of source measurements used by tiles and Personal Agent. Values are untrusted data, never rules or authorization.
 
 **Open DeskOS Data Link**: The read-only `list`/`read` Runtime Channel. It has no mutation or second snapshot cache.
 
@@ -63,7 +63,9 @@ Keep the Pi extension directory at `pi-packages/packages/open-deskos`.
 
 **Open DeskOS Workspace**: The shared writable checkout for development and automation. Voice is one entry point; it is separate from the immutable release and conversation/session storage.
 
-**Personal Bot**: The CM5 resident component that transcribes, coordinates, and responds. Windows displays its state and relays input. Configured typed routing precedes capabilities. Jev is optional. Low confidence asks; inference failure stops dispatch. Hosted Pi implements source changes.
+**Personal Agent**: The CM5 resident component that transcribes, coordinates, and responds. Windows displays its state and relays input. Configured typed routing precedes capabilities. Jev is optional. Low confidence asks; inference failure stops dispatch. Hosted Pi implements source changes.
+
+**Pi Configuration**: Native Pi `settings.json`, `auth.json`, and `models.json` own model selection and authentication. The service uses `PI_CODING_AGENT_DIR`. The composer provides `/login`, `/model`, and `/thinking`. Jev resolves classifier authentication through Pi. Service settings use the exact filename `perosnal-agent.env`.
 
 **Spoken Turn**: A voice recording submitted by MIC or silence detected after speech. Waiting without speech is not a turn; it is neither a fixed-duration clip nor a wake-word session.
 
@@ -83,7 +85,7 @@ Keep the Pi extension directory at `pi-packages/packages/open-deskos`.
 
 **Coding Target**: An operator-configured host and development-root scope. Ambiguity asks; configuration proves neither connectivity nor an OS filesystem sandbox.
 
-**Voice Capability**: An explicitly installed action available to the Personal Bot. It does not own recording/transcription or grant arbitrary renderer execution.
+**Voice Capability**: An explicitly installed action available to the Personal Agent. It does not own recording/transcription or grant arbitrary renderer execution.
 
 **Controllable Pi Session**: A live Pi session with an explicit prompt-delivery endpoint. Monitoring grants no control. Accepted/queued delivery does not prove completion. Console and voice use the host control daemon; Attribution names only a Console.
 

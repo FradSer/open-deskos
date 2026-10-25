@@ -349,7 +349,7 @@ Read [the Open DeskOS Link contract](ODK_LINK_PLUGIN_CONTRACT.md) when implement
 ## Home statements
 
 Personal Agent supplies Today content through `ctx.homeBriefing`.
-[The Personal Bot contract](../../../integrations/personal-bot/docs/CONTRACT.md#home-briefing) owns generation, source limits, and update rules.
+[The Personal Agent contract](../../../integrations/personal-agent/docs/CONTRACT.md#home-briefing) owns generation, source limits, and update rules.
 The briefing frame retains source states and measurement times.
 Today reports loading, empty, unavailable, error, and stale states.
 It does not replace unavailable Agent output with fixed plugin sentences.
@@ -364,7 +364,7 @@ Error text does not enter the briefing paragraph.
 ## Home selection declarations
 
 Declare `home` on a Open DeskOS Data registration or an installed package manifest.
-Use [the Personal Bot contract](../../../integrations/personal-bot/docs/CONTRACT.md#home-selection) for its schema and generation rules.
+Use [the Personal Agent contract](../../../integrations/personal-agent/docs/CONTRACT.md#home-selection) for its schema and generation rules.
 A renderer statement does not control home selection.
 All visible sources participate; legacy required modes and priorities reserve no display positions.
 The source owner declares semantic fields; the Agent selects current facts across sources.

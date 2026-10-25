@@ -14,7 +14,7 @@ An Android application hosts the same renderer the other Shell Hosts use. It loa
 
 The Android host holds no generator and no fixture. It opens an Open DeskOS Link to the CM5 desk and subscribes to Personal Agent frames. Every briefing, reply, notification and source update is produced on CM5 and arrives over that link. Android submits owner text turns to the same CM5 resident, so generation stays on the desk.
 
-The first supported surfaces are the Personal Agent page and the Personal Bot status panel. A development frame source on CM5 renders every design state on request, so no Android build carries sample content.
+The first supported surfaces are the Personal Agent page and the Personal Agent status panel. A development frame source on CM5 renders every design state on request, so no Android build carries sample content.
 
 The renderer stays a single source. The build copies renderer output during packaging, and the repository holds no Android copy of the renderer. A consistency gate renders the same renderer in the Android WebView and in Electron, feeds both the same CM5 frame, and compares geometry, copy and visibility.
 
@@ -70,7 +70,7 @@ The executable scenarios live in [android-host.feature](../../runtime/shell/test
 - The host uses an asynchronous AndroidX WebMessageListener on the exact asset origin. Native code admits only the current Shell main frame. Status and reply callbacks also check the document epoch. External main-page resources are refused.
 - The status frame contract does not change. The link carries the fields the renderer reads: `state`, `transcript`, `message`, `notifications`, `agents`, `remote`, `briefing` and `proposalError`.
 - Data flows over Open DeskOS Link. The Android app is one more link client. It dials the desk at port 8765 and the desk authenticates a per-link token provisioned out of band, which is the pattern ADR-0006 already accepts. The desk opens no new inbound port, and Android opens no listener.
-- The desk side gains one Personal Agent frame kind on the existing link service. The desk assembles that frame from the resident Personal Bot client it already runs, so no second source of truth appears.
+- The desk side gains one Personal Agent frame kind on the existing link service. The desk assembles that frame from the resident Personal Agent client it already runs, so no second source of truth appears.
 - Report and control authority stay separate, per ADR-0013. A report token reads the conversation. A control token may submit an owner turn. The desk refuses a turn presented with a report token, and the phone states the unconfirmed outcome.
 - A development frame source lives on CM5, beside the desk. It publishes the Personal Agent states the resident cannot produce on demand, including recording, transcription failure, error, remote coverage and held updates. It runs only under an explicit development selection (`ODK_LINK_PERSONAL_AGENT_DRIVER` names the shared fixture, `ODK_LINK_PERSONAL_AGENT_SELECTED` names the chosen state), its frames carry a development marker on the link record, and the phone shows that marker as its own chrome. Android carries no fixture, so every frame on the device came over the link.
 - Android declares text-only input. The microphone stays disabled and states its unavailable condition. No microphone permission, audio capture or transcription upload is added.
@@ -91,7 +91,7 @@ The executable scenarios live in [android-host.feature](../../runtime/shell/test
 - A good test drives the public renderer boundary, states observable behavior, and reads no private renderer state.
 - Selected seam: the renderer-in-host seam, and only that seam. Both hosts load the same Shell document, receive the same desk frame through their own link client, and answer the same assertion script.
 - The link contract is checked at its two ends by one fixture corpus. This is a contract check on an existing protocol boundary, not a second renderer seam.
-- Prior art: `tests/agent-home.cjs`, `tests/personal-bot-status.cjs` and `tests/personal-bot-floating-panel.cjs` drive the renderer in a host and assert geometry; `tests/responsive-matrix.cjs` fixes the compared viewports; `tests/helpers/` owns shared fixture modules; `tests/features/*.feature` owns the Gherkin corpus; `runtime/shell/tests/` covers the desk link service.
+- Prior art: `tests/agent-home.cjs`, `tests/personal-agent-status.cjs` and `tests/personal-agent-floating-panel.cjs` drive the renderer in a host and assert geometry; `tests/responsive-matrix.cjs` fixes the compared viewports; `tests/helpers/` owns shared fixture modules; `tests/features/*.feature` owns the Gherkin corpus; `runtime/shell/tests/` covers the desk link service.
 - New checks: the per-state parity run against the Android WebView at both phone viewports, a device composition check that reaches an honest unavailable state with the desk unreachable, a staged-asset check that no renderer file under Android differs from the shared source, a link conformance run at both ends, and a control refusal for a report token.
 - Device verification found three host defects that no host-side check could: a JavaScript interface resolves a method by name and arity, so `status` never answered and the renderer fell back to unavailable; the native side passes a receipt as an object literal, which the shim parsed as JSON text and abandoned before it resolved; and a link that went live before the document booted lost its first frame. The runbook now names all three under its verification steps.
 - The shared assertion script is the regression guard. When a renderer change breaks a checked state, the Android run fails and the Electron run keeps passing.
@@ -102,7 +102,7 @@ The executable scenarios live in [android-host.feature](../../runtime/shell/test
 
 - Voice capture on Android: microphone permission, audio capture, transcription upload and Input Level.
 - An Android listener or any inbound path on the desk.
-- Surfaces other than the Personal Agent page and the Personal Bot status panel.
+- Surfaces other than the Personal Agent page and the Personal Agent status panel.
 - Updating the system WebView on any device.
 - iOS, Play Store distribution and public release signing.
 - Merging Android acceptance into another host's acceptance.
@@ -110,7 +110,7 @@ The executable scenarios live in [android-host.feature](../../runtime/shell/test
 
 ## Further Notes
 
-- The CM5 desk is `orangepicm5-tablet` at `10.10.0.152`. Its `open-deskos-desk-link` unit already listens on `10.10.0.152:8765`, so the link is LAN-reachable today. The desk runs one Shell, one resident Personal Bot and six further units, and the record of that deployment is `docs/deployments/2026-10-12-cm5-deployment-state.md`.
+- The CM5 desk is `orangepicm5-tablet` at `10.10.0.152`. Its `open-deskos-desk-link` unit already listens on `10.10.0.152:8765`, so the link is LAN-reachable today. The desk runs one Shell, one resident Personal Agent and six further units, and the record of that deployment is `docs/deployments/2026-10-12-cm5-deployment-state.md`.
 - The Sony SO-02J (`BH9075T25U`) runs Android 8.0 (API 26) on arm64-v8a with a 720x1280 display at 320 dpi, which is a 360x640 density-independent viewport. Its system WebView is Chrome 67 (2018). The shared renderer uses optional chaining, `Object.hasOwn` and CSS `:has()`, so that device cannot render the design faithfully until its WebView updates. That update is a separate device change and needs explicit authorization. The phone reaches the desk on wlan0 at `10.10.0.175`.
 - The redroid image at `10.10.0.195:5555` runs Android 14 (API 34) on x86_64 with WebView 125 and a 480x853 density-independent viewport. It is the fidelity target for this work. It reaches the desk from its container address `172.17.0.2`.
 - The third adb target, `10.10.0.152:5555`, is the CM5 host itself with an adbd on port 5555. Its shell is Linux, not Android. It is not a phone and not a render target.

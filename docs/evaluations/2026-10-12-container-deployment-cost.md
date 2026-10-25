@@ -11,7 +11,7 @@ risk. It does not state money.
 ## Scope and interpretation
 
 "All of Open DeskOS" means the seven runtime components: the Display Shell, the
-Personal Bot, Hosted Pi control, Open DeskOS Link, the Remote Bridge, the STT
+Personal Agent, Hosted Pi control, Open DeskOS Link, the Remote Bridge, the STT
 bridge, and the Futu poller. It does not include the ESP32 firmware. Firmware
 cannot run in a container.
 
@@ -129,7 +129,7 @@ host device. Therefore:
 | Component | Can run | Blocker |
 | --- | --- | --- |
 | Display Shell | No | No display path from a Linux VM to the macOS desktop, and no GPU |
-| Personal Bot | No | The microphone is a host device |
+| Personal Agent | No | The microphone is a host device |
 | Hosted Pi control | Yes | Needs SSH and auth volumes |
 | Open DeskOS Link | Yes | `--publish-socket` publishes the listener to the host |
 | Remote Bridge | No | The S3 Remote is a USB device on the host |

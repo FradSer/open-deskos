@@ -15,7 +15,7 @@ if [ "$#" -gt 0 ]; then
 fi
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." >/dev/null && pwd -P)"
-source "${ROOT}/runtime/shell/scripts/cm5-personal-bot.sh"
+source "${ROOT}/runtime/shell/scripts/cm5-personal-agent.sh"
 TARGET="${ODK_CM5_TARGET:-cm5}"
 REMOTE_ROOT="${ODK_RUNTIME_ROOT:-/opt/odk}"
 STAGING_ID="${ODK_STAGING_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$-$RANDOM}"
