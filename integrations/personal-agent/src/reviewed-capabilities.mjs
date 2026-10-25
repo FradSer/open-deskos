@@ -2,6 +2,8 @@ import { isAbsolute, normalize, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDidiController, createDidiTools } from './didi/index.mjs';
 import { createBrowserSession, createBrowserTools } from './browser/index.mjs';
+import { createDesktopAgentClient } from './desktop-agent/client.mjs';
+import { createDesktopAgentTools } from './desktop-agent/tools.mjs';
 
 const localPath = value => typeof value === 'string' && isAbsolute(value) && normalize(value) === value && !/[\x00-\x1f\x7f]/.test(value);
 const objectWithKeys = (value, keys) => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(key => keys.includes(key));
@@ -11,6 +13,21 @@ const skillPath = id => fileURLToPath(new URL(`./skills/${id}/SKILL.md`, import.
 // This host-owned registry is the only source of resident capability identities.
 // Operator JSON can select these entries, but cannot load code or select a factory.
 const DESCRIPTORS = Object.freeze({
+  desktop: Object.freeze({
+    intent: 'desktop_work', toolPrefixes: ['desktop_task_'], childAllowed: false,
+    criteria: 'Delegate a task to the independent isolated XFCE desktop agent, query its exact task, or explicitly cancel or resume an ordinary interrupted task. This is not a generic child or Hosted Pi coding task.',
+    workflow: 'Read the reviewed desktop skill. Use only task-level desktop tools. Start returns admission only; query status or result later. Never send secrets or confirm private interventions. Agent reported verification is not an independent check. Never automatically retry unknown mutations.',
+    skillPath: skillPath('desktop'),
+    validate(value) {
+      if (!objectWithKeys(value, ['socketPath', 'timeoutMs']) || !localPath(value.socketPath)) throw invalid();
+      if (value.timeoutMs !== undefined && (!Number.isInteger(value.timeoutMs) || value.timeoutMs < 1000 || value.timeoutMs > 60000)) throw invalid();
+      return { ...value };
+    },
+    async create(declaration, { signal }) {
+      const client = createDesktopAgentClient(declaration, { signal });
+      return { tools: createDesktopAgentTools(client), beginTurn: () => {}, close: () => client.close() };
+    },
+  }),
   didi: Object.freeze({
     intent: 'ride', toolPrefixes: ['didi_'], childAllowed: false,
     criteria: 'DiDi ride planning, current quote/order query, or an actual subsequent ride confirmation/cancellation.',
@@ -51,7 +68,7 @@ const DESCRIPTORS = Object.freeze({
 /** Validate operator declarations. Legacy keys are migration inputs, never a second registry. */
 export function normalizeCapabilityDeclarations(config, context = {}) {
   if (!config || typeof config !== 'object' || !['coding', 'personal'].includes(config.profile)) throw invalid();
-  const hasDeclarations = config.capabilities !== undefined || config.didi !== undefined || config.browser !== undefined;
+  const hasDeclarations = config.capabilities !== undefined || config.didi !== undefined || config.browser !== undefined || config.desktop !== undefined;
   if (config.profile !== 'personal' && hasDeclarations) throw invalid();
   if (config.capabilities !== undefined && !objectWithKeys(config.capabilities, Object.keys(DESCRIPTORS))) throw invalid();
   const result = {};

@@ -37,7 +37,7 @@ test('Given declarations When a child starts Then only isolated browser is inher
 });
 
 test('Given reviewed tools When intent gates run Then known prefixes never enter unrelated workflows', () => {
-  assert.deepEqual(capabilityIntentDefinitions().map(value => value.intent), ['ride', 'browse']);
+  assert.deepEqual(capabilityIntentDefinitions().map(value => value.intent), ['desktop_work', 'ride', 'browse']);
   assert.equal(capabilityIntentAllows('didi_status', 'ride'), true);
   assert.equal(capabilityIntentAllows('didi_status', 'agent_execute'), false);
   assert.equal(capabilityIntentAllows('browser_read', 'agent_execute'), true);

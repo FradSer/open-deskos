@@ -59,6 +59,15 @@ test('Given canonical capability declarations When loading Then plugins remain f
     await writeFile(path, JSON.stringify(value));
     await assert.rejects(loadPersonalConfig({ ODK_PERSONAL_AGENT_CONFIG: path }), /Invalid personal assistant configuration/);
   }
+  const desktop = { socketPath: join(dir, 'desktop.sock'), timeoutMs: 1000 };
+  for (const declaration of [{ desktop }, { capabilities: { desktop } }]) {
+    await writeFile(path, JSON.stringify({ ...base, ...declaration }));
+    const configured = await loadPersonalConfig({ ODK_PERSONAL_AGENT_CONFIG: path });
+    assert.deepEqual(configured.capabilities, { desktop });
+    assert.equal(Object.hasOwn(configured, 'desktop'), false);
+  }
+  await writeFile(path, JSON.stringify({ profile: 'coding', desktop }));
+  await assert.rejects(loadPersonalConfig({ ODK_PERSONAL_AGENT_CONFIG: path }), /Invalid personal assistant configuration/);
   await writeFile(path, JSON.stringify(base));
   assert.deepEqual((await loadPersonalConfig({ ODK_PERSONAL_AGENT_CONFIG: path })).capabilities, {});
 });
