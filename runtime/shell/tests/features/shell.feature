@@ -456,3 +456,10 @@ Feature: Open DeskOS 跨平台 Display Shell
     And the dropdown and composer share one full-width input row
     And compact reply views retain a scrollable conversation
     And authentication secrets never enter the conversation
+
+  Scenario: Shared smoke preserves the canonical generated stylesheet
+    Given the Shell package and shared smoke use the same renderer sources
+    When either existing entry generates the UnoCSS stylesheet
+    Then both exclude the generated Liquid Glass and Onee SDK bundles
+    And both produce byte-identical styles with the same extraction options
+    And shared smoke retains its host launcher and default and narrow size checks

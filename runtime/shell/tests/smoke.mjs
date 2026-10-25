@@ -110,16 +110,18 @@ function fail(message, logger = console) {
   return 1
 }
 
-function buildStyles() {
-  const cli = resolveUnocssCli()
-  const result = spawnSync(process.execPath, [
+export function buildStyles({ root = RUNTIME_ROOT, spawn = spawnSync } = {}) {
+  const cli = resolveUnocssCli({ root })
+  const result = spawn(process.execPath, [
     cli,
     'src/renderer/**/*.html',
     'src/renderer/**/*.js',
+    '!src/renderer/themes/liquid-glass-sdk.js',
+    '!src/renderer/avatars/onee-sdk.js',
     '-c', 'uno.config.mjs',
     '-o', 'src/renderer/uno.css',
     '--minify',
-  ], { cwd: RUNTIME_ROOT, encoding: 'utf8' })
+  ], { cwd: root, encoding: 'utf8' })
   if (result.status !== 0) return fail(`stylesheet build failed: ${(result.stderr || '').trim() || 'no output'}`)
   return 0
 }

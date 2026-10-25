@@ -111,3 +111,67 @@ test('the acceptance script resolves the stylesheet CLI the release installs', a
   assert.ok(path.isAbsolute(cli), 'an absolute path is required to spawn it without a shell')
   assert.ok(fs.existsSync(cli), `${cli} must exist`)
 })
+
+test('shared smoke produces the package stylesheet bytes without scanning generated SDK bundles', async () => {
+  const { buildStyles } = await load()
+  const os = require('node:os')
+  const { spawnSync } = require('node:child_process')
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-smoke-style-parity-'))
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(RUNTIME_ROOT, 'package.json'), 'utf8'))
+    const extraction = manifest.scripts.styles.split(' && ').at(-1)
+    const canonical = [...extraction.matchAll(/"([^"\n]*)"|'([^'\n]*)'|(\S+)/g)].map(match => match[1] ?? match[2] ?? match[3])
+    assert.equal(canonical.shift(), 'unocss')
+    const cli = (await load()).resolveUnocssCli({ root: RUNTIME_ROOT })
+    const expected = path.join(temporary, 'package.css')
+    const actual = path.join(temporary, 'smoke.css')
+    const outputArgs = (args, output) => {
+      const copy = [...args]
+      const at = copy.indexOf('-o')
+      assert.ok(at >= 0 && copy[at + 1], 'the original output argument is required')
+      copy[at + 1] = output
+      return copy
+    }
+    const reference = spawnSync(process.execPath, [cli, ...outputArgs(canonical, expected)], { cwd: RUNTIME_ROOT, encoding: 'utf8' })
+    assert.equal(reference.status, 0, reference.stderr)
+    let observed
+    const result = buildStyles({ spawn(command, args, options) {
+      assert.equal(command, process.execPath)
+      assert.equal(args[0], cli)
+      assert.equal(options.cwd, RUNTIME_ROOT)
+      observed = args.slice(1)
+      return spawnSync(command, outputArgs(args, actual), options)
+    } })
+    assert.equal(result, 0, 'shared smoke stylesheet generation must complete')
+    assert.deepEqual(fs.readFileSync(actual), fs.readFileSync(expected), 'the same renderer must produce identical smoke/package CSS')
+    assert.deepEqual(observed, canonical, 'the extraction inputs, exclusions, order and options must match the package builder')
+  } finally { fs.rmSync(temporary, { recursive: true, force: true }) }
+})
+
+
+test('shared smoke generates real renderer rules but excludes SDK-only utilities repeatably', async () => {
+  const { buildStyles } = await load()
+  const os = require('node:os')
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-smoke-sdk-exclusion-'))
+  try {
+    const renderer = path.join(root, 'src/renderer')
+    fs.mkdirSync(path.join(renderer, 'themes'), { recursive: true })
+    fs.mkdirSync(path.join(renderer, 'avatars'), { recursive: true })
+    fs.symlinkSync(path.join(RUNTIME_ROOT, 'node_modules'), path.join(root, 'node_modules'), 'junction')
+    fs.copyFileSync(path.join(RUNTIME_ROOT, 'uno.config.mjs'), path.join(root, 'uno.config.mjs'))
+    fs.writeFileSync(path.join(renderer, 'index.html'), '<main class="text-odk-red underline"></main>')
+    fs.writeFileSync(path.join(renderer, 'application.js'), 'const rendererClass = "font-bold"')
+    fs.writeFileSync(path.join(renderer, 'themes/liquid-glass-sdk.js'), 'const generatedClass = "w-96"')
+    fs.writeFileSync(path.join(renderer, 'avatars/onee-sdk.js'), 'const generatedClass = "h-96"')
+    assert.equal(buildStyles({ root }), 0)
+    const first = fs.readFileSync(path.join(renderer, 'uno.css'))
+    const css = first.toString()
+    assert.match(css, /\.text-odk-red[{:]/, 'real renderer semantic classes remain generated')
+    assert.match(css, /\.underline[{:]/, 'HTML-only utility absent from the safelist is extracted from real HTML')
+    assert.match(css, /\.font-bold[{:]/, 'real renderer JavaScript classes remain generated')
+    assert.doesNotMatch(css, /\.w-96[{:]/, 'Liquid Glass SDK-only classes do not affect Shell CSS')
+    assert.doesNotMatch(css, /\.h-96[{:]/, 'Onee SDK-only classes do not affect Shell CSS')
+    assert.equal(buildStyles({ root }), 0)
+    assert.deepEqual(fs.readFileSync(path.join(renderer, 'uno.css')), first, 'repeating the original builder is byte-stable')
+  } finally { fs.rmSync(root, { recursive: true, force: true }) }
+})
