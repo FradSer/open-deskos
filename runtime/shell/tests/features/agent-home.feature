@@ -3,7 +3,7 @@ Feature: Personal Agent home briefing
   Scenario: Overview limits model generation while current readings keep updating
     Given Overview has completed an initial model selection
     When Pi activity and other source values change repeatedly
-    Then model selections start at least five minutes apart
+    Then each model selection waits at least fifteen minutes after the previous attempt finishes
     And compatible selected facts bind to current values and task identities during the cooldown
     And deferred selection does not restart the generation indicator
     And removed or hidden facts cannot remain displayed
@@ -12,10 +12,10 @@ Feature: Personal Agent home briefing
   Scenario: Failed Overview generation backs off without freezing source readings
     Given the Overview model request fails
     When source pushes and periodic checks continue
-    Then retries wait five, ten, twenty, and at most thirty minutes after consecutive failures
+    Then retries wait fifteen minutes after the first failure and thirty minutes after each later failure
     And source changes cannot bypass that retry deadline
     And current bound facts keep the error state and a zero success timestamp
-    And successful generation restores the normal five-minute minimum
+    And successful generation restores the normal fifteen-minute minimum
 
   Scenario: Pi verification metadata cannot replace a useful report
     Given Pi reports include task names, content, and verification metadata
