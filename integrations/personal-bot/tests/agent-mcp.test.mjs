@@ -151,7 +151,7 @@ test('output schemas from earlier discovery pages still reject invalid successfu
   assert.equal((await readFile(events, 'utf8')).split('called:validated').length - 1, 1)
 })
 
-async function localHttpSession(t, listTools, callTool) {
+async function localHttpSession(t, listTools, callTool, { fetchImpl = fetch } = {}) {
   const server = new Server({ name: 'schema-race-fixture', version: '1.0.0' }, { capabilities: { tools: { listChanged: true } } })
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: randomUUID, enableJsonResponse: true })
   server.setRequestHandler(ListToolsRequestSchema, listTools)
@@ -161,12 +161,63 @@ async function localHttpSession(t, listTools, callTool) {
   http.listen(0, '127.0.0.1')
   await once(http, 'listening')
   t.after(async () => { await server.close(); http.closeAllConnections(); await new Promise(resolve => http.close(resolve)) })
-  const session = await openMcpSession({ schemaVersion: 1, kind: 'mcp', id: 'schema-fixture', name: 'Schema fixture', transport: {
-    type: 'streamable-http', url: `http://127.0.0.1:${http.address().port}/mcp`,
-  } })
-  t.after(() => session.close())
-  return { server, session }
+  const notificationStream = Promise.withResolvers()
+  const timeoutMs = 20000 // Keep the product's existing connection deadline.
+  const timeout = setTimeout(() => notificationStream.reject(Error('Fixture notification stream was not ready')), timeoutMs)
+  const abort = () => notificationStream.reject(t.signal.reason)
+  t.signal.addEventListener('abort', abort, { once: true })
+  void notificationStream.promise.catch(() => {})
+  try {
+    const session = await openMcpSession({ schemaVersion: 1, kind: 'mcp', id: 'schema-fixture', name: 'Schema fixture', transport: {
+      type: 'streamable-http', url: `http://127.0.0.1:${http.address().port}/mcp`,
+    } }, { timeoutMs, fetchImpl: async (url, init) => {
+      try {
+        const response = await fetchImpl(url, init)
+        if (init?.method === 'GET') {
+          if (!response.ok || !response.headers.get('content-type')?.includes('text/event-stream')) throw Error('Fixture notification stream is unavailable')
+          notificationStream.resolve()
+        }
+        return response
+      } catch (error) {
+        if (init?.method === 'GET') notificationStream.reject(error)
+        throw error
+      }
+    } })
+    t.after(() => session.close())
+    // Initialization can complete before the SDK's asynchronous GET stream exists.
+    await notificationStream.promise
+    return { server, session }
+  } finally {
+    clearTimeout(timeout)
+    t.signal.removeEventListener('abort', abort)
+  }
 }
+
+test('HTTP discovery fixture waits for the actual notification stream before returning', async t => {
+  const getStarted = Promise.withResolvers(), releaseGet = Promise.withResolvers()
+  let streamReceived = false
+  t.after(() => releaseGet.resolve())
+  const opening = localHttpSession(t, async () => ({ tools: [] }), async () => ({ content: [] }), {
+    fetchImpl: async (url, init) => {
+      if (init?.method === 'GET') { getStarted.resolve(); await releaseGet.promise }
+      const response = await fetch(url, init)
+      if (init?.method === 'GET') {
+        assert.equal(response.ok, true)
+        assert.match(response.headers.get('content-type'), /text\/event-stream/)
+        streamReceived = true
+      }
+      return response
+    },
+  }).then(fixture => {
+    assert.equal(streamReceived, true, 'initialization is not notification-stream readiness')
+    return fixture
+  })
+  await getStarted.promise
+  // Yield one event-loop turn; no elapsed-time assumption controls the held GET.
+  setImmediate(() => releaseGet.resolve())
+  const { server } = await opening
+  await server.ping()
+})
 
 test('a late discovery response cannot corrupt the active output validation contract', async t => {
   const started = Promise.withResolvers(), release = Promise.withResolvers()
