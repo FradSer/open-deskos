@@ -520,3 +520,26 @@ Feature: Owner controlled proactive Personal Bot proposals
     Then advice requests one short sentence focused on what the owner should do
     And detailed source values and itemized quotes remain available in the cited observations
     And existing stored advice retains its original length and evidence validation
+
+  Scenario: Feedback updates scoped recommendation memory in the background
+    Given a current recommendation has an executable action or a read-only preview
+    When the owner marks it useful, irrelevant, incorrect, postponed, or dismissed
+    Then its feedback and pending memory work are saved together before the response returns
+    And a separate tool-free Pi session asynchronously refines related recommendation memory
+    And future generation receives that topic's learned feedback without new action permission
+    And explicitly saved personal facts remain unchanged
+
+  Scenario: Feedback learning retains lifecycle and replacement boundaries
+    Given feedback learning is pending or running
+    When newer feedback replaces it, its topic changes, or the Watch stops
+    Then the obsolete result cannot update related memory
+    And restarting can resume saved tool-free work without executing a proposal action
+    And an unavailable learning runtime preserves feedback without claiming memory was updated
+
+  Scenario: Learning recovery does not erase accepted feedback work
+    Given feedback is saved while its Pi runtime is unavailable or its first attempt fails
+    When the selected runtime returns after restart
+    Then its saved tool-free work can resume within two worker attempts
+    And the same explicit feedback can retry a failed attempt without reopening the handled occurrence
+    And proposal-history eviction retains every unfinished learning job and its source policy
+    And full learning capacity reports backpressure instead of silently discarding accepted work

@@ -1,3 +1,4 @@
+import { validateFeedbackState, validateFeedbackLearning } from './proactive-feedback-memory.mjs'
 import { isJudgmentModel } from './judgment-client.mjs'
 import { validRidePreview } from './didi/preview.mjs'
 import { INTENT_OUTCOMES, isIntentRuleId } from './intents.mjs'
@@ -11,6 +12,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function validate(state) {
   if (!state || state.version !== 1 || !Array.isArray(state.proposals) || state.proposals.length > 64 || new Set(state.proposals.map(p => p.id)).size !== state.proposals.length) throw Error('Invalid private proposal state')
+  if (state.feedbackMemory !== undefined) validateFeedbackState(state.feedbackMemory)
   if (state.observationEpisodes !== undefined && (!state.observationEpisodes || typeof state.observationEpisodes !== 'object' || Array.isArray(state.observationEpisodes) || Object.keys(state.observationEpisodes).length > 64
     || !Object.entries(state.observationEpisodes).every(([id, episode]) => /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) && episode && Object.keys(episode).sort().join(',') === 'key,sequence'
       && typeof episode.key === 'string' && /^[0-9a-f]{64}$/.test(episode.key) && Number.isSafeInteger(episode.sequence) && episode.sequence >= 0))) throw Error('Invalid recommendation observation episodes')
@@ -26,6 +28,7 @@ function validate(state) {
   if (state.intentWatermarks !== undefined && (!state.intentWatermarks || typeof state.intentWatermarks !== 'object' || Array.isArray(state.intentWatermarks) || Object.keys(state.intentWatermarks).length > 16 || !Object.entries(state.intentWatermarks).every(([id, w]) => UUID.test(id) && w && Object.keys(w).sort().join(',') === 'date,revision' && Number.isInteger(w.revision) && w.revision > 0 && /^\d{4}-\d{2}-\d{2}$/.test(w.date)))) throw Error('Invalid Intent date watermark')
   if (state.intentArchive !== undefined && (!state.intentArchive || Object.keys(state.intentArchive).sort().join(',') !== 'byStatus,count' || !Number.isSafeInteger(state.intentArchive.count) || state.intentArchive.count < 0 || !state.intentArchive.byStatus || typeof state.intentArchive.byStatus !== 'object' || Array.isArray(state.intentArchive.byStatus) || !Object.entries(state.intentArchive.byStatus).every(([status, count]) => INTENT_OUTCOMES.includes(status) && Number.isSafeInteger(count) && count >= 0) || Object.values(state.intentArchive.byStatus).reduce((sum, n) => sum + n, 0) !== state.intentArchive.count)) throw Error('Invalid Intent archive summary')
   for (const p of state.proposals) {
+    if (p.feedbackLearning !== undefined) validateFeedbackLearning(p.feedbackLearning)
     if (['needKey', 'observationKey', 'occurrenceKey'].some(key => p[key] !== undefined && !/^[0-9a-f]{64}$/.test(p[key]))
       || (p.reason !== undefined && (typeof p.reason !== 'string' || p.reason.length > 600 || /[\x00-\x08]/.test(p.reason)))
       || (p.nextStep !== undefined && (typeof p.nextStep !== 'string' || !p.nextStep.trim() || p.nextStep.length > 240 || /[\x00-\x1f\x7f]/.test(p.nextStep)))

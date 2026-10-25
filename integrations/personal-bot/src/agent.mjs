@@ -19,6 +19,7 @@ import { createDurableAgentSession } from './durable-agent-session.mjs'
 import { originatingAppsRequest } from './display-apps.mjs'
 import { loadCapabilities, createRemoteUpdatesTool, createRemoteFollowupTool } from './capabilities.mjs'
 import { taskFailureReceipt } from './task-client.mjs'
+import { feedbackMemoryInstructions, validateFeedbackResult } from './proactive-feedback-memory.mjs'
 import { createMemoryStore } from './memory.mjs'
 import { createPersonalTools } from './personal-tools.mjs'
 import { createProposalTools } from './proactive-tools.mjs'
@@ -180,6 +181,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
   }
   signal?.addEventListener('abort', abortSession, { once: true })
   try {
+    const feedbackMemoryEnabled = personal && !config.childAgent && config.personal?.agentPlugins?.enabled.includes('learning') === true && config.personal.agentPlugins.autoLearn !== false
     const memory = personal ? createMemoryStore(config.personal.memoryFile) : undefined
     const plugins = config.personal?.agentPlugins ? createAgentPluginRuntime({
       config: config.personal.agentPlugins,
@@ -439,6 +441,23 @@ export async function createPersonalBot(config, { createSession = createDurableA
         },
         prompt: (generator, text) => sessionAdapter(generator).prompt(text),
       }, input),
+      feedbackMemoryEnabled,
+      ...(feedbackMemoryEnabled ? { refineFeedbackMemory: async ({ signal, ...input }) => generateWithinDeadline({
+        signal: signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal,
+        timeoutMs: (config.env ?? process.env).ODK_PROACTIVE_GENERATION_TIMEOUT_MS,
+        formatCorrection: 'Return only subject and dimension. Copy subject exactly from the supplied advice or nextStep. Match dimension to the actual owner decision. Add no facts or fields.',
+        validate: value => { validateFeedbackResult(value, input) },
+        create: async () => {
+          const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,
+            settingsManager: SettingsManager.inMemory({}), agentsFilesOverride: () => ({ agentsFiles: [] }),
+            appendSystemPromptOverride: () => [], systemPromptOverride: () => feedbackMemoryInstructions })
+          await loader.reload()
+          const { session: worker } = await createSession({ cwd, resourceLoader: loader, modelRuntime, model: model ?? session.model, tools: [], customTools: [], ephemeral: true,
+            settingsManager: SettingsManager.inMemory({ defaultTools: [], retry: { enabled: false }, compaction: { enabled: false } }), sessionManager: SessionManager.inMemory(cwd) })
+          return worker
+        },
+        prompt: (worker, text) => sessionAdapter(worker).prompt(text),
+      }, input) } : {}),
       canExecuteProposal: action => Boolean(proposalTool(action)),
       executeProposal: async (name, params, confirmation, context = undefined) => {
         const executionSignal = context?.signal ? AbortSignal.any([lifetime.signal, context.signal]) : lifetime.signal

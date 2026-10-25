@@ -233,6 +233,8 @@ async function main() {
       const state = proposalStateStore(join((await prepareHostDirectories(env, platform)).state, 'proactive', 'state.json'))
       watch = new ProactiveWatch({ config, intents: runtime.agent.intents, loadState: state.load, saveState: state.save,
         generate: runtime.agent.generateProposals,
+        refineFeedbackMemory: runtime.agent.refineFeedbackMemory,
+        feedbackMemoryEnabled: runtime.agent.feedbackMemoryEnabled === true,
         onGeneration: record => console.info(JSON.stringify({ event: 'proactive_generation', model: runtime.agent.generationModel, ...record })),
         judge: createJevJudge({ env, request: runtime.agent.judge }),
         onJudgment: record => console.info(JSON.stringify({ event: 'proactive_judgment', ...record })),
