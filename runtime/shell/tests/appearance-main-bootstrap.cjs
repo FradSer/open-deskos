@@ -205,7 +205,8 @@ app.on('browser-window-created', (_event, win) => {
       await appFrame.executeJavaScript('counter.click()')
       let capturedBaseline = false
       const evidence = []
-      const evidenceDir = process.env.ODK_APPEARANCE_EVIDENCE_DIR
+      const evidenceRoot = process.env.ODK_APPEARANCE_EVIDENCE_DIR
+      const evidenceDir = evidenceRoot && path.join(evidenceRoot, emptyStartup ? 'empty-startup' : 'signed-startup')
       if (evidenceDir) assert.ok(path.isAbsolute(evidenceDir), 'Appearance evidence requires an absolute directory')
       const settleCapturePage = pageId => js(`(async () => {
         const page = [...document.querySelectorAll('#pages-track > .page')]
@@ -399,7 +400,7 @@ app.on('browser-window-created', (_event, win) => {
         await retained()
       } finally { fs.writeFileSync(configPath, config); fs.writeFileSync(policyPath, policy) }
       report = { productionMain: true, actualPreload: true, actualInstallation: true, actualVerification: true, emptyStartup,
-        themes: 3, retainedAppState: true, pid: process.pid }
+        themes: Object.keys(baseline).length, retainedAppState: true, pid: process.pid }
       await js('window.odkRendererRuntime.stop()')
       app.quit()
     })().catch(fail)

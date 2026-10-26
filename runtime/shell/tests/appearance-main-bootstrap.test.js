@@ -82,7 +82,7 @@ for (const { emptyStartup, rejectPackage, heldStylesheet } of [{ emptyStartup: f
           const result = await operation
           assert.deepEqual(JSON.parse(result.stdout.trim().split('\n').pop()), { productionMain: true, actualPreload: true,
             actualInstallation: !rejectPackage, actualVerification: true, emptyStartup,
-            ...(rejectPackage ? { rejected: true, verifierError: 'Controlled Appearance verification rejection' } : { themes: 3, retainedAppState: true }),
+            ...(rejectPackage ? { rejected: true, verifierError: 'Controlled Appearance verification rejection' } : { themes: createAppearancePlugins().length, retainedAppState: true }),
             released: true, pid: operation.child.pid })
           for (const channel of ['renderer-plugin-control', 'user-app-control']) {
             await assert.rejects(fs.stat(resolveShellHost({ env }).endpoint(channel)), { code: 'ENOENT' })

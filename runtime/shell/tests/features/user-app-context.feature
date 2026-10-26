@@ -53,3 +53,9 @@ Feature: Package appearance context
     Then the Shell and the retained App immediately resolve the same declared primary color
     And the App keeps its counter state and sandbox
     And releasing the stylesheet leaves their declared palette unchanged
+
+  Scenario: Appearance acceptance preserves complete coverage and separate startup evidence
+    Given signed and empty startup cases measure all four packaged themes
+    When each case completes its palette and retained App checks
+    Then its receipt reports four completed themes
+    And each case stores screenshots and measurements in its own evidence directory
