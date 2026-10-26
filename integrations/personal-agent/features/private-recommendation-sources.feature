@@ -92,3 +92,12 @@ Feature: Private recommendation sources use reviewed read-only connectors
     Then the host marks the current turn private before returning content or errors
     And source snapshots remain outside model generation input
 
+  Scenario: Completing a private review preserves owner cooldown configuration
+    Given a generated private recommendation is current and presented
+    And its rule is absent from the owner configuration
+    When the owner confirms its read-only review action
+    Then the private review completes without a configuration-save warning
+    And its handled event receipt prevents another recommendation
+    And the owner cooldown configuration stays unchanged
+    And declared owner rule cooldowns remain writable
+    And unknown owner rule cooldowns remain invalid

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ProactiveWatch } from '../src/proactive.mjs'
+import { ProactiveWatch, loadProactiveConfig, ownerConfigWriter, validateOwnerConfig } from '../src/proactive.mjs'
 const now = Date.parse('2026-10-25T01:00:00Z'),
   stamp = new Date(now).toISOString(),
   event = 'a'.repeat(64)
@@ -17,7 +17,7 @@ const config = () => ({
   generationIntervalMs: 0,
   attentionCooldownMs: 0,
 })
-function fixture({ restored, generateHook, ownerConfig = config(), injectedSource } = {}) {
+function fixture({ restored, generateHook, ownerConfig = config(), injectedSource, saveOwnerConfig = async () => {} } = {}) {
   let active = true,
     valid = true,
     epoch = 1,
@@ -96,7 +96,7 @@ function fixture({ restored, generateHook, ownerConfig = config(), injectedSourc
     read: async () => {
       throw Error('Private source must not enter DeskData')
     },
-    save: async () => {},
+    save: saveOwnerConfig,
     publish: () => {},
     phrase: async ({ advice }) => advice,
     execute: async () => {
@@ -146,8 +146,16 @@ function fixture({ restored, generateHook, ownerConfig = config(), injectedSourc
     generations: () => generations,
   }
 }
-test('private source uses the existing generation pipeline and a real read-only review action', async () => {
-  const f = fixture()
+test('private source review completes without writing dynamic cooldowns to owner configuration', async () => {
+  const directory = await realpath(await mkdtemp(join(tmpdir(), 'private-review-owner-')))
+  await chmod(directory, 0o700)
+  const file = join(directory, 'owner.json')
+  await writeFile(file, JSON.stringify(config()), { mode: 0o600 })
+  const before = await readFile(file, 'utf8')
+  const ownerConfig = loadProactiveConfig(file)
+  const save = ownerConfigWriter(file, ownerConfig)
+  let ownerSaves = 0
+  const f = fixture({ ownerConfig, saveOwnerConfig: async value => { ownerSaves++; await save(value) } })
   try {
     await f.watch.tick()
     assert.equal(f.watch.list().length, 1)
@@ -157,12 +165,40 @@ test('private source uses the existing generation pipeline and a real read-only 
     assert.equal(p.action.tool, 'private_source_review')
     assert.equal(f.reads(), 0)
     await f.watch.presented([p.id])
-    await f.watch.respond(p.id, 'accept', p.confirmation)
+    const completed = await f.watch.respond(p.id, 'accept', p.confirmation)
     assert.equal(f.reads(), 1)
-    assert.equal(f.watch.list()[0].status, 'completed')
+    assert.equal(completed.status, 'completed')
+    assert.equal(completed.result, 'Read-only review completed')
+    assert.equal(ownerSaves, 0)
+    assert.equal(await readFile(file, 'utf8'), before)
+    const checkpoint = f.writes().at(-1)
+    assert.equal(checkpoint.privateHandledEvents.length, 1)
+    const restarted = fixture({ restored: checkpoint, ownerConfig })
+    try {
+      await restarted.watch.tick()
+      assert.equal(restarted.watch.list().filter(item => item.status === 'pending').length, 0)
+      assert.equal(restarted.reads(), 0)
+    } finally { await restarted.watch.close() }
   } finally {
     await f.watch.close()
+    await rm(directory, { recursive: true, force: true })
   }
+})
+test('owner cooldown validation still permits declared rules and rejects unknown or private dynamic rules', async () => {
+  const directory = await realpath(await mkdtemp(join(tmpdir(), 'private-review-cooldown-')))
+  await chmod(directory, 0o700)
+  try {
+    const initial = { ...config(), rules: [{ id: 'owner-rule', goal: 'Review fixture readings.', delivery: 'immediate', urgent: false,
+      observations: [{ readingId: 'fixture.reading', fields: ['value'] }] }] }
+    const file = join(directory, 'owner.json')
+    await writeFile(file, JSON.stringify(initial), { mode: 0o600 })
+    const selected = loadProactiveConfig(file)
+    await ownerConfigWriter(file, selected)({ ...selected, snoozed: { 'owner-rule': now + 60000 } })
+    assert.equal(loadProactiveConfig(file).snoozed['owner-rule'], now + 60000)
+    for (const id of ['foreign-rule', 'private-source-' + event]) {
+      assert.throws(() => validateOwnerConfig({ ...selected, snoozed: { [id]: now + 60000 } }), /Invalid proactive owner configuration/)
+    }
+  } finally { await rm(directory, { recursive: true, force: true }) }
 })
 test('handled private event survives revision rotation, temporary removal and model paraphrase', async () => {
   const f = fixture()
@@ -227,7 +263,7 @@ test('revision withdrawal before review expires the action without dispatch', as
 import { createPrivateProposalSources } from '../src/private-proposal-sources.mjs'
 import { createProposalTools } from '../src/proactive-tools.mjs'
 import { proposalStateStore } from '../src/proactive-state.mjs'
-import { mkdtemp, chmod, rm, realpath } from 'node:fs/promises'
+import { mkdtemp, chmod, rm, realpath, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 test('proposal queries and failed responses taint before private data or errors return', async () => {

@@ -719,9 +719,11 @@ export class ProactiveWatch {
           p.result = '执行结果未确认；请通过原工具核实，不要重复执行。'
         }
         this.persist()
-        const next = structuredClone(this.config)
-        next.snoozed[p.ruleId] = this.now() + next.cooldownMs
-        try { await this.save(next); this.config = next } catch { p.result += '\n未能保存限频配置，请检查 owner 配置。' }
+        if (!privateRule(rule)) {
+          const next = structuredClone(this.config)
+          next.snoozed[p.ruleId] = this.now() + next.cooldownMs
+          try { await this.save(next); this.config = next } catch { p.result += '\n未能保存限频配置，请检查 owner 配置。' }
+        }
       } else throw Error('Invalid proposal decision')
       completed = true
     } finally {
