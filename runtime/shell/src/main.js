@@ -192,17 +192,21 @@ function writeSmokeResult(result) {
   if (resultFile) fs.writeFileSync(resultFile, serialized, 'utf8')
 }
 
-function finishSmoke(result) {
-  writeSmokeResult(result)
-  setTimeout(() => app.exit(result.ok ? 0 : 1), 0)
+function finishSmoke(result, requestExit) {
+  let exitCode = result.ok ? 0 : 1
+  try { writeSmokeResult(result) } catch {
+    console.error('smoke result could not be written')
+    exitCode = 1
+  }
+  setTimeout(() => requestExit(exitCode), 0)
 }
 
-function runSmokeCheck(win, expected) {
+function runSmokeCheck(win, expected, requestExit) {
   let settled = false
   const timer = setTimeout(() => {
     if (settled) return
     settled = true
-    finishSmoke({ ok: false, reason: 'timeout' })
+    finishSmoke({ ok: false, reason: 'timeout' }, requestExit)
   }, 15000)
   win.webContents.once('did-finish-load', () => {
     if (settled) return
@@ -210,7 +214,7 @@ function runSmokeCheck(win, expected) {
     clearTimeout(timer)
     const actual = win.getContentBounds()
     const ok = actual.width === expected.width && actual.height === expected.height
-    finishSmoke({ ok, width: actual.width, height: actual.height })
+    finishSmoke({ ok, width: actual.width, height: actual.height }, requestExit)
   })
 }
 
@@ -397,7 +401,7 @@ async function main() {
       } else nativeRendererEntries = [...nativeRendererEntries.filter(current => current.manifest.id !== entry.manifest.id), entry]
     },
   })
-  installPluginShutdown(app, pluginHost, error => console.error(`plugins stop failed: ${error.message}`))
+  const requestExit = installPluginShutdown(app, pluginHost, error => console.error(`plugins stop failed: ${error.message}`))
   await pluginHost.start()
   if (stopping) return
 
@@ -406,7 +410,7 @@ async function main() {
   const diagnosisFrame = win.webContents
   diagnosisFrames.add(diagnosisFrame)
   diagnosisFrame.once('destroyed', () => diagnosisFrames.delete(diagnosisFrame))
-  if (options.smoke) runSmokeCheck(win, { width: options.width, height: options.height })
+  if (options.smoke) runSmokeCheck(win, { width: options.width, height: options.height }, requestExit)
   win.webContents.once('did-finish-load', () => {
     frames.publish({ send: win.webContents.send.bind(win.webContents) })
   })

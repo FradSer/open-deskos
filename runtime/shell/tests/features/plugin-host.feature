@@ -540,11 +540,27 @@ Feature: Active product components use replaceable plugin contracts
     And an older or unavailable channel reports unavailable
     And stopping the provider prevents further requests
 
-  Scenario: Smoke completion exits the Electron application
+  Scenario: Smoke completion waits for the existing Shell shutdown barrier
     Given smoke mode has completed its window check
-    When the Shell writes its result
-    Then it exits the Electron application with the matching status code
-    And normal Shell shutdown still waits for plugin cleanup
+    And a Shell plugin has pending asynchronous cleanup
+    When the Shell writes its result and requests exit
+    Then the before-quit handlers close Native assets and cancel startup
+    And the existing plugin shutdown operation completes before final exit
+    And successful cleanup preserves the smoke result status code
+    And repeated exit requests share one shutdown operation
+
+  Scenario: A smoke result write failure still requests cleanup
+    Given smoke mode has completed its window check
+    When the smoke result cannot be written
+    Then the Shell reports the write failure
+    And it requests the existing shutdown barrier with failure status
+
+  Scenario: Smoke shutdown fails within a bounded cleanup interval
+    Given smoke mode has requested exit through the Shell shutdown barrier
+    When plugin cleanup fails or exceeds five seconds
+    Then the Shell reports the cleanup failure
+    And the Electron application exits with status one
+    And the Shell does not report completed plugin cleanup
 
   Scenario: Plugin configuration mutations preserve complete state
     Given the configuration contains plugin preferences and development links

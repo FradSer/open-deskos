@@ -98,3 +98,100 @@ test('exit immediately cancels plugin startup and waits for its resources', asyn
   assert.deepEqual(events, ['stop', 'destroy', 'exit'])
   assert.equal(app.exits, 1)
 })
+
+
+test('explicit smoke status survives cleanup and repeated requests', async () => {
+  for (const code of [0, 1]) {
+    const app = application()
+    const cleanup = deferred()
+    const exited = deferred()
+    const codes = []
+    let stops = 0
+    app.exit = value => { codes.push(value); exited.resolve() }
+    const requestExit = installPluginShutdown(app, { stop() { stops++; return cleanup.promise } }, assert.fail)
+    requestExit(code)
+    requestExit(1 - code)
+    assert.equal(stops, 1)
+    assert.deepEqual(codes, [])
+    cleanup.resolve()
+    await exited.promise
+    assert.deepEqual(codes, [code])
+    assert.equal(app.listenerCount('before-quit'), 0)
+  }
+})
+
+test('smoke cleanup rejection or throw reports failure and exits once', async () => {
+  for (const synchronous of [false, true]) {
+    const app = application()
+    const cleanup = deferred()
+    const exited = deferred()
+    const events = []
+    const error = Error('cleanup failed')
+    app.exit = code => { events.push(code); exited.resolve() }
+    const requestExit = installPluginShutdown(app, { stop() { if (synchronous) throw error; return cleanup.promise } }, value => events.push(value))
+    requestExit(0)
+    if (!synchronous) cleanup.reject(error)
+    await exited.promise
+    assert.deepEqual(events, [error, 1])
+  }
+})
+
+test('smoke cleanup deadline fails closed without an unbounded wait', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const app = application()
+  const cleanup = deferred()
+  const failures = []
+  const codes = []
+  app.exit = code => codes.push(code)
+  const requestExit = installPluginShutdown(app, { stop: () => cleanup.promise }, error => failures.push(error.message))
+  requestExit(0)
+  t.mock.timers.tick(4999)
+  assert.deepEqual(codes, [])
+  t.mock.timers.tick(1)
+  assert.deepEqual(codes, [1])
+  assert.deepEqual(failures, ['plugin shutdown timed out'])
+  cleanup.resolve()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(codes, [1])
+})
+
+
+test('smoke rejects retained resources from the actual plugin Host', async () => {
+  const app = application()
+  const exited = deferred()
+  const failures = []
+  const codes = []
+  const host = createPluginHost({ onError() {} })
+  host.register({
+    manifest: { schemaVersion: 1, id: 'odk.test.retained', name: 'Retained', version: '1.0.0', kind: 'service', host: 'electron-main' },
+    create() { return { stop() { throw Error('owned resource is still pending') } } },
+  })
+  await host.start()
+  app.exit = code => { codes.push(code); exited.resolve() }
+  const requestExit = installPluginShutdown(app, host, error => failures.push(error.message))
+  requestExit(0)
+  await exited.promise
+  assert.equal(host.list()[0].state, 'cleanup-failed')
+  assert.deepEqual(codes, [1])
+  assert.deepEqual(failures, ['plugin shutdown retained resources'])
+})
+
+test('a smoke request bounds an already pending normal shutdown', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const app = application()
+  const cleanup = deferred()
+  const failures = []
+  const codes = []
+  let stops = 0
+  app.exit = code => codes.push(code)
+  const requestExit = installPluginShutdown(app, { stop() { stops++; return cleanup.promise } }, error => failures.push(error.message))
+  app.quit()
+  requestExit(1)
+  assert.equal(stops, 1)
+  t.mock.timers.tick(5000)
+  assert.deepEqual(codes, [1])
+  assert.deepEqual(failures, ['plugin shutdown timed out'])
+  cleanup.resolve()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(codes, [1])
+})
