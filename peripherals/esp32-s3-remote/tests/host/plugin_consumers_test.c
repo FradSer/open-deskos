@@ -18,12 +18,11 @@ static remote_buffers_port_t *s_serial_buffers, *s_surface_buffers;
 static const remote_display_port_t *s_surface_display;
 static const remote_touch_port_t *s_surface_touch;
 static const remote_serial_port_t *s_surface_serial;
-static touchpad_gesture_t gesture, *s_surface_gesture;
+static touchpad_gesture_t gesture, *s_surface_gesture, *s_serial_gesture;
 static uint16_t *s_framebuffer;
 static void *s_state_queue;
 static remote_state_t s_state;
-static bool s_has_rendered, s_serial_owned, s_cdc_line_overflow, fail_drain;
-static size_t s_cdc_line_length;
+static bool s_has_rendered, radio_owned, fail_drain;
 static int renders, drains, serial_closes;
 
 static void render(uint16_t *frame, const remote_state_t *state) {
@@ -41,8 +40,10 @@ static remote_display_port_t display={render, drain};
 static remote_touch_port_t touch={read_point};
 static remote_serial_port_t s_serial_port={receive, send_input};
 static remote_surface_port_t s_surface_port={surface_run};
-static esp_err_t usb_init(void) { s_serial_owned=true; return ESP_OK; }
-static esp_err_t usb_serial_jtag_driver_uninstall(void) { ++serial_closes; return ESP_OK; }
+static esp_err_t remote_radio_init(void *queue) {
+    assert(queue==expected_buffers->state_queue); radio_owned=true; return ESP_OK;
+}
+static esp_err_t remote_radio_stop(void) { ++serial_closes; radio_owned=false; return ESP_OK; }
 
 /* PRODUCTION_CONSUMERS */
 
@@ -83,6 +84,7 @@ int main(void) {
         assert(odk_plugin_host_init(&host,descriptors,6,NULL)==ESP_OK);
         assert(odk_plugin_host_start(&host)==ESP_OK);
         assert(s_serial_buffers==expected_buffers && s_surface_buffers==expected_buffers);
+        assert(s_serial_gesture==&gesture && radio_owned);
         assert(s_framebuffer==expected_buffers->framebuffer && s_state_queue==expected_buffers->state_queue);
         assert(s_surface_display==&display && s_surface_touch==&touch);
         assert(s_surface_serial==&s_serial_port && s_surface_gesture==&gesture);
@@ -97,7 +99,7 @@ int main(void) {
         assert(drains==2 && serial_closes==1);
         assert(!s_serial_buffers && !s_surface_buffers && !s_framebuffer && !s_state_queue);
         assert(!s_surface_display && !s_surface_touch && !s_surface_serial && !s_surface_gesture);
-        assert(!s_serial_owned);
+        assert(!radio_owned && !s_serial_gesture);
         assert(odk_plugin_host_stop(&host)==ESP_OK);
         assert(serial_closes==1);
     }

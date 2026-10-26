@@ -24,7 +24,7 @@ endif()
 endif()
 
 idf_component_register(
-  SRCS "${ODK_GENERATED_DIR}/s3_plugins.c" "${ODK_COMMON_DIR}/odk_plugin_host.c" "remote_control.c" "remote_state_frame.c" "touchpad_gesture.c" "cst328_frame.c"
+  SRCS "${ODK_GENERATED_DIR}/s3_plugins.c" "${ODK_COMMON_DIR}/odk_plugin_host.c" "remote_control.c" "remote_radio.c" "remote_radio_frame.c" "remote_state_frame.c" "touchpad_gesture.c" "cst328_frame.c"
   INCLUDE_DIRS "." "${ODK_COMMON_DIR}" "${ODK_GENERATED_DIR}"
-  REQUIRES esp_lcd esp_driver_gpio esp_driver_i2c esp_driver_ledc esp_driver_spi esp_driver_usb_serial_jtag esp_timer
+  REQUIRES esp_lcd esp_driver_gpio esp_driver_i2c esp_driver_ledc esp_driver_spi esp_timer esp_wifi esp_netif esp_event nvs_flash
 )
