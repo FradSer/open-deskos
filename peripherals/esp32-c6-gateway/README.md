@@ -20,6 +20,11 @@ uv sync --project peripherals/esp32-c6-gateway/tools
 node peripherals/esp32-c6-gateway/tools/bundle.mjs /tmp/odk-c6-build /tmp/odk-c6-bundle
 ```
 
+The parser checks reject decoded NUL in JSON keys and values.
+They retain valid escaped backslashes and nonzero Unicode characters.
+They also check recovery after a rejected record.
+These checks do not exercise USB, NVS, or radio hardware.
+
 The bundle directory must be new.
 The bundle records the toolchain, flash addresses, and artifact SHA-256 hashes.
 Its `sourceRevision` field contains `project_version` from `project_description.json`.
