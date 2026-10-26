@@ -83,7 +83,9 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   const completed = once(child, 'exit')
   let stderr = ''
   child.stderr.on('data', bytes => { stderr += bytes })
-  const [ready] = await once(child.stdout, 'data')
+  const [ready] = await Promise.race([once(child.stdout, 'data'), completed.then(([code, signal]) => {
+    throw Error(`Python publisher exited before readiness: code=${code}, signal=${signal}; ${stderr}`)
+  })])
   assert.equal(ready.toString().trim(), 'waiting')
   const result = await requestDiagnostics({ ...diagnostic, endpoint: diagnosisEndpoint, platform: process.platform, pluginId: 'odk.futu.publisher' })
   const runtime = result.runtimes.find(runtime => runtime.host === 'python-agent')
