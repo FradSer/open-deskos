@@ -1,5 +1,16 @@
 import { createJevClient } from './jev-client.mjs'
 
+const select = (value, fields) => Object.fromEntries(fields.filter(field => Object.hasOwn(value, field)).map(field => [field, value[field]]))
+/** Judgment needs semantic facts and timing, never host authorization or execution bindings. */
+function judgmentCandidate(candidate) {
+  const result = select(candidate, ['id', 'ruleId', 'topicId', 'key', 'advice', 'nextStep', 'goal', 'generated', 'urgent', 'delivery', 'at'])
+  if (Array.isArray(candidate.evidence)) result.evidence = candidate.evidence.map(evidence =>
+    select(evidence, ['id', 'readingId', 'field', 'value', 'state', 'measuredAt', 'ruleId']))
+  if (Array.isArray(candidate.criteria)) result.criteria = candidate.criteria.map(criterion =>
+    select(criterion, ['readingId', 'field', 'op', 'value']))
+  return result
+}
+
 /** A bounded read-only judgment. Neither provider errors nor credentials enter status. */
 export function createJevJudge({ env = process.env, fetchImpl = fetch, runtime = undefined, request = createJevClient({ env, fetchImpl, runtime }) } = {}) {
   const threshold = Number(env.ODK_JEV_THRESHOLD ?? 0.8)
@@ -35,7 +46,7 @@ export function createJevJudge({ env = process.env, fetchImpl = fetch, runtime =
       },
       criteria: { true: 'The text introduces an identifiable concrete fact that the cited values do not establish.', false: 'Every stated fact comes from the cited values. Any remaining text only recommends a future step or shortens the observed facts.' },
     }
-    const result = await request({ state: { trigger, context, recent, candidates: Object.fromEntries(candidates.map(c => [c.id, c])) }, questions, signal })
+    const result = await request({ state: { trigger, context, recent, candidates: Object.fromEntries(candidates.map(c => [c.id, judgmentCandidate(c)])) }, questions, signal })
     const answers = {}
     for (const candidate of candidates) {
       const answer = result.answers[candidate.id]

@@ -135,7 +135,7 @@ async function main() {
     const inspection = createPersonalAgentComposition({ replacementPlugins, disabled, control,
       createService: unavailable, openChannel: unavailable, initialize: unavailable,
       createTaskReadings: unavailable, createRemoteReadings: unavailable,
-      createHome: unavailable, ...((env.ODK_PROACTIVE_CONFIG || intentSelected) ? { createWatch: unavailable } : {}),
+      createHome: unavailable, ...((env.ODK_PROACTIVE_CONFIG || env.ODK_PRIVATE_RECOMMENDATIONS_FILE || intentSelected) ? { createWatch: unavailable } : {}),
     })
     inspection.validate()
     console.info(JSON.stringify({ host: 'personal-agent', instance: 'personal-agent', scope: 'declarations',
@@ -246,11 +246,11 @@ async function main() {
       service.attachHome(home)
       context.onCleanup(() => { service.attachHome(undefined); home = undefined })
     },
-    ...((env.ODK_PROACTIVE_CONFIG || intentSelected) ? { async createWatch(_runtime, _service) {
+    ...((env.ODK_PROACTIVE_CONFIG || env.ODK_PRIVATE_RECOMMENDATIONS_FILE || intentSelected) ? { async createWatch(_runtime, _service) {
       const config = env.ODK_PROACTIVE_CONFIG ? loadProactiveConfig(env.ODK_PROACTIVE_CONFIG) : { version: 2, pollMs: 60000, maxAgeMs: 300000, cooldownMs: 60000, maxCandidates: 8, maxPush: 3, rules: [], suppressed: [], snoozed: {} }
       const targets = await loadTargets(env.ODK_TASK_TARGETS_FILE)
       const state = proposalStateStore(join((await prepareHostDirectories(env, platform)).state, 'proactive', 'state.json'))
-      watch = new ProactiveWatch({ config, intents: runtime.agent.intents, loadState: state.load, saveState: state.save,
+      watch = new ProactiveWatch({ config, intents: runtime.agent.intents, privateSources: runtime.agent.privateSources, loadState: state.load, saveState: state.save,
         generate: runtime.agent.generateProposals,
         refineFeedbackMemory: runtime.agent.refineFeedbackMemory,
         feedbackMemoryEnabled: runtime.agent.feedbackMemoryEnabled === true,

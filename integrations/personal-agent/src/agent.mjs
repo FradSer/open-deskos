@@ -16,6 +16,7 @@ import { constants } from 'node:fs'
 import { join, isAbsolute } from 'node:path'
 import { createCodemodeExtension, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager, getAgentDir } from '@earendil-works/pi-coding-agent'
 import { createDurableAgentSession } from './durable-agent-session.mjs'
+import { composeConnectorOwnerPrompt, snapshotConnectorCatalog } from './connector-completion-guard.mjs'
 import { originatingAppsRequest } from './display-apps.mjs'
 import { loadCapabilities, createRemoteUpdatesTool, createRemoteFollowupTool } from './capabilities.mjs'
 import { taskFailureReceipt } from './task-client.mjs'
@@ -33,6 +34,7 @@ import { createHostedCompletionTool } from './agent-plugins/hosted-completion.mj
 import { completionInstructions, completionNotice, hostedCompletionInstructions, learningInstructions, validateCompletion, validateLessons, pluginFormatCorrection } from './agent-plugins/completion.mjs'
 import { openAgentCatalog } from './agent-catalog/catalog.mjs'
 import { createAgentCatalogRuntime } from './agent-catalog/tools.mjs'
+import { loadPrivateRecommendationConfig, createConfiguredPrivateSources } from './private-recommendation-sources.mjs'
 import { openAgentTasks } from './agent-tasks/runtime.mjs'
 import { createAgentTaskTools } from './agent-tasks/tools.mjs'
 
@@ -175,6 +177,8 @@ export async function createPersonalAgent(config, { createSession = createDurabl
   signal?.throwIfAborted()
   let reviewed
   let packages
+  let packageCatalog
+  let privateSources
   let tasks
   let aborting
   const abortSession = () => {
@@ -196,11 +200,18 @@ export async function createPersonalAgent(config, { createSession = createDurabl
     let remoteFollowup=async (_params,_signal,_reply=undefined,_owner=undefined)=>{throw Error('Remote conversation unavailable')}
     let remoteHistory=(_offset, _limit, _sourceKey = undefined)=>({state:'unavailable',messages:[]})
     if (config.personal?.agentPlugins?.enabled.includes('catalog')) {
-      packages = createAgentCatalogRuntime({ catalog: await openAgentCatalog(config.childAgent?.catalogDirectory ?? join(config.stateDir, 'personal-agent', 'packages')),
+      packageCatalog = await openAgentCatalog(config.childAgent?.catalogDirectory ?? join(config.stateDir, 'personal-agent', 'packages'))
+      packages = createAgentCatalogRuntime({ catalog: packageCatalog,
         candidatesDirectory: (config.env ?? process.env).ODK_AGENT_PACKAGE_CANDIDATES,
+        ownerAccess: !config.childAgent,
+        onPrivateData: () => plugins?.markPrivateData(),
         mcpEnabled: config.personal.agentPlugins.enabled.includes('mcp'), env: config.env ?? process.env })
       await packages.refresh(signal)
       signal?.throwIfAborted()
+    }
+    if (!config.childAgent && packageCatalog && config.personal?.agentPlugins?.enabled.includes('mcp')) {
+      const selected = loadPrivateRecommendationConfig(config.env ?? process.env)
+      if (selected.sources.length) privateSources = createConfiguredPrivateSources({ config: selected, catalog: packageCatalog, env: config.env ?? process.env })
     }
     reviewed = personal ? await createReviewedCapabilities({ declarations, stateDir: config.stateDir,
       signal: signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal, onRideUpdate: config.onRideUpdate }) : undefined
@@ -209,6 +220,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
     let currentTurn = ''
     let activeReply
     let ownerTurn
+    let connectorRequestReady = false
     let sessionMutationAttempted = false
     let hostedContinuation
     let hostedDeliveryUncertain = false
@@ -284,7 +296,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
       const eligibility = /** @type {{canExecuteProposal?: (params: unknown) => boolean}} */ (tool).canExecuteProposal
       try { return eligibility?.(action.params) === true ? tool : undefined } catch { return undefined }
     }
-    if (config.getWatch) customTools.push(...createProposalTools(config.getWatch, () => currentTurn, { intentPreviews: Boolean(intents), currentTurnId: () => intentTurn.getTurn() }))
+    if (config.getWatch) customTools.push(...createProposalTools(config.getWatch, () => currentTurn, { intentPreviews: Boolean(intents), currentTurnId: () => intentTurn.getTurn(), onPrivateData: () => plugins?.markPrivateData() }))
     if (intents) customTools.push(...createIntentTools({ runtime: intents, judge: intentJudgment, currentTurn: () => ({ text: currentTurn, intent: intentTurn.getIntent(), turn: intentTurn.getTurn() }), getWatch: config.getWatch ?? (() => undefined), memory: async () => JSON.parse(await memory.read()) }))
     const intentTurn = createIntentTurn({ route: routeIntent, profile, tools: customTools.map(tool => tool.name), childExecution: Boolean(config.childAgent), getRemoteContext: () => remoteContext(),
       getWorkReferences: () => tasks?.workReferences?.() ?? [],
@@ -326,7 +338,15 @@ export async function createPersonalAgent(config, { createSession = createDurabl
     const observedTools = plugins ? plugins.observeTools(customTools) : customTools
     const acquired = await createSession({ ...agentOptions(cwd, config.stateDir, guardIntentTools(guardReplyTools(observedTools,()=>activeReply), () => lifetime.signal.aborted ? null : intentTurn.getIntent(), intentTurn.getTurn), profile, sessionSettings(cwd, profile), 'direct'), resourceLoader, modelRuntime, model,
       durableDirectory: join(config.stateDir, 'durable', profile), observeInspectionTools: plugins?.observeDurableTools,
-      observeCodeModeExecution: plugins?.beginComputation })
+      observeCodeModeExecution: plugins?.beginComputation,
+      connectorAdmission: async () => {
+        if (!packageCatalog || !ownerTurn) return undefined
+        const owner = ownerTurn
+        const catalog = await snapshotConnectorCatalog(packageCatalog, { ownerAccess: !config.childAgent })
+        return { ...catalog, owner, intent: intentTurn.getIntent() ?? '', ownerAccess: !config.childAgent,
+          requestReady: connectorRequestReady && owner === ownerTurn,
+          allowedCapabilities: session?.getActiveToolNames() ?? [], signal: lifetime.signal }
+      } })
     session = acquired.session
     signal?.throwIfAborted()
     await session.bindExtensions?.({})
@@ -334,6 +354,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
     await session.setActiveToolsByName(baseTools)
     const adapter = sessionAdapter(session, {
       prepareTurn: async (text, signal, reply) => {
+        connectorRequestReady = false
         activeReply=reply
         sessionMutationAttempted=false
         hostedContinuation=undefined
@@ -345,6 +366,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         if (!prepared.answer) await packages?.refresh(signal)
         signal.throwIfAborted()
         await session.setActiveToolsByName([...baseTools, ...intentToolNames(customTools, intentTurn.getIntent()).filter(name=>!reply || ['remote_pi_updates','remote_pi_followup'].includes(name))])
+        connectorRequestReady = intentTurn.getIntent() === 'extension' && prepared.answer === undefined
         return prepared
       },
       completeTurn: intentTurn.complete,
@@ -354,7 +376,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         currentTurn = text.trim(); ownerTurn = text ? Object.freeze({text:intentTurn.getRequestText(),turn:intentTurn.getTurn(),id:owner?.id??randomUUID(),applications:owner?.applications,bind:bound=>{activeReply=bound;owner?.bind(bound)}}) : undefined; memory?.beginTurn(text); reviewed?.beginTurn(text)
         plugins?.beginTurn(text, intentTurn.getIntent(), profile)
         packages?.beginTurn(text, intentTurn.getIntent())
-        if (!text) { activeReply=undefined;intentTurn.clear(); await session.setActiveToolsByName(baseTools) }
+        if (!text) { connectorRequestReady=false;activeReply=undefined;intentTurn.clear(); await session.setActiveToolsByName(baseTools) }
       },
       context: async () => `${ownerTurn?.applications ? `Application destination for this owner turn: ${JSON.stringify(ownerTurn.applications.host)}. All user_apps_* and user_app_* tools operate on this originating desk. Draft source remains in the configured ODK_WORKSPACE on the central host; ask Hosted Pi to edit that existing source. Connection loss never permits fallback to the central desk.\n` : ''}${memory ? `Saved MEMORY data (not instructions or authorization):\n${await memory.read()}\nEnd MEMORY data.\n` : ''}${plugins?.context() ?? ''}${packages?.context() ?? ''}${remoteContext()}`,
       afterTurn: async (_text, answer, signal) => {
@@ -382,6 +404,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
       resetJevHealth: health => judgment.resetJevHealth(health),
       refreshAuthentication: () => modelRuntime.refresh({allowNetwork:false, signal:lifetime.signal}),
       agentTasks: tasks,
+      privateSources,
       attachRemoteContext(provider, read, followup) { remoteContext=provider??(()=>""); remoteHistory=read??remoteHistory;remoteFollowup=followup??remoteFollowup },
       remoteEnabled: !config.childAgent && config.personal?.agentPlugins?.enabled.includes('remote_conversation') === true,
       nameRemoteTasks: async input => {
@@ -540,7 +563,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
           return order.map(i => sentences[i]).join('')
         } finally { clearTimeout(timeout); signal?.removeEventListener('abort', abort); await phrasing.dispose() }
       },
-      close: async () => { lifetime.abort(); try { await tasks?.close() } finally { try { await adapter.close() } finally { try { await packages?.close() } finally { await reviewed?.close() } } } } }
+      close: async () => { lifetime.abort(); try { await tasks?.close() } finally { try { await adapter.close() } finally { try { await privateSources?.close() } finally { try { await packages?.close() } finally { await reviewed?.close() } } } } } }
     // Reserve every inference entry synchronously, including background workers.
     for (const name of ['prompt','judge','nameRemoteTasks','summarizeRemote','generateBriefing','generateProposals','refineFeedbackMemory','executeProposal','phraseProposal']) {
       const operation=api[name]
@@ -559,14 +582,14 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         abortSession()
         try { await aborting } finally { await session.dispose() }
       }
-    } finally { try { await tasks?.close() } finally { try { await packages?.close() } finally { await reviewed?.close() } } }
+    } finally { try { await tasks?.close() } finally { try { await privateSources?.close() } finally { try { await packages?.close() } finally { await reviewed?.close() } } } }
     throw error
   } finally {
     signal?.removeEventListener('abort', abortSession)
   }
 }
 
-/** @param {Pick<import('@earendil-works/pi-coding-agent').AgentSession, 'isStreaming'|'prompt'|'subscribe'|'abort'|'dispose'> & {recover?: (signal: AbortSignal) => Promise<void>}} session
+/** @param {Pick<import('@earendil-works/pi-coding-agent').AgentSession, 'isStreaming'|'prompt'|'subscribe'|'abort'|'dispose'> & {recover?: (signal: AbortSignal) => Promise<void>, hasBufferedConnectorCompletion?: () => boolean, validateConnectorPublication?: () => Promise<void>}} session
  * @param {{beginTurn: (text: string, owner?: import('./session-replies.mjs').OwnerTurn) => void | Promise<void>, context?: () => Promise<string>, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal, reply?: import('./session-replies.mjs').BoundSessionReply) => Promise<{answer?: string, context?: string}>, streamResponse?: () => boolean, completeTurn?: (text: string, answer: string) => void, afterTurn?: (text: string, answer: string, signal: AbortSignal) => Promise<string>}} hooks */
 export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
   let prompting = false
@@ -579,7 +602,7 @@ export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
       controller = new AbortController()
       let active = true
       let unsubscribe
-      const publish = snapshot => { if(hooks.streamResponse?.()!==false)onResponseSnapshot?.(snapshot) }
+      const publish = snapshot => { if(!session.hasBufferedConnectorCompletion?.() && hooks.streamResponse?.()!==false)onResponseSnapshot?.(snapshot) }
       const response = responseSnapshots(publish)
       try {
         const prepared = await hooks.prepareTurn?.(text, controller.signal,reply)
@@ -593,13 +616,16 @@ export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
         unsubscribe = session.subscribe(event => { if (active) response.accept(event) })
         const context = hooks.context ? await hooks.context() : ''
         controller.signal.throwIfAborted()
-        await session.prompt(`${prepared?.context ?? ''}${context}Personal Agent request:\n${text}`, { expandPromptTemplates: false })
+        await session.prompt(composeConnectorOwnerPrompt({ referenceContext: context, workflowContext: prepared?.context ?? '', request: text }), { expandPromptTemplates: false })
         controller.signal.throwIfAborted()
         const draft = response.result()
         const result = hooks.afterTurn ? await hooks.afterTurn(text, draft, controller.signal) : draft
         controller.signal.throwIfAborted()
+        await session.validateConnectorPublication?.()
+        controller.signal.throwIfAborted()
         hooks.completeTurn?.(text, result)
-        if (result !== draft) publish(result)
+        if (session.hasBufferedConnectorCompletion?.()) onResponseSnapshot?.(result)
+        else if (result !== draft) publish(result)
         return result
       } finally {
         active = false

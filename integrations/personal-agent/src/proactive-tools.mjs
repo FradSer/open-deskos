@@ -5,7 +5,7 @@ import { PROPOSAL_DECISIONS } from './proactive-lifecycle.mjs'
 const result = value => ({ content: [{ type: /** @type {const} */ ('text'), text: JSON.stringify(value) }], details: {}, structuredContent: value })
 
 /** No model-supplied text can confirm a proposal: the actual Spoken Turn is retained by the host. */
-export function createProposalTools(getWatch, currentTurn, { intentPreviews = false, currentTurnId = () => Number(0) } = {}) {
+export function createProposalTools(getWatch, currentTurn, { intentPreviews = false, currentTurnId = () => Number(0), onPrivateData = () => {} } = {}) {
   return [
     ...(intentPreviews ? [defineTool({ name: 'personal_agent_ride_preview', label: 'Refresh selected ride details', exposure: 'codemode', executionMode: 'sequential',
       namespace: { name: 'personal_agent', description: 'Read-only proposal details, never order authority.' },
@@ -21,6 +21,7 @@ export function createProposalTools(getWatch, currentTurn, { intentPreviews = fa
       parameters: Type.Object({}, { additionalProperties: false }),
       execute: async () => {
         const watch = getWatch()
+        if (watch?.privateSources || watch?.list().some(p=>p.privateData===true)) onPrivateData()
         return result({ configured: !!watch, proposals: watch ? await watch.readProposals() : [] })
       },
     }),
@@ -32,6 +33,7 @@ export function createProposalTools(getWatch, currentTurn, { intentPreviews = fa
       execute: async (_id, { id, decision }) => {
         const watch = getWatch()
         if (!watch) throw Error('Proactive suggestions are not configured')
+        if (watch.privateSources || watch.list().some(p=>p.id===id&&p.privateData===true)) onPrivateData()
         const turn = currentTurn()
         if (decision === 'ignore' && !/^(?:不用了|忽略|ignore)(?:\s+[0-9a-f-]{36})?$/i.test(turn)) throw Error('Explicit ignore required')
         if (decision === 'mute' && !/^(?:这类别再提|别再提|mute)(?:\s+[0-9a-f-]{36})?$/i.test(turn)) throw Error('Explicit mute required')

@@ -1,5 +1,6 @@
 import { validateFeedbackState, validateFeedbackLearning } from './proactive-feedback-memory.mjs'
 import { isJudgmentModel } from './judgment-client.mjs'
+import {validPrivateSourceSnapshot} from './private-proposal-sources.mjs'
 import { validRidePreview } from './didi/preview.mjs'
 import { INTENT_OUTCOMES, isIntentRuleId } from './intents.mjs'
 import { lstatSync, realpathSync, openSync, writeFileSync, fsyncSync, closeSync, renameSync, unlinkSync } from 'node:fs'
@@ -13,6 +14,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 function validate(state) {
   if (!state || state.version !== 1 || !Array.isArray(state.proposals) || state.proposals.length > 64 || new Set(state.proposals.map(p => p.id)).size !== state.proposals.length) throw Error('Invalid private proposal state')
   if (state.feedbackMemory !== undefined) validateFeedbackState(state.feedbackMemory)
+  if (state.privateHandledEvents !== undefined && (!Array.isArray(state.privateHandledEvents) || state.privateHandledEvents.length>1024 || new Set(state.privateHandledEvents).size!==state.privateHandledEvents.length || !state.privateHandledEvents.every(k=>typeof k==='string'&&/^[a-f0-9]{64}$/.test(k)))) throw Error('Invalid handled private event receipts')
   if (state.observationEpisodes !== undefined && (!state.observationEpisodes || typeof state.observationEpisodes !== 'object' || Array.isArray(state.observationEpisodes) || Object.keys(state.observationEpisodes).length > 64
     || !Object.entries(state.observationEpisodes).every(([id, episode]) => /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) && episode && Object.keys(episode).sort().join(',') === 'key,sequence'
       && typeof episode.key === 'string' && /^[0-9a-f]{64}$/.test(episode.key) && Number.isSafeInteger(episode.sequence) && episode.sequence >= 0))) throw Error('Invalid recommendation observation episodes')
@@ -41,12 +43,14 @@ function validate(state) {
       const j = p.judgment
       if (!j || Object.keys(j).some(key => !['model', 'probability', 'groundingProbability', 'threshold', 'trigger', 'judgedAt'].includes(key)) || typeof j.model !== 'string' || !isJudgmentModel(j.model) || !Number.isFinite(j.probability) || j.probability < 0 || j.probability > 1 || (j.groundingProbability !== undefined && (!Number.isFinite(j.groundingProbability) || j.groundingProbability < 0 || j.groundingProbability > 1)) || !Number.isFinite(j.threshold) || j.threshold <= 0.5 || j.threshold > 1 || !['heartbeat', 'service_push'].includes(j.trigger) || !Number.isFinite(Date.parse(j.judgedAt))) throw Error('Invalid private judgment')
     }
+    if ((p.action?.tool==='private_source_review'||p.sourceSnapshot!==undefined)&&p.privateData!==true) throw Error('Missing private source provenance')
+    if (p.privateData !== undefined && (p.privateData!==true || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(p.privateSourceId) || !/^[a-f0-9]{64}$/.test(p.privateEventKey) || !validPrivateSourceSnapshot(p.sourceSnapshot) || p.sourceSnapshot.sourceId!==p.privateSourceId || p.sourceSnapshot.eventKey!==p.privateEventKey)) throw Error('Invalid private source provenance')
     if (!UUID.test(p.id) || typeof p.ruleId !== 'string' || typeof p.subject !== 'string' || typeof p.ruleVersion !== 'string' ||
         !['pending', 'ignored', 'expired', 'executing', 'completed', 'unknown'].includes(p.status) ||
         typeof p.advice !== 'string' || p.advice.length > 1000 || typeof p.confirmation !== 'string' || p.confirmation.length > 2048 || typeof p.result !== 'string' || p.result.length > 8192 || !Number.isFinite(Date.parse(p.createdAt)) ||
         (p.status === 'completed' && !Number.isFinite(Date.parse(p.completedAt))) ||
         (p.routineDay !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(p.routineDay)) ||
-        (p.action !== null && (!p.action || !['memory_update', 'user_app_install', 'coding_task_start', 'coding_task_history'].includes(p.action.tool) || typeof p.action.params !== 'object')) ||
+        (p.action !== null && (!p.action || !['memory_update', 'user_app_install', 'coding_task_start', 'coding_task_history','private_source_review'].includes(p.action.tool) || typeof p.action.params !== 'object')) ||
         typeof p.offered !== 'boolean' || typeof p.presented !== 'boolean' || !Array.isArray(p.evidence) || p.evidence.length > 8 ||
         !p.evidence.every(e => e && typeof e.readingId === 'string' && typeof e.field === 'string' && typeof e.ruleId === 'string' && typeof e.state === 'string' && typeof e.measuredAt === 'string' && ['string', 'number', 'boolean'].includes(typeof e.value))) throw Error('Invalid private proposal state')
   }

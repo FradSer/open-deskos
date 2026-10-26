@@ -84,3 +84,11 @@ test('Given unconfirmed cleanup When close repeats Then every caller retains the
   await Promise.all([assert.rejects(first, /Reviewed capability cleanup failed/), assert.rejects(concurrent, /Reviewed capability cleanup failed/)]);
   await assert.rejects(capabilities.close(), /Reviewed capability cleanup failed/);
 });
+
+test('Given Gmail is an MCP plugin When declared as built-in Then validation rejects it without a special intent', () => {
+  assert.throws(() => normalizeCapabilityDeclarations({
+    ...personal, capabilities: { gmail: { credentialsFile: '/private/gmail.json' } },
+  }), /Invalid reviewed capability/);
+  assert(!capabilityIntentDefinitions().some(({ intent }) => intent === 'gmail'));
+  assert.equal(isReviewedCapabilityTool('gmail_read'), false);
+});

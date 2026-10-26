@@ -47,13 +47,15 @@ export function createAgentPluginRuntime({ store, config, infer }) {
   async function observe(name, execute, durable = false) {
     const owner = turn
     const receipt = { id: `tool-${(owner?.receipts.length ?? 0) + 1}`, tool: name, status: 'running', text: '', truncated: false,
-      admissionOnly: ['coding_task_start', 'coding_task_prompt', 'agent_start', 'agent_input', 'remote_pi_followup', 'desktop_task_start', 'desktop_task_resume'].includes(name), learningEligible: !['coding_task_verify','remote_pi_updates','remote_pi_followup','desktop_task_start','desktop_task_resume','desktop_task_status','desktop_task_result','desktop_task_cancel'].includes(name) }
+      admissionOnly: ['coding_task_start', 'coding_task_prompt', 'agent_start', 'agent_input', 'remote_pi_followup', 'desktop_task_start', 'desktop_task_resume'].includes(name), learningEligible: !['coding_task_verify','remote_pi_updates','remote_pi_followup','desktop_task_start','desktop_task_resume','desktop_task_status','desktop_task_result','desktop_task_cancel'].includes(name), privateData: false }
     // Reserve before awaiting; custom and inspection calls share one inventory.
     if (owner && !owner.finished && owner.receipts.length < 64) owner.receipts.push(receipt)
     else if (owner) owner.overflow = true
     try {
       const result = await execute()
       if (owner === turn && owner && !owner.finished) {
+        receipt.privateData = result.details?.privateData === true
+        if (receipt.privateData) { receipt.learningEligible = false; owner.privateData = true }
         const evidence = resultEvidence(result, durable)
         const budget = Math.max(0, Math.min(RECEIPT_LIMIT, TURN_LIMIT - owner.bytes))
         receipt.text = Buffer.from(evidence.text).subarray(0, budget).toString('utf8')
@@ -79,6 +81,9 @@ export function createAgentPluginRuntime({ store, config, infer }) {
     }
   }
   return {
+    markPrivateData() {
+      if (turn && !turn.finished) turn.privateData = true
+    },
     beginTurn(request, intent = 'agent_execute', profile = 'personal') {
       turn?.controller.abort()
       epoch++
@@ -185,6 +190,8 @@ export function createAgentPluginRuntime({ store, config, infer }) {
       const checkedWork = owner.workKind === 'query' && owner.receipts.some(receipt => receipt.kind === 'host_check' && receipt.status === 'succeeded' && !receipt.truncated)
       if ((owner.workKind !== 'execution' && !checkedWork) || !enabled('learning') || verification.status !== 'passed' || verification.checks.some(check => check.scope === 'admission')) return { verification, learning }
       if (!selection.autoLearn) return { verification, learning: { status: 'disabled', added: [] } }
+      // Private connector output and derived answers stay outside automatic experience.
+      if (owner.privateData || owner.receipts.some(receipt => receipt.privateData)) return { verification, learning }
       try {
         const learningReceipts = checkedWork ? owner.receipts.filter(receipt => receipt.kind === 'host_check') : owner.receipts
         const output = await infer('learning', { ...input, receipts: structuredClone(learningReceipts), verification, existingExperience: store.load().entries.map(({ id, title }) => ({ id, title })) }, signal)

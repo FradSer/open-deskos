@@ -60,3 +60,18 @@ Feature: Personal Agent installs declarative Skills and MCP packages
     When the Personal Agent requests a synchronous call
     Then it reports unsupported task execution before dispatch
     And no tool side effect occurs
+
+  Scenario: A connector request cannot invent a missing permission
+    Given the owner has a ready extension request and currently admitted MCP capabilities
+    When the model returns an answer without attempting any tool
+    Then the host permits one internal verification continuation under the same owner input
+    And the continuation cannot expand capability admission or supply owner authorization
+    And the unverified draft remains private until the final answer is selected
+    And another answer without tools states that this turn did not read the source
+
+  Scenario: Connector verification does not replay tools or consume a clarification
+    Given a request needs owner input or has an attempted, running, or unknown tool call
+    When the host checks whether internal connector verification can continue
+    Then it preserves a legitimate clarification or the actual tool outcome
+    And it does not start another verification generation
+    And cancellation, an owner change, or changed catalog admission invalidates the check

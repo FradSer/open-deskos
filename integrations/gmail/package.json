@@ -1,0 +1,39 @@
+{
+  "name": "@odk/gmail-plugin",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "os": [
+    "linux",
+    "darwin"
+  ],
+  "files": [
+    "src",
+    "skills",
+    "pnpm-lock.yaml",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node src/server.mjs",
+    "service": "node src/daemon.mjs",
+    "bridge": "node src/socket-bridge.mjs",
+    "health": "node src/healthcheck.mjs",
+    "auth": "node src/cli.mjs",
+    "manifest": "node src/manifest.mjs",
+    "test": "node --test --test-timeout=30000 tests/*.test.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "package": "node scripts/package.mjs",
+    "service-package": "node scripts/service-package.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
+  }
+}

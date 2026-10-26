@@ -234,6 +234,25 @@ const lesson = { title: 'Regional report validation', body: 'Validate every requ
   { id: 'tool-1', quote: 'The report contains all three requested regions.' },
 ] }
 
+test('Given private connector receipts When completion passes Then automatic learning never runs or saves private data', async t => {
+  const directory = await fixture(t)
+  const store = createExperienceStore(join(directory, 'experience.json'))
+  let receipts
+  const runtime = createAgentPluginRuntime({ store, config: { enabled: ['completion', 'learning'] }, infer: async (kind, input) => {
+    assert.equal(kind, 'completion', 'Private connector tasks cannot start automatic learning')
+    receipts = input.receipts
+    return verification
+  } })
+  runtime.beginTurn('Read the requested private document', 'agent_execute', 'personal')
+  await runtime.observeTools([{ name: 'agent_mcp_call', execute: async () => ({ ...success, details: { privateData: true } }) }])[0].execute('private-document', {})
+  const result = await runtime.finishTurn('The requested private document is summarized.')
+  assert.equal(result.verification.status, 'passed')
+  assert.equal(result.learning.status, 'skipped')
+  assert.equal(receipts[0].learningEligible, false)
+  assert.equal(receipts[0].privateData, true)
+  assert.deepEqual(store.load().entries, [])
+})
+
 test('plugin selection accepts only fixed DeskOS identities and independent learning controls', () => {
   assert.deepEqual(validateAgentPlugins({ enabled: ['experience', 'completion', 'learning'], autoLearn: false }), { enabled: ['experience', 'completion', 'learning'], autoLearn: false })
   for (const value of [{ enabled: ['@fradser/pi-subagents'] }, { enabled: ['/tmp/extension.js'] }, { enabled: ['learning'] }, { enabled: ['experience', 'experience'] }, { enabled: [], extra: true }, { enabled: [], autoLearn: 'yes' }]) assert.throws(() => validateAgentPlugins(value))
@@ -490,4 +509,24 @@ test('completion notices preserve passed results and identify the unmet outcome'
   assert.match(completionNotice({ status: 'needs_review', reason: 'unavailable' }), /检查暂不可用/)
   assert.match(completionNotice({ status: 'needs_review', reason: 'invalid_evidence' }), /证据校验/)
   assert.equal(completionNotice({ status: 'needs_review', checks: [{ status: 'needs_review', requirement: '读回已安装版本' }] }), '仍需确认：读回已安装版本。')
+})
+
+test('private host admission suppresses learning when the connector later fails', async t => {
+  const directory = await fixture(t)
+  const store = createExperienceStore(join(directory, 'experience.json'))
+  const runtime = createAgentPluginRuntime({ store, config: { enabled: ['completion', 'learning'] }, infer: async kind => {
+    assert.equal(kind, 'completion', 'A private admitted request cannot start learning')
+    return verification
+  } })
+  runtime.beginTurn('Check a private document and a public report', 'agent_execute', 'personal')
+  const observed = runtime.observeTools([
+    { name: 'public_report', execute: async () => success },
+    { name: 'agent_mcp_call', execute: async () => { runtime.markPrivateData(); throw Error('Connector unavailable') } },
+  ])
+  await observed[0].execute('public', {})
+  await assert.rejects(observed[1].execute('private', {}))
+  const result = await runtime.finishTurn('The public report passed; the private document is unavailable.')
+  assert.equal(result.verification.status, 'passed')
+  assert.equal(result.learning.status, 'skipped')
+  assert.deepEqual(store.load().entries, [])
 })

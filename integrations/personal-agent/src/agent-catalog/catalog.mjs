@@ -71,8 +71,10 @@ function references(value = {}) {
 }
 
 export function validateMcpManifest(value) {
-  if (!object(value, ['schemaVersion', 'kind', 'id', 'name', 'transport']) || value.schemaVersion !== 1 || value.kind !== 'mcp'
+  if (!object(value, ['schemaVersion', 'kind', 'id', 'name', 'transport', 'policy']) || value.schemaVersion !== 1 || value.kind !== 'mcp'
     || !identity(value.id) || !text(value.name, 120)) throw Error('Invalid DeskOS MCP manifest')
+  if (Object.hasOwn(value, 'policy') && (!object(value.policy, ['privateData', 'ownerOnly'])
+    || Object.values(value.policy).some(flag => typeof flag !== 'boolean'))) throw Error('Invalid DeskOS MCP policy')
   const transport = value.transport
   if (transport?.type === 'stdio') {
     if (!object(transport, ['type', 'command', 'args', 'env']) || !text(transport.command, 4096) || !isAbsolute(transport.command)
@@ -250,7 +252,8 @@ export async function openAgentCatalog(directory) {
         const revision = active(id)
         if (revision) {
           const snapshot = readRevision(id, revision)
-          entries.push({ id, kind: snapshot.kind, revision, ...(snapshot.kind === 'skill' ? { description: snapshot.description } : { name: snapshot.name }) })
+          entries.push({ id, kind: snapshot.kind, revision, ...(snapshot.kind === 'skill' ? { description: snapshot.description }
+            : { name: snapshot.name, ...(snapshot.policy ? { policy: snapshot.policy } : {}) }) })
         }
       }
       return entries

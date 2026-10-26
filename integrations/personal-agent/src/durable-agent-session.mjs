@@ -6,6 +6,7 @@ import { createReadTool } from '@earendil-works/pi-durable/tools'
 import { createReadOnlyTools, createFindTool, createAgentSession, SessionManager } from '@earendil-works/pi-coding-agent'
 import { openDurableRuntime, durableCapability, createPiExecutionTarget } from './durable-runtime.mjs'
 import { importLegacyContext } from './durable-legacy-context.mjs'
+import { createConnectorCompletionGuard, createConnectorCompletionExtension, runBufferedConnectorSubmission } from './connector-completion-guard.mjs'
 
 /** @typedef {{status: 'succeeded'|'failed', output: string, diagnostics: {severity: 'info'|'warn'|'error', code?: string, message: string}[], truncated: boolean}} ComputationOutcome */
 /** @typedef {{requestId: string, taskId: string, callId: string, source: string, truncated: boolean, kind: 'computation', learningEligible: false}} ComputationStart */
@@ -76,6 +77,7 @@ function inspectionTools(cwd, target) {
  * durableDirectory?: string, ephemeral?: boolean,
  * observeInspectionTools?: (tools: import('@earendil-works/pi-durable').ToolRegistration[]) => import('@earendil-works/pi-durable').ToolRegistration[],
  * observeCodeModeExecution?: (start: ComputationStart) => ((outcome: ComputationOutcome) => void)
+ * connectorAdmission?: () => import('./connector-completion-guard.mjs').ConnectorAdmission | undefined | Promise<import('./connector-completion-guard.mjs').ConnectorAdmission | undefined>
  * }} options
  * @param {{createTarget?: typeof createPiExecutionTarget}} [dependencies]
  */
@@ -100,10 +102,31 @@ export async function createDurableAgentSession(options, { createTarget = create
     ...(resourceLoader?.getSkills().skills ?? []).map(skill => `Available Skill: ${skill.name}. ${skill.description}\nRead ${skill.filePath} when this Skill applies.`),
   ].filter(Boolean).join('\n\n')
   let runtime, activeRequestId, streaming = false, disposed = false, closing
+  let connectorGuard, completedConnectorGuard, connectorBuffered = false
   const computations = new Map()
   const listeners = new Set()
   let activeTools = new Set(tools.map(tool => tool.name))
   if (codeMode) activeTools.add('codemode')
+  async function connectorAdmission() {
+    try {
+      const admission = await options.connectorAdmission?.()
+      if (!admission) throw Error('Missing admission')
+      return admission
+    } catch { throw Error('Current connector admission could not be checked') }
+  }
+  const connectorCompletion = createConnectorCompletionExtension({
+    getBinding: async () => {
+      const requestId = activeRequestId, guard = connectorGuard
+      if (!requestId || !guard || disposed) return undefined
+      const admission = await connectorAdmission()
+      if (requestId !== activeRequestId || guard !== connectorGuard || disposed) return undefined
+      return { requestId, guard, admission }
+    },
+    submissionStatus: async (id, context) => (await runtime?.harness.submission(id))?.status(context),
+    recordRepair: async (receipt, context) => {
+      await (await runtime.conversation.submit({ type: 'write', entry: { kind: 'odk.connector-repair', data: receipt } }, context)).wait(context)
+    },
+  })
   // A recovered run may execute concurrently with admission of a later request.
   // Match persisted submission identity, rather than borrowing mutable host intent.
   const authority = defineExtension({ name: 'odk.owner-turn-authority', hooks: [hook(ToolTask, {
@@ -138,7 +161,7 @@ export async function createDurableAgentSession(options, { createTarget = create
   try {
     runtime = await openDurableRuntime({ directory: durableDirectory, ephemeral, models: codeMode ? codeModeModels(modelRuntime) : modelRuntime,
       model: { provider: model.provider, modelId: model.id }, tools, instructions, cwd, codeMode,
-      env: target ? () => target.env : undefined, extensions: [authority],
+      env: target ? () => target.env : undefined, extensions: [authority, connectorCompletion],
       thinkingLevel, settings: { compaction: { enabled: !ephemeral }, stream: { timeoutMs: 90000 } },
     })
     if (!ephemeral) await importLegacyContext(runtime.conversation, options.sessionManager, model)
@@ -148,7 +171,7 @@ export async function createDurableAgentSession(options, { createTarget = create
     let seen = new Set(view.value.entries.map(entry => entry.id))
     let lastPartial = ''
     const unsubscribe = view.subscribe(value => {
-      if (!streaming || disposed) return
+      if (!streaming || disposed || connectorBuffered) return
       for (const entry of value.entries) {
         if (seen.has(entry.id)) continue
         seen.add(entry.id)
@@ -184,6 +207,10 @@ export async function createDurableAgentSession(options, { createTarget = create
       get isStreaming() { return streaming },
       setActiveToolsByName(names) { activeTools = new Set(names); if (!disposed) return configureTools() },
       getActiveToolNames() { return [...activeTools] },
+      hasBufferedConnectorCompletion() { return Boolean(connectorBuffered || completedConnectorGuard) },
+      async validateConnectorPublication() {
+        if (completedConnectorGuard?.finalize(await connectorAdmission()).kind === 'cancel') throw Error('Connector admission changed before publication')
+      },
       subscribe(callback) { listeners.add(callback); return () => listeners.delete(callback) },
       async recover(signal) {
         if (disposed) throw Error('Personal Agent is closed')
@@ -196,11 +223,28 @@ export async function createDurableAgentSession(options, { createTarget = create
         if (disposed) throw Error('Personal Agent is closed')
         if (streaming) throw Error('Agent request already in progress')
         streaming = true
+        completedConnectorGuard = undefined
         seen = new Set(view.value.entries.map(entry => entry.id))
         lastPartial = ''
         activeRequestId = randomUUID()
         try {
           await configureTools()
+          const admission = options.connectorAdmission ? await options.connectorAdmission() : undefined
+          connectorGuard = admission ? createConnectorCompletionGuard(admission) : undefined
+          connectorBuffered = Boolean(connectorGuard?.shouldBuffer(admission))
+          if (connectorBuffered) {
+            const result = await runBufferedConnectorSubmission({ runtime, guard: connectorGuard,
+              getAdmission: connectorAdmission, text, requestId: activeRequestId, context })
+            const final = await runtime.conversation.viewState(context)
+            try {
+              const message = final.value.entries.find(entry => entry.id === result.answerEntryId)?.model?.find(message => message.role === 'assistant')
+              if (!message) throw Error('Connector request has no final assistant entry')
+              completedConnectorGuard = connectorGuard
+              emit({ type: 'message_end', message: result.origin === 'model' ? message
+                : { ...message, content: [{ type: 'text', text: result.answer }] }, origin: result.origin })
+            } finally { final.dispose() }
+            return
+          }
           await runtime.prompt(text, { requestId: activeRequestId })
           // Chord listeners can coalesce revisions. Read the committed final view
           // before resolving the port, so final assistant text is always delivered.
@@ -212,9 +256,9 @@ export async function createDurableAgentSession(options, { createTarget = create
               for (const message of entry.model ?? []) if (message.role === 'assistant') emit({ type: 'message_end', message })
             }
           } finally { final.dispose() }
-        } finally { streaming = false; activeRequestId = undefined; computations.clear(); lastPartial = '' }
+        } finally { streaming = false; connectorBuffered = false; connectorGuard = undefined; activeRequestId = undefined; computations.clear(); lastPartial = '' }
       },
-      abort: () => { activeRequestId = undefined; computations.clear(); return runtime.abort() },
+      abort: () => { activeRequestId = undefined; completedConnectorGuard = undefined; computations.clear(); return runtime.abort() },
       dispose() {
         if (!closing) {
           disposed = true

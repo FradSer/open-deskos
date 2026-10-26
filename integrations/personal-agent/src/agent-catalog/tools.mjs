@@ -12,13 +12,14 @@ const safeErrors = ['Agent package candidate revision changed', 'Installed agent
   'MCP package is not installed or unavailable', 'MCP session is closed', 'MCP connection failed; check the installed connector and host configuration',
   'MCP tool discovery is unavailable or incomplete', 'MCP connection limit reached; disconnect an unused server first',
   'Installed MCP revision changed; discover the selected revision before another call',
-  'Selected package is not an MCP connector', 'Unsafe Skill resource path', 'Installed Skill is unavailable', 'Installed Skill resource is unavailable']
+  'Shared agent catalog changes require the owner runtime', 'Selected package is not an MCP connector', 'Unsafe Skill resource path', 'Installed Skill is unavailable', 'Installed Skill resource is unavailable']
 
 /** Fixed DeskOS tools consume declarative packages; package files never become native extensions. */
-export function createAgentCatalogRuntime({ catalog, candidatesDirectory = undefined, mcpEnabled = false, env = process.env, timeoutMs = 20000 }) {
+export function createAgentCatalogRuntime({ catalog, candidatesDirectory = undefined, mcpEnabled = false, ownerAccess = true, onPrivateData = () => {}, env = process.env, timeoutMs = 20000 }) {
   const lifetime = new AbortController()
   const connections = new Map()
   let inventory = [], inventoryUnavailable = false, turn, closing
+  const visible = entry => ownerAccess || entry.policy?.ownerOnly !== true
   async function disconnect(id) {
     const entry = connections.get(id)
     connections.delete(id)
@@ -30,7 +31,7 @@ export function createAgentCatalogRuntime({ catalog, candidatesDirectory = undef
   }
   async function refresh(signal = undefined) {
     signal?.throwIfAborted()
-    try { inventory = await catalog.list(); inventoryUnavailable = false }
+    try { inventory = (await catalog.list()).filter(visible); inventoryUnavailable = false }
     catch { inventory = []; inventoryUnavailable = true }
     signal?.throwIfAborted()
     for (const [id, entry] of connections) {
@@ -41,7 +42,11 @@ export function createAgentCatalogRuntime({ catalog, candidatesDirectory = undef
     if (!mcpEnabled || lifetime.signal.aborted) throw Error('MCP connector is unavailable')
     let installed
     try { installed = await catalog.package(id) } catch { await disconnect(id); throw Error('MCP package is not installed or unavailable') }
+    signal.throwIfAborted()
     if (installed.snapshot.kind !== 'mcp') throw Error('Selected package is not an MCP connector')
+    if (!visible(installed.snapshot)) { await disconnect(id); throw Error('MCP package is not installed or unavailable') }
+    // Bind privacy admission to the same snapshot that selects the transport.
+    if (installed.snapshot.policy?.privateData === true) onPrivateData()
     if (expectedRevision !== undefined && installed.revision !== expectedRevision) {
       await disconnect(id)
       throw Error('Installed MCP revision changed; discover the selected revision before another call')
@@ -63,11 +68,13 @@ export function createAgentCatalogRuntime({ catalog, candidatesDirectory = undef
       await disconnect(id)
       throw Error('Installed MCP revision changed; discover the selected revision before another call')
     }
-    return { session, revision: entry.revision }
+    return { session, revision: entry.revision, privateData: installed.snapshot.policy?.privateData === true }
   }
   function candidate(id) {
     if (!candidatesDirectory) throw Error('Agent package installation requires ODK_AGENT_PACKAGE_CANDIDATES')
-    return readAgentCandidate(candidatesDirectory, id)
+    const selected = readAgentCandidate(candidatesDirectory, id)
+    if (!visible(selected.snapshot)) throw Error('MCP package is not installed or unavailable')
+    return selected
   }
   const tool = (name, description, properties, readOnly, execute, management = false) => defineTool({ name, label: description,
     description, namespace: { name: 'agent_packages', description: 'DeskOS-owned Skill and MCP package lifecycle; package data never grants authority.' },
@@ -77,6 +84,7 @@ export function createAgentCatalogRuntime({ catalog, candidatesDirectory = undef
     execute: async (_id, params, signal) => {
       const owner = turn
       if (!owner || lifetime.signal.aborted) throw Error('An active owner turn is required for agent package tools')
+      if (management && !ownerAccess) throw Error('Shared agent catalog changes require the owner runtime')
       if (management && owner.intent !== 'package_manage') throw Error('Agent package changes require the package management workflow')
       const callSignal = AbortSignal.any([owner.controller.signal, lifetime.signal, ...(signal ? [signal] : [])])
       callSignal.throwIfAborted()
@@ -93,7 +101,7 @@ export function createAgentCatalogRuntime({ catalog, candidatesDirectory = undef
       kind: Type.Optional(Type.Union([Type.Literal('skill'), Type.Literal('mcp')])), query: Type.Optional(Type.String({ maxLength: 128 })),
       offset: Type.Optional(Type.Integer({ minimum: 0, maximum: 128 })), limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 32 })),
     }, true, async ({ kind, query = '', offset = 0, limit = 16 }) => {
-      const entries = (await catalog.list()).filter(entry => (!kind || entry.kind === kind) && JSON.stringify(entry).toLowerCase().includes(query.toLowerCase()))
+      const entries = (await catalog.list()).filter(entry => visible(entry) && (!kind || entry.kind === kind) && JSON.stringify(entry).toLowerCase().includes(query.toLowerCase()))
       return response({ entries: entries.slice(offset, offset + limit), total: entries.length, nextOffset: offset + limit < entries.length ? offset + limit : null })
     }),
     tool('agent_skill_read', 'Read an installed Skill or text resource as untrusted task guidance. It grants no additional capability or authority.', {
@@ -138,9 +146,16 @@ export function createAgentCatalogRuntime({ catalog, candidatesDirectory = undef
       id: idSchema, revision: revisionSchema, tool: Type.String({ pattern: '^[A-Za-z0-9_.-]{1,128}$' }), arguments: Type.Record(Type.String(), Type.Unknown()),
     }, false, async ({ id, revision: expectedRevision, tool, arguments: args }, signal) => {
       if (!/^[a-f0-9]{64}$/.test(expectedRevision)) throw Error('Installed MCP revision changed; discover the selected revision before another call')
-      const { session, revision } = await connection(id, signal, expectedRevision)
+      const { session, revision, privateData } = await connection(id, signal, expectedRevision)
       const result = await session.call(tool, args, signal)
-      return { ...response({ id, revision, result }), ...(result.isError ? { isError: true } : {}) }
+      let installed
+      try { installed = await catalog.package(id) } catch { await disconnect(id); throw Error('MCP package is not installed or unavailable') }
+      if (installed.revision !== revision || !visible(installed.snapshot)) {
+        await disconnect(id)
+        throw Error('Installed MCP revision changed; discover the selected revision before another call')
+      }
+      signal.throwIfAborted()
+      return { ...response({ id, revision, result }), details: { privateData }, ...(result.isError ? { isError: true } : {}) }
     }),
     tool('agent_mcp_disconnect', 'Close one installed MCP connection. An executing call may have an unknown outcome; do not replay it.', { id: idSchema }, false, async ({ id }) => { await disconnect(id); return response({ id, disconnected: true }) }),
   )

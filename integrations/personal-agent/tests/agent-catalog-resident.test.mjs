@@ -107,3 +107,34 @@ test('plugin selection admits only fixed catalog and MCP plugins with the requir
   await writeFile(file, JSON.stringify({ ...base, agentPlugins: { enabled: ['mcp'] } }))
   await assert.rejects(loadPersonalConfig({ ODK_PERSONAL_AGENT_CONFIG: file }))
 })
+
+test('actual child resident cannot discover an owner-only installed connector', async t => {
+  const { root, config } = await fixture(t, ['catalog', 'mcp'])
+  const events = join(root, 'child-events')
+  await writeFile(events, '')
+  config.env.ODK_MCP_EVENTS = events
+  const catalogDirectory = join(config.stateDir, 'personal-agent', 'packages')
+  const catalog = await openAgentCatalog(catalogDirectory)
+  await catalog.installMcp({ schemaVersion: 1, kind: 'mcp', id: 'private-source', name: 'Private owner source',
+    policy: { ownerOnly: true, privateData: true }, transport: {
+      type: 'stdio', command: process.execPath, args: [fileURLToPath(new URL('./fixtures/agent-mcp-server.mjs', import.meta.url))],
+      env: { FIXTURE_EVENTS: { fromEnv: 'ODK_MCP_EVENTS' } },
+    } })
+  const models = runtime(context => {
+    if (context.messages.at(-1).role !== 'toolResult') {
+      assert.doesNotMatch(JSON.stringify(context.messages), /Private owner source/)
+      return execute('private-denied', 'text(await tools.agent_mcp_tools({id:"private-source"}));')
+    }
+    assert.equal(context.messages.at(-1).isError, true)
+    return assistant('该连接器不可用。')
+  })
+  const bot = await createPersonalAgent({ ...config, childAgent: { role: 'Read permitted sources.', catalogDirectory } }, {
+    createRuntime: async () => models, createIntentRouter: () => async input => {
+      assert.doesNotMatch(JSON.stringify(input.extensionTools), /Private owner source/)
+      return { intent: 'extension' }
+    },
+  })
+  t.after(() => bot.close())
+  assert.match(await bot.prompt('读取已连接的数据源'), /不可用/)
+  assert.equal(await readFile(events, 'utf8'), '')
+})

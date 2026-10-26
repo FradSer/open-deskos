@@ -143,6 +143,59 @@ Failed installation preconditions do not consume capacity.
 Revision digests detect changed snapshot content.
 Private reads reject linked or shared files.
 
+## Private recommendations
+
+An MCP manifest can declare `policy.ownerOnly` and `policy.privateData` as boolean values.
+Child agents cannot discover or call an owner-only connector.
+Private connector admission marks the interactive turn before execution, including failed calls.
+That turn cannot enter automatic experience learning.
+Connector results remain untrusted data.
+
+Set `ODK_PRIVATE_RECOMMENDATIONS_FILE` to a private owner file to enable background recommendations.
+Use an absolute canonical path and owner-only file permissions.
+Apply configuration changes through an authorized service restart.
+An absent setting enables no private source.
+
+```json
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "gmail",
+      "goal": "Identify messages that need attention and recommend a useful next step. Confirm reported account operations with the owner.",
+      "query": "in:inbox",
+      "maxMessages": 3
+    }
+  ]
+}
+```
+
+The host currently provides one reviewed source profile, `gmail`.
+The connector must be independently installed with both privacy policies enabled.
+The profile requires the account-bound search and read schemas from Gmail 0.1.1.
+Missing or disabled optional connectors produce no private recommendations.
+Configuration cannot load arbitrary source code or install a connector.
+
+Each background source owns an independent, cancellable MCP session.
+It cannot cancel an interactive connector request or change another turn's privacy state.
+Private observations use the existing recommendation generation, judgment, presentation, action, and feedback pipeline.
+They never register public Desk Data readings or Home content.
+The host removes execution bindings from generation and judgment inputs.
+
+Stable account and message identities control handled-event deduplication.
+Connector revisions, account changes, semantic content, and lifecycle epochs control action freshness.
+Changed bindings revoke earlier confirmations.
+Unchanged observation timestamps do not create another recommendation.
+The review button performs an actual, account-bound, read-only connector call.
+It does not confirm who performed a reported operation or authorize subsequent work.
+
+Explicit feedback uses the existing asynchronous Pi outbox.
+Private feedback supplies only the owner's decision and a fixed, abstract review stage.
+Mail, derived advice, account identities, message identifiers, and private links cannot enter that refinement input.
+Unbound private feedback remains unavailable.
+Pending safe feedback survives source hydration without authorizing an action.
+Derived preference memory remains separate from saved owner facts and automatic experience learning.
+
 ## Verification
 
 ```sh

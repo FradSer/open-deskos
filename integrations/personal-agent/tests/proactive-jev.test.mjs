@@ -189,3 +189,37 @@ test('an injected ordinary typed judgment preserves real model identity and all 
   assert.equal(calls,1);assert.equal(result.model,'synthetic/model-v1');assert.equal(result.answers.c0.groundingProbability,0.99)
   const f=fixture(()=>result);await f.watch.tick();assert.equal(f.watch.list().length,1);assert.equal(f.watch.list()[0].judgment.model,'synthetic/model-v1');await f.watch.close()
 })
+
+
+test('judgment projects semantic candidates without host source and action bindings', async () => {
+  let input
+  const candidate = {
+    id: 'c0', ruleId: 'private-topic', topicId: 'private-topic', key: 'release-review',
+    advice: 'Review the notice before deciding the next step.', nextStep: 'Read the notice',
+    goal: 'Check software release notices.', generated: true, urgent: false, delivery: 'routine', at: '09:00',
+    criteria: [{ readingId: 'mail', field: 'subject', op: 'eq', value: 'Release', hostExtra: 'HOST-CRITERION' }],
+    evidence: [{ id: 'e0', readingId: 'mail', field: 'subject', value: 'Release', state: 'live', measuredAt: stamp, ruleId: 'private-topic', hostExtra: 'HOST-EVIDENCE' }],
+    sourceSnapshot: { accountKey: 'HOST-ACCOUNT', bindingKey: 'HOST-BINDING', connectorRevision: 'HOST-REVISION', epoch: 7 },
+    privateData: true, privateSourceId: 'gmail', privateEventKey: 'HOST-EVENT',
+    ruleVersion: 'HOST-RULE-VERSION', needKey: 'HOST-NEED', occurrenceKey: 'HOST-OCCURRENCE',
+    actionId: 'HOST-ACTION-ID', action: { tool: 'HOST-TOOL', params: { handle: 'HOST-HANDLE' } },
+    confirmation: 'HOST-CONFIRMATION', provenance: { host: 'HOST-PROVENANCE' },
+  }
+  const original = structuredClone(candidate)
+  const judge = createJevJudge({ env: {}, request: async value => {
+    input = value
+    return { model: 'jev-fixture', answers: { c0: { type: 'noul', noul: 0.9 }, c0_grounded: { type: 'noul', noul: 0.99 }, c0_unsupported: { type: 'noul', noul: 0.01 } } }
+  } })
+  await judge({ candidates: [candidate], trigger: { kind: 'heartbeat' }, context: { now: stamp, quiet: false }, recent: [], signal: new AbortController().signal })
+  const projected = input.state.candidates.c0
+  assert.deepEqual(Object.keys(projected).sort(), ['id', 'ruleId', 'topicId', 'key', 'advice', 'nextStep', 'goal', 'generated', 'urgent', 'delivery', 'at', 'criteria', 'evidence'].sort())
+  assert.equal(projected.advice, candidate.advice)
+  assert.equal(projected.nextStep, candidate.nextStep)
+  assert.equal(projected.goal, candidate.goal)
+  assert.equal(projected.at, '09:00')
+  assert.deepEqual(projected.evidence, candidate.evidence.map(({ hostExtra, ...evidence }) => evidence))
+  assert.deepEqual(projected.criteria, candidate.criteria.map(({ hostExtra, ...criterion }) => criterion))
+  assert.equal(input.state.context.now, stamp)
+  assert.doesNotMatch(JSON.stringify(input.state), /HOST-/)
+  assert.deepEqual(candidate, original, 'projection cannot strip the host candidate in place')
+})

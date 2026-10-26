@@ -62,11 +62,15 @@ test('MCP manifests support explicit transports and secret references without na
     type: 'stdio', command: process.execPath, args: ['/explicit/server.mjs'], env: { SOURCE_KEY: { fromEnv: 'ODK_MCP_SOURCE_KEY' } },
   } }
   assert.deepEqual(validateMcpManifest(manifest), manifest)
+  const privateManifest = { ...manifest, policy: { privateData: true, ownerOnly: true } }
+  assert.deepEqual(validateMcpManifest(privateManifest), privateManifest)
+  assert.deepEqual(validateMcpManifest({ ...manifest, policy: {} }).policy, {})
   const installed = await catalog.installMcp(manifest)
   assert.equal((await catalog.mcp(installed.id)).transport.command, process.execPath)
   const remote = { ...manifest, transport: { type: 'streamable-http', url: 'https://example.invalid/mcp', headers: { Authorization: { fromEnv: 'ODK_MCP_AUTH' } } } }
   assert.deepEqual(validateMcpManifest(remote), remote)
   for (const bad of [
+    ...[null, [], { privateData: 'true' }, { ownerOnly: 1 }, { unexpected: true }].map(policy => ({ ...manifest, policy })),
     { ...manifest, kind: 'pi-extension' }, { ...manifest, extension: '/tmp/plugin.js' },
     { ...manifest, transport: { type: 'stdio', command: 'node', args: [] } },
     { ...manifest, transport: { ...manifest.transport, env: { KEY: 'embedded-credential' } } },

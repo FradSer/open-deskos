@@ -1,6 +1,7 @@
 import { feedbackFor, feedbackPending } from './proactive-feedback-memory.mjs'
 import { isJudgmentModel } from './judgment-client.mjs'
 import { randomUUID } from 'node:crypto'
+import {privateRule,privateEventReceiptKey} from './private-proposal-sources.mjs'
 import { generationKey, identifyCandidate, observationKey, sameOccurrence, timeWindow } from './proactive-lifecycle.mjs'
 
 const KEY = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/
@@ -58,6 +59,7 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
     if (watch.config.suppressed.includes(rule.id) || (watch.config.snoozed[rule.id] ?? 0) > watch.now()) {
       watch.clearJudgmentFailure(rule.id); continue
     }
+    if (privateRule(rule) && watch.privateHandledEvents.has(privateEventReceiptKey(rule.privateSourceId,rule.privateEventKey))) continue
     const actions = rule.intentRevision ? [] : watch.availableActions(rule)
     if (!rule.intentRevision && !actions.length) {
       watch.clearJudgmentFailure(rule.id)
@@ -110,7 +112,7 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
       cachedTopics++
       continue
     }
-    topics.push({ ...(rule.intentRevision ? { intentPreview: true } : { actions: actions.map(({ id, label }) => ({ id, label })) }), id: rule.id, goal: rule.goal, ...(feedbackMemory ? { feedbackMemory } : {}), urgent: rule.urgent, delivery: rule.delivery, ...(rule.at ? { at: rule.at } : {}),
+    topics.push({ ...(rule.intentRevision ? { intentPreview: true } : { actions: actions.map(({ id, label }) => ({ id, label })) }), id: rule.id, ...(privateRule(rule) ? { sourceSnapshot: watch.privateSources.snapshot(rule) } : {}), goal: rule.goal, ...(feedbackMemory ? { feedbackMemory } : {}), urgent: rule.urgent, delivery: rule.delivery, ...(rule.at ? { at: rule.at } : {}),
       observationKey: observed, episodeSequence, cacheKey, evidence: evidence.map(e => ({ id: `e${evidenceIndex++}`, ...e })) })
   }
   if (!current()) return
@@ -122,7 +124,7 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
   topics.sort((a, b) => (watch.generationAttempts.get(a.id) ?? 0) - (watch.generationAttempts.get(b.id) ?? 0))
   const recentFor = selected => watch.proposals.filter(p => selected.some(t => t.id === p.ruleId)).slice(-16)
     .map(({ ruleId, subject, advice, status, presented, evidence, feedback }) => ({ ruleId, key: subject.split(':').slice(1).join(':'), advice, status, presented, evidence, ...(feedback ? { feedback } : {}) }))
-  const inputFor = selected => ({ trigger, context, topics: selected, recent: recentFor(selected), maxCandidates: watch.config.maxCandidates ?? 8, signal: watch.controller.signal })
+  const inputFor = selected => ({ trigger, context, topics: selected.map(({ sourceSnapshot, ...topic }) => topic), recent: recentFor(selected), maxCandidates: watch.config.maxCandidates ?? 8, signal: watch.controller.signal })
   const fits = selected => Buffer.byteLength(JSON.stringify({ ...inputFor(selected), signal: undefined })) <= 32768
   const batches = []
   let batch = []
@@ -146,7 +148,7 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
     for (const topic of applicable) watch.failedJudgments.add(topic.id)
     watch.judgmentError = '部分建议生成暂不可用或判断失败；其他建议仍可查看。'
   }
-  const complete = (selected, candidates, result) => {
+  const complete = async (selected, candidates, result) => {
     if (!current()) return
     const active = selected.filter(t => topicCurrent(t.id))
     for (const t of active) {
@@ -156,6 +158,8 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
     }
     if (!watch.failedJudgments.size) watch.judgmentError = ''
     for (const candidate of candidates.filter(c => topicCurrent(c.ruleId)).sort((a, b) => result.answers[b.id].probability - result.answers[a.id].probability)) {
+      if (candidate.privateData === true && !await watch.privateSources?.validate(candidate.sourceSnapshot,watch.controller.signal)) continue
+      if (!current()) return
       const judgment = result.answers[candidate.id]
       const existing = watch.proposals.findLast(p => sameOccurrence(p, candidate))
       const supported = judgment.probability >= judgment.threshold && judgment.groundingProbability >= judgment.threshold && watch.fresh(candidate)
@@ -167,6 +171,7 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
         && p.subject === `${candidate.ruleId}:${candidate.key}` && !sameOccurrence(p, candidate)) p.status = 'expired'
       const record = { needKey: candidate.needKey, observationKey: candidate.observationKey, occurrenceKey: candidate.occurrenceKey,
         evidence: candidate.evidence, advice: candidate.advice, nextStep: candidate.nextStep,
+        ...(candidate.privateData?{privateData:true,privateSourceId:candidate.privateSourceId,privateEventKey:candidate.privateEventKey,sourceSnapshot:structuredClone(candidate.sourceSnapshot)}:{}),
         judgment: { model: result.model, probability: judgment.probability, groundingProbability: judgment.groundingProbability, threshold: judgment.threshold,
           trigger: trigger.kind, judgedAt: new Date(watch.now()).toISOString() } }
       const rule = watch.rules().find(rule => rule.id === candidate.ruleId)
@@ -245,7 +250,7 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
         try { watch.onJudgment({ trigger: trigger.kind, model: result.model, at: new Date(watch.now()).toISOString(), decisions: usable.map(c => ({ ruleId: c.ruleId, candidateId: c.id,
           probability: result.answers[c.id].probability, groundingProbability: result.answers[c.id].groundingProbability, threshold: result.answers[c.id].threshold })) }) } catch { /* Diagnostics cannot affect selection. */ }
       }
-      complete(healthy, usable, result)
+      await complete(healthy, usable, result)
     } catch {
       if (!current()) return
       fail(selected)

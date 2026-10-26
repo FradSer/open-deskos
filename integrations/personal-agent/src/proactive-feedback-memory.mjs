@@ -1,4 +1,5 @@
 import { generationKey } from './proactive-lifecycle.mjs'
+import { projectPrivateFeedback, projectPrivateRuleFeedback, privateFeedbackRuleContext, privateFeedbackSignalsSafe, privateFeedbackJobSafe } from './private-feedback-projection.mjs'
 
 const DIMENSIONS = Object.freeze({ useful: 'utility', irrelevant: 'relevance', incorrect: 'accuracy', snooze: 'timing', ignore: 'relevance', mute: 'relevance', done: 'completion' })
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
@@ -40,12 +41,26 @@ export function feedbackRuleKey(rule) {
   return generationKey(JSON.stringify(definition))
 }
 
-function allowed(watch, proposal) {
-  if (proposal?.privateData === true || proposal?.sourcePolicy?.skipAutomaticLearning === true) return false
+function hostAllows(watch, proposal) {
   try { return watch.canRefineFeedbackMemory(proposal) === true } catch { return false }
 }
 
+function allowed(watch, proposal) {
+  if (!hostAllows(watch, proposal)) return false
+  if (proposal?.privateData === true) return Boolean(projectPrivateFeedback(watch, proposal))
+  if (proposal?.sourcePolicy?.skipAutomaticLearning === true) return false
+  return true
+}
+
 export function feedbackFor(watch, rule) {
+  const projected = projectPrivateRuleFeedback(watch, rule)
+  if (projected) {
+    const proposal = watch.proposals.findLast(item => item.ruleId === rule.id) ?? privateFeedbackRuleContext(watch, rule)
+    if (!hostAllows(watch, proposal)) return undefined
+    const entry = watch.feedbackMemory.entries.find(item => item.ruleId === projected.scopeId && item.ruleVersionKey === projected.scopeKey)
+    return entry && privateFeedbackSignalsSafe(entry.signals, projected) ? structuredClone({ revision: entry.revision, signals: entry.signals }) : undefined
+  }
+  if (rule.privateSourceId !== undefined || rule.privateEventKey !== undefined) return undefined
   const proposal = watch.proposals.findLast(item => item.ruleId === rule.id)
   if (proposal && !allowed(watch, proposal)) return undefined
   const entry = watch.feedbackMemory.entries.find(item => item.ruleId === rule.id && item.ruleVersionKey === feedbackRuleKey(rule))
@@ -63,12 +78,13 @@ export function queueFeedback(watch, proposal, decision) {
   const nextRevision = (proposal.feedbackLearning?.revision ?? 0) + 1
   if (!revision(nextRevision)) throw Error('Feedback revision limit exceeded')
   const hadPending = feedbackPending(watch, proposal)
+  const projected = projectPrivateFeedback(watch, proposal)
   watch.feedbackMemory.jobs = watch.feedbackMemory.jobs.filter(job => job.proposalId !== proposal.id)
   const eligible = (watch.feedbackMemoryEnabled || hadPending) && allowed(watch, proposal) && watch.feedbackMemory.jobs.length < 64
   const status = eligible && watch.feedbackMemoryEnabled && typeof watch.refineFeedbackMemory === 'function' ? 'queued' : 'unavailable'
   proposal.feedbackLearning = { revision: nextRevision, decision, status }
   if (eligible) watch.feedbackMemory.jobs.push({ proposalId: proposal.id, revision: nextRevision, ruleId: proposal.ruleId, ruleVersionKey: generationKey(proposal.ruleVersion), decision,
-    advice: proposal.advice, nextStep: proposal.nextStep ?? '', at: new Date(watch.now()).toISOString(), status, attempts: 0 })
+    advice: projected?.advice ?? proposal.advice, nextStep: projected?.nextStep ?? proposal.nextStep ?? '', at: new Date(watch.now()).toISOString(), status, attempts: 0 })
 }
 
 /** The timer boundary lets the persisted feedback receipt complete before inference starts. */
@@ -86,6 +102,22 @@ export function scheduleFeedback(watch) {
   }, 0)
 }
 
+/** Source hydration can resume only an existing fixed private-feedback job. */
+export function resumePrivateFeedback(watch) {
+  if (watch.closed || watch.storageFailure || !watch.feedbackMemoryEnabled || typeof watch.refineFeedbackMemory !== 'function') return
+  let changed = false
+  for (const job of watch.feedbackMemory.jobs.filter(item => item.status === 'unavailable' && item.attempts < 2)) {
+    const proposal = watch.proposals.find(item => item.id === job.proposalId)
+    if (!privateFeedbackJobSafe(proposal, job) || !allowed(watch, proposal)
+      || proposal.feedbackLearning?.revision !== job.revision) continue
+    job.status = 'queued'; proposal.feedbackLearning.status = 'queued'; changed = true
+  }
+  if (changed) {
+    try { watch.persist() } catch { watch.storageFailure = true; return }
+    scheduleFeedback(watch)
+  }
+}
+
 async function drain(watch) {
   while (!watch.closed && !watch.storageFailure) {
     const job = watch.feedbackMemory.jobs.find(item => item.status === 'queued')
@@ -98,14 +130,26 @@ async function drain(watch) {
       try { watch.persist(); return true } catch { watch.storageFailure = true; return false }
     }
     if (!current()) {
+      if (privateFeedbackJobSafe(proposal, job)) {
+        job.status = 'unavailable'
+        if (proposal.feedbackLearning?.revision === job.revision) proposal.feedbackLearning.status = 'unavailable'
+        if (!checkpoint()) return
+        continue
+      }
       watch.feedbackMemory.jobs = watch.feedbackMemory.jobs.filter(item => item !== job)
       if (proposal?.feedbackLearning?.revision === job.revision) proposal.feedbackLearning.status = 'stale'
       if (!checkpoint()) return
       continue
     }
     if (!allowed(watch, proposal) || !watch.feedbackMemoryEnabled || typeof watch.refineFeedbackMemory !== 'function') {
-      if (!allowed(watch, proposal)) watch.feedbackMemory.jobs = watch.feedbackMemory.jobs.filter(item => item !== job)
+      if (!allowed(watch, proposal) && !privateFeedbackJobSafe(proposal, job)) watch.feedbackMemory.jobs = watch.feedbackMemory.jobs.filter(item => item !== job)
       else job.status = 'unavailable'
+      proposal.feedbackLearning.status = 'unavailable'
+      checkpoint(); watch.emit(); continue
+    }
+    const projected = projectPrivateFeedback(watch, proposal)
+    if (proposal.privateData === true && (!projected || job.advice !== projected.advice || job.nextStep !== projected.nextStep)) {
+      watch.feedbackMemory.jobs = watch.feedbackMemory.jobs.filter(item => item !== job)
       proposal.feedbackLearning.status = 'unavailable'
       checkpoint(); watch.emit(); continue
     }
@@ -126,11 +170,12 @@ async function drain(watch) {
         continue
       }
       const before = structuredClone(watch.feedbackMemory)
-      const scopeKey = feedbackRuleKey(watch.rules().find(rule => rule.id === job.ruleId))
-      const previous = watch.feedbackMemory.entries.find(entry => entry.ruleId === job.ruleId && entry.ruleVersionKey === scopeKey)
-      const entry = { ruleId: job.ruleId, ruleVersionKey: scopeKey, revision: (previous?.revision ?? 0) + 1,
+      const scopeKey = projected?.scopeKey ?? feedbackRuleKey(watch.rules().find(rule => rule.id === job.ruleId))
+      const scopeId = projected?.scopeId ?? job.ruleId
+      const previous = watch.feedbackMemory.entries.find(entry => entry.ruleId === scopeId && entry.ruleVersionKey === scopeKey)
+      const entry = { ruleId: scopeId, ruleVersionKey: scopeKey, revision: (previous?.revision ?? 0) + 1,
         signals: [...(previous?.signals ?? []), { decision: job.decision, dimension: result.dimension, subject: result.subject, at: job.at }].slice(-8) }
-      watch.feedbackMemory.entries = watch.feedbackMemory.entries.filter(item => item.ruleId !== job.ruleId)
+      watch.feedbackMemory.entries = watch.feedbackMemory.entries.filter(item => item.ruleId !== scopeId)
       watch.feedbackMemory.entries.push(entry)
       watch.feedbackMemory.entries = watch.feedbackMemory.entries.slice(-64)
       watch.feedbackMemory.jobs = watch.feedbackMemory.jobs.filter(item => item !== job)

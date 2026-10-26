@@ -557,3 +557,16 @@ Feature: Owner controlled proactive Personal Agent proposals
     When the owner requests a native Pi selection change
     Then the resident reports busy until refinement completes
     And an active configuration session refuses new refinement before inference
+
+  Scenario: Judgment receives semantic evidence without host authorization bindings
+    Given a recommendation candidate contains private source and action bindings
+    When the host requests relevance and grounding judgments
+    Then the model receives advice, next steps, cited evidence, goals, criteria, and timing
+    And the model does not receive source snapshots, action parameters, confirmations, or rule versions
+    And the host retains its complete candidate for publication and execution checks
+
+  Scenario: Connector completion acceptance uses the current native Pi interface
+    Given the connector completion fixture supplies a credential-free native Pi model resolver
+    When the actual Pi 1.4 Durable harness executes its owner-input and completion cases
+    Then the resolver implements getAuth without reading or supplying credentials
+    And the original execution counts, authority fences, and final publication assertions remain unchanged

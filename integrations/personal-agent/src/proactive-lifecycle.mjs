@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import {privateRule,privateEventReceiptKey} from './private-proposal-sources.mjs'
 
 export const PROPOSAL_DECISIONS = /** @type {const} */ (['accept', 'ignore', 'mute', 'done', 'snooze', 'useful', 'irrelevant', 'incorrect'])
 
@@ -26,6 +27,12 @@ export function handledReceipt(proposal) {
 export function identifyCandidate(watch, candidate, topic) {
   const rule = watch.rules().find(rule => rule.id === candidate.topicId)
   const ruleVersion = JSON.stringify(rule)
+  if (privateRule(rule)) {
+    const receipt = privateEventReceiptKey(rule.privateSourceId,rule.privateEventKey)
+    return {...candidate,key:rule.privateEventKey,ruleId:rule.id,ruleVersion,needKey:receipt,observationKey:topic.observationKey,occurrenceKey:receipt,
+      privateData:true,privateSourceId:rule.privateSourceId,privateEventKey:rule.privateEventKey,sourceSnapshot:structuredClone(topic.sourceSnapshot),
+      goal:rule.goal,urgent:rule.urgent,delivery:rule.delivery,generated:true,criteria:[]}
+  }
   const ruleVersionKey = digest(ruleVersion), candidateFingerprint = fingerprint(candidate)
   const candidateFingerprintKey = digest(candidateFingerprint)
   const prior = [...Object.values(watch.handledOccurrences), ...watch.proposals].findLast(p => (p.ruleVersion === ruleVersion || p.ruleVersionKey === ruleVersionKey)
@@ -40,6 +47,13 @@ export function identifyCandidate(watch, candidate, topic) {
 
 /** Old checkpoints have only cited evidence. Preserve those receipts on their first upgrade. */
 export function sameOccurrence(proposal, candidate) {
+  // A changed private binding revokes the earlier publication and confirmation.
+  // Handled-event suppression is separate and survives these transport changes.
+  if (proposal.privateData === true || candidate.privateData === true) {
+    const fields = ['sourceId', 'connectorId', 'connectorRevision', 'epoch', 'accountKey', 'eventKey', 'handle', 'bindingKey', 'observedAt']
+    if (proposal.privateData !== true || candidate.privateData !== true
+      || !fields.every(field => proposal.sourceSnapshot?.[field] === candidate.sourceSnapshot?.[field])) return false
+  }
   return proposal.ruleVersion === candidate.ruleVersion && proposal.subject === `${candidate.ruleId}:${candidate.key}`
     && (proposal.occurrenceKey ? proposal.occurrenceKey === candidate.occurrenceKey : !candidate.episodeSequence && observationKey(proposal.evidence) === observationKey(candidate.evidence))
 }
