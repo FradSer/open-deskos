@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile, readFile, rm, access } from 'node:fs/promises'
+import { mkdtemp, mkdir, chmod, writeFile, readFile, rm, access } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { migratePersonalAgentState, personalAgentEnvironment } from '../src/personal-agent-migration.mjs'
@@ -43,6 +43,7 @@ test('an unsafe legacy state directory is refused without moving it', { skip: pr
   t.after(() => rm(root, { recursive: true, force: true }))
   const legacy = process.platform === 'win32' ? join(root, 'odk', 'voice') : join(root, 'odk-voice')
   await mkdir(legacy, { mode: 0o755 })
+  await chmod(legacy, 0o755)
   await assert.rejects(migratePersonalAgentState({ XDG_STATE_HOME: root, LOCALAPPDATA: root }), /Unsafe legacy/)
   await access(legacy)
 })
