@@ -106,7 +106,9 @@ async function initialize(env, report, onRideUpdate, platform = process.platform
     stateDir: directories.state,
     capabilityPaths: personal.profile === 'coding' && env.ODK_PERSONAL_AGENT_CAPABILITIES ? JSON.parse(env.ODK_PERSONAL_AGENT_CAPABILITIES) : [],
     personal, onRideUpdate, onAgentUpdate, getWatch, env, signal,
-  })
+  }, { onIntentDiagnostic: record => console.warn(JSON.stringify({ event:'intent_routing_diagnostic',
+    phase:record.phase,errorName:record.errorName,errorCode:record.errorCode,cleanup:record.cleanup,attempt:record.attempt,
+    timedOut:record.timedOut,cancelled:record.cancelled,cleanupErrorName:record.cleanupErrorName,cleanupErrorCode:record.cleanupErrorCode,turn:record.turn })) })
   const remote = await attachRemoteConversation({agent,env,stateDir:directories.state,publish:onRemoteUpdate})
   return {
     agent, remote,

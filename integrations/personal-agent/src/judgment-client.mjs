@@ -1,4 +1,5 @@
 import {createJevClient} from './jev-client.mjs'
+import {judgmentFailureRecord, reportJudgmentDiagnostic} from './errors.mjs'
 
 /** A transport identity, never a generated display claim or credential URL. */
 export const isJudgmentModel = value => typeof value === 'string' && value.length <= 256
@@ -93,36 +94,48 @@ export function createJudgmentClient({env = process.env, generate, model, create
         try { requestJev = createJev({env}); jevUnavailable = false } catch { /* Keep the ordinary fallback. */ }
       }
     },
-    async request({state, questions, signal}) {
-      signal?.throwIfAborted()
-      if (!questions || Array.isArray(questions) || !Object.keys(questions).length || Object.keys(questions).length > 256
-        || Buffer.byteLength(JSON.stringify({state, questions})) > 96000) throw Error('Invalid judgment input')
-      if (!jevUnavailable && requestJev) {
-        try {
-          const result = await requestJev({state, questions, signal})
-          signal?.throwIfAborted()
-          if (!isJudgmentModel(result?.model)) throw Error('Invalid judgment model')
-          const coreAnswers = Object.fromEntries(Object.entries(questions).map(([id, question]) => {
-            const answer = result.answers?.[id]
-            return [id, question.type === 'noul' ? {type: answer?.type, noul: answer?.noul}
-              : {type: answer?.type, choice: answer?.choice, confidence: answer?.confidence, probabilities: answer?.probabilities}]
-          }))
-          validateJudgmentAnswers({answers: coreAnswers}, questions)
-          if (!jevUnavailable) { backend = 'jev'; lastModel = result.model }
-          return {model: result.model, answers: coreAnswers}
-        } catch (error) {
-          signal?.throwIfAborted()
-          jevUnavailable = true; backend = 'model'; lastModel = undefined
+    async request({state, questions, signal, onDiagnostic}) {
+      let phase='judgment_input', observed=false
+      const observe=value=>{if(observed)return;observed=true;reportJudgmentDiagnostic(onDiagnostic,value)}
+      try {
+        signal?.throwIfAborted()
+        if (!questions || Array.isArray(questions) || !Object.keys(questions).length || Object.keys(questions).length > 256
+          || Buffer.byteLength(JSON.stringify({state, questions})) > 96000) throw Error('Invalid judgment input')
+        if (!jevUnavailable && requestJev) {
+          try {
+            phase='model_request'
+            const result = await requestJev({state, questions, signal})
+            signal?.throwIfAborted()
+            if (!isJudgmentModel(result?.model)) throw Error('Invalid judgment model')
+            const coreAnswers = Object.fromEntries(Object.entries(questions).map(([id, question]) => {
+              const answer = result.answers?.[id]
+              return [id, question.type === 'noul' ? {type: answer?.type, noul: answer?.noul}
+                : {type: answer?.type, choice: answer?.choice, confidence: answer?.confidence, probabilities: answer?.probabilities}]
+            }))
+            validateJudgmentAnswers({answers: coreAnswers}, questions)
+            if (!jevUnavailable) { backend = 'jev'; lastModel = result.model }
+            return {model: result.model, answers: coreAnswers}
+          } catch (error) {
+            signal?.throwIfAborted()
+            jevUnavailable = true; backend = 'model'; lastModel = undefined
+          }
         }
+        phase='model_selection'
+        const selected = model()
+        if (!isJudgmentModel(selected)) throw Error('Ordinary judgment model unavailable')
+        phase='model_request'
+        const result = await generate({state, questions, signal, ...(typeof onDiagnostic==='function'?{onDiagnostic:observe}:{})})
+        signal?.throwIfAborted()
+        phase='ordinary_validate'
+        validateOrdinaryJudgmentAnswers(result, questions)
+        phase='normalize'
+        const answers = normalizeOrdinaryAnswers(result, questions)
+        backend = 'model'
+        return {model: selected, answers}
+      } catch(error) {
+        if(!observed&&typeof onDiagnostic==='function')reportJudgmentDiagnostic(onDiagnostic,judgmentFailureRecord(phase,error,{cancelled:signal?.aborted===true}))
+        throw error
       }
-      const selected = model()
-      if (!isJudgmentModel(selected)) throw Error('Ordinary judgment model unavailable')
-      const result = await generate({state, questions, signal})
-      signal?.throwIfAborted()
-      validateOrdinaryJudgmentAnswers(result, questions)
-      const answers = normalizeOrdinaryAnswers(result, questions)
-      backend = 'model'
-      return {model: selected, answers}
     },
   }
 }

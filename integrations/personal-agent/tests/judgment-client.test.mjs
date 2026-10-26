@@ -22,9 +22,11 @@ test('Given no Jev credential, ordinary model judgments remain available without
 })
 
 test('Given disabled Jev, classification never constructs its client', async () => {
+  let constructed=0
   const client = createJudgmentClient({env: {ODK_JEV_PROVIDER: 'disabled'}, model: () => 'fixture/ordinary',
-    createJev: () => { throw Error('Must not construct Jev') }, generate: async () => ({answers: compact})})
+    createJev: () => { constructed++;throw Error('Must not construct Jev') }, generate: async () => ({answers: compact})})
   assert.equal((await client.request({state: {}, questions})).model, 'fixture/ordinary')
+  assert.equal(constructed,0)
 })
 
 test('Given failed optional Jev, subsequent judgments use the ordinary model without retrying Jev', async () => {
@@ -162,4 +164,98 @@ test('explicit verified reauthentication restores Jev while ordinary health upda
  assert.equal(primary,1);assert.equal(ordinary,1);assert.equal(client.status.provider,'jev')
  client.resetJevHealth({status:'missing_credential'})
  await client.request({state:{},questions});assert.equal(primary,1);assert.equal(ordinary,2)
+})
+
+
+import {createIntentTurn, createJevIntentRouter, guardIntentTools} from '../src/intent-routing.mjs'
+import {generateWithinDeadline} from '../src/proactive-generation-session.mjs'
+
+const unavailableAnswer = '意图判断暂时不可用，本次请求未执行。请稍后重试。'
+function diagnosticTurn(generate, observer, model = () => 'fixture/ordinary') {
+  const client = createJudgmentClient({env:{ODK_JEV_PROVIDER:'disabled'}, model, generate})
+  const route = createJevIntentRouter({request: client.request})
+  const turn = createIntentTurn({route, profile:'personal', tools:['memory_update'], onDiagnostic:observer})
+  return {client, turn}
+}
+
+test('failed ordinary routing reports one blind diagnostic and cannot dispatch', async () => {
+  const events=[], failure=Object.assign(new TypeError('PRIVATE_OWNER_AND_PROVIDER_TEXT'),{code:'ERR_MODULE_NOT_FOUND', privateValue:'PRIVATE_ACCOUNT'})
+  const before=Object.getOwnPropertyNames(failure)
+  const {turn}=diagnosticTurn(async()=>{throw failure}, event=>events.push(event))
+  const result=await turn.prepare('Fixture request')
+  assert.equal(result.answer,unavailableAnswer);assert.equal(result.context,undefined);assert.equal(turn.getIntent(),null)
+  let executions=0
+  const [tool]=guardIntentTools([{name:'memory_update',execute:async()=>{executions++}}],turn.getIntent)
+  await assert.rejects(tool.execute('fixture',{}),/unavailable/);assert.equal(executions,0)
+  assert.equal(events.length,1);assert.equal(events[0].phase,'model_request')
+  assert.equal(events[0].errorName,'TypeError');assert.equal(events[0].errorCode,'ERR_MODULE_NOT_FOUND')
+  assert.equal(events[0].cleanup,'not_recorded');assert.equal(events[0].turn,1)
+  assert.deepEqual(Object.keys(events[0]).sort(),['attempt','cancelled','cleanup','cleanupErrorCode','cleanupErrorName','errorCode','errorName','phase','timedOut','turn'].sort())
+  assert(Object.isFrozen(events[0]));assert(!JSON.stringify(events).includes('PRIVATE_'))
+  assert.deepEqual(Object.getOwnPropertyNames(failure),before)
+})
+
+test('disabled ordinary routing distinguishes model selection from request failure', async () => {
+  const events=[];let calls=0
+  const {turn}=diagnosticTurn(async()=>{calls++;return {answers:compact}},event=>events.push(event),()=>undefined)
+  assert.equal((await turn.prepare('Fixture request')).answer,unavailableAnswer)
+  assert.equal(calls,0);assert.equal(events.length,1);assert.equal(events[0].phase,'model_selection')
+})
+
+test('diagnostic observers cannot replace the unavailable answer or leak hostile errors', async () => {
+  const hostile=Object.freeze(Object.defineProperties({}, {name:{get(){throw Error('PRIVATE_NAME')}},code:{get(){return 'PRIVATE_CODE'}}}))
+  for(const observer of [()=>{throw Error('PRIVATE_OBSERVER')},async()=>{throw Error('PRIVATE_ASYNC_OBSERVER')}]) {
+    const {turn}=diagnosticTurn(async()=>{throw hostile},observer)
+    assert.equal((await turn.prepare('Fixture request')).answer,unavailableAnswer)
+    await new Promise(resolve=>setImmediate(resolve))
+  }
+  const events=[];const {turn}=diagnosticTurn(async()=>{throw hostile},event=>events.push(event))
+  assert.equal((await turn.prepare('Fixture request')).answer,unavailableAnswer)
+  assert.equal(events[0].errorName,'other');assert.equal(events[0].errorCode,'other')
+  assert(!JSON.stringify(events).includes('PRIVATE_'))
+})
+
+test('a valid disabled ordinary judgment emits no failure diagnostics', async () => {
+  const events=[];const {turn}=diagnosticTurn(async input=>({answers:Object.fromEntries(Object.keys(input.questions).map(key=>[key,{type:'choice',choice:'conversation',confidence:0.95}]))}),event=>events.push(event))
+  const result=await turn.prepare('Fixture greeting')
+  assert.equal(turn.getIntent(),'conversation');assert.equal(typeof result.context,'string');assert.deepEqual(events,[])
+})
+
+test('concurrent ordinary routing retains each invocation failure phase', async () => {
+  const events=[[],[]]
+  const generate=({onDiagnostic,...input})=>generateWithinDeadline({onDiagnostic,
+    create:async()=>({dispose:async()=>{},abort:async()=>{}}),
+    prompt:async(_session,text)=>{await new Promise(resolve=>setImmediate(resolve));if(JSON.parse(text).state.text==='Fixture transport')throw Object.assign(new TypeError('PRIVATE_TRANSPORT'),{code:'ECONNRESET'});return '{invalid'}
+  },input)
+  const client=createJudgmentClient({env:{ODK_JEV_PROVIDER:'disabled'},model:()=> 'fixture/ordinary',generate})
+  const turns=events.map(list=>createIntentTurn({route:createJevIntentRouter({request:client.request}),profile:'personal',tools:['memory_update'],onDiagnostic:event=>list.push(event)}))
+  const results=await Promise.all(turns.map((turn,i)=>turn.prepare(i?'Fixture transport':'Fixture parse')))
+  assert(results.every(result=>result.answer===unavailableAnswer))
+  assert.equal(events[0].length,1);assert.equal(events[1].length,1)
+  assert.equal(events[0][0].phase,'parse');assert.equal(events[0][0].errorName,'SyntaxError');assert.equal(events[0][0].attempt,2)
+  assert.equal(events[1][0].phase,'prompt');assert.equal(events[1][0].errorCode,'ECONNRESET');assert.equal(events[1][0].attempt,1)
+  assert(!JSON.stringify(events).includes('PRIVATE_'))
+})
+
+
+test('a disabled diagnostic observer never reads error accessors', async () => {
+  let reads=0;const failure=new Error('PRIVATE_PROVIDER')
+  Object.defineProperties(failure,{name:{get(){reads++;return 'PRIVATE_NAME'}},code:{get(){reads++;return 'PRIVATE_CODE'}}})
+  const {turn,client}=diagnosticTurn(async()=>{throw failure},undefined)
+  assert.equal((await turn.prepare('Fixture request')).answer,unavailableAnswer)
+  await assert.rejects(client.request({state:{},questions}),error=>error===failure)
+  assert.equal(reads,0)
+})
+
+
+test('a repeated producer observation cannot overwrite the first failure phase', async () => {
+  const events=[]
+  const {turn}=diagnosticTurn(async({onDiagnostic})=>{
+    onDiagnostic({phase:'create',errorName:'TypeError',errorCode:'ECONNRESET',cleanup:'completed',attempt:0})
+    onDiagnostic({phase:'dispose',errorName:'PRIVATE_NAME',errorCode:'PRIVATE_CODE',privateValue:'PRIVATE_ACCOUNT'})
+    throw Error('PRIVATE_PROVIDER')
+  },event=>events.push(event))
+  assert.equal((await turn.prepare('Fixture request')).answer,unavailableAnswer)
+  assert.equal(events.length,1);assert.equal(events[0].phase,'create');assert.equal(events[0].errorCode,'ECONNRESET')
+  assert(!JSON.stringify(events).includes('PRIVATE_'))
 })

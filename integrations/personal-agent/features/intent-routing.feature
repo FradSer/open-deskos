@@ -167,3 +167,20 @@ Feature: Every Personal Agent user turn receives a typed intent judgment
     When a resident Personal Agent or Hosted Pi session starts
     Then Pi resolves the configured model without an Open DeskOS provider hook
     And native authentication precedence and endpoint overrides remain effective
+
+  Scenario: Failed intent judgment reports content-blind diagnostics
+    Given ordinary model routing runs with Jev disabled
+    When a judgment fails before workflow dispatch
+    Then the original unavailable answer remains unchanged
+    And one optional diagnostic identifies its phase and cleanup state
+    And the diagnostic contains only fixed enums and bounded counters
+    And request content, model settings, and upstream error text remain absent
+    And no workflow or connector runs after the failure
+
+  Scenario: Diagnostic observers cannot change judgment control flow
+    Given an observer throws or rejects while a judgment fails
+    When the original failure reaches the routing boundary
+    Then the original response and thrown errors keep their existing contracts
+    And concurrent judgments retain separate failure phases
+    And cleanup cannot overwrite the recorded primary failure
+    And late cleanup cannot publish another terminal diagnostic

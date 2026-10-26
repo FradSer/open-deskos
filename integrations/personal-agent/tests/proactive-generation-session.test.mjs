@@ -123,3 +123,61 @@ test('a successful generation waits for asynchronous Harness disposal', async ()
 test('asynchronous Harness disposal failure rejects a successful generation', async () => {
  await assert.rejects(generateWithinDeadline({create:async()=>({dispose:async()=>{throw Error('fixture cleanup failure')},abort:async()=>{}}),prompt:async()=>'{"suggestions":[]}'},{}),/cleanup failure/)
 })
+
+
+test('generation failure phases are blind, bounded and emitted after cleanup', async () => {
+  for(const phase of ['create','prompt','parse','validate','dispose']) {
+    const events=[];const failure=Object.assign(new RangeError('PRIVATE_FAILURE_'+phase),{code:'PRIVATE_UNKNOWN_CODE'})
+    let attempts=0
+    const session={abort:async()=>{},dispose:async()=>{if(phase==='dispose')throw failure}}
+    await assert.rejects(generateWithinDeadline({onDiagnostic:event=>events.push(event),
+      create:async()=>{if(phase==='create')throw failure;return session},
+      prompt:async()=>{attempts++;if(phase==='prompt')throw failure;return phase==='parse'?'{invalid':'{}'},
+      validate:()=>{if(phase==='validate')throw failure}
+    },{request:'PRIVATE_OWNER_TEXT'}),error=>phase==='parse'?error instanceof SyntaxError:error===failure)
+    assert.equal(events.length,1);assert.equal(events[0].phase,phase)
+    assert.equal(events[0].cleanup,phase==='create'?'not_started':phase==='dispose'?'failed':'completed')
+    assert.equal(events[0].attempt,attempts);assert(!JSON.stringify(events).includes('PRIVATE_'))
+    assert(Object.isFrozen(events[0]))
+  }
+})
+
+test('cleanup failure retains the primary diagnostic without changing thrown identity', async () => {
+  const events=[],cleanupFailure=Object.assign(new TypeError('PRIVATE_CLEANUP'),{code:'EPIPE'})
+  await assert.rejects(generateWithinDeadline({onDiagnostic:event=>events.push(event),
+    create:async()=>({abort:async()=>{},dispose:async()=>{throw cleanupFailure}}),prompt:async()=>'{invalid'
+  },{}),error=>error===cleanupFailure)
+  assert.equal(events.length,1);assert.equal(events[0].phase,'parse');assert.equal(events[0].errorName,'SyntaxError')
+  assert.equal(events[0].cleanup,'failed');assert.equal(events[0].cleanupErrorName,'TypeError');assert.equal(events[0].cleanupErrorCode,'EPIPE')
+  assert(!JSON.stringify(events).includes('PRIVATE_'))
+})
+
+test('deadline emits one terminal snapshot and late cleanup cannot rewrite it', async t => {
+  t.mock.timers.enable({apis:['setTimeout']})
+  const events=[];let dispose,closed=0
+  const result=generateWithinDeadline({timeoutMs:1000,onDiagnostic:event=>events.push(event),
+    create:async()=>({abort:async()=>{},dispose:()=>new Promise(resolve=>{dispose=()=>{closed++;resolve()}})}),
+    prompt:async()=>new Promise(()=>{})
+  },{})
+  const rejected=assert.rejects(result,/timed out/)
+  await new Promise(resolve=>setImmediate(resolve));t.mock.timers.tick(1000);await rejected
+  assert.equal(events.length,1);assert.equal(events[0].phase,'prompt');assert.equal(events[0].cleanup,'pending');assert.equal(events[0].timedOut,true)
+  const snapshot=JSON.stringify(events);dispose();await new Promise(resolve=>setImmediate(resolve))
+  assert.equal(closed,1);assert.equal(JSON.stringify(events),snapshot)
+})
+
+test('observer failures preserve generation errors and default behavior', async () => {
+  for(const observer of [undefined,()=>{throw Error('PRIVATE_OBSERVER')},async()=>{throw Error('PRIVATE_ASYNC_OBSERVER')}]) {
+    const failure=Object.freeze(new Error('PRIVATE_PROVIDER'))
+    await assert.rejects(generateWithinDeadline({onDiagnostic:observer,create:async()=>{throw failure},prompt:async()=>assert.fail('no prompt')},{}),error=>error===failure)
+    await new Promise(resolve=>setImmediate(resolve))
+  }
+})
+
+
+test('a disabled generation observer never reads error accessors', async () => {
+  let reads=0;const failure=new Error('PRIVATE_PROVIDER')
+  Object.defineProperties(failure,{name:{get(){reads++;return 'PRIVATE_NAME'}},code:{get(){reads++;return 'PRIVATE_CODE'}}})
+  await assert.rejects(generateWithinDeadline({create:async()=>{throw failure},prompt:async()=>assert.fail('no prompt')},{}),error=>error===failure)
+  assert.equal(reads,0)
+})
