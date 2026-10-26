@@ -10,7 +10,8 @@
 #include "driver/i2c_master.h"
 #include "driver/ledc.h"
 #include "driver/spi_master.h"
-#include "driver/usb_serial_jtag.h"
+#include "remote_radio.h"
+#include "cJSON.h"
 #include "font5x7.h"
 #include "touchpad_gesture.h"
 #include "remote_state_frame.h"
@@ -51,7 +52,6 @@
 #define TOUCH_CONFIG_SIGNATURE 0xCACA
 
 #define TOUCH_POLL_INTERVAL_MS 16
-#define CDC_STATE_MAX_BYTES 512
 #define STATE_COUNTER_MAX_BYTES 15
 
 #define COLOR_BG 0x0000
@@ -78,21 +78,18 @@ static bool s_spi_owned;
 static bool s_backlight_owned;
 static bool s_touch_isr_owned;
 static bool s_touch_handler_owned;
-static bool s_serial_owned;
 static i2c_master_dev_handle_t s_touch;
 static uint16_t *s_framebuffer;
 static QueueHandle_t s_state_queue;
 static remote_buffers_port_t s_buffers_port;
 static remote_buffers_port_t *s_surface_buffers;
 static remote_buffers_port_t *s_serial_buffers;
+static touchpad_gesture_t *s_serial_gesture;
 static remote_display_port_t *s_buffers_display;
 static remote_state_t s_state;
 static remote_state_t s_rendered_state;
 static bool s_has_rendered = false;
 static touchpad_gesture_t s_touchpad;
-static char s_cdc_line[CDC_STATE_MAX_BYTES + 1];
-static size_t s_cdc_line_length;
-static bool s_cdc_line_overflow;
 static volatile bool s_touch_interrupt_pending;
 
 static esp_err_t display_power_init(void)
@@ -451,80 +448,35 @@ static bool send_touchpad_input(void *context, remote_input_t input, const char 
         [REMOTE_INPUT_BACK] = "back",
         [REMOTE_INPUT_MIC] = "mic",
     };
-    char line[96];
-    int written = 0;
-    if (input == REMOTE_INPUT_ACTION && action_id != NULL) {
-        written = snprintf(line, sizeof(line),
-                           "{\"v\":1,\"type\":\"input\",\"input\":\"action\",\"action\":\"%s\"}\n",
-                           action_id);
-    } else if (input < sizeof(input_names) / sizeof(input_names[0]) && input_names[input] != NULL) {
-        written = snprintf(line, sizeof(line),
-                           "{\"v\":1,\"type\":\"input\",\"input\":\"%s\"}\n",
-                           input_names[input]);
-    } else {
-        return false;
-    }
-    if (written < 0 || (size_t)written >= sizeof(line)) return false;
-    const int queued = usb_serial_jtag_write_bytes(line, (size_t)written, 0);
-    if (queued != written) {
-        ESP_LOGW(TAG, "USB Serial/JTAG input queue incomplete");
-        return false;
-    }
-    return usb_serial_jtag_wait_tx_done(pdMS_TO_TICKS(20)) == ESP_OK;
-}
-
-static void process_cdc_line(void)
-{
-    if (s_serial_buffers == NULL || s_serial_buffers->state_queue == NULL) {
-        return;
-    }
-    if (!s_cdc_line_overflow) {
-        s_cdc_line[s_cdc_line_length] = '\0';
-        remote_state_t parsed_state;
-        if (remote_state_frame_parse(s_cdc_line, &parsed_state)) {
-            xQueueOverwrite(s_serial_buffers->state_queue, &parsed_state);
-        } else {
-            ESP_LOGW(TAG, "discarded invalid CDC state frame");
+    cJSON *record = cJSON_CreateObject();
+    if (record != NULL) {
+        cJSON_AddNumberToObject(record, "v", 1);
+        cJSON_AddStringToObject(record, "type", "input");
+        if (input == REMOTE_INPUT_ACTION && action_id != NULL) {
+            cJSON_AddStringToObject(record, "input", "action");
+            cJSON_AddStringToObject(record, "action", action_id);
+        } else if ((unsigned)input < sizeof(input_names) / sizeof(input_names[0]) && input_names[input] != NULL) {
+            cJSON_AddStringToObject(record, "input", input_names[input]);
         }
-    } else {
-        ESP_LOGW(TAG, "discarded oversized CDC state frame");
+        char line[97];
+        if (cJSON_HasObjectItem(record, "input") && cJSON_PrintPreallocated(record, line, sizeof(line), false)) {
+            remote_radio_input(line, strlen(line));
+        }
+        cJSON_Delete(record);
     }
-    s_cdc_line_length = 0;
-    s_cdc_line_overflow = false;
-}
-
-static void cdc_receive_byte(char byte)
-{
-    if (byte == '\n') {
-        process_cdc_line();
-        return;
-    }
-    if (byte == '\r') {
-        return;
-    }
-    if (s_cdc_line_length == CDC_STATE_MAX_BYTES) {
-        s_cdc_line_overflow = true;
-        return;
-    }
-    if (!s_cdc_line_overflow) {
-        s_cdc_line[s_cdc_line_length++] = byte;
-    }
-}
-
-static esp_err_t usb_init(void)
-{
-    usb_serial_jtag_driver_config_t config = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
-    esp_err_t error = usb_serial_jtag_driver_install(&config);
-    if (error == ESP_OK) s_serial_owned = true;
-    return error;
+    // Consume each physical gesture even when the radio is offline or busy.
+    return true;
 }
 
 static void receive_state_records(void)
 {
-    uint8_t buffer[64];
-    const int received = usb_serial_jtag_read_bytes(buffer, sizeof(buffer), 0);
-    for (int i = 0; i < received; ++i) {
-        cdc_receive_byte((char)buffer[i]);
+    remote_radio_poll();
+    if (s_serial_gesture != NULL && !remote_radio_ready()) {
+        // A contact that begins offline must release before it can send online input.
+        s_serial_gesture->active = false;
+        s_serial_gesture->secondary_sent = false;
+        s_serial_gesture->waiting_for_release = true;
+        s_serial_gesture->release_samples = 0;
     }
 }
 
@@ -657,18 +609,16 @@ static esp_err_t serial_plugin_init(void *context, const void *config)
 {
     (void)config;
     s_serial_buffers = remote_buffers_from_context(context);
-    ESP_RETURN_ON_FALSE(s_serial_buffers != NULL, ESP_ERR_INVALID_STATE, TAG, "buffers unavailable");
-    ESP_RETURN_ON_ERROR(usb_init(), TAG, "serial plugin");
+    s_serial_gesture = odk_plugin_get(context, "odk:s3/gesture/v1");
+    ESP_RETURN_ON_FALSE(s_serial_buffers != NULL && s_serial_gesture != NULL, ESP_ERR_INVALID_STATE, TAG, "buffers unavailable");
+    ESP_RETURN_ON_ERROR(remote_radio_init(s_serial_buffers->state_queue), TAG, "radio plugin");
     return odk_plugin_publish(context, "odk:s3/serial/v1", &s_serial_port);
 }
 
 static esp_err_t serial_plugin_destroy(void)
 {
-    esp_err_t error = s_serial_owned ? usb_serial_jtag_driver_uninstall() : ESP_OK;
-    if (error == ESP_OK) s_serial_owned = false;
-    s_serial_buffers = NULL;
-    s_cdc_line_length = 0;
-    s_cdc_line_overflow = false;
+    esp_err_t error = remote_radio_stop();
+    if (error == ESP_OK) { s_serial_buffers = NULL; s_serial_gesture = NULL; }
     return error;
 }
 

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "odk.s3.serial",
-  "name": "Remote serial",
+  "name": "Remote ESP-NOW",
   "version": "1.0.0",
   "host": "esp32-s3",
   "kind": "transport",

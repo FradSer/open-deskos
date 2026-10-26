@@ -37,8 +37,24 @@ static bool json_is_supported_link(const cJSON *item)
     return json_is_string(item, "wired") || json_is_string(item, "wireless");
 }
 
+// cJSON exposes strings through NUL-terminated buffers. Reject decoded NUL
+// escapes before parsing so values and member names cannot become aliases.
+static bool has_decoded_nul_escape(const char *line)
+{
+    const size_t length = strlen(line);
+    for (size_t i = 0; i < length; ++i) {
+        if (line[i] != '\\') continue;
+        if (i + 5 < length && line[i + 1] == 'u' &&
+            memcmp(line + i + 2, "0000", 4) == 0) return true;
+        // The second character of an escaped backslash is not another escape.
+        ++i;
+    }
+    return false;
+}
+
 bool remote_state_frame_parse(const char *line, remote_state_t *state)
 {
+    if (has_decoded_nul_escape(line)) return false;
     cJSON *json = cJSON_ParseWithLengthOpts(line, strlen(line) + 1, NULL, true);
     if (!cJSON_IsObject(json)) {
         cJSON_Delete(json);

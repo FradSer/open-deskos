@@ -76,9 +76,55 @@ static void test_invalid_frames_preserve_state(void)
     assert(memcmp(&state, &previous, sizeof(state)) == 0);
 }
 
+
+static void test_decoded_nul_aliases_preserve_state(void)
+{
+    char frame[512];
+    remote_state_t state = {0};
+    make_frame(frame, sizeof(frame), "refresh", "SYNC");
+    assert(remote_state_frame_parse(frame, &state));
+    const remote_state_t previous = state;
+    make_frame(frame, sizeof(frame), "refresh\\u0000hidden", "SYNC");
+    assert(!remote_state_frame_parse(frame, &state));
+    assert(memcmp(&state, &previous, sizeof(state)) == 0);
+    make_frame(frame, sizeof(frame), "refresh", "SYNC\\u0000hidden");
+    assert(!remote_state_frame_parse(frame, &state));
+    assert(memcmp(&state, &previous, sizeof(state)) == 0);
+    const char *invalid[] = {
+        "{\"v\":1,\"type\":\"state\\u0000unknown\",\"page\":1,\"pages\":3,\"name\":\"Home\",\"canPrev\":false,\"canNext\":true,\"link\":\"wireless\"}",
+        "{\"v\":1,\"page\":1,\"pages\":3,\"name\":\"Home\",\"canPrev\":false,\"canNext\":true,\"link\":\"wireless\",\"type\\u0000alias\":\"state\"}",
+        "{\"v\":1,\"type\":\"state\",\"page\":1,\"pages\":3,\"name\":\"Home\",\"canPrev\":false,\"canNext\":true,\"link\":\"wireless\",\"type\\u0000alias\":\"unknown\"}",
+    };
+    for (size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i) {
+        assert(!remote_state_frame_parse(invalid[i], &state));
+        assert(memcmp(&state, &previous, sizeof(state)) == 0);
+    }
+    make_frame(frame, sizeof(frame), "refresh\\\\u0000", "\\u0053YNC");
+    assert(remote_state_frame_parse(frame, &state));
+    assert(strcmp(state.actions[0].id, "refresh\\u0000") == 0);
+    assert(strcmp(state.actions[0].label, "SYNC") == 0);
+    make_frame(frame, sizeof(frame), "refresh", "SYNC");
+    assert(remote_state_frame_parse(frame, &state));
+    assert(memcmp(&state, &previous, sizeof(state)) == 0);
+    // Odd escape runs decode NUL; even runs retain literal backslashes.
+    for (size_t slashes = 1; slashes <= 6; ++slashes) {
+        char id[24] = "x";
+        for (size_t i = 0; i < slashes; ++i) id[i + 1] = '\\';
+        memcpy(id + slashes + 1, "u0000", 6);
+        make_frame(frame, sizeof(frame), "refresh", "SYNC");
+        assert(remote_state_frame_parse(frame, &state));
+        const remote_state_t prior = state;
+        make_frame(frame, sizeof(frame), id, "SYNC");
+        assert(remote_state_frame_parse(frame, &state) == (slashes % 2 == 0));
+        if (slashes % 2 != 0) assert(memcmp(&state, &prior, sizeof(state)) == 0);
+    }
+
+}
+
 int main(void)
 {
     test_action_buffer_boundaries();
     test_invalid_frames_preserve_state();
+    test_decoded_nul_aliases_preserve_state();
     return 0;
 }
