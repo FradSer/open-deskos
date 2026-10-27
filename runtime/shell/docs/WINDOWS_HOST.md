@@ -50,8 +50,8 @@ pnpm run build:native
 
 | Surface | Windows contract |
 | --- | --- |
-| Remote Control / Remote Bridge | Not ported. The Unix link and service are absent. Report unavailable/disconnected. |
-| NanoC6 / pluggable ESP32 devices | Optional source and Devices App; see [C6 Gateway](C6-GATEWAY.md). Firmware/USB checks and two-device wireless acceptance remain separate. This row does not establish Windows transport acceptance. |
+| Remote Control / Remote Bridge | Source port: authenticated local pipes with one Bridge owner. Native Windows and board acceptance remain pending. See [Remote Bridge source](#remote-bridge-source). |
+| NanoC6 / pluggable ESP32 devices | Shared Bridge source and Devices App; see [C6 Gateway](C6-GATEWAY.md). Firmware/USB checks and two-device wireless acceptance remain separate. This row does not establish Windows transport acceptance. |
 | Voice Agent / Personal Agent | Windows display and DirectShow microphone client. CM5 owns the Personal Agent; a disconnected main service reports unavailable. |
 | Open DeskOS Link | Ported. TCP reporting listener defaults to 8765. The runtime channel is `\\.\pipe\odk-link`. |
 | Open DeskOS Data | Ported on both sides. Shell and bot use `\\.\pipe\odk-data` with the host channel token. |
@@ -61,6 +61,41 @@ pnpm run build:native
 | CM5 GPU/HDMI/touch gates | Not applicable to this host. Windows needs its own device evidence. |
 
 `src/platform/` owns state paths, endpoint names, executable-name rules and process sources. Other Shell and Widget/App contracts are shared.
+
+## Remote Bridge source
+
+The Windows source uses the shared Remote Bridge, Devices facade, and package device broker.
+The Bridge opens `\\.\pipe\odk-remote-bridge`.
+Its transport control channel uses `\\.\pipe\odk-remote-plugin-control`.
+The Bridge and Shell resolve these names through `src/platform/`.
+Both channels use the host token described under [Runtime authentication](#runtime-authentication).
+Windows starts each required channel before the C6 worker.
+A required channel failure stops startup before the worker starts.
+Each channel permits 32 connections, including clients that await authentication.
+The permanent Shell connection and each diagnosis connection send authentication before protocol records.
+A missing token leaves the client unavailable. It does not enable an unauthenticated connection.
+
+The Bridge requires an explicit `--esp-now-config` option or `ODK_REMOTE_ESPNOW_CONFIG` on Windows.
+The selection identifies one private gateway configuration and the selected NanoC6 USB identity.
+This mode never creates the USB Remote adapter.
+NanoC6 uses USB CDC for its Host Link. S3 control and state use ESP-NOW.
+The Bridge owns the only C6 serial worker. Devices and installed packages share its facade.
+This source change does not install a Windows service or scheduled task.
+
+For separately authorized manual startup, run this command from the source or release root:
+
+```powershell
+node integrations/remote-bridge/bin/odk-remote-bridge.js --esp-now-config 'C:\private\gateway.json'
+```
+
+Keep gateway configuration, pairing keys, and the host token outside source and release artifacts.
+Do not start a standalone serial adapter beside the Bridge.
+
+Offline contracts use controlled transports and platform inputs.
+They do not establish native pipe admission, pipe access control, token-file ACLs, or exclusive COM ownership.
+Windows acceptance must verify worker shutdown, reconnect sessions, and interactive startup on the selected host.
+Actual-board, encrypted radio, physical input, and formal Devices deployment remain separate gates.
+CM5 and macOS results cannot close these Windows gates.
 
 ## Runtime authentication
 

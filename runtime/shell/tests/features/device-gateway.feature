@@ -122,3 +122,46 @@ Feature: Shared Bridge device access
     When Devices manages its connection
     Then its connection actions are association and removal
     And it does not send pump, timetable, provisioning, or OTA commands
+
+  Scenario: Windows shares one authenticated Bridge owner
+    Given a Windows x64 Shell Host and its selected NanoC6
+    When Devices and installed packages request gateway access
+    Then both use the authenticated local Bridge pipe
+    And only the Bridge creates the C6 serial worker
+    And C6 uses USB CDC while S3 control uses ESP-NOW
+
+  Scenario: Refuse an unauthenticated Windows client
+    Given the Windows Bridge owns its local pipe
+    When a client omits or presents the wrong host token
+    Then it receives no device snapshot or Remote state
+    And no request reaches the selected gateway
+
+  Scenario: Refuse a second Windows Bridge owner
+    Given a Bridge already owns the Windows pipe
+    When another Bridge starts with the same endpoint
+    Then its listener fails before its serial worker starts
+    And the original owner remains available
+
+  Scenario: Windows selects the C6 Host Link explicitly
+    Given the Windows Bridge has no selected gateway configuration
+    When its normal startup command runs
+    Then startup fails before a transport starts
+    And it does not select the USB Remote adapter
+
+  Scenario: Windows control admission precedes the C6 worker
+    Given the Windows Bridge control endpoint is required
+    When that endpoint cannot start
+    Then Bridge startup fails and releases its data listener
+    And the C6 worker does not start
+
+  Scenario: Bound unauthenticated Windows connections
+    Given the Windows Bridge accepts at most 32 channel connections
+    When pending authentication and accepted clients reach that limit
+    Then another client closes before the authentication timeout
+    And it receives no Remote or gateway state
+
+  Scenario: Stop while the Windows control endpoint starts
+    Given the Bridge control endpoint has not completed startup
+    When the Bridge stops before that endpoint returns
+    Then both owned listeners close once
+    And the C6 worker does not start

@@ -3,6 +3,9 @@ const { randomUUID } = require('node:crypto')
 const DEVICE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const emptyDeviceSnapshot = () => ({ status: 'disconnected', reason: 'bridge-unavailable', gateway: { status: 'disconnected' }, remote: { status: 'disconnected' }, peers: [], events: [] })
 const path = require('node:path')
+const fs = require('node:fs')
+const { resolveShellHost } = require('./platform')
+const { requiresToken, writeHandshake } = require('./local-channel')
 const { createRuntimeChannelProbe } = require('./runtime-channel-probe')
 
 const REMOTE_LINK_STATES = new Set(['disconnected', 'usb', 'wireless', 'syncing'])
@@ -10,13 +13,14 @@ const REMOTE_NAVIGATION_DIRECTIONS = new Set(['previous', 'next'])
 const REMOTE_INPUTS = new Set(['left', 'right', 'up', 'down', 'primary', 'secondary', 'back', 'mic', 'action'])
 const DEFAULT_RECONNECT_DELAY_MS = 1000
 
-function resolveRemoteBridgeSocketPath(env = process.env) {
+function resolveRemoteBridgeSocketPath(env = process.env, host = resolveShellHost({ env })) {
   if (env.ODK_SHELL_TEST_MODE === '1' && env.ODK_REMOTE_BRIDGE_SOCKET) {
     if (!path.isAbsolute(env.ODK_REMOTE_BRIDGE_SOCKET)) {
       throw new Error('ODK_REMOTE_BRIDGE_SOCKET must be an absolute Unix socket path')
     }
     return env.ODK_REMOTE_BRIDGE_SOCKET
   }
+  if (host.isWindows) return host.endpoint('remote-bridge')
   const runtimeDir = env.XDG_RUNTIME_DIR
   if (!runtimeDir || !path.isAbsolute(runtimeDir)) return null
   return path.join(runtimeDir, 'odk-remote', 'bridge.sock')
@@ -79,6 +83,8 @@ function parseBridgeRecords(chunk, remainder, wasDiscarding = false) {
 
 function createRemoteBridgeClient({
   socketPath,
+  host = resolveShellHost(),
+  readChannelToken = () => fs.readFileSync(host.localChannelTokenFile, 'utf8').trim(),
   reconnectDelayMs = DEFAULT_RECONNECT_DELAY_MS,
   createConnection = net.createConnection,
   setTimeoutFn = setTimeout,
@@ -90,6 +96,7 @@ function createRemoteBridgeClient({
   deviceFreshnessMs = 3500,
 } = {}) {
   let socket = null
+  let socketReady = false
   let reconnectTimer = null
   let running = false
   let currentLinkState = 'disconnected'
@@ -103,7 +110,20 @@ function createRemoteBridgeClient({
   const linkSubscribers = new Set()
   const navigationSubscribers = new Set()
   const inputSubscribers = new Set()
-  const diagnosis = createRuntimeChannelProbe({ endpoint: socketPath, host: 'remote-bridge', instance: 'bridge', connect: createConnection, timeoutMs: diagnosisTimeoutMs })
+  function authenticatedConnection(endpoint) {
+    let token = null
+    if (requiresToken({ endpoint, platform: host.platform })) {
+      token = readChannelToken()
+      if (typeof token !== 'string' || !token.trim() || token.length > 512 || /[\r\n]/.test(token)) throw Error('Remote Bridge channel token unavailable')
+    }
+    const connection = createConnection(endpoint)
+    if (token !== null) connection.once('connect', () => {
+      if (connection.destroyed) return
+      try { writeHandshake(connection, token) } catch { connection.destroy() }
+    })
+    return connection
+  }
+  const diagnosis = createRuntimeChannelProbe({ endpoint: socketPath, host: 'remote-bridge', instance: 'bridge', connect: authenticatedConnection, timeoutMs: diagnosisTimeoutMs })
 
   function notifyDevices(snapshot) {
     if (deviceFreshTimer) clearTimeoutFn(deviceFreshTimer)
@@ -158,7 +178,7 @@ function createRemoteBridgeClient({
   }
 
   function writeState() {
-    if (!socket || socket.destroyed || !lastPageState) return false
+    if (!socket || !socketReady || socket.destroyed || !lastPageState) return false
     socket.write(`${JSON.stringify(lastPageState)}\n`)
     return true
   }
@@ -174,16 +194,19 @@ function createRemoteBridgeClient({
   function connect() {
     if (!running || socket) return
     try {
-      socket = createConnection(socketPath)
+      socket = authenticatedConnection(socketPath)
     } catch {
       notifyLinkState('disconnected')
       scheduleReconnect()
       return
     }
     const activeSocket = socket
+    socketReady = false
     inboundRemainder = ''; inboundDiscarding = false
     activeSocket.once('connect', () => {
       if (socket !== activeSocket) return
+      if (activeSocket.destroyed) return
+      socketReady = true
       writeState()
       if (deviceEnabled) void api.deviceAction({ type: 'status' })
     })
@@ -200,6 +223,7 @@ function createRemoteBridgeClient({
     activeSocket.once('close', () => {
       if (socket !== activeSocket) return
       socket = null
+      socketReady = false
       clearDevices()
       notifyLinkState('disconnected')
       scheduleReconnect()
@@ -220,6 +244,7 @@ function createRemoteBridgeClient({
       reconnectTimer = null
       const activeSocket = socket
       socket = null
+      socketReady = false
       activeSocket?.destroy()
       notifyLinkState('disconnected')
     },
@@ -227,7 +252,7 @@ function createRemoteBridgeClient({
     onDeviceSnapshot(listener) { if (!deviceEnabled) { deviceEnabled = true; void api.deviceAction({ type: 'status' }) } deviceSubscribers.add(listener); listener(readDevices()); return () => deviceSubscribers.delete(listener) },
     onDeviceEvent(listener) { if (!deviceEnabled) { deviceEnabled = true; void api.deviceAction({ type: 'status' }) } eventSubscribers.add(listener); return () => eventSubscribers.delete(listener) },
     deviceAction(action) {
-      if (!running || !socket || socket.destroyed || socket.connecting) return Promise.resolve({ ok: false, error: 'unavailable' })
+      if (!running || !socketReady || !socket || socket.destroyed || socket.connecting) return Promise.resolve({ ok: false, error: 'unavailable' })
       if (!validDeviceAction(action)) return Promise.resolve({ ok: false, error: 'invalid-action' })
       if (devicePending.size >= 8) return Promise.resolve({ ok: false, error: 'busy' })
       const requestId = randomUUID(), activeSocket = socket

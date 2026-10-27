@@ -12,8 +12,10 @@ This document defines system boundaries and acceptance conditions.
 The [gateway source](../src/device-gateway-source.js) validates the firmware handshake and manages the selected USB worker.
 The Devices App reads the selected gateway and S3 session through the existing Remote Bridge.
 Installed packages use declared device access and separate host grants through the same owner.
-The Remote Bridge owns the only C6 serial worker on CM5.
-Its Windows port remains unavailable.
+The Remote Bridge owns the only C6 serial worker.
+The Windows source uses an authenticated local pipe and the same device facade.
+The [Windows runbook](WINDOWS_HOST.md#remote-bridge-source) defines its launch interface and native acceptance requirements.
+Offline contracts do not establish Windows transport or board acceptance.
 
 ## Topology and ownership
 
@@ -173,12 +175,14 @@ The existing Remote Messages retain their separate protocol:
 
 The wired and C6 adapters retain the [Remote Bridge contract](../../../integrations/remote-bridge/README.md#protocol).
 General device forwarding must not bypass its input validators.
-A Windows NanoC6 implementation does not certify a Windows Remote Bridge port.
+A Windows USB reply does not certify the shared Bridge, encrypted radio, or formal Windows Devices deployment.
 
 ## Implementation and acceptance stages
 
 These stages separate source verification from device acceptance.
 The source includes gateway transport, shared Devices state, and granted package access.
+The Windows Bridge source uses the existing authenticated channel and exclusive worker lifecycle.
+Its native pipe permissions, token-file ACLs, COM ownership, and interactive launch still require Windows acceptance.
 The previous S3 radio candidate passed physical navigation acceptance on CM5.
 The shared Devices candidate needs separate activated-host acceptance.
 General peer communication needs its own peripheral protocol and hardware checks.

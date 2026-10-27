@@ -209,12 +209,14 @@ async function listenChannel({
   onConnection,
   onReject = () => {},
   connectionTimeoutMs = 0,
+  maxConnections,
   platform = process.platform,
   fsModule = fs,
   probe = probeEndpoint,
 } = {}) {
   if (typeof endpoint !== 'string' || endpoint.length === 0) throw new Error('a channel endpoint is required')
   if (typeof onConnection !== 'function') throw new Error('a channel connection handler is required')
+  if (maxConnections !== undefined && (!Number.isSafeInteger(maxConnections) || maxConnections < 1)) throw new Error('a channel connection limit must be a positive integer')
 
   const shape = describeEndpoint(endpoint, platform)
   const ownershipAuthenticates = shape.ownership
@@ -234,6 +236,7 @@ async function listenChannel({
     if (connectionTimeoutMs > 0) socket.setTimeout(connectionTimeoutMs, () => socket.destroy())
     gate(socket)
   })
+  if (maxConnections !== undefined) server.maxConnections = maxConnections
 
   function gate(socket) {
     sockets.add(socket)

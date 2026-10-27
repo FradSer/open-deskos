@@ -5,7 +5,7 @@ const net = require('node:net')
 const path = require('node:path')
 const { writeDeviceRecord, respondDeviceRequest } = require('./device-channel')
 const { createJsonLineReader } = require('./json-line-reader')
-const { createBridgePluginRuntime, respondRuntimeDiagnosis, resolveBridgeControlEndpoint } = require('./plugin-runtime')
+const { createBridgePluginRuntime, respondRuntimeDiagnosis, resolveBridgeControlEndpoint, loadShellModule } = require('./plugin-runtime')
 const {
   createLinkState,
   encodeJsonLine,
@@ -26,9 +26,13 @@ const {
 } = require('./remote-bridge')
 
 class RemoteBridgeHost {
-  constructor({ transports = [], socketPath = resolveSocketPath(), logger = console, replacementPlugins = [], disabled = [] } = {}) {
+  constructor({ transports = [], host = loadShellModule('platform/index.js').resolveShellHost(), socketPath = resolveSocketPath(process.env, host),
+    listenChannel = loadShellModule('local-channel.js').listenChannel, listenControl, logger = console, replacementPlugins = [], disabled = [] } = {}) {
     this.transports = [...transports].sort((a, b) => (b.priority || 0) - (a.priority || 0))
     this.socketPath = socketPath
+    this.host = host
+    this.listenChannel = listenChannel
+    this.channel = null
     this.logger = logger
     this.server = null
     this.clients = new Set()
@@ -41,6 +45,8 @@ class RemoteBridgeHost {
     this.ownsSocket = false
     this.runtime = createBridgePluginRuntime({
       controlEndpoint: resolveBridgeControlEndpoint(socketPath),
+      hostPlatform: host,
+      listenControl,
       transports: this.transports,
       replacementPlugins,
       disabled,
@@ -68,7 +74,8 @@ class RemoteBridgeHost {
     const epoch = this.generation
     const catalog = await this.runtime.host.start()
     if (epoch !== this.generation) return
-    const failed = catalog.find(entry => entry.manifest.id === this.runtime.listenerId && entry.state !== 'running')
+    const failed = catalog.find(entry => (entry.manifest.id === this.runtime.listenerId && entry.state !== 'running')
+      || (this.host.isWindows && entry.manifest.id === 'odk.remote.control' && !['running', 'disabled'].includes(entry.state)))
 
     if (failed) {
       await this.stop()
@@ -91,6 +98,14 @@ class RemoteBridgeHost {
   setTransportEnabled(id, enabled) { return this.runtime.setEnabled(id, enabled) }
 
   async #open(signal) {
+    if (this.host.isWindows) {
+      if (!loadShellModule('local-channel.js').isNamedPipe(this.socketPath)) throw Error('Windows Remote Bridge requires a named pipe')
+      if (signal.aborted) return
+      this.channel = await this.listenChannel({ endpoint: this.socketPath, platform: this.host.platform, stateDir: this.host.stateDir,
+        maxConnections: 32, onConnection: socket => { if (signal.aborted) socket.destroy(); else this.#attachClient(socket) } })
+      this.started = !signal.aborted
+      return
+    }
     await fs.promises.mkdir(path.dirname(this.socketPath), { recursive: true, mode: 0o700 })
     if (signal.aborted) return
     await removeStaleSocket(this.socketPath)
@@ -106,6 +121,7 @@ class RemoteBridgeHost {
     this.started = false
     for (const client of this.clients) client.destroy()
     this.clients.clear()
+    if (this.channel) { await this.channel.close(); this.channel = null }
     if (this.server) {
       const server = this.server
       if (server.listening) await closeServer(server)

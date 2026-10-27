@@ -56,9 +56,10 @@ Esptool verifies written data hashes.
 An interrupted write requires the NanoC6 download procedure and an authorized retry.
 The firmware does not implement OTA or automatic rollback.
 
-The Windows Remote Bridge port remains unavailable.
-The standalone Windows firmware installer does not implement that port.
-It does not establish formal Devices acceptance on Windows.
+The Windows Remote Bridge source uses an authenticated local pipe and one C6 serial worker.
+The [Windows runbook](../../runtime/shell/docs/WINDOWS_HOST.md#remote-bridge-source) defines manual startup and native acceptance requirements.
+The standalone Windows firmware installer does not install or start that Bridge.
+Neither source contracts nor the installer establish formal Devices acceptance on Windows.
 
 ## Host configuration
 
@@ -156,9 +157,13 @@ pnpm exec electron tests/device-gateway-electron.cjs
 ```
 
 The Electron fixture uses an isolated profile and deterministic device state by default.
-`ODK_DEVICE_GATEWAY_TEST_CONFIG` selects a real device for separately authorized device acceptance.
-That fixture opens the selected port and sends a USB ping.
-It does not send peer commands or replace the running Shell release.
+Its live branch uses `ODK_DEVICE_GATEWAY_TEST_SOCKET` to connect to an existing shared Bridge endpoint.
+It does not open a serial port or create a gateway worker.
+This fixture does not support the former `ODK_DEVICE_GATEWAY_TEST_CONFIG` selector.
+The parent `device-gateway-electron.test.js` excludes live selectors and verifies controlled device state.
+A selected Bridge endpoint alone does not prove a real board or current S3 acknowledgement.
+Separately authorized live checks need the target host, exact candidate, selected identity, and sole Bridge owner.
+They also need fresh handshake and result evidence from that host.
 Host tests and a USB reply do not establish two-device ESP-NOW acceptance.
 
 The explicit hardware script checks ten USB pings and five malformed-input cases.

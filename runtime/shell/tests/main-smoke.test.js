@@ -85,8 +85,8 @@ for (const ok of [true, false]) {
 
 test('smoke mode does not construct Remote Bridge socket state', () => {
   assert.match(source, /const smokeMode = process\.argv\.includes\('--smoke'\)/)
-  assert.match(source, /if \(!smokeMode\) \{\n    try \{\n      remoteSocketPath = resolveRemoteBridgeSocketPath\(\)/)
-  assert.match(source, /'system.remote-link': \{ create: createRemoteBridgeClient, smokeMode, options: \{ socketPath: remoteSocketPath \} \}/)
+  assert.match(source, /if \(!smokeMode\) \{\n    try \{\n      remoteSocketPath = resolveRemoteBridgeSocketPath\(process\.env, shellHost\)/)
+  assert.match(source, /'system.remote-link': \{ create: createRemoteBridgeClient, smokeMode, options: \{ socketPath: remoteSocketPath, host: shellHost \} \}/)
 })
 
 test('normal Shell shutdown uses the plugin cleanup barrier', () => {

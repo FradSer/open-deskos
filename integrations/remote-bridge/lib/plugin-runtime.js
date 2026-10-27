@@ -49,6 +49,7 @@ function respondRuntimeDiagnosis(socket, record, catalog) {
 
 const LISTENER_PORT = 'odk:remote/listener/v1'
 const LISTENER_ID = 'odk.remote.listener'
+const CONTROL_PORT = 'odk:remote/control-ready/v1'
 
 function resolveBridgeControlEndpoint(socketPath) {
   const suffix = 'odk-remote-bridge'
@@ -84,7 +85,8 @@ function retryableOperation(operation) {
   }
 }
 
-function createBridgePluginRuntime({ transports, open, close, handlers, logger, initialize = true, withdrawn = () => {}, replacementPlugins = [], disabled = [], onTransportCreated = () => {}, controlEndpoint }) {
+function createBridgePluginRuntime({ transports, open, close, handlers, logger, initialize = true, withdrawn = () => {}, replacementPlugins = [], disabled = [], onTransportCreated = () => {}, controlEndpoint, hostPlatform, listenControl }) {
+  const controlRequired = hostPlatform?.isWindows && controlEndpoint && !disabled.includes('odk.remote.control')
   const replacements = new Map()
   const identities = new Set(transports.map(transport => transport.manifest?.id || 'odk.remote.transport.adapter'))
   for (const definition of replacementPlugins) {
@@ -118,12 +120,13 @@ function createBridgePluginRuntime({ transports, open, close, handlers, logger, 
     const port = `odk:remote/transport/${id}/v1`
     const replacement = replacements.get(id)
     let previous = original
-    host.register({
-      manifest: replacement?.manifest || {
+    const manifest = replacement?.manifest || {
         schemaVersion: 1, id, name: transport.manifest?.name || id,
         version: transport.manifest?.version || '1.0.0', kind: 'transport', host: 'remote-bridge',
         provides: [{ interface: port }], requires: [{ interface: LISTENER_PORT }],
-      },
+      }
+    host.register({
+      manifest: controlRequired ? { ...manifest, requires: [...manifest.requires, { interface: CONTROL_PORT }] } : manifest,
       async create(context) {
         const transport = replacement ? await replacement.create(context, structuredClone(replacement.manifest)) : original
         const stop = replacement ? retryableOperation(() => transport?.stop?.()) : () => transport.stop()
@@ -168,16 +171,17 @@ function createBridgePluginRuntime({ transports, open, close, handlers, logger, 
   }
   if (controlEndpoint) host.register({
     manifest: { schemaVersion: 1, id: 'odk.remote.control', name: 'Remote Bridge transport control', version: '1.0.0',
-      kind: 'system', host: 'remote-bridge', provides: [], requires: [{ interface: LISTENER_PORT }], permissions: [] },
+      kind: 'system', host: 'remote-bridge', provides: controlRequired ? [{ interface: CONTROL_PORT }] : [], requires: [{ interface: LISTENER_PORT }], permissions: [] },
     create(context) {
       let server
       context.onCleanup(async () => { if (server) { await server.close(); server = null } })
-      return { async start() {
+      return { ports: controlRequired ? { [CONTROL_PORT]: {} } : {}, async start() {
         if (context.signal.aborted) return
         const { createPluginControl } = loadShellModule('plugin-control.js')
-        const { listenOdkData } = loadShellModule('odk-data-control.js')
-        const platform = loadShellModule('platform/index.js').resolveShellHost()
+        const listenOdkData = listenControl || loadShellModule('odk-data-control.js').listenOdkData
+        const platform = hostPlatform || loadShellModule('platform/index.js').resolveShellHost()
         server = await listenOdkData({ endpoint: controlEndpoint, platform: platform.platform, stateDir: platform.stateDir, requestTimeoutMs: 30000,
+          maxConnections: platform.isWindows ? 32 : undefined,
           control: createPluginControl({ scope: 'remote-bridge', signal: context.signal,
             protectedIds: [LISTENER_ID, 'odk.remote.control'],
             inventorySnapshot: () => host.list(),

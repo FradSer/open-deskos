@@ -5,7 +5,7 @@ const net = require('node:net')
 const path = require('node:path')
 const { writeDeviceRecord, respondDeviceRequest } = require('./device-channel')
 const { createJsonLineReader } = require('./json-line-reader')
-const { createBridgePluginRuntime, respondRuntimeDiagnosis, resolveBridgeControlEndpoint } = require('./plugin-runtime')
+const { createBridgePluginRuntime, respondRuntimeDiagnosis, resolveBridgeControlEndpoint, loadShellModule } = require('./plugin-runtime')
 const {
   createLinkState,
   encodeJsonLine,
@@ -19,10 +19,14 @@ const SOCKET_DIRECTORY = 'odk-remote'
 const SOCKET_NAME = 'bridge.sock'
 
 class RemoteBridge {
-  constructor({ adapter, socketPath = resolveSocketPath(), logger = console, replacementPlugins = [], disabled = [] } = {}) {
+  constructor({ adapter, host = loadShellModule('platform/index.js').resolveShellHost(), socketPath = resolveSocketPath(process.env, host),
+    listenChannel = loadShellModule('local-channel.js').listenChannel, listenControl, logger = console, replacementPlugins = [], disabled = [] } = {}) {
     if (!adapter) throw new Error('RemoteBridge requires a Remote Link adapter')
     this.adapter = adapter
     this.socketPath = socketPath
+    this.host = host
+    this.listenChannel = listenChannel
+    this.channel = null
     this.logger = logger
     this.server = null
     this.clients = new Set()
@@ -35,6 +39,8 @@ class RemoteBridge {
     this.ownsSocket = false
     this.runtime = createBridgePluginRuntime({
       controlEndpoint: resolveBridgeControlEndpoint(socketPath),
+      hostPlatform: host,
+      listenControl,
       transports: [adapter],
       replacementPlugins,
       disabled,
@@ -59,7 +65,8 @@ class RemoteBridge {
     const epoch = this.generation
     const catalog = await this.runtime.host.start()
     if (epoch !== this.generation) return
-    const failed = catalog.find(entry => entry.manifest.id === this.runtime.listenerId && entry.state !== 'running')
+    const failed = catalog.find(entry => (entry.manifest.id === this.runtime.listenerId && entry.state !== 'running')
+      || (this.host.isWindows && entry.manifest.id === 'odk.remote.control' && !['running', 'disabled'].includes(entry.state)))
     const adapterFailure = catalog.find(entry => entry.manifest.kind === 'transport'
       && ['failed', 'cleanup-failed', 'cleanup-blocked'].includes(entry.state))
     if (adapterFailure) {
@@ -87,6 +94,14 @@ class RemoteBridge {
   setTransportEnabled(id, enabled) { return this.runtime.setEnabled(id, enabled) }
 
   async #open(signal) {
+    if (this.host.isWindows) {
+      if (!loadShellModule('local-channel.js').isNamedPipe(this.socketPath)) throw Error('Windows Remote Bridge requires a named pipe')
+      if (signal.aborted) return
+      this.channel = await this.listenChannel({ endpoint: this.socketPath, platform: this.host.platform, stateDir: this.host.stateDir,
+        maxConnections: 32, onConnection: socket => { if (signal.aborted) socket.destroy(); else this.#attachClient(socket) } })
+      this.started = !signal.aborted
+      return
+    }
     await fs.promises.mkdir(path.dirname(this.socketPath), { recursive: true, mode: 0o700 })
     if (signal.aborted) return
     await removeStaleSocket(this.socketPath)
@@ -102,6 +117,7 @@ class RemoteBridge {
     this.started = false
     for (const client of this.clients) client.destroy()
     this.clients.clear()
+    if (this.channel) { await this.channel.close(); this.channel = null }
     if (this.server) {
       const server = this.server
       if (server.listening) await closeServer(server)
@@ -198,7 +214,8 @@ function linkStateForTransport(transport) {
   return transport === 'usb-cdc' ? 'usb' : 'wireless'
 }
 
-function resolveSocketPath(env = process.env) {
+function resolveSocketPath(env = process.env, host = loadShellModule('platform/index.js').resolveShellHost({ env })) {
+  if (host.isWindows) return host.endpoint('remote-bridge')
   if (!env.XDG_RUNTIME_DIR || !path.isAbsolute(env.XDG_RUNTIME_DIR)) {
     throw new Error('XDG_RUNTIME_DIR must be an absolute path for Remote Bridge')
   }

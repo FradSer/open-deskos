@@ -269,7 +269,7 @@ async function main() {
   let remoteSocketPath = null
   if (!smokeMode) {
     try {
-      remoteSocketPath = resolveRemoteBridgeSocketPath()
+      remoteSocketPath = resolveRemoteBridgeSocketPath(process.env, shellHost)
     } catch (error) {
       console.error(`remote bridge disabled: ${error.message}`)
     }
@@ -337,7 +337,7 @@ async function main() {
       'system.personal-agent': { create: createPersonalAgentClient, smokeMode, openExternal: url => require('electron').shell.openExternal(url), isConsumerFrame: event => diagnosisFrames.has(event.sender) && event.senderFrame === event.sender.mainFrame, options: {
         socketPath: smokeMode ? null : resolvePersonalAgentSocketPath(process.env, shellHost), host: shellHost,
       } },
-      'system.remote-link': { create: createRemoteBridgeClient, smokeMode, options: { socketPath: remoteSocketPath } },
+      'system.remote-link': { create: createRemoteBridgeClient, smokeMode, options: { socketPath: remoteSocketPath, host: shellHost } },
       'system.app-manager': { create: createAppManagerEndpoint },
       'source.odk-link': { create: createOdkLinkClient, createTransport: createOdkLinkTransport, options: smokeMode ? {} : { onCompletion: () => servicePush(['odk.app.pi-sessions.completed']) } },
       'source.pi-sessions': { create: createPiSessionsSource, configured: createConfiguredPiSessionReader },

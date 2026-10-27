@@ -1,6 +1,7 @@
 # Open DeskOS Remote Bridge
 
-This integration connects the active CM5 runtime (`runtime/shell/`) to the ESP32-S3 Remote Control Peripheral (`peripherals/esp32-s3-remote/`).
+This integration connects the shared Display Shell (`runtime/shell/`) to the ESP32-S3 Remote Control Peripheral (`peripherals/esp32-s3-remote/`).
+CM5 remains the reference host. Windows source support uses the same Bridge and an authenticated local pipe.
 It does not belong to the preserved P4+C6 DeskOS research line.
 
 A standalone Node.js user service for the Display Shell Remote Control link.
@@ -9,8 +10,10 @@ It requires the Shell plugin host from the same source checkout or immutable rel
 
 ## Protocol
 
-The bridge listens at `$XDG_RUNTIME_DIR/odk-remote/bridge.sock`, matching the Display Shell client.
+On Unix, the Bridge listens at `$XDG_RUNTIME_DIR/odk-remote/bridge.sock`, matching the Display Shell client.
 The socket mode is `0600`; its containing runtime directory is created with mode `0700`.
+Windows uses the authenticated pipe contract in the [Windows runbook](../../runtime/shell/docs/WINDOWS_HOST.md#remote-bridge-source).
+A Windows client must authenticate before it receives state or sends device requests.
 Every message is one UTF-8 JSON record terminated by `\n`, is limited by the connected peer implementation, and has `"v": 1`.
 
 - `link`: emitted by the bridge as `{ "v": 1, "type": "link", "state": "disconnected" | "syncing" | "usb" | "wireless" }`. `usb` only denotes the `usb-cdc` adapter; all non-USB adapters report `wireless`.
@@ -40,7 +43,7 @@ The `RemoteLinkAdapter` boundary provides `start`, `stop`, `send`, and `connecte
 
 ### Runtime diagnosis
 
-Both bridge entry points accept `runtime_diagnose` requests on their existing local Unix socket.
+Both Bridge entry points accept `runtime_diagnose` requests on their existing local channel.
 Each request contains version 1, its type, and a bounded `requestId`.
 The response uses `runtime_diagnosis` and the same request identity.
 It identifies the `remote-bridge` host and `bridge` instance.
@@ -48,6 +51,7 @@ The shared Shell validator excludes private errors, device details, and retained
 Lifecycle states do not certify device connection or physical input.
 
 The Shell uses a separate short connection for each diagnosis request.
+Windows diagnosis connections authenticate with the same host token as the permanent Shell connection.
 Existing link, navigation, and input connections retain their protocol and size limits.
 Diagnosis does not select transports or send device commands.
 Older bridges ignore the request and reach its timeout without losing the existing input connection.
@@ -60,6 +64,9 @@ The responder closes a diagnostic client when its queued response would exceed 6
 
 Both `RemoteBridge` and `RemoteBridgeHost` use the common Shell plugin host.
 The listener starts before transport plugins.
+Windows also starts the required control listener before the C6 worker.
+A required listener failure prevents worker startup.
+Each Windows channel permits 32 connections, including clients that await authentication.
 Transports stop before the listener closes.
 Each transport owns its event subscriptions.
 Successful cleanup removes these subscriptions, including after a startup failure.
@@ -117,10 +124,12 @@ The existing `bin/odk-remote-bridge.js` wrapper calls the same entry.
 Use 2-space CommonJS and Node built-ins only.
 The installer substitutes `__ODK_REMOTE_BRIDGE_DIR__` with the installed integration path.
 
-The host suite uses temporary Unix sockets and injected/mock serial transports without a connected Remote.
+The host suite uses temporary channels and controlled serial transports without a connected Remote.
+The Windows contracts use injected platform inputs and controlled endpoints.
 Scenarios live in `test/features/remote-bridge-host.feature`; regressions belong in matching `test/*.test.js` files.
 Missing or ambiguous hardware must not block direct Shell input.
 Mock tests do not prove CM5 USB enumeration or reconnection.
+They do not prove Windows native pipes, token-file ACLs, COM ownership, interactive startup, or actual-board acceptance.
 
 ### Trusted external transport selections
 
@@ -145,7 +154,8 @@ Optional `destroy` runs after successful stop.
 Factories register allocation cleanup through `context.onCleanup` before operations that can fail.
 Factories emit input and connection events after the Host attaches listeners and calls `start`.
 
-Without a selected USB identity, startup retains the built-in USB Adapter.
+On Unix, startup without a selected USB identity retains the built-in USB Adapter.
+Windows startup requires an explicit ESP-NOW gateway configuration before any transport factory runs.
 Additional selected transports use the existing multiple transport Host and priority policy.
 Shutdown failures return a nonzero process status.
 Lifecycle diagnosis does not certify physical connection or input behavior.
@@ -166,7 +176,8 @@ This entry does not provide production signatures, immutable revisions, reload, 
 This mode connects the S3 Remote through a NanoC6 gateway.
 It registers only `odk.remote.transport.esp-now`.
 It never constructs the USB Remote adapter.
-Gateway failure reports `disconnected` without USB fallback.
+Gateway failure reports `disconnected` without USB Remote fallback.
+NanoC6 retains its USB CDC Host Link in this mode.
 Local Shell touch and keyboard input retain their existing behavior.
 
 ```sh
@@ -197,7 +208,8 @@ Installed Widgets/Apps use the same facade through the granted [package device S
 
 ### Shared device channel
 
-The existing private Bridge socket carries bounded device records alongside Remote records.
+The existing private Bridge channel carries bounded device records alongside Remote records.
+Unix uses its private socket. Windows uses the authenticated host pipe.
 Opening Devices does not start another worker or configure another gateway.
 Device requests use this envelope:
 

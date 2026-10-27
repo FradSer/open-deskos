@@ -14,7 +14,7 @@ const usbDeclaration = {
   priority: 100, transport: 'usb-cdc',
 }
 
-function startupSelection(args, env = {}) {
+function startupSelection(args, env = {}, platform = process.platform) {
   const { values } = parseArgs({ args, options: {
     'plugin-selection': { type: 'string' },
     'esp-now-config': { type: 'string' },
@@ -25,8 +25,10 @@ function startupSelection(args, env = {}) {
   if (values['plugin-selection'] !== undefined && !values['plugin-selection']) throw Error('bridge selection requires a file path')
   if (values['trust-plugins'] && !values['plugin-selection']) throw Error('bridge trust requires a startup selection')
   const radioConfig = values['esp-now-config'] ?? env.ODK_REMOTE_ESPNOW_CONFIG
-  if (radioConfig !== undefined && (!radioConfig || !require('node:path').isAbsolute(radioConfig))) throw Error('ESP-NOW configuration requires an absolute path')
+  const paths = platform === 'win32' ? require('node:path').win32 : require('node:path')
+  if (radioConfig !== undefined && (!radioConfig || !paths.isAbsolute(radioConfig))) throw Error('ESP-NOW configuration requires an absolute path')
   if (radioConfig && (values['plugin-selection'] || values['trust-plugins'])) throw Error('ESP-NOW mode cannot be combined with external selections')
+  if (platform === 'win32' && !radioConfig && !values.plugins) throw Error('Windows Remote Bridge requires an explicit ESP-NOW gateway configuration')
   const replacementPlugins = values['plugin-selection']
     ? loadBridgeReplacements(values['plugin-selection'], { trusted: values['trust-plugins'] }) : []
   return { inspection: values.plugins, replacementPlugins, radioConfig }

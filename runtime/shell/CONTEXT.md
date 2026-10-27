@@ -187,7 +187,7 @@ Keep the Pi extension directory at `pi-packages/packages/open-deskos`.
 
 **Remote Control Strip**: The Remote Control's plugin-owned contextual action bar. Browse mode offers Previous and Next; App Focus Mode offers directional movement and Select; Back is persistent in every mode. A page that owns strip buttons publishes them as its own authoritative state instead of declaring them in the desktop layout.
 
-**Remote Bridge**: A Node.js systemd user service that owns the active Remote Link and relays Display Shell state to the Remote Control independently of whether the link is wired USB or wireless ESP-NOW. It communicates with the Electron main process over a permission-restricted Unix domain socket and starts with the CM5 graphical user's session.
+**Remote Bridge**: A Node.js host that owns the active Remote Link and relays authoritative Display Shell state to the Remote Control. Linux uses a private Unix socket and the CM5 systemd user service. Windows source supports an explicitly launched process with authenticated local pipes. This source launch does not install a Windows service or scheduled task. Native Windows acceptance remains pending. See [Windows source](docs/WINDOWS_HOST.md#remote-bridge-source).
 
 **Remote Link**: The selected transport between Remote Control and Bridge. The ESP-NOW profile uses NanoC6 and has no USB control fallback. USB supports power and firmware maintenance in that profile. Direct Shell input remains available; reconnection requires authoritative state synchronization.
 

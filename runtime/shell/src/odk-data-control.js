@@ -30,13 +30,14 @@ function createOdkDataControl(registry) {
  * The transport and its authentication belong to the local channel, so a Unix
  * host authenticates by ownership and a Windows pipe by the shared channel token.
  */
-async function listenOdkData({ endpoint, control, channelToken = '', stateDir = '', platform = process.platform, requestTimeoutMs = 0 }) {
+async function listenOdkData({ endpoint, control, channelToken = '', stateDir = '', platform = process.platform, requestTimeoutMs = 0, maxConnections }) {
   return listenChannel({
     endpoint,
     token: channelToken,
     stateDir,
     platform,
     connectionTimeoutMs: requestTimeoutMs,
+    maxConnections,
     onConnection: (client) => {
       client.setEncoding('utf8')
       client.on('error', () => client.destroy())
