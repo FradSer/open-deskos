@@ -393,7 +393,7 @@
                 article.append(result)
               } else article.append(result)
             }
-            if (current && suggestionCapabilities.respond) {
+            if ((current || p.status === 'completed') && suggestionCapabilities.respond) {
               const actions = document.createElement('div')
               actions.className = 'personal-agent-proposal-actions'
               const response = (label, decision) => {
@@ -406,7 +406,7 @@
                 control.dataset.proposalId = p.id; control.dataset.proposalAction = decision
                 return control
               }
-              if (executableAction) {
+              if (current && executableAction) {
                 const showConfirmation = (confirmation, focus = false) => {
                   const isCurrent = () => !closed && surface.contains(actions) && proposals.contains(actions) && suggestionCapabilities.respond && actionConfirmations.get(p.id) === confirmation && !executionAttempts.has(p.id)
                   const confirm = button(p.confirmation, async () => {
@@ -450,11 +450,12 @@
               const feedback = disclosure('Feedback', 'personal-agent-proposal-feedback-options', `${p.id}:feedback`)
               const choices = document.createElement('div')
               choices.className = 'personal-agent-proposal-actions'
-              if (!p.action) choices.append(response('Done', 'done'), response('Later', 'snooze'))
+              if (current && !p.action) choices.append(response('Done', 'done'), response('Later', 'snooze'))
               choices.append(response('Useful', 'useful'), response('Not relevant', 'irrelevant'), response('Incorrect', 'incorrect'))
-              choices.append(response('Ignore', 'ignore'), response('Never suggest this category', 'mute'))
+              if (current) choices.append(response('Ignore', 'ignore'), response('Never suggest this category', 'mute'))
               feedback.append(choices)
-              article.append(actions, feedback)
+              if (current) article.append(actions)
+              article.append(feedback)
             }
             if (current) {
               proposals.append(article)

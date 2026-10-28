@@ -251,3 +251,109 @@ test('full feedback capacity preserves all work and reports backpressure on new 
   assert.match(f.watch.judgmentError, /容量已满/)
   await f.watch.close()
 })
+
+const withoutFeedback = ({ feedback: _feedback, feedbackLearning: _learning, ...proposal }) => proposal
+async function completeAction(watch) {
+  await watch.tick(); const p = watch.list()[0]
+  await watch.presented([p.id])
+  const completed = await watch.respond(p.id, 'accept', p.confirmation)
+  assert.equal(completed.status, 'completed')
+  return completed
+}
+
+for (const decision of ['useful', 'irrelevant', 'incorrect']) test(`completed action accepts ${decision} feedback without replay or terminal changes`, async t => {
+  let executions = 0, saves = 0, calls = 0, release
+  const f = fixture(input => { calls++; return new Promise(resolve => { release = () => resolve({ subject: 'pending work', dimension: { useful: 'utility', irrelevant: 'relevance', incorrect: 'accuracy' }[input.feedback.decision] }) }) }, {
+    execute: async () => { executions++; return { outcome: 'completed', text: 'Work inspected', receipt: { verified: true } } }, save: async () => { saves++ },
+  })
+  t.after(() => f.watch.close())
+  const before = await completeAction(f.watch), handled = structuredClone(f.saved().handledOccurrences), config = structuredClone(f.watch.config)
+  const receipt = await f.watch.respond(before.id, decision)
+  assert.equal(receipt.feedback, decision); assert.equal(receipt.feedbackLearning.status, 'queued'); assert.equal(calls, 0)
+  assert.deepEqual(withoutFeedback(receipt), withoutFeedback(before))
+  const queuedRevision = receipt.feedbackLearning.revision
+  await f.watch.respond(before.id, decision)
+  assert.equal(f.saved().feedbackMemory.jobs.length, 1); assert.equal(f.watch.list()[0].feedbackLearning.revision, queuedRevision)
+  await settleStart(f.watch); await f.watch.respond(before.id, decision); assert.equal(calls, 1)
+  release(); await f.watch.feedbackInflight
+  assert.equal(f.saved().feedbackMemory.jobs.length, 0); assert.equal(f.watch.list()[0].feedbackLearning.status, 'applied')
+  const entryRevision = f.saved().feedbackMemory.entries[0].revision
+  await f.watch.respond(before.id, decision); await settle(f.watch)
+  assert.equal(f.saved().feedbackMemory.entries[0].revision, entryRevision); assert.equal(calls, 1)
+  assert.deepEqual(withoutFeedback(f.watch.list()[0]), withoutFeedback(before))
+  assert.deepEqual(f.saved().handledOccurrences, handled); assert.deepEqual(f.watch.config, config); assert.equal(saves, 1)
+  for (const invalid of ['accept', 'done', 'snooze', 'ignore', 'mute']) await assert.rejects(f.watch.respond(before.id, invalid, before.confirmation))
+  assert.equal(executions, 1); assert.equal(saves, 1)
+})
+
+test('completed feedback retries failed or unavailable learning without repeating the action', async t => {
+  for (const unavailable of [false, true]) {
+    let executions = 0, fail = true, calls = 0
+    const refine = async () => { calls++; if (fail) throw Error('Fixture unavailable'); return { subject: 'pending work', dimension: 'utility' } }
+    const f = fixture(unavailable ? undefined : refine, { execute: async () => { executions++; return 'Work inspected' } })
+    t.after(() => f.watch.close())
+    const before = await completeAction(f.watch)
+    await f.watch.respond(before.id, 'useful'); await settle(f.watch)
+    assert.equal(f.watch.list()[0].feedbackLearning.status, unavailable ? 'unavailable' : 'failed')
+    fail = false; f.watch.refineFeedbackMemory = refine
+    await f.watch.respond(before.id, 'useful'); await settle(f.watch)
+    assert.equal(f.watch.list()[0].feedbackLearning.status, 'applied'); assert.equal(executions, 1)
+    assert.equal(calls, unavailable ? 1 : 2); assert.deepEqual(withoutFeedback(f.watch.list()[0]), withoutFeedback(before))
+  }
+})
+
+test('completed feedback commit failure rolls back and privacy denial preserves the receipt', async t => {
+  for (const failSave of [false, true]) {
+    let calls = 0
+    const f = fixture(async () => { calls++; return { subject: 'pending work', dimension: 'utility' } }, {
+      execute: async () => 'Work inspected', canRefineFeedbackMemory: () => false,
+    })
+    t.after(() => f.watch.close())
+    const before = await completeAction(f.watch), handled = structuredClone(f.saved().handledOccurrences)
+    if (failSave) {
+      f.watch.saveState = () => { throw Error('Fixture disk failure') }
+      await assert.rejects(f.watch.respond(before.id, 'useful'))
+      assert.deepEqual(f.watch.list()[0], before); assert.equal(f.watch.feedbackMemory.jobs.length, 0)
+    } else {
+      await f.watch.respond(before.id, 'useful'); await settle(f.watch)
+      assert.equal(f.watch.list()[0].feedbackLearning.status, 'unavailable')
+      assert.deepEqual(withoutFeedback(f.watch.list()[0]), withoutFeedback(before))
+    }
+    assert.equal(calls, 0); assert.deepEqual(f.saved().handledOccurrences, handled)
+  }
+})
+
+test('completed read-only Done learning retry preserves its original completion time', async t => {
+  let calls = 0, fail = true
+  const f = fixture(async () => { calls++; if (fail) throw Error('Fixture unavailable'); return { subject: 'pending work', dimension: 'completion' } })
+  t.after(() => f.watch.close())
+  await f.watch.tick(); const p = f.watch.proposals[0]
+  p.action = null; p.confirmation = ''
+  await f.watch.respond(p.id, 'done'); await settle(f.watch)
+  assert.equal(f.watch.list()[0].feedbackLearning.status, 'failed')
+  const before = f.watch.list()[0], handled = structuredClone(f.saved().handledOccurrences)
+  f.watch.now = () => now + 1000; fail = false
+  await f.watch.respond(p.id, 'done'); await settle(f.watch)
+  assert.equal(f.watch.list()[0].feedbackLearning.status, 'applied'); assert.equal(calls, 2)
+  assert.deepEqual(withoutFeedback(f.watch.list()[0]), withoutFeedback(before)); assert.deepEqual(f.saved().handledOccurrences, handled)
+})
+
+test('legacy completed category feedback retries only learning without replaying configuration changes', async t => {
+  for (const decision of ['mute', 'ignore']) for (const status of ['failed', 'unavailable']) {
+    let saves = 0, executions = 0, calls = 0
+    const f = fixture(async () => { calls++; return { subject: 'pending work', dimension: 'relevance' } }, {
+      execute: async () => { executions++; return 'Work inspected' }, save: async () => { saves++ },
+    })
+    t.after(() => f.watch.close())
+    await completeAction(f.watch)
+    if (decision === 'ignore') f.watch.config.version = 1
+    const p = f.watch.proposals[0]
+    p.feedback = decision; p.feedbackLearning = { revision: 1, decision, status }
+    const before = structuredClone(p), config = structuredClone(f.watch.config), handled = structuredClone(f.saved().handledOccurrences)
+    await f.watch.respond(p.id, decision); await settle(f.watch)
+    assert.equal(f.watch.list()[0].feedbackLearning.status, 'applied'); assert.equal(calls, 1)
+    assert.deepEqual(withoutFeedback(f.watch.list()[0]), withoutFeedback(before))
+    assert.deepEqual(f.watch.config, config); assert.deepEqual(f.saved().handledOccurrences, handled)
+    assert.equal(saves, 1); assert.equal(executions, 1)
+  }
+})

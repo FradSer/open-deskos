@@ -620,24 +620,29 @@ export class ProactiveWatch {
     if (!PROPOSAL_DECISIONS.includes(decision)) throw Error('Invalid proposal decision')
     if (this.closed || this.storageFailure || (decision === 'accept' && this.judgmentError) || this.responding || (this.busy && !fromSpokenTurn)) throw Error('Proposal response busy or unavailable')
     const p = this.proposals.find(p => p.id === id)
-    const feedbackRetry = p?.feedbackLearning?.decision === decision && ['failed', 'unavailable'].includes(p?.feedbackLearning?.status)
-    if (!p || (!pending(p) && !feedbackRetry)) throw Error('Proposal no longer pending')
+    const feedbackRetry = decision !== 'accept' && p?.feedbackLearning?.decision === decision && ['failed', 'unavailable'].includes(p?.feedbackLearning?.status)
+    const completedFeedback = p?.status === 'completed' && (['useful', 'irrelevant', 'incorrect'].includes(decision) || feedbackRetry)
+    if (!p || (!pending(p) && !feedbackRetry && !completedFeedback)) throw Error('Proposal no longer pending')
     if (p.action !== null && decision === 'done') throw Error('Feedback completion is only available for read-only recommendations')
+    if (completedFeedback && p.feedback === decision && p.feedbackLearning?.decision === decision
+      && ['queued', 'running', 'applied'].includes(p.feedbackLearning.status)) return structuredClone(p)
     this.revision++
     this.interactionRevision++
     this.responding = true
     let completed = false
     try {
-      if (['done', 'snooze', 'useful', 'irrelevant', 'incorrect'].includes(decision) || (decision === 'ignore' && this.config.version === 2)) {
+      if (completedFeedback || ['done', 'snooze', 'useful', 'irrelevant', 'incorrect'].includes(decision) || (decision === 'ignore' && this.config.version === 2)) {
         const committed = structuredClone(p), handled = structuredClone(this.handledOccurrences), feedbackMemory = structuredClone(this.feedbackMemory)
         queueFeedback(this, p, decision)
         p.feedback = decision
-        if (decision === 'done') { p.status = 'completed'; p.completedAt = new Date(this.now()).toISOString() }
-        else if (['ignore', 'irrelevant', 'incorrect'].includes(decision)) p.status = 'ignored'
-        else if (decision === 'snooze') {
-          p.snoozedUntil = this.now() + this.config.cooldownMs
-          p.offered = false
-          p.presented = false
+        if (!completedFeedback) {
+          if (decision === 'done') { p.status = 'completed'; p.completedAt = new Date(this.now()).toISOString() }
+          else if (['ignore', 'irrelevant', 'incorrect'].includes(decision)) p.status = 'ignored'
+          else if (decision === 'snooze') {
+            p.snoozedUntil = this.now() + this.config.cooldownMs
+            p.offered = false
+            p.presented = false
+          }
         }
         try { this.persist() } catch (error) {
           for (const key of Object.keys(p)) delete p[key]

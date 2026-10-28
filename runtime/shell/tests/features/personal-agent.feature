@@ -539,3 +539,10 @@ Feature: Independent resident Personal Agent
     And it sends one ordinary owner quote request without an obsolete details control
     And duplicate clicks, wrong routes, and missing or disabled actions cannot send another request
     And Useful feedback and independent MCP receipt checks remain separate gates
+
+  Scenario: Completed recommendations retain quality feedback in the input area
+    Given a completed recommendation is in the composer history
+    When the owner opens its Feedback control
+    Then Useful, Not relevant, and Incorrect are available
+    And execution, confirmation, postponement, and category controls are absent
+    And submitting feedback preserves the draft and the completed result

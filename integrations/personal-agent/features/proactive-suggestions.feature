@@ -570,3 +570,11 @@ Feature: Owner controlled proactive Personal Agent proposals
     When the actual Pi 1.4 Durable harness executes its owner-input and completion cases
     Then the resolver implements getAuth without reading or supplying credentials
     And the original execution counts, authority fences, and final publication assertions remain unchanged
+
+  Scenario: Feedback follows a completed recommendation action
+    Given a recommendation action has completed with a saved receipt
+    When the owner marks the completed recommendation useful, irrelevant, or incorrect
+    Then feedback is saved before asynchronous learning starts
+    And the completed action, receipt, handled occurrence, and owner configuration stay unchanged
+    And repeated feedback does not repeat learning or execute the action
+    And failed learning can retry without reopening the completed action

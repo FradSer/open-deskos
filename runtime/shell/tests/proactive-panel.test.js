@@ -890,3 +890,36 @@ test('live acceptance entry follows the actual inline route and quote controller
   assert.equal(turns.length, 1)
   assert.equal(f.commands.filter(command => command.type === 'proposal_respond').length, 0)
 })
+
+test('completed composer history retains quality feedback without reviving operation controls', async () => {
+  const f = fixture(), p = { ...proposal(), status: 'completed', result: 'Review completed', completedAt: new Date().toISOString() }
+  const createElement = f.document.createElement
+  f.document.createElement = tag => {
+    const node = createElement(tag)
+    node.querySelectorAll = selector => flatten(node).slice(1).filter(child => selector.split(',').some(name => child.tagName === name.trim().toUpperCase()))
+    node.closest = selector => { for (let parent = node; parent; parent = parent.parent) if (parent.tagName === selector.toUpperCase()) return parent; return null }
+    node.focus = () => { f.document.activeElement = node }
+    return node
+  }
+  f.local.value = 'Keep this draft'; f.local.selectionStart = 2; f.local.selectionEnd = 5
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const history = f.content.querySelector('.personal-agent-proposal-history'); history.open = true; history.events.toggle()
+  const feedback = history.querySelector('.personal-agent-proposal-feedback-options')
+  assert.ok(feedback, 'Completed actions retain their Feedback disclosure')
+  const buttons = flatten(history).filter(n => n.tagName === 'BUTTON')
+  assert.deepEqual(buttons.map(n => n.textContent), ['Useful', 'Not relevant', 'Incorrect'])
+  feedback.open = true; feedback.events.toggle(); buttons[0].focus(); await buttons[0].click()
+  assert.equal(f.commands.length, 1); assert.equal(f.commands[0].decision, 'useful'); assert.equal(f.commands[0].id, p.id)
+  f.render({ state: 'idle', proposals: [{ ...p, feedback: 'useful', feedbackLearning: { revision: 1, decision: 'useful', status: 'applied' } }] })
+  assert.ok(flatten(f.content).some(n => n.textContent === 'Feedback saved. Related memory updated.'))
+  assert.equal(f.content.querySelector('.personal-agent-proposal-history').open, true)
+  assert.equal(f.content.querySelector('.personal-agent-proposal-feedback-options').open, true)
+  assert.equal(f.document.activeElement.dataset.proposalId, p.id); assert.equal(f.document.activeElement.dataset.proposalAction, 'useful')
+  const restoredUseful = flatten(f.content.querySelector('.personal-agent-proposal-history')).find(node => node.dataset.proposalAction === 'useful')
+  assert.equal(f.document.activeElement, restoredUseful); assert.notEqual(f.document.activeElement, buttons[0])
+  assert.ok(!flatten(f.content).some(n => ['execute', 'confirm', 'done', 'snooze', 'ignore', 'mute'].includes(n.dataset.proposalAction)))
+  assert.equal(f.local.value, 'Keep this draft'); assert.equal(f.local.selectionStart, 2); assert.equal(f.local.selectionEnd, 5); assert.equal(f.surface.hidden, true)
+  f.render({ state: 'idle', proposalCapabilities: { read: true, respond: false, acknowledge: true }, proposals: [p] })
+  assert.ok(!flatten(f.content).some(n => n.textContent === 'Feedback'))
+  await f.controller.destroy()
+})
