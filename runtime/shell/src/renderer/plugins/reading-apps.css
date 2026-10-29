@@ -23,9 +23,35 @@
 .environment-readings { padding-block-start: var(--odk-space-4); border-top: 1px solid var(--odk-stroke); margin-block-start: auto; }
 @container (max-width: 300px) { .plant-readings, .environment-readings { grid-template-columns: minmax(0, 1fr); } }
 
-#app-view .runtime-app.weread-app { position: relative; flex: 1 1 auto; min-height: 0; height: 100%; padding: 0; gap: 0; border: 0; border-radius: 0; background: transparent; }
-#app-view .weread-app .reading-status { position: absolute; inset-block-start: 4px; inset-inline-start: var(--odk-widget-inset); z-index: 1; }
+/* WeRead reads in fixed pages. No text owner is a scroll container. */
+#app-view:has(.weread-app) .app-body { overflow: clip; }
+@media (max-width: 639px) {
+  #home-desk:has(#app-view:not([hidden]) .weread-app) { overflow: clip; }
+  #home-desk:has(#app-view:not([hidden]) .weread-app) #personal-agent { visibility: hidden; }
+  #home-desk #desk-content:has(> #app-view:not([hidden]) .weread-app) { position: fixed; inset: var(--status-h) 0 0; z-index: 2; height: auto; min-height: 0; background: var(--odk-bg); grid-template-rows: minmax(0, 1fr) 48px; }
+}
+#app-view .runtime-app.weread-app { position: relative; flex: 1 1 auto; min-height: 0; height: 100%; padding: var(--odk-widget-inset); gap: 12px; border: 0; border-radius: 0; background: transparent; overflow: clip; }
+#app-view .weread-app .reading-status { flex: none; overflow-wrap: anywhere; }
 .weread-app:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: -4px; }
-#app-view .weread-app .weread-foot { max-height: 50%; overflow-y: auto; align-items: safe center; }
-.weread-app .weread-foot:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: -2px; }
+.weread-page-viewport { flex: 1; min-height: 0; min-width: 0; overflow: clip; }
+#app-view .weread-app .weread-copy { height: 100%; padding: 0; overflow: visible; }
+#app-view .weread-app .weread-text { overflow: visible; flex: none; }
+#app-view .weread-app .weread-foot { max-height: none; overflow: visible; align-items: safe center; }
+#app-view .weread-app :is(.weread-title, .weread-author, .weread-date) { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
 .weread-app img.weread-cover { aspect-ratio: auto; }
+.weread-pagination { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 8px; }
+.weread-pagination[hidden] { display: none; }
+.weread-pagination button { flex: none; min-width: 44px; min-height: 44px; padding-inline: 12px; font-size: 14px; white-space: nowrap; }
+.weread-page-number { color: var(--odk-secondary-strong); font-size: 14px; font-variant-numeric: tabular-nums; text-align: center; }
+@container (max-width: 200px) {
+  .weread-pagination { flex-wrap: wrap; gap: 4px 8px; }
+  .weread-page-number { order: -1; flex-basis: 100%; }
+  .weread-pagination button { flex: 1; padding-inline: 4px; }
+}
+#app-view .weread-paginated .weread-copy { display: block; column-fill: auto; column-gap: 0; }
+#app-view .weread-paginated .weread-text { margin: 0 0 24px; orphans: 1; widows: 1; }
+#app-view .weread-paginated .weread-foot { display: block; }
+#app-view .weread-paginated .weread-meta { display: block; }
+#app-view .weread-paginated .weread-meta > * { margin: 0; orphans: 1; widows: 1; }
+#app-view .weread-paginated .weread-cover-wrap { break-inside: avoid; margin-top: 8px; }
+.weread-app .weread-foot:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: -2px; }

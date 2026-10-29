@@ -16,7 +16,7 @@ Feature: Built-in App interiors
     And the App has no Refresh button or reserved header space
     And clicking the App refreshes the highlight once without overlapping requests
     And Enter or Space can refresh the focused App
-    And selecting text or scrolling an excerpt does not refresh it
+    And selecting text or changing reading pages does not refresh it
     And source recovery instructions describe clicking the reading
 
   Scenario: An expanded WeRead App retains its visible Widget type scale
@@ -184,3 +184,26 @@ Feature: Built-in App interiors
     Then its progress meter retains the elapsed local-year ratio
     And completed days and remaining days include leap day
     And the values reset when the new local year starts
+
+  # Source: the existing bounded highlight IPC, including its availability state.
+  # Identity and entry: odk.app.weread from the Reading Widget.
+  # Layout: shared card, existing type floors, four themes, and fixed reading pages.
+  # Lifecycle: scoped observers and ticks; release rejects late source responses.
+  # Recovery: click the reading; the existing return handle restores Widget focus.
+  # Evidence: settled fonts, character bounds, native input, and compact layouts.
+
+  Scenario: WeRead uses reading pages without scrolling text
+    Given the WeRead App displays a complete highlight and book details
+    When English or Chinese text exceeds the available reading area
+    Then no text region or App ancestor permits scrolling
+    And reading pages preserve every source character at readable sizes
+    And Previous and Next have named targets of at least 44 pixels
+    And PageDown, PageUp, Home, and End navigate reading pages
+    And pagination never refreshes the source or closes the App
+    And clicks, touch, and Enter retain source refresh
+    And resizing, settled fonts, and theme changes update page geometry
+    And loading, stale, authorization, empty, and error notices remain visible
+    And the bottom return handle remains available
+    And compact WeRead uses the screen below the State Bar for reading
+    And background Agent controls cannot receive hidden keyboard focus
+    And return restores the resident Agent and source Widget

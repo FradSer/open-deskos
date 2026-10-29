@@ -36,9 +36,9 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_window, _permission, callback) => callback(false))
   session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (_request, callback) => callback({ cancel: true }))
   const preview = installHomePreviewFixtures(ipcMain)
-  let wereadReading
+  let wereadReading, wereadRequests = 0
   ipcMain.removeHandler('odk-weread-highlight')
-  ipcMain.handle('odk-weread-highlight', () => wereadReading || {status:'live', highlight:preview.highlight})
+  ipcMain.handle('odk-weread-highlight', () => { wereadRequests++; return wereadReading || {status:'live', highlight:preview.highlight} })
   const endpoint = createAppManagerEndpoint()
   ipcMain.handle('odk-app-manager-intent', (_event, intent) => endpoint.dispatch(intent))
   ipcMain.removeHandler('odk-app-manager-list')
@@ -170,47 +170,148 @@ app.whenReady().then(async () => {
     for (const [width,height] of [[1280,800],[960,640],[480,854],[320,480]]) {
       win.setContentSize(width,height)
       for (const theme of ['instrument','pixel','border-beam','liquid-glass']) {
-        wereadReading={status:'live',highlight:{markText:'完整摘录仍然可读，所有文字都必须保留。'.repeat(100), title:'Long English 与中文书名'.repeat(5),author:'Long Author 示例作者'.repeat(5),createTime:Date.now()/1000}}
-        await js(`(async()=>{
-          await odkTheme.set('${theme}');
-          await odkAppPlatform.openApp({appId:'weread',widgetId:'odk.tile.weread',route:'reading'});
-          await until(()=>!!document.querySelector('.reading-book-title')?.textContent && document.querySelector('.weread-app')?.getAttribute('aria-busy')==='false');
-          await document.fonts.ready;
-          document.getElementById('app-view').scrollIntoView({block:'center'});
-        })()`)
-        await capture(`${theme}-weread-long-${width}`)
-        const stressError = await js(`(() => {try {
-          const card=document.getElementById('app-view'), quote=card.querySelector('.weread-text');
-          for(const node of card.querySelectorAll('.weread-text,.weread-title,.weread-author,.weread-date')) {
-            const box=node.getBoundingClientRect(),bounds=card.getBoundingClientRect();
-            if(box.width<=0||box.height<=0||box.left<bounds.left-1||box.right>bounds.right+1) throw Error('WeRead App reading escapes its card: '+node.className);
-            if(node===quote && (box.top<bounds.top-1||box.bottom>bounds.bottom+1)) throw Error('WeRead App excerpt escapes its card');
+        for (const language of ['cjk','english']) {
+          wereadReading={status:'live',highlight:{markText:language==='cjk'?'完整摘录仍然可读，所有文字都必须保留。'.repeat(100):'Keep every word readable. LongEnglishWordsRemainComplete and a second paragraph.\n'.repeat(80), cover:language==='english'?preview.highlight.cover:undefined, title:'Long English 与中文书名'.repeat(5),author:'Long Author 示例作者'.repeat(5),createTime:Date.now()/1000}}
+          await js(`(async()=>{
+            await odkTheme.set('${theme}');
+            await odkAppPlatform.openApp({appId:'weread',widgetId:'odk.tile.weread',route:'reading'});
+            await until(()=>!!document.querySelector('.reading-book-title')?.textContent && document.querySelector('.weread-app')?.getAttribute('aria-busy')==='false');
+            await document.fonts.ready;
+            document.getElementById('app-view').scrollIntoView({block:'center'});
+          })()`)
+          await capture(`${theme}-weread-long-${language}-${width}`)
+          assert.equal(await js(`(() => {try {
+            const card=document.getElementById('app-view'), surface=card.querySelector('.weread-app');
+            const viewport=surface.querySelector('.weread-page-viewport'), bounds=viewport.getBoundingClientRect();
+            for (const node of [surface, ...surface.querySelectorAll('*')]) {
+              const style=getComputedStyle(node);
+              if (['auto','scroll','hidden'].includes(style.overflowY) && node.textContent.trim() && !node.classList.contains('sr-only')) throw Error('WeRead text must not use a scroll view: '+node.className);
+            }
+            for(let node=surface.parentElement;node && node!==document.body;node=node.parentElement) {
+              const s=getComputedStyle(node);
+              if (['auto','scroll'].includes(s.overflowY) && node.scrollHeight>node.clientHeight+1) throw Error('WeRead ancestor must not scroll: '+node.id+' '+node.className+' '+s.overflowY);
+            }
+            const label=surface.querySelector('.weread-page-number').textContent;
+            if(!/^Page 1 of [0-9]+$/.test(label) || Number(label.split(' of ')[1])<2) throw Error('Long reading needs named pages: '+label);
+            const pages=Number(label.split(' of ')[1]);
+            for (const node of surface.querySelectorAll('.weread-text,.weread-title,.weread-author,.weread-date')) {
+              if(parseFloat(getComputedStyle(node).fontSize)<14) throw Error('Unreadable text size');
+              const text=node.firstChild;
+              for(let index=0;index<text.length;index++) {
+                const range=document.createRange();range.setStart(text,index);range.setEnd(text,index+1);
+                for(const r of range.getClientRects()) {
+                  const column=Math.floor((r.left-bounds.left+0.5)/bounds.width);
+                  if(column<0||column>=pages||r.top<bounds.top-1||r.bottom>bounds.bottom+1||r.right>bounds.left+(column+1)*bounds.width+1) throw Error('Reading character is clipped: '+JSON.stringify({class:node.className,index,rect:r.toJSON(),bounds:bounds.toJSON(),pages}));
+                }
+              }
+            }
+            for(const button of surface.querySelectorAll('.weread-pagination button')) {
+              const r=button.getBoundingClientRect();
+              if(r.width<44||r.height<44||r.bottom>card.getBoundingClientRect().bottom+1) throw Error('Page target is too small or clipped');
+            }
+            const handle=document.querySelector('#dots .dot.active').getBoundingClientRect();
+            if(handle.height<44||handle.bottom>innerHeight+1||handle.top<card.getBoundingClientRect().bottom-1) throw Error('The return handle is not visible below the reading');
+            if(innerWidth<640) {
+              const agent=document.getElementById('personal-agent');
+              if(getComputedStyle(agent).visibility!=='hidden') throw Error('Compact background controls remain focusable');
+              const backgroundControl=agent.querySelector('.agent-keys');
+              if(!backgroundControl) throw Error('The current Agent keyboard control is missing');
+              backgroundControl.focus();
+              if(agent.contains(document.activeElement)) throw Error('Focus moved behind the compact reading');
+            }
+            surface.focus();
+          } catch(error) {return error.stack} })()`),undefined)
+          const requestsBeforePaging = wereadRequests
+          const key = async (key, code) => {
+            await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'keyDown',key,code:key,windowsVirtualKeyCode:code})
+            await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'keyUp',key,code:key,windowsVirtualKeyCode:code})
           }
-          if(getComputedStyle(card.querySelector('.weread-title')).whiteSpace!=='normal') throw Error('No-cover App title must wrap');
-          if(quote.scrollHeight<=quote.clientHeight) throw Error('Long App excerpt must have a scroll path');
-          const book=card.querySelector('.weread-foot');
-          book.scrollTop=book.scrollHeight;
-          const date=card.querySelector('.weread-date').getBoundingClientRect(),region=book.getBoundingClientRect();
-          if(date.top<region.top-1||date.bottom>region.bottom+1||region.bottom>card.getBoundingClientRect().bottom+1) throw Error('Book details cannot reach the mark date');
-          book.scrollTop=0;
-          const title=card.querySelector('.weread-title'),first=document.createRange();
-          first.setStart(title.firstChild,0);first.setEnd(title.firstChild,1);
-          if(first.getBoundingClientRect().top<region.top-1) throw Error('Book title start is above its scroll origin: '+JSON.stringify({region:region.toJSON(),first:first.getBoundingClientRect().toJSON(),title:title.getBoundingClientRect().toJSON(),scrollTop:book.scrollTop,align:getComputedStyle(book).alignItems,clientHeight:book.clientHeight,scrollHeight:book.scrollHeight}));
-          quote.focus();
-          return null;
-        } catch(error) {return error.message} })()`)
-        assert.equal(stressError,null,theme+' '+width+'x'+height)
-        await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'keyDown',key:'End',code:'End',windowsVirtualKeyCode:35})
-        await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'keyUp',key:'End',code:'End',windowsVirtualKeyCode:35})
-        await js(`(async()=>{
-          const quote=document.querySelector('.reading-excerpt');
-          await until(()=>quote.scrollTop>0);
-          await odkAppPlatform.closeApp();
-        })()`)
+          await key('End',35)
+          assert.equal(await js(`(() => {try {
+            const surface=document.querySelector('.weread-app');
+            const label=surface.querySelector('.weread-page-number').textContent;
+            const numbers=label.match(/[0-9]+/g);
+            if(numbers[0]!==numbers[1]) throw Error('End did not reach the final page');
+            if(!surface.querySelector('.weread-pagination button:last-child').disabled) throw Error('Next remains enabled at end');
+          } catch(error) {return error.stack} })()`),undefined)
+          const dateOnFinalPage = await js(`(() => {
+            const surface=document.querySelector('.weread-app'), viewport=surface.querySelector('.weread-page-viewport').getBoundingClientRect();
+            const range=document.createRange();range.selectNodeContents(surface.querySelector('.weread-date'));
+            return range.getBoundingClientRect().left>=viewport.left-1;
+          })()`)
+          // A final cover can occupy the page after the last metadata character.
+          if (!dateOnFinalPage) await key('PageUp',33)
+          assert.equal(await js(`(() => {
+            const surface=document.querySelector('.weread-app'), viewport=surface.querySelector('.weread-page-viewport').getBoundingClientRect();
+            const range=document.createRange();range.selectNodeContents(surface.querySelector('.weread-date'));
+            const r=range.getBoundingClientRect();
+            return r.left>=viewport.left-1 && r.right<=viewport.right+1 && r.top>=viewport.top-1 && r.bottom<=viewport.bottom+1;
+          })()`),true,'The last metadata character must remain reachable')
+          await key('Home',36)
+          await key('Tab',9)
+          await key('Tab',9)
+          assert.equal(await js(`(() => {
+            const surface=document.querySelector('.weread-app'), viewport=surface.querySelector('.weread-page-viewport');
+            const bounds=viewport.getBoundingClientRect(), focused=document.activeElement;
+            return surface.contains(focused) && viewport.scrollLeft===0 && viewport.scrollTop===0
+              && [...focused.getClientRects()].some(r=>r.width>0 && r.height>0 && r.left<bounds.right && r.right>bounds.left && r.top<bounds.bottom && r.bottom>bounds.top);
+          })()`),true,'Tab keeps a visible reading focus without scrolling the clipped viewport')
+          await key('Home',36)
+          await key('PageDown',34)
+          assert.equal(await js("document.querySelector('.weread-page-number').textContent.startsWith('Page 2 of')"),true)
+          await key('PageUp',33)
+          assert.equal(await js("document.querySelector('.weread-page-number').textContent.startsWith('Page 1 of')"),true)
+          const point = async selector => js(`(() => {const r=document.querySelector('${selector}').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`)
+          const nextPoint = await point('.weread-pagination button:last-child')
+          await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...nextPoint})
+          await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...nextPoint})
+          assert.equal(await js("document.querySelector('.weread-page-number').textContent.startsWith('Page 2 of')"),true)
+          const previousPoint = await point('.weread-pagination button:first-child')
+          await touch('touchStart',[{...previousPoint,id:1}])
+          await touch('touchEnd',[])
+          assert.equal(await js("document.querySelector('.weread-page-number').textContent.startsWith('Page 1 of')"),true)
+          assert.equal(wereadRequests, requestsBeforePaging, 'Paging must not refresh the source')
+          assert.equal(await js("odkAppPlatform.active().appId"),'weread')
+          if (width===1280 && theme==='instrument' && language==='cjk') {
+            const readingPoint=await point('.weread-page-viewport')
+            await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseWheel',deltaX:0,deltaY:400,...readingPoint})
+            assert.equal(await js("document.querySelector('.weread-page-number').textContent.startsWith('Page 1 of')"),true)
+            assert.equal(await js("document.querySelector('.weread-page-viewport').scrollTop"),0)
+            win.setContentSize(480,854)
+            await js(`(async()=>{
+              await odkTheme.set('pixel');
+              await document.fonts.ready;
+              await until(()=>{
+                const surface=document.querySelector('.weread-app'),viewport=surface.querySelector('.weread-page-viewport'),content=surface.querySelector('.reading-content');
+                const pages=Math.round(content.scrollWidth/viewport.clientWidth);
+                return viewport.clientWidth<480 && surface.querySelector('.weread-page-number').textContent==='Page 1 of '+pages;
+              });
+            })()`)
+            await key('End',35)
+            assert.equal(await js(`(() => {
+              const viewport=document.querySelector('.weread-page-viewport').getBoundingClientRect(), range=document.createRange();
+              range.selectNodeContents(document.querySelector('.weread-app .weread-date'));
+              const r=range.getBoundingClientRect();
+              return r.left>=viewport.left-1 && r.right<=viewport.right+1 && r.bottom<=viewport.bottom+1;
+            })()`),true,'Resize and theme changes retain the final reading character')
+            await js("document.querySelector('.weread-app .weread-foot').focus()")
+            win.setContentSize(320,480)
+            await js(`until(()=>document.querySelector('.weread-page-viewport').clientWidth<320)`)
+            assert.equal(await js(`(() => {
+              const viewport=document.querySelector('.weread-page-viewport'),bounds=viewport.getBoundingClientRect();
+              const focused=document.activeElement;
+              return focused.classList.contains('weread-foot') && viewport.scrollLeft===0 && viewport.scrollTop===0
+                && [...focused.getClientRects()].some(r=>r.width>0 && r.height>0 && r.left<bounds.right && r.right>bounds.left && r.top<bounds.bottom && r.bottom>bounds.top);
+            })()`),true,'Resize keeps already focused book details visible')
+            win.setContentSize(width,height)
+          }
+          await js('odkAppPlatform.closeApp()')
+          assert.equal(await js("getComputedStyle(document.getElementById('personal-agent')).visibility"),'visible')
+        }
       }
     }
     wereadReading=undefined
-    console.log('PASS WeRead App: 16 long-excerpt and no-cover layouts retain keyboard access and metadata')
+    console.log('PASS WeRead App: 32 long English/CJK layouts with and without covers retain every character without scroll views')
   }
   if (process.argv.includes('--weread-compare')) {
     win.setContentSize(1280,800)
