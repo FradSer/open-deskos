@@ -5,6 +5,7 @@ PartOf=graphical-session.target
 
 [Service]
 Type=simple
+EnvironmentFile=-%h/.config/odk/remote-bridge.env
 ExecStart=/usr/bin/env node __ODK_REMOTE_BRIDGE_DIR__/bin/odk-remote-bridge.js
 Restart=always
 RestartSec=2

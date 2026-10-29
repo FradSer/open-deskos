@@ -1,5 +1,12 @@
 # Feature: Remote Bridge Transport Plugins and Host Arbitration
 
+  Scenario: The user service loads optional transport settings
+    Given the user saves ESP-NOW settings in the documented Remote Bridge environment file
+    When the user service starts
+    Then its service template loads that optional environment file
+    And the configured radio selection reaches the existing startup selection
+    And a missing environment file permits the default USB startup
+
   Scenario: Shared startup preferences exclude a transport
     Given the Plugin CLI disables a transport in the common configuration
     When Remote Bridge starts with that configuration

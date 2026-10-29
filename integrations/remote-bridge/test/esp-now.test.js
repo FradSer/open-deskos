@@ -4,6 +4,8 @@ const assert = require('node:assert/strict')
 const { startupSelection, selectTransports } = require('../lib/main')
 
 test('ESP-NOW mode never constructs USB and rejects mixed startup selection', () => {
+  const unit = require('node:fs').readFileSync(require('node:path').join(__dirname, '../systemd/odk-remote-bridge.service'), 'utf8')
+  assert.match(unit, /^EnvironmentFile=-%h\/\.config\/odk\/remote-bridge\.env$/m)
   const selected = startupSelection(['--esp-now-config', '/private/radio.json'])
   let usb = 0
   const radio = { transport: 'wireless' }
