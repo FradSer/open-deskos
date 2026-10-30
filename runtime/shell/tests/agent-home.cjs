@@ -47,7 +47,13 @@ ipcMain.handle('odk-personal-agent-text', async (_event, text, replyTo) => {
   return { accepted: textAccepted, delivery: textAccepted ? 'accepted' : textDelivery }
 })
 ipcMain.handle('odk-personal-agent-toggle', () => { micToggles++; return { accepted: micAccepted } })
-const timer = setTimeout(() => finish(1), 60000)
+const timeoutMs = process.platform === 'linux' && process.arch === 'arm64'
+  && !process.argv.some(arg => /^--.*-only$/.test(arg) || ['--adaptive-copy', '--session-reply-legacy-host'].includes(arg))
+  ? 240000 : 60000
+const timer = setTimeout(() => {
+  console.error(`Agent Home acceptance timed out after ${timeoutMs}ms on ${process.arch}`)
+  finish(1)
+}, timeoutMs)
 const evaluate = async script => {
   try { return await win.webContents.executeJavaScript(script) }
   catch (error) { console.error('Agent fixture script failed:', script); throw error }

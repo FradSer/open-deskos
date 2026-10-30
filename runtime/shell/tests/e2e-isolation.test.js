@@ -230,6 +230,58 @@ test('child runner sets its profile and hides the dock before loading fixture co
   assert.deepEqual(calls, ['hide', ['userData', profile], ['sessionData', profile], 'fixture'])
 })
 
+function agentHomeWatchdog(platform, arch, args = []) {
+  const source = fs.readFileSync(path.join(__dirname, 'agent-home.cjs'), 'utf8')
+  const start = source.indexOf('const timeoutMs = ')
+  const end = source.indexOf('async function capturePaintedFrame()', start)
+  assert.ok(start > 0 && end > start)
+  const errors = [], exits = []
+  let callback, budget, cleared = false
+  vm.runInNewContext(source.slice(start, end), {
+    process: { platform, arch, argv: ['electron', 'agent-home.cjs', ...args] },
+    setTimeout(fn, timeout) { callback = fn; budget = timeout; return 1 },
+    clearTimeout(timer) { assert.equal(timer, 1); cleared = true },
+    console: { error(message) { errors.push(message) } },
+    app: { exit(code) { exits.push(code) } }, win: undefined, profile: 'owned-profile',
+    fs: { rmSync() {} },
+  })
+  return { budget, expire() { callback(); return { errors, exits, cleared } } }
+}
+
+for (const [platform, arch] of [['linux', 'arm64'], ['linux', 'x64'], ['darwin', 'arm64'], ['win32', 'arm64']]) {
+  test(`Agent Home watchdog bounds the full matrix and short modes on ${platform} ${arch}`, () => {
+    const source = fs.readFileSync(path.join(__dirname, 'agent-home.cjs'), 'utf8')
+    const modes = [...new Set([...source.matchAll(/process\.argv\.includes\('([^']+)'\)/g)]
+      .map(match => match[1]).filter(flag => flag.endsWith('-only')))]
+    modes.push('--future-mode-only', '--adaptive-copy', '--session-reply-legacy-host')
+    const full = agentHomeWatchdog(platform, arch)
+    assert.equal(full.budget, platform === 'linux' && arch === 'arm64' ? 240000 : 60000)
+    for (const flag of modes) assert.equal(agentHomeWatchdog(platform, arch, [flag]).budget, 60000, flag)
+    const parent = fs.readFileSync(path.join(__dirname, 'e2e.js'), 'utf8')
+    const start = parent.indexOf('  const themeUiRuns = ')
+    const end = parent.indexOf('  const subStatuses = ', start)
+    assert.ok(start > 0 && end > start)
+    const requests = []
+    vm.runInNewContext(parent.slice(start, end), {
+      process: { platform, arch }, runFixture(file, args, options) { requests.push({ file, args, options }); return { status: 0 } },
+    })
+    const matrix = requests.find(request => request.file === 'agent-home.cjs')
+    assert.equal(matrix.args.length, 0)
+    assert.ok(matrix.options.timeout > full.budget, 'The matrix parent must outlive its fixture watchdog')
+    let shortParentTimeout
+    runFixture('agent-home.cjs', [modes[0]], { platform, spawn(_executable, _args, options) {
+      shortParentTimeout = options.timeout
+      return { status: 0 }
+    } })
+    assert.ok(modes.every(flag => agentHomeWatchdog(platform, arch, [flag]).budget < shortParentTimeout), 'Short modes must finish before the default parent deadline')
+    const expired = full.expire()
+    assert.deepEqual(expired.exits, [1])
+    assert.equal(expired.cleared, true)
+    assert.equal(expired.errors.length, 1)
+    assert.match(expired.errors[0], new RegExp(`timed out after ${full.budget}ms on ${arch}`))
+  })
+}
+
 test('Home fixture establishes its requested viewport and settles geometry after hidden loading', async () => {
   const source = fs.readFileSync(path.join(__dirname, 'agent-home.cjs'), 'utf8')
   const start = source.indexOf('  await win.loadFile(')

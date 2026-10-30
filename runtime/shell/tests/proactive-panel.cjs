@@ -228,9 +228,22 @@ app.whenReady().then(async () => {
   assert.equal(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(hidden.id)), false, 'An inactive Personal Agent cannot acknowledge unread advice')
   assert.equal(await run(`document.getElementById('personal-agent-status').hidden`), true, 'Hidden-page delivery cannot escape into a popup')
   await run(`(() => { const agent = document.getElementById('personal-agent'); agent.hidden = window.__agentHidden.hidden; agent.style.display = window.__agentHidden.display; document.querySelector('.personal-agent-proposal-advice').scrollIntoView({block:'center'}) })()`)
-  await delay()
-  assert.equal(await run(`document.querySelector('.personal-agent-proposal-advice').checkVisibility()`), true)
-  assert.ok(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(hidden.id)), 'Restoring the actual page allows its viewport to acknowledge advice')
+  const presentationDeadline = performance.now() + 2000
+  while (!commands.some(c => c.type === 'proposal_presented' && c.ids.includes(hidden.id)) && performance.now() < presentationDeadline) {
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
+  const presentationDiagnostics = commands.some(c => c.type === 'proposal_presented' && c.ids.includes(hidden.id)) ? '' : JSON.stringify({
+    commands,
+    viewport: await run(`(() => {
+      const advice = document.querySelector('.personal-agent-proposal-advice')
+      const surface = document.querySelector('.agent-suggestions')
+      return { documentHidden: document.hidden, adviceVisible: advice.checkVisibility(),
+        advice: advice.getBoundingClientRect().toJSON(), surfaceHidden: surface.hidden,
+        surface: surface.getBoundingClientRect().toJSON(), width: innerWidth, height: innerHeight }
+    })()`),
+  })
+  assert.equal(await run(`document.querySelector('.personal-agent-proposal-advice').checkVisibility()`), true, presentationDiagnostics)
+  assert.ok(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(hidden.id)), 'Restoring the actual page allows its viewport to acknowledge advice: ' + presentationDiagnostics)
   assert.equal(await run(`document.querySelector('.agent-composer textarea').value`), 'Keep this unfinished draft.')
   // Synthetic suggestions exercise the real scroll viewport without model or device access.
   await run(`odkTheme.set('instrument')`)
