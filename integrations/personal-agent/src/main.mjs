@@ -103,6 +103,7 @@ async function initialize(env, report, onRideUpdate, platform = process.platform
   report('Check model providers, writable checkout, Pi authentication/model and capability paths; restart service')
   const agent = await createPersonalAgent({
     workspace: env.ODK_WORKSPACE,
+    model: env.ODK_PERSONAL_AGENT_MODEL,
     stateDir: directories.state,
     capabilityPaths: personal.profile === 'coding' && env.ODK_PERSONAL_AGENT_CAPABILITIES ? JSON.parse(env.ODK_PERSONAL_AGENT_CAPABILITIES) : [],
     personal, onRideUpdate, onAgentUpdate, getWatch, env, signal,

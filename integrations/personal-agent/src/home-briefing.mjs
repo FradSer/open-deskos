@@ -254,13 +254,8 @@ export class HomeBriefing {
           return
         }
         if (this.requireBindings && revision !== this.revision) {
-          const confirmationRevision = this.revision
           const latest = await snapshot()
-          if (confirmationRevision !== this.revision) {
-            this.emit(this.frame.items.length ? 'stale' : 'loading')
-            this.schedule()
-            return
-          }
+          if (!current()) return
           readings = latest.readings
           omittedSources = latest.omittedSources
         }
@@ -305,10 +300,9 @@ export class HomeBriefing {
         // A push reports possible change, not changed content. Repeated telemetry
         // must not cancel a slow model; confirm against fresh readings before use.
         if (this.requireBindings || revision !== this.revision) {
-          const confirmationRevision = this.revision
           const latest = await snapshot()
           if (!current()) return
-          if (confirmationRevision !== this.revision || (!this.requireBindings && (contentFingerprint(latest.readings) !== fingerprint || latest.omittedSources !== omittedSources))) {
+          if (!this.requireBindings && (contentFingerprint(latest.readings) !== fingerprint || latest.omittedSources !== omittedSources)) {
             this.fingerprint = ''
             this.emit(this.frame.items.length ? 'stale' : 'loading')
             this.schedule()
@@ -357,7 +351,7 @@ export class HomeBriefing {
           const code = typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]{0,31}$/.test(error.code) ? error.code : undefined
           const rawStatus = error?.status ?? error?.statusCode
           const status = Number.isInteger(rawStatus) && rawStatus >= 400 && rawStatus <= 599 ? rawStatus : undefined
-          const failure = { stage, kind: failureKind(stage, error, code, status), name, ...(code ? { code } : {}), ...(status ? { status } : {}) }
+          const failure = { stage, kind: failureKind(stage, error, code, status), name, detail: error?.message, ...(code ? { code } : {}), ...(status ? { status } : {}) }
           try { this.onFailure(failure) } catch { /* Diagnostics cannot affect briefing recovery. */ }
           if (this.requireBindings && ['generate', 'validate'].includes(stage)) {
             try {

@@ -79,7 +79,7 @@ function homeGenerationModels(source) {
     const selected = modelStudio && model.api === 'openai-completions' && model.reasoning
       ? { ...model, compat: { ...model.compat, thinkingFormat: 'qwen', supportsReasoningEffort: false } } : model
     return source.streamSimple(selected, context, { ...options,
-      maxTokens: Math.min(2048, model.maxTokens > 0 ? model.maxTokens : 2048, options?.maxTokens > 0 ? options.maxTokens : 2048) })
+      maxTokens: Math.max(8192, options?.maxTokens > 0 ? options.maxTokens : 8192) })
   }
   return new Proxy(source, { get(target, key) {
     if (key === 'streamSimple') return stream
@@ -349,6 +349,12 @@ export async function createPersonalAgent(config, { createSession = createDurabl
       } })
     session = acquired.session
     signal?.throwIfAborted()
+    if (model && (session.model?.provider !== model.provider || session.model?.id !== model.id)) {
+      await session.setModel(model)
+    } else if (session.model && !available.some(m => m.provider === session.model.provider && m.id === session.model.id)) {
+      if (model) await session.setModel(model)
+      else if (available.length > 0) await session.setModel(available[0])
+    }
     await session.bindExtensions?.({})
     signal?.throwIfAborted()
     await session.setActiveToolsByName(baseTools)
@@ -433,9 +439,12 @@ export async function createPersonalAgent(config, { createSession = createDurabl
           choose: (request, variables) => generateWithinDeadline({
           signal: combined, timeoutMs: Math.max(1000, deadlineAt - Date.now()),
           formatCorrection: 'Select fewer facts. Use the original facts as analysis context. Select only a displayable fact from the CURRENT variables list. Return one item containing exactly one selector (an integer selector), or {"items":[]} when no choices remain. Never select a selector missing from this list.',
-          serialize: request => JSON.stringify(request.formatCorrection ? { ...request,
-            variables: request.variables.filter(fact => fact.displayable).map(({ selector, text, characters, icon }) => ({ selector, text, characters, icon, displayable: true })),
-          } : request),
+          serialize: request => JSON.stringify({
+            task: 'Select and organize the most useful current facts from variables. Return only JSON: {"items":[{"sources":[0,1]}]}, or {"items":[]} if nothing is useful.',
+            ...(request.formatCorrection ? { ...request,
+              variables: request.variables.filter(fact => fact.displayable).map(({ selector, text, characters, icon }) => ({ selector, text, characters, icon, displayable: true })),
+            } : request),
+          }),
           validate: raw => {
             const selected = normalizeHomeSelection(raw, variables)
             if (selected.items.some(item => item.sources.some(selector => !request.variables[selector].displayable))) throw Error('Home selection exceeds display budget')
@@ -645,6 +654,7 @@ function responseSnapshots(onSnapshot) {
   let partial = ''
   let failed = false
   let lastStopReason = ''
+  let lastErrorMessage = ''
   let published = ''
   const text = () => [...completed, partial].filter(Boolean).join('\n\n')
   const publish = () => {
@@ -663,6 +673,7 @@ function responseSnapshots(onSnapshot) {
       }
       if (event.type === 'message_end' && event.message.role === 'assistant') {
         lastStopReason = event.message.stopReason
+        lastErrorMessage = event.message.errorMessage || ''
         failed = ['error', 'aborted'].includes(lastStopReason)
         partial = ''
         if (!failed) completed.push(visibleText(event.message))
@@ -677,7 +688,7 @@ function responseSnapshots(onSnapshot) {
       }
     },
     result() {
-      if (failed || lastStopReason === 'length') throw Error('Agent request failed')
+      if (failed || lastStopReason === 'length') throw Error(`Agent request failed: ${lastStopReason} ${lastErrorMessage}`.trim())
       return completed.filter(Boolean).join('\n\n')
     },
   }
