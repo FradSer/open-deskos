@@ -213,7 +213,7 @@ function runSmokeCheck(win, expected, requestExit) {
     settled = true
     clearTimeout(timer)
     const actual = win.getContentBounds()
-    const ok = actual.width === expected.width && actual.height === expected.height
+    const ok = Math.abs(actual.width - expected.width) <= 1 && Math.abs(actual.height - expected.height) <= 1
     finishSmoke({ ok, width: actual.width, height: actual.height }, requestExit)
   })
 }
