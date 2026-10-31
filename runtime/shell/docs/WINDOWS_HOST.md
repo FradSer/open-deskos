@@ -56,7 +56,7 @@ pnpm run build:native
 | Open DeskOS Link | Ported. TCP reporting listener defaults to 8765. The runtime channel is `\\.\pipe\odk-link`. |
 | Open DeskOS Data | Ported on both sides. Shell and bot use `\\.\pipe\odk-data` with the host channel token. |
 | External package control | Ported on both sides. Use `\\.\pipe\odk-user-app-control` with the host channel token. Install/update/rollback/remove remain available. |
-| P4 camera tile | Unavailable. Windows has neither `v4l2-ctl` nor `/dev/odk-p4-camera`. |
+| P4 camera tile | Not ported. Windows has neither `v4l2-ctl` nor `/dev/odk-p4-camera`. |
 | Futu Service Plugin | Ported. Use the declared socket, pipe or TCP endpoint. A remote plugin requires the host channel token. |
 | CM5 GPU/HDMI/touch gates | Not applicable to this host. Windows needs its own device evidence. |
 

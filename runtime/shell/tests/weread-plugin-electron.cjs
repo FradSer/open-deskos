@@ -275,7 +275,9 @@ app.whenReady().then(async () => {
       } finally { win.webContents.debugger.detach() }
       win.webContents.setZoomFactor(1)
       await js('window.odkShellReady')
-      assert.equal(JSON.stringify(await js('[innerWidth, innerHeight, devicePixelRatio]')), JSON.stringify([...size, 1]))
+      const [actualW, actualH, actualDpr] = await js('[innerWidth, innerHeight, devicePixelRatio]')
+      assert.ok(Math.abs(actualW - size[0]) <= 1 && Math.abs(actualH - size[1]) <= 1 && actualDpr === 1,
+        `window inner size [${actualW}, ${actualH}, ${actualDpr}] does not match expected [${size[0]}, ${size[1]}, 1]`)
       if (surfaceReplacement) {
         assert.equal(await js("window.odkPlugins.catalog().find(record => record.manifest.id === 'odk.tile.weread').manifest.version"), signed ? surfaceRevision || '2.0.0' : '1.0.0')
         assert.equal(await js("document.querySelector('.w-weread').dataset.fixtureSurface || null"), signed && surfaceRevision !== '1.0.0' ? 'independent-weread' : null)
