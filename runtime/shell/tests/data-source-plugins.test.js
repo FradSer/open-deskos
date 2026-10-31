@@ -43,6 +43,25 @@ test('default Hydra uses the shared device facade even when old MQTT options rem
   await host.stop(); assert.equal(events.size, 0); assert.equal(handlers.has('odk-hydra-device'), false)
 })
 
+test('explicit source mqtt option selects the legacy MQTT constructor', () => {
+  const definition = createDataSourcePlugins().find(plugin => plugin.manifest.id === 'odk.source.hydra')
+  let created = false
+  const capability = {
+    create: () => { created = true; return { snapshot: () => ({ configured: true }), stop() {} } },
+    createDefault: () => assert.fail('createDefault should not be called when source is mqtt'),
+    options: { source: 'mqtt', url: 'mqtt://live.broker:1883' },
+  }
+  const handlers = new Map()
+  const context = {
+    capability: name => name === 'source.hydra' ? capability : { handle: (id, fn) => handlers.set(id, fn), removeHandler: id => handlers.delete(id) },
+    get: () => undefined,
+    onCleanup: () => {},
+  }
+  const plugin = definition.create(context)
+  assert.equal(created, true)
+  assert.equal(plugin.ports[DATA_PORTS.hydra].snapshot().configured, true)
+})
+
 test('explicit legacy Hydra capability does not request the new gateway dependency', () => {
   const definition = createDataSourcePlugins().find(plugin => plugin.manifest.id === 'odk.source.hydra')
   const options = { url: 'mqtt://legacy.fixture', topicPrefix: 'plants' }

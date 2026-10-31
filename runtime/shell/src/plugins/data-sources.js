@@ -83,7 +83,7 @@ function createDataSourcePlugins() {
     sourcePlugin({
       id: 'hydra', createReadings: createHydraReadings, health: getHydraHealth, name: 'Hydra plants', port: DATA_PORTS.hydra,
       optionalRequires: [DATA_PORTS.deviceGateway],
-      construct: (config, ctx) => config.createDefault
+      construct: (config, ctx) => (config.options?.source !== 'mqtt' && config.createDefault)
         ? config.createDefault({ ...config.options, deviceGateway: ctx.get(DATA_PORTS.deviceGateway) })
         : config.create(config.options),
       channels: {

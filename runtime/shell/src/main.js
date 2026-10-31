@@ -355,6 +355,7 @@ async function main() {
         controlPlanFile: smokeMode ? undefined : require('node:path').join(shellHost.stateDir, 'hydra-control-plan-sequences.json'),
         authorize: event => diagnosisFrames.has(event?.sender) && event.senderFrame === event.sender.mainFrame,
         // Legacy native replacements retain their explicit connector options.
+        source: process.env.ODK_HYDRA_SOURCE,
         url: process.env.ODK_HYDRA_MQTT_URL,
         topicPrefix: process.env.ODK_HYDRA_MQTT_TOPIC,
         onUpdate: () => servicePush(['odk.tile.hydra']),
