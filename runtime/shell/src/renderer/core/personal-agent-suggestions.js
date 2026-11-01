@@ -273,22 +273,6 @@
         if (panel) article.append(panel)
         return actions.children.length > 0
       }
-      const expandedDisclosures = new Set()
-      function disclosure(label, className, id = '') {
-        const details = document.createElement('details')
-        details.className = className
-        details.open = expandedDisclosures.has(id)
-        details.addEventListener('toggle', () => {
-          if (!id) return
-          if (details.open) expandedDisclosures.add(id); else expandedDisclosures.delete(id)
-          if (expandedDisclosures.size > 256) expandedDisclosures.delete(expandedDisclosures.values().next().value)
-        })
-        const summary = document.createElement('summary')
-        summary.textContent = label
-        if (id) { summary.dataset.proposalId = id; summary.dataset.proposalAction = 'disclosure' }
-        details.append(summary)
-        return details
-      }
       function renderProposals(status) {
         if (status.state === 'unavailable' || status.proposalCapabilities?.read === false) {
           proposalEpoch++
@@ -296,7 +280,6 @@
           visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear()
           suggestionCapabilities = { read: false, respond: false, acknowledge: false }
           proposalError = ''; proposalCommandError = ''; errorProposalId = ''; visibilityFailure = false; feedbackFocus = undefined
-          expandedDisclosures.clear()
           actionConfirmations.clear()
           for (const id of messages.keys()) removeEntry(id)
           return
@@ -330,7 +313,6 @@
         for (const id of messages.keys()) if (!visibleIds.has(id)) removeEntry(id)
         proposalCommandError = uncertainExecution ? uncertainActionWarning : ''
         const statusLabels = { pending: 'Suggested', ignored: 'Dismissed', expired: 'Expired', executing: 'In progress', completed: 'Completed', unknown: 'Outcome not confirmed' }
-        const feedbackLabels = { done: 'Marked done', snooze: 'Saved for later', useful: 'Marked useful', irrelevant: 'Marked not relevant', incorrect: 'Marked incorrect' }
         for (const p of visible) {
             const current = p.status === 'pending'
             let entry = messages.get(p.id)
@@ -402,32 +384,10 @@
             }
             if (current && executionAttempts.has(p.id)) {
               const pending = document.createElement('p')
-              pending.className = 'personal-agent-proposal-feedback'
+              pending.className = 'personal-agent-proposal-note'
               pending.setAttribute('role', 'status')
               pending.textContent = 'Operation submitted; waiting for its confirmed outcome. Do not repeat this action.'
               article.append(pending)
-            }
-            if (p.feedback && feedbackLabels[p.feedback]) {
-              const feedback = document.createElement('p')
-              feedback.className = 'personal-agent-proposal-feedback'
-              feedback.setAttribute('role', 'status')
-              feedback.textContent = feedbackLabels[p.feedback]
-              article.append(feedback)
-            }
-            const memoryStates = {
-              queued: 'Feedback saved. Updating related memory…',
-              running: 'Feedback saved. Updating related memory…',
-              applied: 'Feedback saved. Related memory updated.',
-              failed: 'Feedback saved. Memory update unavailable.',
-              unavailable: 'Feedback saved. Memory update unavailable.',
-              stale: 'Feedback saved. Memory update was skipped.',
-            }
-            if (p.feedbackLearning && Object.hasOwn(memoryStates, p.feedbackLearning.status)) {
-              const memory = document.createElement('p')
-              memory.className = 'personal-agent-proposal-memory personal-agent-proposal-feedback'
-              memory.setAttribute('role', 'status')
-              memory.textContent = memoryStates[p.feedbackLearning.status]
-              article.append(memory)
             }
             if (p.preview || p.ridePreview) structuredPreview(article, p, suggestionCapabilities.respond && typeof api.sendText === 'function')
             if (p.result) {
@@ -446,7 +406,7 @@
                 article.append(result)
               } else article.append(result)
             }
-            if ((current || p.status === 'completed') && suggestionCapabilities.respond) {
+            if (current && suggestionCapabilities.respond) {
               const actions = document.createElement('div')
               actions.className = 'personal-agent-proposal-actions'
               const response = (label, decision) => {
@@ -459,7 +419,7 @@
                 control.dataset.proposalId = p.id; control.dataset.proposalAction = decision
                 return control
               }
-              if (current && executableAction) {
+              if (executableAction) {
                 const showConfirmation = (confirmation, focus = false) => {
                   const isCurrent = () => !closed && surface.contains(actions) && proposals.contains(actions) && suggestionCapabilities.respond && actionConfirmations.get(p.id) === confirmation && !executionAttempts.has(p.id)
                   const confirm = button(p.confirmation, async () => {
@@ -500,24 +460,20 @@
                   later.disabled = accept.disabled
                   actions.append(accept, later)
                 }
+              } else {
+                const later = response('Later', 'snooze')
+                later.className = 'personal-agent-proposal-secondary'
+                later.disabled = executionAttempts.has(p.id)
+                actions.append(later)
               }
-              const feedback = disclosure('Feedback', 'personal-agent-proposal-feedback-options', `${p.id}:feedback`)
-              const choices = document.createElement('div')
-              choices.className = 'personal-agent-proposal-actions'
-              if (current && !p.action) choices.append(response('Done', 'done'), response('Later', 'snooze'))
-              choices.append(response('Useful', 'useful'), response('Not relevant', 'irrelevant'), response('Incorrect', 'incorrect'))
-              if (current) choices.append(response('Ignore', 'ignore'), response('Never suggest this category', 'mute'))
-              feedback.append(choices)
-              if (current) article.append(actions)
-              article.append(feedback)
+              article.append(actions)
             }
             proposals.append(article)
             if (current && !technicalAdvice) { entry.advice = advice; observedAdvice.set(advice, p); visibility?.observe(advice) }
         }
         if (focusId && focusAction) {
           let restored = false
-          for (const node of messages.get(focusId)?.body.querySelectorAll?.('button, summary') || []) if (node.dataset.proposalId === focusId && node.dataset.proposalAction === focusAction) {
-            const owner = node.closest('details'); if (owner && node.tagName !== 'SUMMARY') owner.open = true
+          for (const node of messages.get(focusId)?.body.querySelectorAll?.('button') || []) if (node.dataset.proposalId === focusId && node.dataset.proposalAction === focusAction) {
             node.focus({ preventScroll: true }); restored = true; break
           }
           if (!restored) focusInput()

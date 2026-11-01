@@ -11,7 +11,6 @@ Feature: Independent resident Personal Agent
     And no recommendation popup opens or takes focus
     And the draft, input mode, and selection remain unchanged
     And Sources and details, technical receipts, and Why are absent
-    And Feedback remains available for executable and read-only recommendations
 
   Scenario: Recommendation messages preserve conversation position
     Given the owner reads earlier conversation messages above the latest message
@@ -59,13 +58,23 @@ Feature: Independent resident Personal Agent
     Then its message appears without taking focus
     And only its visible advice can receive a presentation acknowledgement
 
-  Scenario: Feedback starts asynchronous memory refinement
-    Given a current recommendation has an available Feedback control
-    When the owner marks the recommendation useful, irrelevant, or incorrect
+  Scenario: Recommendation messages offer no rating controls
+    Given a current recommendation message is visible in the conversation
+    When the owner inspects its controls
+    Then it offers only its authorized action and Later
+    And no Useful, Not relevant, Incorrect, Ignore, Never suggest, or Done control appears
+    And a read-only recommendation offers only Later
+    And a completed recommendation offers no control
+    And no feedback label or learning status text appears in the message
+
+  Scenario: Conversational feedback still refines recommendation memory
+    Given the owner states an opinion about a displayed recommendation in a normal turn
+    When the resident records that response from the conversation
     Then the resident saves the feedback without waiting for Pi inference
     And a tool-free Pi job refines only related recommendation preference memory
     And future recommendations consume the saved preference memory
     And saved personal facts and action authority remain unchanged
+    And no rating control is required to produce that feedback
 
   Scenario: Technical historical advice stays private
     Given an earlier suggestion contains a technical hash
@@ -375,16 +384,14 @@ Feature: Independent resident Personal Agent
     And a restored connection or recovered resident failure permits another visibility acknowledgement
     And local focus and Shell navigation remain available
 
-  Scenario: Feedback describes the outcome of one suggestion
+  Scenario: An earlier actionless suggestion offers no rating control
     Given an earlier actionless suggestion contains concise advice and stored next-step text
-    When the owner opens Feedback and selects Done, Later, Useful, Not relevant, or Incorrect
-    Then the response identifies only that suggestion and decision
-    And Done does not execute the suggested action
-    And the main content states that no executable action is available
+    When its message renders
+    Then the main content states that no executable action is available
     And the resident retains the earlier next-step text
     And no reason or Why now explanation appears
-    And previous suggestions use a keyboard-accessible disclosure
-    And controls retain 44-pixel touch targets across themes and compact sizes
+    And no Done, Useful, Not relevant, or Incorrect control appears
+    And Later retains a 44-pixel touch target across themes and compact sizes
 
   Scenario: Android reads suggestions without acquiring response authority
     Given the desk publishes suggestions through the authenticated Personal Agent link
@@ -460,13 +467,12 @@ Feature: Independent resident Personal Agent
     And its source evidence contains complete SHA256 values
     When the recommendation appears in the conversation
     Then advice has visual priority over metadata
-    And the concrete execution button precedes the Feedback control
+    And the concrete execution button precedes the Later control
     And a current executable card does not repeat its button label as a separate next step
     And read-only and historical cards retain readable next-step context
     And execution and exact confirmation retain the primary action style
     And confirmation receives focus and Cancel returns focus to the execution button
     And secondary actions remain quieter without losing their touch targets
-    And Feedback is closed by default
     And no Why now explanation appears
     And source values remain private in resident state
 
@@ -566,7 +572,7 @@ Feature: Independent resident Personal Agent
 
   Scenario: A real ride recommendation records usefulness feedback before its next step
     Given the owner can read a naturally generated ride recommendation
-    When the owner opens Feedback and activates Useful
+    When the owner states in a normal turn that the recommendation is useful
     Then the authenticated channel records useful feedback for that same recommendation
     And the recommendation stays pending for its read-only next step
     And the persisted checkpoint retains the feedback after a fresh quote
@@ -588,9 +594,9 @@ Feature: Independent resident Personal Agent
     And duplicate clicks, wrong routes, and missing or disabled actions cannot send another request
     And Useful feedback and independent MCP receipt checks remain separate gates
 
-  Scenario: Completed recommendations retain quality feedback in the conversation
+  Scenario: Completed recommendations keep their result without rating controls
     Given a completed recommendation is in the conversation
-    When the owner opens its Feedback control
-    Then Useful, Not relevant, and Incorrect are available
-    And execution, confirmation, postponement, and category controls are absent
-    And submitting feedback preserves the draft and the completed result
+    When its message renders
+    Then the recorded result stays visible
+    And execution, confirmation, postponement, rating, and category controls are absent
+    And the draft and the completed result remain unchanged

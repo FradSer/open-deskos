@@ -85,11 +85,11 @@ test('page replacement retains uncertain execution reservations and releases old
   const f = fixture(), p = { ...proposal(), nextStep: 'Save the watering note' }
   f.window.odkPersonalAgent.proposalCommand = async command => { f.commands.push(command); throw Error('Receipt lost') }
   f.render({ state: 'idle', proposals: [p] })
-  const feedback = flatten(f.content).find(n => n.textContent === 'Useful')
+  const later = flatten(f.content).find(n => n.dataset.proposalAction === 'snooze')
   await flatten(f.content).find(n => n.dataset.proposalAction === 'execute').click()
   await flatten(f.content).find(n => n.dataset.proposalAction === 'confirm').click()
   await f.controller.destroy()
-  await feedback.click()
+  await later.click()
   const replacement = f.window.odkPersonalAgentSuggestions.mount(f.content)
   replacement.update({ state: 'idle', proposals: [p] })
   assert.equal(flatten(f.content).find(n => n.dataset.proposalAction === 'execute').disabled, true)
@@ -130,23 +130,18 @@ test('an unavailable command bridge preserves readable advice without response c
   assert.match(f.content.querySelector('.personal-agent-proposal-capability').textContent, /read-only/)
   await replacement.destroy()
 })
-for (const [status, copy] of [
-  ['queued', 'Feedback saved. Updating related memory…'],
-  ['running', 'Feedback saved. Updating related memory…'],
-  ['applied', 'Feedback saved. Related memory updated.'],
-  ['failed', 'Feedback saved. Memory update unavailable.'],
-  ['unavailable', 'Feedback saved. Memory update unavailable.'],
-  ['stale', 'Feedback saved. Memory update was skipped.'],
-]) {
-  test(`feedback memory ${status} reports only its actual state`, () => {
-    const { projectPersonalAgentFrame } = require('../src/personal-agent-frame')
+test('resident feedback learning stays on the wire without adding message controls', () => {
+  const { projectPersonalAgentFrame } = require('../src/personal-agent-frame')
+  for (const status of ['queued', 'running', 'applied', 'failed', 'unavailable', 'stale']) {
     const p = { ...proposal(), feedback: 'useful', feedbackLearning: { revision: 1, decision: 'useful', status } }
     const f = fixture()
     f.render({ state: 'idle', proposals: [p] })
-    assert.equal(f.content.querySelector('.personal-agent-proposal-memory').textContent, copy)
+    assert.equal(f.content.querySelector('.personal-agent-proposal-memory'), null, 'learning status is not a message control')
+    assert.equal(flatten(f.content).some(node => /Feedback saved\./.test(node.textContent || '')), false)
     assert.equal(projectPersonalAgentFrame({ state: 'idle', proposals: [p] }).proposals[0].feedbackLearning.status, status)
-  })
-}
+  }
+})
+
 test('a desk-projected next step stays readable on the read-only Android surface', () => {
   const { projectPersonalAgentFrame } = require('../src/personal-agent-frame')
   const p = { ...proposal(), advice: 'Keep a soil inspection note.', nextStep: 'Save a soil inspection note' }
@@ -199,7 +194,7 @@ test('a withdrawn provider command cannot overwrite replacement suggestion feedb
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
   let reject
   f.window.odkPersonalAgent.proposalCommand = () => new Promise((_resolve, fail) => { reject = fail })
-  const pending = flatten(f.content).find(node => node.tagName === 'BUTTON' && node.textContent === 'Done').click()
+  const pending = flatten(f.content).find(node => node.tagName === 'BUTTON' && node.textContent === 'Later').click()
   f.render({ state: 'unavailable' })
   f.render({ state: 'idle', proposals: [{ ...p, id: '11111111-1111-4111-8111-111111111111', advice: 'Current provider suggestion' }], proposalPopup: true })
   reject(Error('Withdrawn provider failure'))
@@ -373,7 +368,7 @@ test('unoffered and snoozed suggestions stay out of the conversation', () => {
   assert.equal(f.commands.length, 0)
 })
 
-test('earlier actionless advice preserves feedback without provenance or implying an executable step', async () => {
+test('earlier actionless advice offers Later and no rating control', async () => {
   const f = fixture(), p = { ...proposal(), action: null, nextStep: 'Touch the soil before deciding whether to water.', reason: 'Observed soil is below the selected threshold.' }
   f.render({ state: 'idle', proposals: [p, { ...p, id: 'd311a280-c0b9-4411-96cd-4e1e92385349', status: 'completed' }], proposalPopup: true })
   assert.ok(!flatten(f.content).some(n => n.className === 'personal-agent-proposal-reason' || n.textContent.includes(p.reason)))
@@ -381,14 +376,12 @@ test('earlier actionless advice preserves feedback without provenance or implyin
   assert.ok(flatten(f.content).some(n => n.textContent.includes('No executable action')))
   const article = f.content.querySelector('.personal-agent-proposal')
   assert.equal(article.querySelector('.personal-agent-proposal-sources'), null)
-  assert.ok(flatten(article).some(n => n.textContent === 'Feedback'))
   assert.equal(flatten(f.content).filter(n => n.className?.includes('agent-message-assistant')).length, 2)
-  for (const [label, decision] of [['Done', 'done'], ['Later', 'snooze'], ['Useful', 'useful'], ['Not relevant', 'irrelevant'], ['Incorrect', 'incorrect']]) {
-    const button = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === label)
-    assert.ok(button, label)
-    await button.click()
-    assert.equal(f.commands.at(-1).type, 'proposal_respond'); assert.equal(f.commands.at(-1).id, p.id); assert.equal(f.commands.at(-1).decision, decision)
-  }
+  const labels = () => flatten(f.content).filter(n => n.tagName === 'BUTTON').map(n => n.textContent)
+  for (const label of ['Feedback', 'Done', 'Useful', 'Not relevant', 'Incorrect', 'Ignore', 'Never suggest this category']) assert.ok(!labels().includes(label), label)
+  assert.deepEqual(labels(), ['Later'], 'the only control on an actionless pending card is Later')
+  await flatten(f.content).find(n => n.textContent === 'Later').click()
+  assert.equal(f.commands.at(-1).type, 'proposal_respond'); assert.equal(f.commands.at(-1).id, p.id); assert.equal(f.commands.at(-1).decision, 'snooze')
 })
 
 test('read-only suggestion capabilities preserve advice and hide every response control', async () => {
@@ -397,7 +390,7 @@ test('read-only suggestion capabilities preserve advice and hide every response 
   for (const node of flatten(f.content).filter(n => n.className === 'personal-agent-proposal-advice')) f.visible(node)
   assert.equal(f.commands.length, 0)
   const labels = flatten(f.content).filter(n => n.tagName === 'BUTTON').map(n => n.textContent)
-  for (const label of ['Accept', 'Run action', p.nextStep, 'Done', 'Later', 'Useful', 'Not relevant', 'Incorrect', 'Ignore', 'Never suggest this category']) assert.ok(!labels.includes(label), label)
+  for (const label of ['Accept', 'Run action', p.nextStep, 'Done', 'Later', 'Useful', 'Not relevant', 'Incorrect', 'Ignore', 'Never suggest this category', 'Feedback']) assert.ok(!labels.includes(label), label)
   assert.ok(flatten(f.content).some(n => n.textContent.includes('read-only on this device')))
   assert.equal(flatten(f.content).find(n => n.className === 'personal-agent-proposal-next-step').textContent, p.nextStep)
 })
@@ -422,13 +415,12 @@ test('visibility acknowledgement retries are bounded and recover after a lost co
   assert.equal(f.commands.length, 4, 'A resident-confirmed visible state never resends')
 })
 
-test('legacy executable suggestions retain confirmation without a misleading Done response', () => {
+test('a recommendation offers its action and Later without rating controls', () => {
   const f = fixture(); f.render({ state: 'idle', proposals: [proposal()], proposalPopup: true })
   const labels = flatten(f.content).filter(n => n.tagName === 'BUTTON').map(n => n.textContent)
-  assert.ok(labels.includes('Run action')); assert.ok(labels.includes('Ignore')); assert.ok(labels.includes('Never suggest this category'))
-  assert.ok(labels.includes('Later'))
-  assert.ok(!labels.includes('Done'))
-  for (const label of ['Useful', 'Not relevant', 'Incorrect']) assert.ok(labels.includes(label), label)
+  assert.deepEqual(labels, ['Run action', 'Later'])
+  for (const label of ['Feedback', 'Done', 'Useful', 'Not relevant', 'Incorrect', 'Ignore', 'Never suggest this category']) assert.ok(!labels.includes(label), label)
+  assert.equal(f.content.querySelector('.personal-agent-proposal-feedback-options'), null, 'no rating disclosure exists')
 })
 
 
@@ -554,7 +546,7 @@ test('sources, action parameters and technical next steps never appear in compos
   assert.equal(f.content.querySelector('.personal-agent-proposal-sources'), null)
   assert.ok(!flatten(f.content).some(n => /Sources|details|Private reasoning/.test(n.textContent) || n.textContent.includes(hash)))
   assert.equal(f.content.querySelector('.personal-agent-proposal-advice').textContent, p.advice)
-  assert.ok(flatten(f.content).some(n => n.textContent === 'Feedback'))
+  assert.equal(flatten(f.content).some(n => n.textContent === 'Feedback'), false)
 })
 
 for (const nextStep of ['', ' '.repeat(240) + 'Check soil.', 'Check\u0000soil.']) {
@@ -896,35 +888,18 @@ test('live acceptance entry follows the actual inline route and quote controller
   assert.equal(f.commands.filter(command => command.type === 'proposal_respond').length, 0)
 })
 
-test('completed recommendation messages retain quality feedback without reviving operation controls', async () => {
+test('a completed recommendation keeps its result without reviving operation or rating controls', async () => {
   const f = fixture(), p = { ...proposal(), status: 'completed', result: 'Review completed', completedAt: new Date().toISOString() }
-  const createElement = f.document.createElement
-  f.document.createElement = tag => {
-    const node = createElement(tag)
-    node.querySelectorAll = selector => flatten(node).slice(1).filter(child => selector.split(',').some(name => child.tagName === name.trim().toUpperCase()))
-    node.closest = selector => { for (let parent = node; parent; parent = parent.parent) if (parent.tagName === selector.toUpperCase()) return parent; return null }
-    node.focus = () => { f.document.activeElement = node }
-    return node
-  }
   f.local.value = 'Keep this draft'; f.local.selectionStart = 2; f.local.selectionEnd = 5
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
   const message = f.content.querySelector('.agent-message')
-  const feedback = message.querySelector('.personal-agent-proposal-feedback-options')
-  assert.ok(feedback, 'Completed actions retain their Feedback disclosure')
-  const buttons = flatten(message).filter(n => n.tagName === 'BUTTON')
-  assert.deepEqual(buttons.map(n => n.textContent), ['Useful', 'Not relevant', 'Incorrect'])
-  feedback.open = true; feedback.events.toggle(); buttons[0].focus(); await buttons[0].click()
-  assert.equal(f.commands.length, 1); assert.equal(f.commands[0].decision, 'useful'); assert.equal(f.commands[0].id, p.id)
+  assert.ok(message, 'the completed result stays in the conversation')
+  assert.ok(flatten(message).some(n => n.textContent === 'Review completed'))
+  assert.deepEqual(flatten(message).filter(n => n.tagName === 'BUTTON').map(n => n.textContent), [], 'no control survives completion')
   f.render({ state: 'idle', proposals: [{ ...p, feedback: 'useful', feedbackLearning: { revision: 1, decision: 'useful', status: 'applied' } }] })
-  assert.ok(flatten(f.content).some(n => n.textContent === 'Feedback saved. Related memory updated.'))
-  assert.equal(f.content.querySelector('.agent-message'), message, 'feedback updates retain the same message')
-  assert.equal(f.content.querySelector('.personal-agent-proposal-feedback-options').open, true)
-  assert.equal(f.document.activeElement.dataset.proposalId, p.id); assert.equal(f.document.activeElement.dataset.proposalAction, 'useful')
-  const restoredUseful = flatten(message).find(node => node.dataset.proposalAction === 'useful')
-  assert.equal(f.document.activeElement, restoredUseful); assert.notEqual(f.document.activeElement, buttons[0])
-  assert.ok(!flatten(f.content).some(n => ['execute', 'confirm', 'done', 'snooze', 'ignore', 'mute'].includes(n.dataset.proposalAction)))
-  assert.equal(f.local.value, 'Keep this draft'); assert.equal(f.local.selectionStart, 2); assert.equal(f.local.selectionEnd, 5); assert.equal(f.surface.hidden, true)
-  f.render({ state: 'idle', proposalCapabilities: { read: true, respond: false, acknowledge: true }, proposals: [p] })
-  assert.ok(!flatten(f.content).some(n => n.textContent === 'Feedback'))
+  assert.equal(f.content.querySelector('.agent-message') === message || flatten(f.content).some(n => n.textContent === 'Review completed'), true)
+  assert.equal(f.commands.length, 0)
+  assert.ok(!flatten(f.content).some(n => ['execute', 'confirm', 'done', 'snooze', 'ignore', 'mute', 'useful', 'irrelevant', 'incorrect'].includes(n.dataset.proposalAction)))
+  assert.equal(f.local.value, 'Keep this draft'); assert.equal(f.local.selectionStart, 2); assert.equal(f.local.selectionEnd, 5)
   await f.controller.destroy()
 })

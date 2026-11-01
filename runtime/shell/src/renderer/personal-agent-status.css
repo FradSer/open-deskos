@@ -291,11 +291,8 @@
 .personal-agent-proposal-next-step { font-size: 15px; line-height: 1.4; color: var(--odk-primary); margin: 0; }
 .personal-agent-proposals .personal-agent-proposal-primary { min-height: 48px; padding-inline: var(--odk-space-3); font-size: 16px; background: var(--odk-button); border-color: var(--odk-stroke-focus); }
 .personal-agent-proposals .personal-agent-proposal-secondary { background: transparent; border-color: transparent; color: var(--odk-secondary-strong); }
-.personal-agent-proposal-feedback, .personal-agent-proposal-capability { color: var(--odk-secondary-strong); font-size: 13px; margin: 0; }
+.personal-agent-proposal-capability { color: var(--odk-secondary-strong); font-size: 13px; margin: 0; }
 .personal-agent-proposal-result { margin: 0; font-size: 14px; line-height: 1.5; color: var(--odk-primary); padding: 8px 12px; background: color-mix(in srgb, var(--odk-elevated) 50%, transparent); border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-card); }
-.personal-agent-proposals details { min-width: 0; }
-.personal-agent-proposals summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--odk-secondary-strong); font-size: 13px; text-decoration: underline; text-underline-offset: 0.2em; }
-.personal-agent-proposals summary:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
-.personal-agent-proposals details[open] > summary { margin-block-end: var(--odk-space-2); }
+.personal-agent-proposal-note { margin: 0; font-size: 13px; line-height: 1.4; color: var(--odk-secondary-strong); }
 .personal-agent-proposal-error { margin: 0; font-size: 14px; line-height: 1.5; color: var(--odk-accent-red); }
 .agent-recommendation .personal-agent-proposals button { width: auto; height: auto; min-width: 44px; padding: var(--odk-space-2) var(--odk-space-3); }

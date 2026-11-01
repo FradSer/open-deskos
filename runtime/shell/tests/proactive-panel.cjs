@@ -188,12 +188,14 @@ app.whenReady().then(async () => {
       await send({ state: 'idle', proposals: [actionCard], proposalPopup: true })
       await showComposer()
       const layout = await run(`(() => {
-        const card = document.querySelector('.personal-agent-proposal'), advice = card.querySelector('.personal-agent-proposal-advice'), primary = card.querySelector('.personal-agent-proposal-primary'), actions = card.querySelector('.personal-agent-proposal-actions'), feedback = card.querySelector('.personal-agent-proposal-feedback-options'), state = card.querySelector('.personal-agent-proposal-state');
-        return { advice: advice.textContent, action: primary.textContent, duplicateNext: !!card.querySelector('.personal-agent-proposal-next-step'), secondary: actions.querySelector('.personal-agent-proposal-secondary')?.textContent, reason: !!card.querySelector('.personal-agent-proposal-reason') || card.textContent.includes('Legacy reason must not render.'), sourcesAbsent: !card.querySelector('.personal-agent-proposal-sources'), feedbackClosed: !feedback.open, hashAbsent: !card.textContent.includes('a'.repeat(64)), ordered: advice.getBoundingClientRect().bottom <= actions.getBoundingClientRect().top && actions.getBoundingClientRect().bottom <= feedback.getBoundingClientRect().top, adviceSize: parseFloat(getComputedStyle(advice).fontSize), stateSize: parseFloat(getComputedStyle(state).fontSize), actionSize: parseFloat(getComputedStyle(primary).fontSize), primaryHeight: primary.getBoundingClientRect().height, feedbackTarget: feedback.querySelector('summary').getBoundingClientRect().height >= 44, inline: !!card.closest('.agent-conversation .agent-message-assistant .agent-message-bubble') && !card.closest('.agent-composer'), popupHidden: document.getElementById('personal-agent-status').hidden, overflow: card.scrollWidth > card.clientWidth + 1, controls: [...actions.querySelectorAll('button')].every(b => b.getBoundingClientRect().height >= 44) }
+        const card = document.querySelector('.personal-agent-proposal'), advice = card.querySelector('.personal-agent-proposal-advice'), primary = card.querySelector('.personal-agent-proposal-primary'), actions = card.querySelector('.personal-agent-proposal-actions'), state = card.querySelector('.personal-agent-proposal-state');
+        return { advice: advice.textContent, action: primary.textContent, duplicateNext: !!card.querySelector('.personal-agent-proposal-next-step'), secondary: actions.querySelector('.personal-agent-proposal-secondary')?.textContent, reason: !!card.querySelector('.personal-agent-proposal-reason') || card.textContent.includes('Legacy reason must not render.'), sourcesAbsent: !card.querySelector('.personal-agent-proposal-sources'), hashAbsent: !card.textContent.includes('a'.repeat(64)), ordered: advice.getBoundingClientRect().bottom <= actions.getBoundingClientRect().top, adviceSize: parseFloat(getComputedStyle(advice).fontSize), stateSize: parseFloat(getComputedStyle(state).fontSize), actionSize: parseFloat(getComputedStyle(primary).fontSize), primaryHeight: primary.getBoundingClientRect().height, inline: !!card.closest('.agent-conversation .agent-message-assistant .agent-message-bubble') && !card.closest('.agent-composer'), popupHidden: document.getElementById('personal-agent-status').hidden, overflow: card.scrollWidth > card.clientWidth + 1, controls: [...actions.querySelectorAll('button')].every(b => b.getBoundingClientRect().height >= 44),
+          ratingControls: [...card.querySelectorAll('button')].filter(b => ['Feedback','Done','Useful','Not relevant','Incorrect','Ignore','Never suggest this category'].includes(b.textContent)).length, disclosure: !!card.querySelector('details') }
       })()`)
       assert.equal(layout.advice, actionCard.advice); assert.equal(layout.action, actionCard.nextStep)
       assert.equal(layout.duplicateNext, false); assert.equal(layout.secondary, 'Later')
-      for (const key of ['sourcesAbsent', 'feedbackClosed', 'hashAbsent', 'ordered', 'controls', 'feedbackTarget', 'inline', 'popupHidden']) assert.equal(layout[key], true, JSON.stringify({ theme, width, height, key, ...layout }))
+      assert.equal(layout.ratingControls, 0, 'no rating control renders'); assert.equal(layout.disclosure, false, 'no rating disclosure renders')
+      for (const key of ['sourcesAbsent', 'hashAbsent', 'ordered', 'controls', 'inline', 'popupHidden']) assert.equal(layout[key], true, JSON.stringify({ theme, width, height, key, ...layout }))
       assert.equal(layout.reason, false); assert.equal(layout.overflow, false)
       assert.ok(layout.adviceSize >= 18); assert.ok(layout.adviceSize > layout.stateSize); assert.ok(layout.adviceSize >= layout.actionSize); assert.ok(layout.actionSize >= 16); assert.ok(layout.primaryHeight >= 48)
       await run(`document.querySelector('.personal-agent-proposal-primary').focus()`)
@@ -258,28 +260,27 @@ app.whenReady().then(async () => {
   await run(`document.querySelectorAll('.personal-agent-proposal-advice')[7].scrollIntoView({block:'center'})`)
   await delay()
   assert.ok(seen().includes(queued.at(-1).id), 'Scrolling the actual advice into view acknowledges that suggestion')
-  const expectedFeedback = [['Done', 'done'], ['Later', 'snooze'], ['Useful', 'useful'], ['Not relevant', 'irrelevant'], ['Incorrect', 'incorrect']]
-  for (const [label, decision] of expectedFeedback) {
-    const next = { ...p, id: `d311a280-c0b9-4411-96cd-4e1e92385${String(360 + expectedFeedback.findIndex(row => row[0] === label)).padStart(3, '0')}`, action: null, confirmation: '' }
-    await send({ state: 'idle', proposals: [next], proposalPopup: true })
-    await run(`(() => { const details = document.querySelector('.personal-agent-proposal-feedback-options'); details.open = true; const control = [...document.querySelectorAll('.personal-agent-proposal button')].find(b => b.textContent === ${JSON.stringify(label)}); control.scrollIntoView({block:'center'}); control.focus(); return control.getBoundingClientRect().height })()`)
-    // Keyboard activation uses the same candidate-specific command as touch/click.
-    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
-    await delay()
-    assert.equal(commands.at(-1).decision, decision); assert.equal(commands.at(-1).id, next.id)
-    const updated = { ...next, feedback: decision, status: ['done'].includes(decision) ? 'completed' : ['irrelevant', 'incorrect'].includes(decision) ? 'ignored' : 'pending', ...(decision === 'snooze' ? { snoozedUntil: Date.now() + 60000 } : {}) }
-    await send({ state: 'idle', proposals: [updated], proposalPopup: false })
-    assert.equal(await run(`document.activeElement === document.querySelector('.agent-composer textarea') || document.activeElement.textContent === 'Useful'`), true, 'Feedback updates retain their control or return focus to the draft')
-    assert.equal(await run(`document.querySelector('.agent-composer textarea').value`), 'Keep this unfinished draft.')
-  }
+  // Rating controls are gone; a pending read-only card keeps Later.
+  const ratingLabels = await run(`[...document.querySelectorAll('.personal-agent-proposals button')].map(b => b.textContent).filter(t => ['Feedback','Done','Useful','Not relevant','Incorrect','Ignore','Never suggest this category'].includes(t))`)
+  assert.deepEqual(ratingLabels, [], 'no rating control exists anywhere in the panel')
+  assert.equal(await run(`!!document.querySelector('.personal-agent-proposals details')`), false, 'no rating disclosure exists')
+  const laterCard = { ...p, id: 'd311a280-c0b9-4411-96cd-4e1e92385360', action: null, confirmation: '' }
+  await send({ state: 'idle', proposals: [laterCard], proposalPopup: true })
+  await run(`(() => { const control = [...document.querySelectorAll('.personal-agent-proposal button')].find(b => b.textContent === 'Later'); control.scrollIntoView({block:'center'}); control.focus(); return control.getBoundingClientRect().height })()`)
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
+  await delay()
+  assert.equal(commands.at(-1).decision, 'snooze'); assert.equal(commands.at(-1).id, laterCard.id)
+  await send({ state: 'idle', proposals: [{ ...laterCard, snoozedUntil: Date.now() + 60000 }], proposalPopup: false })
+  await send({ state: 'idle', proposals: [laterCard], proposalPopup: true })
+  assert.equal(await run(`document.querySelector('.agent-composer textarea').value`), 'Keep this unfinished draft.')
   const touched = { ...p, id: 'f311a280-c0b9-4411-96cd-4e1e92385349', action: null, confirmation: '' }
   await send({ state: 'idle', proposals: [touched], proposalPopup: true })
-  const touch = await run(`(() => { document.querySelector('.personal-agent-proposal-feedback-options').open = true; const node = [...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === 'Done'); node.scrollIntoView({block:'center'}); const r = node.getBoundingClientRect(); return { x: r.x+r.width/2, y: r.y+r.height/2 } })()`)
+  const touch = await run(`(() => { const node = [...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === 'Later'); node.scrollIntoView({block:'center'}); const r = node.getBoundingClientRect(); return { x: r.x+r.width/2, y: r.y+r.height/2 } })()`)
   await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: true })
   await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...touch, id: 1 }] })
   await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
   await delay()
-  assert.equal(commands.at(-1).decision, 'done'); assert.equal(commands.at(-1).id, touched.id)
+  assert.equal(commands.at(-1).decision, 'snooze'); assert.equal(commands.at(-1).id, touched.id)
   await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: false })
   const beforeReadOnly = commands.length, beforeReadOnlyTurns = ownerTurns.length
   await send({ state: 'idle', proposals: [ride], proposalPopup: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
@@ -295,12 +296,8 @@ app.whenReady().then(async () => {
   await send({ state: 'idle', proposals: [{ ...ride, id: '11111111-1111-4111-8111-111111111111' }], proposalPopup: true, proposalRecovery: false, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
   assert.equal(await run(`!!document.querySelector('.agent-conversation .agent-message-assistant .personal-agent-proposal') && document.getElementById('personal-agent-status').hidden`), true, 'A new read-only recommendation stays in the conversation')
   assert.equal(commands.length, beforeReadOnly, 'Read-only recovery grants no acknowledgement or response authority')
-  const disclosureResponses = commands.filter(c => c.type === 'proposal_respond').length
   await send({ state: 'idle', proposals: [{ ...p, id: '11111111-1111-4111-8111-111111111112', action: null, confirmation: '' }], proposalCapabilities: { read: true, respond: true, acknowledge: true } })
-  await run(`document.querySelector('.personal-agent-proposal-feedback-options summary').focus()`)
-  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
-  await delay(); assert.equal(await run(`document.querySelector('.personal-agent-proposal-feedback-options').open`), true)
-  assert.equal(commands.filter(c => c.type === 'proposal_respond').length, disclosureResponses, 'Opening Feedback does not submit a decision')
+  assert.equal(await run(`!!document.querySelector('.personal-agent-proposal-feedback-options, .personal-agent-proposals details')`), false, 'a read-only card exposes no rating disclosure')
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     await run(`odkTheme.set(${JSON.stringify(theme)})`)
     for (const revoked of [{ state: 'unavailable' }, { state: 'idle', proposalCapabilities: { read: false, respond: false, acknowledge: false } }]) {
@@ -329,18 +326,18 @@ app.whenReady().then(async () => {
   await showComposer()
   const noticeHit = await run(`(() => {
     const notice = document.getElementById('user-app-desktop-notice'), desk = document.getElementById('desk-content'), agent = document.getElementById('personal-agent')
-    const input = document.querySelector('.agent-composer textarea'), feedback = document.querySelector('.personal-agent-proposal-feedback-options summary')
+    const input = document.querySelector('.agent-composer textarea'), action = document.querySelector('.personal-agent-proposal-primary')
     const point = node => { const r = node.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 } }
     const hit = node => { const p = point(node); return node.contains(document.elementFromPoint(p.x, p.y)) }
     const n = notice.getBoundingClientRect(), d = desk.getBoundingClientRect(), a = agent.getBoundingClientRect()
-    return { input: point(input), feedback: point(feedback), inputHit: hit(input), feedbackHit: hit(feedback), draft: input.value,
+    return { input: point(input), action: point(action), inputHit: hit(input), actionHit: hit(action), draft: input.value,
       noticeVisible: notice.checkVisibility(), deskParent: notice.parentElement === desk,
       contained: n.left >= d.left && n.right <= d.right && n.top >= d.top && n.bottom <= d.bottom,
       overlapsAgent: Math.min(n.right, a.right) > Math.max(n.left, a.left) && Math.min(n.bottom, a.bottom) > Math.max(n.top, a.top) }
   })()`)
   assert.equal(noticeHit.noticeVisible, true, 'The catalog failure remains visible during the hit test')
   assert.equal(noticeHit.inputHit, true, JSON.stringify(noticeHit))
-  assert.equal(noticeHit.feedbackHit, true, JSON.stringify(noticeHit))
+  assert.equal(noticeHit.actionHit, true, JSON.stringify(noticeHit))
   assert.equal(noticeHit.deskParent, true); assert.equal(noticeHit.contained, true); assert.equal(noticeHit.overlapsAgent, false)
   const noticeResponses = commands.filter(command => command.type === 'proposal_respond').length, noticeTurns = ownerTurns.length
   win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...noticeHit.input })
@@ -348,13 +345,12 @@ app.whenReady().then(async () => {
   await delay()
   assert.equal(await run(`document.activeElement === document.querySelector('.agent-composer textarea')`), true)
   assert.equal(await run(`document.querySelector('.agent-composer textarea').value`), noticeHit.draft)
-  win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...noticeHit.feedback })
-  win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...noticeHit.feedback })
+  win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...noticeHit.action })
+  win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...noticeHit.action })
   await delay()
-  assert.equal(await run(`document.querySelector('.personal-agent-proposal-feedback-options').open`), true)
-  assert.equal(commands.filter(command => command.type === 'proposal_respond').length, noticeResponses)
-  assert.equal(ownerTurns.length, noticeTurns, 'Opening Feedback cannot execute an action or owner request')
-  await run(`document.querySelector('.personal-agent-proposal-feedback-options').open = false`)
+  assert.equal(await run(`!!document.querySelector('[data-proposal-action="confirm"]')`), true, 'the pointer reaches the primary action through the notice')
+  assert.equal(commands.filter(command => command.type === 'proposal_respond').length, noticeResponses, 'a move to confirmation submits nothing yet')
+  assert.equal(ownerTurns.length, noticeTurns, 'A notice cannot execute an action or owner request')
   await viewport(480, 854)
   await showComposer()
   const { capturePaintedPage } = require('./helpers/native-page-capture')
@@ -377,7 +373,7 @@ app.whenReady().then(async () => {
   await send({ state: 'idle', proposals: [voiceFocus] })
   const beforeVoiceResponses = commands.filter(command => command.type === 'proposal_respond').length, beforeVoiceTurns = ownerTurns.length
   await send({ state: 'recording', proposals: [voiceFocus] })
-  await run(`(() => { const summary = document.querySelector('.personal-agent-proposal-feedback-options summary'); summary.scrollIntoView({block:'center'}); summary.focus(); window.__voiceProposalFocus = summary })()`)
+  await run(`(() => { const control = document.querySelector('[data-proposal-action="execute"]'); control.scrollIntoView({block:'center'}); control.focus(); window.__voiceProposalFocus = control })()`)
   assert.equal(await run(`document.activeElement === window.__voiceProposalFocus && window.__voiceProposalFocus.checkVisibility()`), true)
   await send({ state: 'idle', proposals: [voiceFocus] })
   assert.equal(await run(`document.activeElement === window.__voiceProposalFocus && document.activeElement !== document.querySelector('.agent-composer textarea')`), true, 'Voice completion must retain recommendation focus instead of moving it to the input')
