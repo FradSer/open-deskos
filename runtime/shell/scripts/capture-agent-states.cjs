@@ -11,7 +11,9 @@ const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-modes-'))
 app.setPath('userData', profile)
 app.on('will-quit', () => { try { fs.rmSync(profile, { recursive: true, force: true }) } catch {} })
 
-const outDir = path.resolve(__dirname, '../../../screenshots')
+// Evidence is disposable. Write to --out <dir>, or a temp directory by default.
+const outIndex = process.argv.indexOf('--out')
+const outDir = outIndex > -1 ? path.resolve(process.argv[outIndex + 1]) : fs.mkdtempSync(path.join(os.tmpdir(), 'odk-agent-states-'))
 fs.mkdirSync(outDir, { recursive: true })
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -165,9 +167,8 @@ app.whenReady().then(async () => {
 
   // M6 completed + feedback
   await send({ state: 'idle', proposals: [completed], proposalCapabilities: { read: true, respond: true, acknowledge: true } })
-  await run(`(() => { const d = document.querySelector('.personal-agent-proposal-feedback-options'); if (d) d.open = true })()`)
   await delay(120)
-  results.push({ mode: 'M6', file: 'mode-6-completed-feedback.png', png: await shot('mode-6-completed-feedback.png') })
+  results.push({ mode: 'M6', file: 'mode-6-completed.png', png: await shot('mode-6-completed.png') })
 
   // M7 read-only actionless
   await send({ state: 'idle', proposals: [readOnly], proposalCapabilities: { read: true, respond: true, acknowledge: true } })
@@ -200,7 +201,7 @@ app.whenReady().then(async () => {
   const cells = [
     ['M1 语音输入态', results[0]], ['M2 键盘草稿态', results[1]],
     ['M3 异常推荐（warn 色调）', results[2]], ['M4 原地二次确认', results[3]],
-    ['M5 执行中防重放', results[4]], ['M6 已完成 + 反馈', results[5]],
+    ['M5 执行中防重放', results[4]], ['M6 已完成（无评分控件）', results[5]],
     ['M7 只读建议（无动作）', results[6]], ['M8 正向读数（good 色调）', results[7]],
     ['M9 Pixel 主题', results[8]], ['M10 Border Beam 主题', results[9]],
     ['M11 Liquid Glass 主题', results[10]], ['M12 320px 窄屏 + 悬浮避让', results[11]]
@@ -227,6 +228,7 @@ app.whenReady().then(async () => {
   await delay(500)
   fs.writeFileSync(path.join(outDir, 'mode-matrix-all.png'), (await capturePaintedPage(winGrid)).toPNG())
   console.log('CAPTURED mode-matrix-all.png')
+  console.log('OUT_DIR ' + outDir)
 
   win.destroy(); winGrid.destroy(); app.exit(0)
 }).catch(error => { console.error(error); app.exit(1) })

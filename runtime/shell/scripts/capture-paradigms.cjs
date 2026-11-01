@@ -12,7 +12,9 @@ app.disableHardwareAcceleration()
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-paradigms-'))
 app.setPath('userData', profile)
 app.on('will-quit', () => { try { fs.rmSync(profile, { recursive: true, force: true }) } catch {} })
-const outDir = path.resolve(__dirname, '../../../screenshots')
+// Evidence is disposable. Write to --out <dir>, or a temp directory by default.
+const outIndex = process.argv.indexOf('--out')
+const outDir = outIndex > -1 ? path.resolve(process.argv[outIndex + 1]) : fs.mkdtempSync(path.join(os.tmpdir(), 'odk-paradigms-'))
 fs.mkdirSync(outDir, { recursive: true })
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -177,6 +179,7 @@ app.whenReady().then(async () => {
   await delay(500)
   fs.writeFileSync(path.join(outDir, 'paradigms-v2-matrix.png'), (await capturePaintedPage(grid)).toPNG())
   console.log('CAPTURED paradigms-v2-matrix.png')
+  console.log('OUT_DIR ' + outDir)
 
   win.destroy(); grid.destroy(); app.exit(0)
 }).catch(error => { console.error(error); app.exit(1) })
