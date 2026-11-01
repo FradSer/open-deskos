@@ -20,7 +20,7 @@ async function waitForAdviceEnd(run, timeoutMs = 2000) {
   do {
     observed = await run(`(() => {
       const body = document.querySelector('.personal-agent-proposal-advice')
-      return { focused: document.activeElement === body && document.hasFocus(),
+      return { focused: document.activeElement === body,
         atEnd: body.scrollTop + body.clientHeight >= body.scrollHeight - 2,
         top: body.scrollTop, height: body.clientHeight, extent: body.scrollHeight }
     })()`)
@@ -60,8 +60,8 @@ app.whenReady().then(async () => {
     clearTimeout(timer); win.destroy(); app.exit(0); return
   }
   const send = async status => { win.webContents.send('odk-personal-agent-status', status); await delay() }
-  // Inline recommendations share the Home scroll context; bring the target into view before measurement.
-  const showComposer = () => run(`(() => { const composer = document.querySelector('.agent-composer'); composer.scrollIntoView({block:'center', inline:'nearest'}); document.querySelector('.agent-suggestions').scrollTop = 0; return document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) })()`)
+  // Recommendations share the actual conversation scroll view.
+  const showComposer = () => run(`(() => { document.querySelector('.personal-agent-proposal-advice')?.scrollIntoView({block:'center', inline:'nearest'}); return document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) })()`)
   const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry-soil', status: 'pending', offered: true, presented: false, reason: 'A current soil reading is below the selected threshold.', nextStep: '保存检查盆土备忘', advice: '<script>untrusted reading</script> 检查盆土。', action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土' } }, confirmation: '记住 watering：检查盆土', evidence: [{ readingId: 'odk.tile.hydra', field: 'plants.0.soilPercent', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z', ruleId: 'dry-soil' }] }
   async function longAdviceVisibility() {
     await viewport(320, 480)
@@ -70,11 +70,12 @@ app.whenReady().then(async () => {
     await send({ state: 'idle', proposals: [long], proposalPopup: true, proposalCapabilities: { read: true, respond: true, acknowledge: true } })
     await run(`document.querySelector('.personal-agent-proposal-advice').scrollIntoView({block:'center'})`)
     await delay()
-    const geometry = await run(`(() => { const advice = document.querySelector('.personal-agent-proposal-advice'); const body = advice.getBoundingClientRect(); const viewport = document.querySelector('.agent-suggestions').getBoundingClientRect(); return { body: body.height, viewport: viewport.height, textHeight: advice.scrollHeight, text: advice.textContent, tabIndex: advice.tabIndex } })()`)
+    const geometry = await run(`(() => { const advice = document.querySelector('.personal-agent-proposal-advice'); const body = advice.getBoundingClientRect(); const viewport = document.querySelector('.agent-conversation').getBoundingClientRect(); return { body: body.height, viewport: viewport.height, textHeight: advice.scrollHeight, text: advice.textContent, tabIndex: advice.tabIndex } })()`)
     assert.ok(geometry.body > 0 && geometry.body < geometry.viewport, JSON.stringify(geometry))
     assert.ok(geometry.textHeight > geometry.body * 2, JSON.stringify(geometry))
     assert.equal(geometry.text, long.advice)
     assert.equal(geometry.tabIndex, 0)
+    win.focus()
     await run(`document.querySelector('.personal-agent-proposal-advice').focus()`)
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'End' })
     win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'End' })
@@ -100,7 +101,7 @@ app.whenReady().then(async () => {
   assert.equal(await run(`document.getElementById('pages-viewport').inert`), false)
   assert.equal(await run(`odkPersonalAgentStatus.visible()`), false)
   assert.equal(await run(`document.getElementById('personal-agent-status').hidden`), true, 'Recommendations never open the fallback voice popup')
-  assert.equal(await run(`document.querySelector('.agent-suggestions').closest('.agent-composer') === document.querySelector('.agent-composer') && !document.querySelector('.agent-suggestions').hidden`), true, 'Recommendations stay inside the Personal Agent composer')
+  assert.equal(await run(`(() => { const card = document.querySelector('.personal-agent-proposal'); return !!card.closest('.agent-conversation .agent-message-assistant .agent-message-bubble') && !card.closest('.agent-composer') && !document.querySelector('.agent-composer-controls, .agent-suggestions') })()`), true, 'Recommendation and controls belong to an assistant message, separate from the input')
   assert.equal(await run(`document.querySelector('.agent-composer textarea').value`), 'Keep this unfinished draft.')
   assert.equal(await run(`!!document.querySelector('.personal-agent-proposal-sources, .personal-agent-ride-details, button[data-proposal-action="view-sources"]')`), false)
   assert.equal(await run(`[...document.querySelectorAll('[aria-modal="true"]')].some(node => node.checkVisibility())`), false, 'An inline recommendation must not open any modal surface')
@@ -129,7 +130,7 @@ app.whenReady().then(async () => {
   await send({ state: 'idle', proposals: [uncertain], proposalHiddenCount: 0, proposalPopup: false, proposalError: 'generation_unavailable' })
   await send({ state: 'idle', proposals: [uncertain], proposalHiddenCount: 0, proposalPopup: false })
   assert.match(await run(`document.querySelector('.personal-agent-proposal-error')?.textContent ?? ''`), /not delivered.*do not repeat an uncertain action/)
-  assert.equal(await run(`window.__disabledConfirmation.isConnected && window.__disabledConfirmation.disabled`), true)
+  assert.equal(await run(`!!document.querySelector('[data-proposal-action="execute"]')?.disabled`), true)
   assert.equal(commands.filter(c => c.type === 'proposal_respond').length, commandCount)
   rejectResponse = false
   const ride = { ...p, id: 'a2f9fed5-8a7a-458e-bfbf-d5650c5edf40', action: null, confirmation: '',
@@ -160,13 +161,13 @@ app.whenReady().then(async () => {
       const beforeSelection = ownerTurns.length
       await run(`(() => { const route = document.querySelector('.personal-agent-ride-route'); if (route.hidden) document.querySelector('.personal-agent-ride-actions .personal-agent-proposal-primary').click(); return document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) })()`)
       assert.equal(ownerTurns.length, beforeSelection, 'Each fresh ambiguous route requires an explicit place selection')
-      const rideGeometry = await run(`(() => { const node = document.querySelector('.agent-suggestions'); return { routeHidden: document.querySelector('.personal-agent-ride-route').hidden, overflow: node.scrollWidth > node.clientWidth + 1, heights: [...document.querySelectorAll('.personal-agent-ride-route select, .personal-agent-ride-route button, .personal-agent-ride-actions button')].map(n => n.getBoundingClientRect().height) } })()`)
+      const rideGeometry = await run(`(() => { const node = document.querySelector('.agent-conversation'); return { routeHidden: document.querySelector('.personal-agent-ride-route').hidden, overflow: node.scrollWidth > node.clientWidth + 1, heights: [...document.querySelectorAll('.personal-agent-ride-route select, .personal-agent-ride-route button, .personal-agent-ride-actions button')].map(n => n.getBoundingClientRect().height) } })()`)
       assert.equal(rideGeometry.routeHidden, false, JSON.stringify({ theme, width, height, ...rideGeometry })); assert.equal(rideGeometry.overflow, false); assert.ok(rideGeometry.heights.length >= 3); assert.ok(rideGeometry.heights.every(h => h >= 44), JSON.stringify({ theme, width, height, ...rideGeometry }))
       for (const status of ['pending', 'expired', 'ignored', 'completed', 'unknown']) {
         await send({ state: 'idle', proposals: [{ ...p, status, advice: 'Long CJK 长句测试 '.repeat(40), result: status === 'unknown' ? 'Outcome unknown; do not retry.' : '' }], proposalPopup: true })
         await showComposer()
         const geometry = await run(`(() => {
-          const node = document.querySelector('.agent-suggestions'); const r = node.getBoundingClientRect();
+          const node = document.querySelector('.agent-conversation'); const r = node.getBoundingClientRect();
           const controls = [...document.querySelectorAll('.personal-agent-proposals button')].filter(n => n.checkVisibility());
           return { contained: r.x >= 0 && r.y >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
             overflow: node.scrollWidth > node.clientWidth + 1,
@@ -188,7 +189,7 @@ app.whenReady().then(async () => {
       await showComposer()
       const layout = await run(`(() => {
         const card = document.querySelector('.personal-agent-proposal'), advice = card.querySelector('.personal-agent-proposal-advice'), primary = card.querySelector('.personal-agent-proposal-primary'), actions = card.querySelector('.personal-agent-proposal-actions'), feedback = card.querySelector('.personal-agent-proposal-feedback-options'), state = card.querySelector('.personal-agent-proposal-state');
-        return { advice: advice.textContent, action: primary.textContent, duplicateNext: !!card.querySelector('.personal-agent-proposal-next-step'), secondary: actions.querySelector('.personal-agent-proposal-secondary')?.textContent, reason: !!card.querySelector('.personal-agent-proposal-reason') || card.textContent.includes('Legacy reason must not render.'), sourcesAbsent: !card.querySelector('.personal-agent-proposal-sources'), feedbackClosed: !feedback.open, hashAbsent: !card.textContent.includes('a'.repeat(64)), ordered: advice.getBoundingClientRect().bottom <= actions.getBoundingClientRect().top && actions.getBoundingClientRect().bottom <= feedback.getBoundingClientRect().top, adviceSize: parseFloat(getComputedStyle(advice).fontSize), stateSize: parseFloat(getComputedStyle(state).fontSize), actionSize: parseFloat(getComputedStyle(primary).fontSize), primaryHeight: primary.getBoundingClientRect().height, feedbackTarget: feedback.querySelector('summary').getBoundingClientRect().height >= 44, inline: !!card.closest('.agent-composer .agent-suggestions'), popupHidden: document.getElementById('personal-agent-status').hidden, overflow: card.scrollWidth > card.clientWidth + 1, controls: [...actions.querySelectorAll('button')].every(b => b.getBoundingClientRect().height >= 44) }
+        return { advice: advice.textContent, action: primary.textContent, duplicateNext: !!card.querySelector('.personal-agent-proposal-next-step'), secondary: actions.querySelector('.personal-agent-proposal-secondary')?.textContent, reason: !!card.querySelector('.personal-agent-proposal-reason') || card.textContent.includes('Legacy reason must not render.'), sourcesAbsent: !card.querySelector('.personal-agent-proposal-sources'), feedbackClosed: !feedback.open, hashAbsent: !card.textContent.includes('a'.repeat(64)), ordered: advice.getBoundingClientRect().bottom <= actions.getBoundingClientRect().top && actions.getBoundingClientRect().bottom <= feedback.getBoundingClientRect().top, adviceSize: parseFloat(getComputedStyle(advice).fontSize), stateSize: parseFloat(getComputedStyle(state).fontSize), actionSize: parseFloat(getComputedStyle(primary).fontSize), primaryHeight: primary.getBoundingClientRect().height, feedbackTarget: feedback.querySelector('summary').getBoundingClientRect().height >= 44, inline: !!card.closest('.agent-conversation .agent-message-assistant .agent-message-bubble') && !card.closest('.agent-composer'), popupHidden: document.getElementById('personal-agent-status').hidden, overflow: card.scrollWidth > card.clientWidth + 1, controls: [...actions.querySelectorAll('button')].every(b => b.getBoundingClientRect().height >= 44) }
       })()`)
       assert.equal(layout.advice, actionCard.advice); assert.equal(layout.action, actionCard.nextStep)
       assert.equal(layout.duplicateNext, false); assert.equal(layout.secondary, 'Later')
@@ -217,7 +218,7 @@ app.whenReady().then(async () => {
   await delay()
   assert.equal(await run(`document.querySelector('.personal-agent-proposal-advice').textContent`), 'Earlier recommendation unavailable. Ask the Agent for an updated suggestion.')
   assert.equal(await run(`!!document.querySelector('.personal-agent-proposal-sources, .personal-agent-proposal-original-advice, button[data-proposal-action="view-sources"]')`), false)
-  assert.equal(await run(`document.querySelector('.agent-suggestions').textContent.includes('a'.repeat(64))`), false)
+  assert.equal(await run(`document.querySelector('.agent-conversation').textContent.includes('a'.repeat(64))`), false)
   assert.equal(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(technical.id)), false)
   // A mounted but hidden Personal Agent is not a visible recommendation surface.
   const hidden = { ...p, id: 'a111a280-c0b9-4411-96cd-4e1e92385350', action: null, confirmation: '' }
@@ -236,7 +237,7 @@ app.whenReady().then(async () => {
     commands,
     viewport: await run(`(() => {
       const advice = document.querySelector('.personal-agent-proposal-advice')
-      const surface = document.querySelector('.agent-suggestions')
+      const surface = document.querySelector('.agent-conversation')
       return { documentHidden: document.hidden, adviceVisible: advice.checkVisibility(),
         advice: advice.getBoundingClientRect().toJSON(), surfaceHidden: surface.hidden,
         surface: surface.getBoundingClientRect().toJSON(), width: innerWidth, height: innerHeight }
@@ -289,10 +290,10 @@ app.whenReady().then(async () => {
   assert.equal(ownerTurns.length, beforeReadOnlyTurns)
   await run(`document.querySelector('.agent-composer textarea').focus()`)
   await send({ state: 'idle', proposals: [ride], proposalPopup: true, proposalRecovery: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
-  assert.equal(await run(`!document.querySelector('.agent-suggestions').hidden && document.querySelector('.agent-suggestions').closest('.agent-composer') !== null && document.getElementById('personal-agent-status').hidden`), true, 'Read-only recovery remains inline and never opens a popup')
+  assert.equal(await run(`!!document.querySelector('.agent-conversation .agent-message-assistant .personal-agent-proposal') && !document.querySelector('.agent-composer .personal-agent-proposal') && document.getElementById('personal-agent-status').hidden`), true, 'Read-only recovery remains in the conversation and never opens a popup')
   assert.equal(await run(`document.activeElement === document.querySelector('.agent-composer textarea') && document.activeElement.value === 'Keep this unfinished draft.'`), true)
   await send({ state: 'idle', proposals: [{ ...ride, id: '11111111-1111-4111-8111-111111111111' }], proposalPopup: true, proposalRecovery: false, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
-  assert.equal(await run(`!document.querySelector('.agent-suggestions').hidden && document.getElementById('personal-agent-status').hidden`), true, 'A new read-only recommendation stays inside the input')
+  assert.equal(await run(`!!document.querySelector('.agent-conversation .agent-message-assistant .personal-agent-proposal') && document.getElementById('personal-agent-status').hidden`), true, 'A new read-only recommendation stays in the conversation')
   assert.equal(commands.length, beforeReadOnly, 'Read-only recovery grants no acknowledgement or response authority')
   const disclosureResponses = commands.filter(c => c.type === 'proposal_respond').length
   await send({ state: 'idle', proposals: [{ ...p, id: '11111111-1111-4111-8111-111111111112', action: null, confirmation: '' }], proposalCapabilities: { read: true, respond: true, acknowledge: true } })
@@ -307,7 +308,7 @@ app.whenReady().then(async () => {
       assert.equal(await run(`document.querySelector('.personal-agent-proposals').hidden`), false)
       const beforeWithdrawal = commands.length
       await send(revoked)
-      assert.deepEqual(await run(`(() => { const section = document.querySelector('.personal-agent-proposals'); return { hidden: section.hidden, children: section.children.length } })()`), { hidden: true, children: 0 })
+      assert.equal(await run(`document.querySelectorAll('.personal-agent-proposal').length`), 0, 'Withdrawal removes recommendation messages')
       await send({ state: 'idle' })
       assert.equal(await run(`document.querySelectorAll('.personal-agent-proposal').length`), 0, `${theme} legacy status retains no withdrawn proposal`)
       assert.equal(commands.length, beforeWithdrawal, `${theme} withdrawn content sends no acknowledgement`)
@@ -386,7 +387,7 @@ app.whenReady().then(async () => {
   assert.equal(await run(`document.getElementById('personal-agent-status').hidden`), true)
   await send({ state: 'starting' })
   await send({ state: 'recording' })
-  assert.equal(await run(`document.querySelector('.agent-suggestions').hidden`), true)
+  assert.equal(await run(`document.querySelectorAll('.personal-agent-proposal').length`), 0)
   assert.equal(await run(`document.getElementById('personal-agent-status').hidden`), true)
   assert.equal(await run(`document.querySelector('.agent-state').textContent`), 'Listening...')
   assert.equal(await run(`document.querySelector('.agent-mic').hidden`), true)

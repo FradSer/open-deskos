@@ -1,15 +1,40 @@
 Feature: Independent resident Personal Agent
-  # The Personal Agent page owns suggestions inside its existing composer.
-  # Resident proposal state owns identity, freshness, feedback, and action authority.
-  # Four Shell themes retain readable advice, 44px controls, and input drafts.
-  Scenario: Recommendations stay inside the Personal Agent composer
+  # The resident owns recommendation identity, freshness, feedback, and action authority.
+  # The conversation owns recommendation messages and their controls.
+  # The composer retains its voice and keyboard input behavior.
+  Scenario: Recommendations appear as Personal Agent messages
     Given a pending recommendation arrives while the owner types a draft
     When the Personal Agent receives the current proposal snapshot
-    Then the recommendation and executable action appear inside the input composer
+    Then the recommendation and its controls appear in one Personal Agent message
+    And the message belongs to the conversation scroll view
+    And the composer contains only its voice and keyboard input controls
     And no recommendation popup opens or takes focus
     And the draft, input mode, and selection remain unchanged
     And Sources and details, technical receipts, and Why are absent
     And Feedback remains available for executable and read-only recommendations
+
+  Scenario: Recommendation messages preserve conversation position
+    Given the owner reads earlier conversation messages above the latest message
+    When a new recommendation arrives or its status changes
+    Then the current conversation position and focus remain unchanged
+    And Jump to latest remains available
+    When the owner returns to the latest messages
+    Then the recommendation and its current state are visible in the conversation
+
+  Scenario: Recommendation messages retain identity and outcomes
+    Given a recommendation is visible in the conversation
+    When its presentation receipt, feedback, or execution state changes
+    Then the same message retains its position among the conversation messages
+    And its feedback, execution state, and result stay inside that message
+    And an unknown execution outcome cannot be repeated
+
+  Scenario: Queued recommendations do not appear before their offer
+    Given a pending recommendation has not been offered by the resident
+    When the Personal Agent receives its proposal snapshot
+    Then the recommendation does not appear in the conversation
+    When the resident offers it
+    Then its message appears without taking focus
+    And only its visible advice can receive a presentation acknowledgement
 
   Scenario: Feedback starts asynchronous memory refinement
     Given a current recommendation has an available Feedback control
@@ -21,7 +46,7 @@ Feature: Independent resident Personal Agent
 
   Scenario: Technical historical advice stays private
     Given an earlier suggestion contains a technical hash
-    When its unavailable placeholder enters the composer viewport
+    When its unavailable placeholder enters the conversation viewport
     Then no Sources or Details disclosure appears
     And the hidden original advice remains unacknowledged
 
@@ -410,7 +435,7 @@ Feature: Independent resident Personal Agent
   Scenario: Recommendation cards emphasize the next action
     Given a suggestion contains concise advice and an authorized plugin action
     And its source evidence contains complete SHA256 values
-    When the recommendation appears inside the input composer
+    When the recommendation appears in the conversation
     Then advice has visual priority over metadata
     And the concrete execution button precedes the Feedback control
     And a current executable card does not repeat its button label as a separate next step
@@ -424,13 +449,13 @@ Feature: Independent resident Personal Agent
 
   Scenario: Technical recommendation content remains in resident state
     Given an earlier stored suggestion contains a SHA256 value in its advice
-    When the Personal Agent renders its input recommendations
+    When the Personal Agent renders recommendations
     Then it requests an updated suggestion without exposing the hash
     And no source inspection control appears
     And the resident retains the original private record
 
   Scenario: Native acceptance requires actual visible recommendation text
-    Given a recommendation is below the composer viewport
+    Given a recommendation is below the conversation viewport
     When another recommendation becomes visible
     Then only the visible recommendation receives a presentation acknowledgement
     And a technical placeholder cannot acknowledge its original private text
@@ -467,7 +492,7 @@ Feature: Independent resident Personal Agent
 
   Scenario: Execution receipts remain private
     Given an accepted operation has a structured execution receipt
-    When the recommendation appears inside the composer
+    When the recommendation appears in the conversation
     Then its authoritative state remains visible
     And no technical receipt, source disclosure, or execution parameter appears
     And receipt presence does not assert completion
@@ -481,10 +506,10 @@ Feature: Independent resident Personal Agent
     Then the execution reservation and warning remain
     And no automatic response replay occurs
 
-  Scenario: Technical tool results stay outside the input recommendation
+  Scenario: Technical tool results stay outside the recommendation message
     Given an earlier plugin returns a technical result or a bounded JSON receipt
     When the Personal Agent renders the recommendation
-    Then the input area shows its recorded operation status
+    Then the message shows its recorded operation status
     And the original result stays in resident state
     And natural-language results remain readable
     And the result never replaces the authoritative proposal state
@@ -540,8 +565,8 @@ Feature: Independent resident Personal Agent
     And duplicate clicks, wrong routes, and missing or disabled actions cannot send another request
     And Useful feedback and independent MCP receipt checks remain separate gates
 
-  Scenario: Completed recommendations retain quality feedback in the input area
-    Given a completed recommendation is in the composer history
+  Scenario: Completed recommendations retain quality feedback in the conversation
+    Given a completed recommendation is in the conversation
     When the owner opens its Feedback control
     Then Useful, Not relevant, and Incorrect are available
     And execution, confirmation, postponement, and category controls are absent

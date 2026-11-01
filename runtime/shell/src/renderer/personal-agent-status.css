@@ -236,12 +236,8 @@
   to { transform: translateX(310%); }
 }
 
-.agent-suggestions { min-width: 0; max-block-size: min(38vh, 24rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-inline: var(--odk-space-2); }
-.agent-suggestions[hidden] { display: none; }
-.agent-suggestions .personal-agent-proposals { display: grid; gap: var(--odk-space-2); }
-.personal-agent-proposals-header { display: flex; align-items: center; justify-content: space-between; gap: var(--odk-space-2); }
-.personal-agent-proposals-header h2 { font-size: 1em; font-weight: 400; margin: 0; }
-.personal-agent-proposal { display: grid; gap: var(--odk-space-3); border-top: 1px solid var(--odk-stroke); padding-top: var(--odk-space-3); }
+.agent-recommendation .personal-agent-proposals { min-width: 0; }
+.personal-agent-proposal { display: grid; gap: var(--odk-space-3); min-width: 0; }
 .personal-agent-proposal p { margin: 0; }
 .personal-agent-proposal-state, .personal-agent-proposal-evidence { color: var(--odk-secondary-strong); font-size: 14px; font-variant-numeric: tabular-nums; }
 .personal-agent-proposal-actions { display: flex; flex-wrap: wrap; gap: var(--odk-space-2); }
@@ -271,8 +267,5 @@
 .personal-agent-proposals summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--odk-secondary-strong); font-size: 14px; text-decoration: underline; text-underline-offset: 0.2em; }
 .personal-agent-proposals summary:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 .personal-agent-proposals details[open] > summary { margin-block-end: var(--odk-space-2); }
-.personal-agent-proposal-history > .personal-agent-proposal { margin-block-start: var(--odk-space-3); }
-
-.agent-composer .personal-agent-proposals button { width: auto; height: auto; min-width: 44px; padding: var(--odk-space-2) var(--odk-space-3); }
-.agent-composer .personal-agent-proposal-advice { font-size: 18px; }
-.agent-suggestions .personal-agent-proposal { border-top: 0; padding-block: var(--odk-space-2); }
+.agent-recommendation .personal-agent-proposals button { width: auto; height: auto; min-width: 44px; padding: var(--odk-space-2) var(--odk-space-3); }
+.agent-recommendation .personal-agent-proposal-advice { font-size: 18px; }

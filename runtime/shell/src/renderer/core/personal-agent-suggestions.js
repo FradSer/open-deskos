@@ -5,25 +5,45 @@
   const executionAttempts = new Map()
   const rideRequests = new Map()
 
-  // Mounted by the selected Personal Agent page; this helper owns no popup.
+  // The conversation owns placement; the resident owns proposal state and authority.
   root.odkPersonalAgentSuggestions = {
-    mount(surface, { api = root.odkPersonalAgent ?? {}, focusInput = () => {} } = {}) {
+    mount(surface, { api = root.odkPersonalAgent ?? {}, focusInput = () => {}, createMessage, removeMessage } = {}) {
       const elements = { content: surface }
+      const messages = new Map()
+      const create = createMessage ?? (() => {
+        const article = document.createElement('article')
+        article.className = 'agent-message agent-message-assistant'
+        const bubble = document.createElement('div')
+        bubble.className = 'agent-message-bubble'
+        const body = document.createElement('div')
+        body.className = 'agent-message-body personal-agent-proposals'
+        bubble.append(body); article.append(bubble); surface.append(article)
+        return { article, body }
+      })
+      const remove = removeMessage ?? (article => article.remove())
       const rideQuotePrefix = '\u67e5\u770b\u62a5\u4ef7'
       const rideRefreshPrefix = '\u5237\u65b0\u884c\u7a0b'
       let closed = false
       let consumerUnavailable = false
       let consumerId
-      let proposals
-      let proposalSnapshot = ''
       let proposalError = ''
       let proposalCommandError = ''
+      let errorProposalId = ''
       // Keep dispatched operations reserved until this ID has an authoritative terminal state.
       const actionConfirmations = new Map()
       const rideStatusNodes = new Map()
-      function releaseRideViews() {
-        for (const { requests, node } of rideStatusNodes.values()) if (requests?.view === node) delete requests.view
-        rideStatusNodes.clear()
+      function releaseRideView(id) {
+        const { requests, node } = rideStatusNodes.get(id) ?? {}
+        if (requests && requests.view === node) delete requests.view
+        rideStatusNodes.delete(id)
+      }
+      function removeEntry(id) {
+        const entry = messages.get(id)
+        if (!entry) return
+        if (entry.advice) { visibility?.unobserve(entry.advice); observedAdvice.delete(entry.advice); visibleAdvice.delete(entry.advice) }
+        releaseRideView(id)
+        remove(entry.article)
+        messages.delete(id)
       }
       const renderedProposalIds = new Set()
       const uncertainActionWarning = 'Suggestion response was not delivered. Check the personal agent service; do not repeat an uncertain action.'
@@ -80,16 +100,19 @@
           if (epoch !== proposalEpoch && (!executionAttempt || !renderedProposalIds.has(value.id))) return
           if (value.type === 'proposal_presented') return
           proposalCommandError = uncertainActionWarning
+          errorProposalId = value.id ?? ''
           showProposalError()
         }
       }
       function showProposalError() {
-        let error = proposals.querySelector('.personal-agent-proposal-error')
+        const entry = messages.get(errorProposalId) ?? messages.values().next().value
+        if (!entry) return
+        let error = entry.body.querySelector('.personal-agent-proposal-error')
         if (!error) {
           error = document.createElement('p')
           error.className = 'personal-agent-proposal-error'
           error.setAttribute('role', 'status')
-          proposals.appendChild(error)
+          entry.body.appendChild(error)
         }
         error.textContent = proposalCommandError || proposalError
       }
@@ -229,12 +252,12 @@
         if (status.state === 'unavailable' || status.proposalCapabilities?.read === false) {
           proposalEpoch++
           renderedProposalIds.clear()
-          visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear(); proposalSnapshot = ''
+          visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear()
           suggestionCapabilities = { read: false, respond: false, acknowledge: false }
-          proposalError = ''; proposalCommandError = ''; visibilityFailure = false; feedbackFocus = undefined
+          proposalError = ''; proposalCommandError = ''; errorProposalId = ''; visibilityFailure = false; feedbackFocus = undefined
           expandedDisclosures.clear()
           actionConfirmations.clear()
-          if (proposals) { proposals.replaceChildren(); proposals.hidden = true }
+          for (const id of messages.keys()) removeEntry(id)
           return
         }
         if (!Array.isArray(status.proposals)) return
@@ -255,58 +278,45 @@
           const p = status.proposals.find(proposal => proposal?.id === id)
           if (!suggestionCapabilities.respond || !p?.action || p.status !== 'pending' || p.snoozedUntil > Date.now() || executionAttempts.has(id) || actionSignature(p) !== confirmation.signature) actionConfirmations.delete(id)
         }
-        if (!proposals) {
-          if (!status.proposals.length) return
-          proposals = document.createElement('section')
-          proposals.className = 'personal-agent-proposals'
-          proposals.setAttribute('aria-label', 'Suggestions')
-          elements.content.appendChild(proposals)
-        }
-        proposals.hidden = !status.proposals.length || !suggestionCapabilities.read
-        const snapshot = JSON.stringify([status.proposals, status.proposalHiddenCount, suggestionCapabilities])
-        if (snapshot !== proposalSnapshot) {
-          proposalSnapshot = snapshot
-          const focused = document.activeElement
-          const retainedFocus = focused === document.body ? feedbackFocus : undefined
-          const focusId = focused?.dataset?.proposalId || retainedFocus?.id, focusAction = focused?.dataset?.proposalAction || retainedFocus?.action
-          feedbackFocus = undefined
-          const previousScroll = elements.content.scrollTop
-          visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear()
-          releaseRideViews()
-          proposals.replaceChildren()
-          proposalCommandError = uncertainExecution ? uncertainActionWarning : ''
-          if (!status.proposals.length || !suggestionCapabilities.read) { proposalError = status.proposalError || ''; return }
-          const header = document.createElement('div')
-          header.className = 'personal-agent-proposals-header'
-          const heading = document.createElement('h2')
-          heading.textContent = 'Suggestions'
-          header.append(heading)
-          proposals.append(header)
-          if (!suggestionCapabilities.respond) {
-            const note = document.createElement('p')
-            note.className = 'personal-agent-proposal-capability'
-            note.textContent = 'Suggestions are read-only on this device. Respond from the desk.'
-            proposals.append(note)
-          }
-          if (status.proposalHiddenCount > 0) {
-            const remaining = document.createElement('p')
-            remaining.textContent = `${status.proposalHiddenCount} more suggestions in the agent store. Ask for suggestions to inspect them.`
-            proposals.append(remaining)
-          }
-          const history = disclosure('Previous suggestions', 'personal-agent-proposal-history', 'history')
-          const statusLabels = { pending: 'Suggested', ignored: 'Dismissed', expired: 'Expired', executing: 'In progress', completed: 'Completed', unknown: 'Outcome not confirmed' }
-          const feedbackLabels = { done: 'Marked done', snooze: 'Saved for later', useful: 'Marked useful', irrelevant: 'Marked not relevant', incorrect: 'Marked incorrect' }
-          let historical = 0
-          for (const p of status.proposals) {
-            if (!p || typeof p.advice !== 'string') continue
-            const snoozed = p.status === 'pending' && p.snoozedUntil > Date.now()
-            const current = p.status === 'pending' && !snoozed
-            const article = document.createElement('article')
+        const focused = document.activeElement
+        const retainedFocus = focused === document.body ? feedbackFocus : undefined
+        const focusId = focused?.dataset?.proposalId || retainedFocus?.id, focusAction = focused?.dataset?.proposalAction || retainedFocus?.action
+        feedbackFocus = undefined
+        const previousScroll = elements.content.scrollTop
+        const visible = status.proposals.filter(p => p && typeof p.id === 'string' && typeof p.advice === 'string' &&
+          (p.status !== 'pending' || (p.offered === true && !(p.snoozedUntil > Date.now()))))
+        const visibleIds = new Set(visible.map(p => p.id))
+        for (const id of messages.keys()) if (!visibleIds.has(id)) removeEntry(id)
+        proposalCommandError = uncertainExecution ? uncertainActionWarning : ''
+        const statusLabels = { pending: 'Suggested', ignored: 'Dismissed', expired: 'Expired', executing: 'In progress', completed: 'Completed', unknown: 'Outcome not confirmed' }
+        const feedbackLabels = { done: 'Marked done', snooze: 'Saved for later', useful: 'Marked useful', irrelevant: 'Marked not relevant', incorrect: 'Marked incorrect' }
+        for (const p of visible) {
+            const current = p.status === 'pending'
+            let entry = messages.get(p.id)
+            if (!entry) {
+              const created = create(p)
+              entry = { ...created, snapshot: '' }
+              messages.set(p.id, entry)
+            }
+            const snapshot = JSON.stringify([p, suggestionCapabilities])
+            if (entry.snapshot === snapshot) continue
+            entry.snapshot = snapshot
+            if (entry.advice) { visibility?.unobserve(entry.advice); observedAdvice.delete(entry.advice); visibleAdvice.delete(entry.advice); entry.advice = undefined }
+            releaseRideView(p.id)
+            const proposals = entry.body
+            proposals.replaceChildren()
+            const article = document.createElement('section')
             article.className = 'personal-agent-proposal'
             article.dataset.proposalId = p.id
+            if (!suggestionCapabilities.respond) {
+              const note = document.createElement('p')
+              note.className = 'personal-agent-proposal-capability'
+              note.textContent = 'Suggestions are read-only on this device. Respond from the desk.'
+              article.append(note)
+            }
             const state = document.createElement('p')
             state.className = 'personal-agent-proposal-state'
-            state.textContent = snoozed ? 'Saved for later' : statusLabels[p.status] || 'Suggestion state unavailable'
+            state.textContent = statusLabels[p.status] || 'Suggestion state unavailable'
             const advice = document.createElement('p')
             advice.className = 'personal-agent-proposal-advice'
             const technicalText = /sha[-_\s]?256|\b[a-f0-9]{32,}\b/i
@@ -414,6 +424,7 @@
                     actionConfirmations.delete(p.id)
                     executionAttempts.set(p.id, { uncertain: false })
                     for (const control of actions.children) control.disabled = true
+                    entry.snapshot = ''; renderProposals(status)
                     await command({ type: 'proposal_respond', id: p.id, decision: 'accept', confirmation: p.confirmation })
                   })
                   confirm.className = 'personal-agent-proposal-primary'
@@ -421,8 +432,8 @@
                   const cancel = button('Cancel', () => {
                     if (!isCurrent()) return
                     actionConfirmations.delete(p.id)
-                    proposalSnapshot = ''; renderProposals(status)
-                    for (const card of proposals.children) if (card.dataset.proposalId === p.id) card.querySelector('[data-proposal-action="execute"]')?.focus({ preventScroll: true })
+                    entry.snapshot = ''; renderProposals(status)
+                    entry.body.querySelector('[data-proposal-action="execute"]')?.focus({ preventScroll: true })
                   })
                   cancel.className = 'personal-agent-proposal-secondary'
                   cancel.dataset.proposalId = p.id; cancel.dataset.proposalAction = 'cancel'
@@ -457,29 +468,22 @@
               if (current) article.append(actions)
               article.append(feedback)
             }
-            if (current) {
-              proposals.append(article)
-              if (!technicalAdvice) { observedAdvice.set(advice, p); visibility?.observe(advice) }
-            } else { history.append(article); historical++ }
-          }
-          if (historical) {
-            history.children[0].textContent = `Previous suggestions (${historical})`
-            proposals.append(history)
-          }
-          if (focusId && focusAction) {
-            let restored = false
-            for (const node of proposals.querySelectorAll?.('button, summary') || []) if (node.dataset.proposalId === focusId && node.dataset.proposalAction === focusAction) {
-              const owner = node.closest('details'); if (owner && node.tagName !== 'SUMMARY') owner.open = true
-              node.focus({ preventScroll: true }); restored = true; break
-            }
-            if (!restored) focusInput()
-          }
-          elements.content.scrollTop = previousScroll
+            proposals.append(article)
+            if (current && !technicalAdvice) { entry.advice = advice; observedAdvice.set(advice, p); visibility?.observe(advice) }
         }
+        if (focusId && focusAction) {
+          let restored = false
+          for (const node of messages.get(focusId)?.body.querySelectorAll?.('button, summary') || []) if (node.dataset.proposalId === focusId && node.dataset.proposalAction === focusAction) {
+            const owner = node.closest('details'); if (owner && node.tagName !== 'SUMMARY') owner.open = true
+            node.focus({ preventScroll: true }); restored = true; break
+          }
+          if (!restored) focusInput()
+        }
+        elements.content.scrollTop = previousScroll
         for (const [node, p] of observedAdvice) acknowledgeVisible(node, p)
         proposalError = status.proposalError || ''
         if (proposalError || proposalCommandError) showProposalError()
-        else proposals.querySelector('.personal-agent-proposal-error')?.remove()
+        else for (const entry of messages.values()) entry.body.querySelector('.personal-agent-proposal-error')?.remove()
       }
 
       function consumerReady() {
@@ -508,7 +512,6 @@
           const restored = consumerUnavailable && !unavailable
           consumerUnavailable = unavailable
           renderProposals(status)
-          surface.hidden = !proposals || proposals.hidden || !proposals.children.length
           if (restored) consumerReady()
         },
         async destroy() {
@@ -517,12 +520,11 @@
           proposalEpoch++
           actionConfirmations.clear()
           renderedProposalIds.clear()
-          releaseRideViews()
           visibility?.disconnect()
+          for (const id of messages.keys()) removeEntry(id)
           observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear()
           document.removeEventListener('visibilitychange', recheckVisibility)
           document.removeEventListener('visibilitychange', consumerVisibilityChanged)
-          surface.replaceChildren(); surface.hidden = true
           await announceConsumer(null)
         },
       }

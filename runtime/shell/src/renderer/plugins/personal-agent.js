@@ -23,15 +23,26 @@
           <label class="agent-pi-command-label"><span class="sr-only">Pi commands</span><select class="agent-pi-command" aria-label="Pi commands"><option value="">Pi</option><option value="login">/login</option><option value="model">/model</option><option value="thinking">/thinking</option></select></label>
           <form class="agent-pi-form" hidden><label class="agent-pi-choice-label"><span></span><select class="agent-pi-choice"></select></label><label class="agent-pi-secret-label" hidden><span></span><input class="agent-pi-value" autocomplete="off" maxlength="3000" /></label><p class="agent-pi-status" role="status"></p><a class="agent-pi-auth-link" target="_blank" rel="noreferrer" hidden>Open Pi sign-in</a><div class="agent-pi-actions"><button type="submit">Apply</button><button type="button" class="agent-pi-close">Close</button></div></form>
         </section>
-        <form class="agent-composer" data-mode="voice"><div class="agent-suggestions" hidden></div><div class="agent-composer-controls"><button class="agent-keys" type="button" aria-label="Switch to keyboard input"><svg data-tabler="keyboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8" /><path d="M6 10l0 .01" /><path d="M10 10l0 .01" /><path d="M14 10l0 .01" /><path d="M18 10l0 .01" /><path d="M6 14l0 .01" /><path d="M18 14l0 .01" /><path d="M10 14l4 .01" /></svg></button><button class="agent-mic" type="button" aria-label="Start voice request"><svg data-tabler="microphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 5a3 3 0 0 1 3 -3a3 3 0 0 1 3 3v5a3 3 0 0 1 -3 3a3 3 0 0 1 -3 -3l0 -5" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M8 21l8 0" /><path d="M12 17l0 4" /></svg><span class="agent-mic-label">Tap to talk</span></button><button class="agent-cancel" type="button" aria-label="Cancel recording" title="Cancel recording · Escape" hidden><svg data-tabler="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button><div class="agent-recording-feedback" hidden><div class="agent-input-level" role="meter" aria-label="Microphone input level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div></div><textarea rows="1" maxlength="3000" aria-label="Message Personal Agent"></textarea><button class="agent-send" type="submit" aria-label="Send message"><svg data-tabler="arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 11l-6 -6" /><path d="M6 11l6 -6" /></svg></button></div></form></div>
+        <form class="agent-composer" data-mode="voice"><button class="agent-keys" type="button" aria-label="Switch to keyboard input"><svg data-tabler="keyboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8" /><path d="M6 10l0 .01" /><path d="M10 10l0 .01" /><path d="M14 10l0 .01" /><path d="M18 10l0 .01" /><path d="M6 14l0 .01" /><path d="M18 14l0 .01" /><path d="M10 14l4 .01" /></svg></button><button class="agent-mic" type="button" aria-label="Start voice request"><svg data-tabler="microphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 5a3 3 0 0 1 3 -3a3 3 0 0 1 3 3v5a3 3 0 0 1 -3 3a3 3 0 0 1 -3 -3l0 -5" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M8 21l8 0" /><path d="M12 17l0 4" /></svg><span class="agent-mic-label">Tap to talk</span></button><button class="agent-cancel" type="button" aria-label="Cancel recording" title="Cancel recording · Escape" hidden><svg data-tabler="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button><div class="agent-recording-feedback" hidden><div class="agent-input-level" role="meter" aria-label="Microphone input level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div></div><textarea rows="1" maxlength="3000" aria-label="Message Personal Agent"></textarea><button class="agent-send" type="submit" aria-label="Send message"><svg data-tabler="arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 11l-6 -6" /><path d="M6 11l6 -6" /></svg></button></form></div>
       </div>`
       const $ = selector => el.querySelector(selector)
       const conversation = $('.agent-conversation')
       const input = $('textarea')
       const composer = $('.agent-composer')
       let closePiConfig = () => {}
-      const composerControls = $('.agent-composer-controls')
-      const suggestions = root.odkPersonalAgentSuggestions?.mount($('.agent-suggestions'), { focusInput: () => fieldControl().focus({ preventScroll: true }) })
+      const suggestions = root.odkPersonalAgentSuggestions?.mount(conversation, {
+        focusInput: () => fieldControl().focus({ preventScroll: true }),
+        createMessage: proposal => {
+          const body = message('assistant', '')
+          body.classList.add('personal-agent-proposals')
+          const article = body.closest('article')
+          article.classList.add('agent-recommendation')
+          const createdAt = Date.parse(proposal.createdAt)
+          timelineEntry(article, Number.isFinite(createdAt) ? createdAt : Date.now(), [])
+          return { article, body }
+        },
+        removeMessage,
+      })
       ctx.trackCleanup?.(() => suggestions?.destroy())
       const micControl = $('.agent-mic')
       const keysControl = $('.agent-keys')
@@ -540,8 +551,9 @@
       }
       function render(status, authoritative = true) {
         if (released || ctx.signal?.aborted || !status?.state) return
+        const bottom = conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop < 40
         suggestions?.update(status)
-        const restoreVoiceFocus = lastStatus === 'recording' && status.state !== 'recording' && composerControls.contains(root.document.activeElement)
+        const restoreVoiceFocus = lastStatus === 'recording' && status.state !== 'recording' && composer.contains(root.document.activeElement)
         if (['error','unavailable'].includes(status.state)) voiceFocusRequested = false
         if (authoritative) avatar.update(status)
         if (activeSubmission) {
@@ -557,7 +569,6 @@
         if (status.state !== 'recording') voiceSubmissionPending = false
         const restoreRecordingFocus = cancelRequested && ['idle', 'error'].includes(status.state)
         if (restoreRecordingFocus) cancelRequested = false
-        const bottom = conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop < 40
         lastSnapshot = status
         prepareHistory(status)
         if (authoritative) revision++
@@ -614,10 +625,12 @@
           showNotice(detail, retry ? 'Record again' : 'Check status', retry ? startVoice : checkStatus)
         } else showNotice()
         if (!voiceAvailable() && !busy && composerMode === 'voice') setComposerMode('keyboard')
+        orderTimeline(); showThread(selectedThread)
         renderVoiceControl()
         if ((restoreRecordingFocus || restoreVoiceFocus) && !cancelling && root.document.getElementById('app-view')?.hidden !== false) fieldControl().focus({ preventScroll: true })
-        if (bottom) latest()
-        else $('.agent-latest').hidden = false
+        const shouldFollow = bottom && (newTurn || activeSubmission || ['thinking', 'transcribing'].includes(status.state) || (Array.isArray(status.notifications) && status.notifications.length > 0))
+        if (shouldFollow) latest()
+        else if (conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop >= 40) $('.agent-latest').hidden = false
       }
       const unsub = root.odkPersonalAgent?.subscribe(render)
       ctx.trackCleanup?.(() => {

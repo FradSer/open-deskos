@@ -137,7 +137,7 @@ async function createProactiveReconnectFixture(options = {}) {
       const id = proposal.id
       assert.equal(received.filter(command => command.type === 'proposal_presented').length, 0)
       await reconnect()
-      await until(() => evaluate(`(() => { const surface = document.querySelector('.agent-suggestions'); const advice = document.querySelector('.personal-agent-proposal-advice'); return !!surface && !surface.hidden && !!surface.closest('.agent-composer') && document.getElementById('personal-agent-status').hidden && !document.querySelector('.personal-agent-proposal-sources, .personal-agent-ride-details') && !!advice?.checkVisibility() && advice.textContent === ${JSON.stringify(proposal.advice)} && advice.closest('[data-proposal-id]')?.dataset.proposalId === ${JSON.stringify(id)} })()`),
+      await until(() => evaluate(`(() => { const advice = document.querySelector('.personal-agent-proposal-advice'); return !!advice?.closest('.agent-conversation .agent-message-assistant .agent-message-bubble') && !advice.closest('.agent-composer') && document.getElementById('personal-agent-status').hidden && !document.querySelector('.personal-agent-proposal-sources, .personal-agent-ride-details') && advice.checkVisibility() && advice.textContent === ${JSON.stringify(proposal.advice)} && advice.closest('[data-proposal-id]')?.dataset.proposalId === ${JSON.stringify(id)} })()`),
         'Reconnected unread advice must become naturally visible without an explicit list request')
       assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').value`), 'Keep reconnect draft.')
       assert.equal(await evaluate(`document.activeElement === document.querySelector('.agent-composer textarea')`), true, 'Reconnect cannot steal the existing draft focus')
@@ -205,7 +205,7 @@ async function createProactiveReconnectFixture(options = {}) {
         assert.equal(checkpoint.load().proposals[0].feedback, 'done')
       }
       assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').value`), 'Keep reconnect draft.')
-      assert.equal(await evaluate(`document.getElementById('personal-agent-status').hidden`), true, 'Reminder and execution remain inside the composer')
+      assert.equal(await evaluate(`document.getElementById('personal-agent-status').hidden`), true, 'Reminder and execution remain in the conversation')
       assert.equal(checkpoint.load().proposals[0].id, id)
       assert.equal(generations, 1); assert.equal(judgments, 1)
       assert.equal(received.some(command => command.type === 'proposal_list'), false, 'The test must not mask recovery with an explicit list request')
