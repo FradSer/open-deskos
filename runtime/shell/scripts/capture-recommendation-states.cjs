@@ -142,10 +142,7 @@ app.whenReady().then(async () => {
     proposalCapabilities: { read: true, respond: true, acknowledge: true }
   })
   await delay(100)
-  // Expand place selector and scroll to show complete route and quote
   await run(`(() => {
-    const quote = document.querySelector('.personal-agent-ride-actions .personal-agent-proposal-primary');
-    quote?.click();
     const conv = document.querySelector('.agent-conversation');
     conv.scrollTop = conv.scrollHeight;
     document.querySelector('.agent-latest').hidden = true;
@@ -171,12 +168,12 @@ app.whenReady().then(async () => {
     proposalCapabilities: { read: true, respond: true, acknowledge: true }
   })
   await delay(100)
-  // Open feedback disclosure and scroll to view
+  // Open feedback disclosure
   await run(`(() => {
     const details = document.querySelector('.personal-agent-proposal-feedback-options');
     if (details) details.open = true;
-    const conv = document.querySelector('.agent-conversation');
-    conv.scrollTop = conv.scrollHeight;
+    const card = document.querySelector('.personal-agent-proposal');
+    card?.scrollIntoView({block:'start'});
     document.querySelector('.agent-latest').hidden = true;
   })()`)
   await delay(100)

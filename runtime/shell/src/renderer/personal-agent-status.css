@@ -237,35 +237,60 @@
 }
 
 .agent-recommendation .personal-agent-proposals { min-width: 0; }
-.personal-agent-proposal { display: grid; gap: var(--odk-space-3); min-width: 0; }
+.personal-agent-proposal { display: grid; gap: var(--odk-space-2, 10px); min-width: 0; white-space: normal; }
 .personal-agent-proposal p { margin: 0; }
 .personal-agent-proposal-state, .personal-agent-proposal-evidence { color: var(--odk-secondary-strong); font-size: 14px; font-variant-numeric: tabular-nums; }
-.personal-agent-proposal-actions { display: flex; flex-wrap: wrap; gap: var(--odk-space-2); }
-.personal-agent-proposals button { min-height: 44px; padding: var(--odk-space-2); border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: 14px; white-space: normal; overflow-wrap: anywhere; text-align: start; }
+.personal-agent-proposal-actions { display: flex; flex-wrap: wrap; gap: var(--odk-space-2); align-items: center; }
+.personal-agent-proposals button { min-height: 44px; padding: var(--odk-space-2) var(--odk-space-3); border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: 14px; white-space: normal; overflow-wrap: anywhere; text-align: start; cursor: pointer; }
 .personal-agent-proposals button:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 .personal-agent-proposals button:disabled { color: var(--odk-secondary-strong); }
 
-.personal-agent-ride-route { display: grid; gap: 12px; }
+/* Generic structured preview primitives for generative agent content */
+.personal-agent-preview-card,
+.personal-agent-ride-card { display: grid; gap: 8px; padding: 12px 14px; background: color-mix(in srgb, var(--odk-elevated) 65%, transparent); border: 1px solid var(--odk-stroke); border-radius: 16px; margin-block: 2px; }
+.personal-agent-preview-summary,
+.personal-agent-ride-route-display { margin: 0; font-size: 16px; font-weight: 500; line-height: 1.4; color: var(--odk-primary); overflow-wrap: anywhere; }
+.personal-agent-preview-chips,
+.personal-agent-ride-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.personal-agent-preview-chip,
+.personal-agent-ride-item { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px; background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); font-size: 13px; line-height: 1.4; }
+.personal-agent-preview-label,
+.personal-agent-ride-product { color: var(--odk-secondary-strong); }
+.personal-agent-preview-value,
+.personal-agent-ride-price { color: var(--odk-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+.personal-agent-preview-notes,
+.personal-agent-ride-notes { display: grid; gap: 2px; }
+.personal-agent-preview-notice,
+.personal-agent-ride-note,
+.personal-agent-ride-sandbox { margin: 0; font-size: 12px; line-height: 1.4; color: var(--odk-secondary); }
+
+.personal-agent-preview-fields,
+.personal-agent-ride-route { display: grid; gap: 10px; padding: 12px; background: color-mix(in srgb, var(--odk-elevated) 45%, transparent); border: 1px solid var(--odk-stroke); border-radius: 14px; margin-block: 4px; }
+.personal-agent-preview-fields[hidden],
 .personal-agent-ride-route[hidden] { display: none; }
-.personal-agent-ride-route label { display: grid; gap: 8px; font-size: 14px; color: var(--odk-secondary-strong); }
-.personal-agent-ride-route select { min-height: 44px; width: 100%; min-width: 0; max-width: 100%; font: inherit; color: var(--odk-primary); background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: 8px; }
+.personal-agent-preview-fields label,
+.personal-agent-ride-route label { display: grid; gap: 4px; font-size: 13px; color: var(--odk-secondary-strong); }
+.personal-agent-preview-fields select,
+.personal-agent-ride-route select { min-height: 44px; width: 100%; min-width: 0; max-width: 100%; font: inherit; font-size: 14px; color: var(--odk-primary); background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: 10px; padding: 6px 10px; }
+.personal-agent-preview-fields select:focus-visible,
 .personal-agent-ride-route select:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 
-.personal-agent-proposal-advice { min-width: 0; overflow-wrap: anywhere; font-size: clamp(20px, 1.5vw, 24px); line-height: 1.5; color: var(--odk-primary); }
+.personal-agent-proposal-advice { min-width: 0; overflow-wrap: anywhere; font-size: clamp(20px, calc(18px + 0.65cqw), 24px); line-height: 1.5; color: var(--odk-primary); }
 .personal-agent-proposal-advice[data-long='true'] { max-block-size: min(12rem, 30vh); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-inline-end: var(--odk-space-2); }
 .personal-agent-proposal-advice:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 .personal-agent-ride-actions .personal-agent-proposal-primary { min-width: min(100%, 220px); justify-content: center; text-align: center; }
-.personal-agent-proposal-request-status { color: var(--odk-secondary-strong); font-size: 14px; line-height: 1.5; }
+.personal-agent-proposal-request-status { color: var(--odk-secondary-strong); font-size: 13px; line-height: 1.4; margin: 0; }
 .personal-agent-proposal-request-status:empty { display: none; }
-.personal-agent-proposal-next { display: grid; gap: var(--odk-space-1); }
-.personal-agent-proposal-next-label { font-size: 12px; color: var(--odk-secondary-strong); }
-.personal-agent-proposal-next-step { font-size: 16px; line-height: 1.5; color: var(--odk-primary); }
+.personal-agent-proposal-next { display: grid; gap: var(--odk-space-1); padding: 8px 12px; background: color-mix(in srgb, var(--odk-elevated) 40%, transparent); border: 1px solid var(--odk-stroke); border-radius: 12px; }
+.personal-agent-proposal-next-label { font-size: 12px; color: var(--odk-secondary-strong); margin: 0; }
+.personal-agent-proposal-next-step { font-size: 15px; line-height: 1.4; color: var(--odk-primary); margin: 0; }
 .personal-agent-proposals .personal-agent-proposal-primary { min-height: 48px; padding-inline: var(--odk-space-3); font-size: 16px; background: var(--odk-button); border-color: var(--odk-stroke-focus); }
 .personal-agent-proposals .personal-agent-proposal-secondary { background: transparent; border-color: transparent; color: var(--odk-secondary-strong); }
-.personal-agent-proposal-feedback, .personal-agent-proposal-capability { color: var(--odk-secondary-strong); font-size: 14px; }
+.personal-agent-proposal-feedback, .personal-agent-proposal-capability { color: var(--odk-secondary-strong); font-size: 13px; margin: 0; }
+.personal-agent-proposal-result { margin: 0; font-size: 14px; line-height: 1.5; color: var(--odk-primary); padding: 8px 12px; background: color-mix(in srgb, var(--odk-elevated) 50%, transparent); border: 1px solid var(--odk-stroke); border-radius: 12px; }
 .personal-agent-proposals details { min-width: 0; }
-.personal-agent-proposals summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--odk-secondary-strong); font-size: 14px; text-decoration: underline; text-underline-offset: 0.2em; }
+.personal-agent-proposals summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--odk-secondary-strong); font-size: 13px; text-decoration: underline; text-underline-offset: 0.2em; }
 .personal-agent-proposals summary:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 .personal-agent-proposals details[open] > summary { margin-block-end: var(--odk-space-2); }
+.personal-agent-proposal-error { margin: 0; font-size: 14px; line-height: 1.5; color: var(--odk-accent-red); }
 .agent-recommendation .personal-agent-proposals button { width: auto; height: auto; min-width: 44px; padding: var(--odk-space-2) var(--odk-space-3); }
-.agent-recommendation .personal-agent-proposal-advice { font-size: 18px; }

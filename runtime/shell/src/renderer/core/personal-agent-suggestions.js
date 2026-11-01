@@ -123,33 +123,64 @@
         node.addEventListener('click', callback)
         return node
       }
-      function rideRoute(article, proposal, canRespond = true) {
-        const preview = proposal.ridePreview
+      function structuredPreview(article, proposal, canRespond = true) {
+        const preview = proposal.preview || proposal.ridePreview
         if (!preview || typeof preview !== 'object') return
         let requests = rideRequests.get(proposal.id)
         if (requests?.handle !== preview.handle) {
           requests = { handle: preview.handle, quote: false, refresh: false }
           rideRequests.set(proposal.id, requests)
         }
+        const current = () => proposal.status === 'pending' && Number.isFinite(preview.expiresAt) && preview.expiresAt > Date.now()
+        const card = document.createElement('div')
+        card.className = 'personal-agent-preview-card personal-agent-ride-card'
+
+        const summaryText = preview.summary || [preview.from, preview.to].map(places => Array.isArray(places) && places.length === 1 ? String(places[0].name ?? '').slice(0, 256) : 'Choose a place').join(' → ')
+        const summary = document.createElement('p')
+        summary.className = 'personal-agent-preview-summary personal-agent-ride-route-display'
+        summary.textContent = summaryText
+        card.append(summary)
+
+        const items = document.createElement('div')
+        items.className = 'personal-agent-preview-chips personal-agent-ride-items'
+        for (const item of Array.isArray(preview.items) ? preview.items.slice(0, 16) : []) {
+          const line = document.createElement('span')
+          line.className = 'personal-agent-preview-chip personal-agent-ride-item'
+          const name = document.createElement('span')
+          name.className = 'personal-agent-preview-label personal-agent-ride-product'
+          name.textContent = `${String(item.productName || item.label || '').slice(0, 256)}: `
+          const price = document.createElement('span')
+          price.className = 'personal-agent-preview-value personal-agent-ride-price'
+          price.textContent = `${String(item.priceText || item.value || '').slice(0, 256)}`
+          line.append(name, price)
+          items.append(line)
+        }
+        if (items.children.length) card.append(items)
+
+        const note = document.createElement('p')
+        note.className = 'personal-agent-preview-notice personal-agent-ride-note'
+        if (!current()) note.textContent = 'Estimate expired. Refresh to check the route again.'
+        let sandbox
+        if (preview.sandbox === true) {
+          sandbox = document.createElement('p')
+          sandbox.className = 'personal-agent-preview-notice personal-agent-ride-sandbox'
+          sandbox.textContent = 'Sandbox preview; no real vehicle or trip.'
+        }
+        if (note.textContent || sandbox) {
+          const notes = document.createElement('div')
+          notes.className = 'personal-agent-preview-notes personal-agent-ride-notes'
+          if (note.textContent) notes.append(note)
+          if (sandbox) notes.append(sandbox)
+          card.append(notes)
+        }
+        article.append(card)
+
         const panel = document.createElement('section')
-        panel.className = 'personal-agent-ride-route'
+        panel.className = 'personal-agent-preview-fields personal-agent-ride-route'
         panel.id = `ride-route-${proposal.id}`
         panel.setAttribute('aria-label', 'Ride route')
         panel.hidden = true
-        const note = document.createElement('p')
-        const current = () => proposal.status === 'pending' && Number.isFinite(preview.expiresAt) && preview.expiresAt > Date.now()
-        note.textContent = current() ? 'Planned pickup; current location is not verified. No order placed.' : 'Estimate expired. Refresh to check the route again. No order placed.'
-        article.append(note)
-        if (preview.sandbox === true) { const sandbox = document.createElement('p'); sandbox.textContent = 'Sandbox preview; no real vehicle or trip.'; article.append(sandbox) }
-        for (const item of Array.isArray(preview.items) ? preview.items.slice(0, 16) : []) {
-          const line = document.createElement('p')
-          line.textContent = `${String(item.productName ?? '').slice(0, 256)}: ${String(item.priceText ?? '').slice(0, 256)}`
-          article.append(line)
-        }
         const selectors = []
-        const route = document.createElement('p')
-        route.textContent = [preview.from, preview.to].map(places => Array.isArray(places) && places.length === 1 ? String(places[0].name ?? '').slice(0, 256) : 'Choose a place').join(' → ')
-        article.append(route)
         for (const [key, caption] of [['from', 'Pickup'], ['to', 'Destination']]) {
           const label = document.createElement('label')
           label.textContent = caption
@@ -188,6 +219,7 @@
             const handles = [preview.handle, ...selectors.map(select => select.value)]
             if (!current() || !handles.every(value => typeof value === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(value)) || !selectors.every((select, index) => preview[index === 0 ? 'from' : 'to'].some(p => p.handle === select.value))) {
               note.textContent = 'Choose both actual places. If the preview expired, ask the Agent to search again.'
+              if (!note.parentElement) card.append(note)
               panel.hidden = false
               const missing = selectors.find(select => !select.value)
               if (missing) missing.focus()
@@ -325,8 +357,10 @@
             const executableAction = Boolean(p.action && typeof p.confirmation === 'string' && p.confirmation.trim())
             const nextStep = typeof p.nextStep === 'string' && p.nextStep.length <= 240 && !/[\x00-\x1f\x7f]/.test(p.nextStep) && !technicalNext ? p.nextStep.trim() : ''
             const readOnlyStep = !suggestionCapabilities.respond && Boolean(nextStep)
-            if (!executableAction) state.textContent += p.ridePreview || readOnlyStep ? ' · Read-only preview' : ' · Earlier suggestion · No executable action'
-            else if (!nextStep || technicalAdvice) state.textContent += ' · Earlier suggestion'
+            if (p.status === 'pending') {
+              if (readOnlyStep) state.textContent += ' · Read-only preview'
+              else if (!executableAction && !p.ridePreview) state.textContent += ' · No executable action'
+            }
             advice.textContent = technicalAdvice ? 'Earlier recommendation unavailable. Ask the Agent for an updated suggestion.' : p.advice
             if (!technicalAdvice && p.advice.length > 180) {
               advice.dataset.long = 'true'
@@ -386,7 +420,7 @@
               memory.textContent = memoryStates[p.feedbackLearning.status]
               article.append(memory)
             }
-            if (p.ridePreview) rideRoute(article, p, suggestionCapabilities.respond && typeof api.sendText === 'function')
+            if (p.preview || p.ridePreview) structuredPreview(article, p, suggestionCapabilities.respond && typeof api.sendText === 'function')
             if (p.result) {
               let structuredResult = false
               if (typeof p.result === 'string' && p.result.length <= 8192) {
