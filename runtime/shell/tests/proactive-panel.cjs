@@ -60,6 +60,17 @@ app.whenReady().then(async () => {
     clearTimeout(timer); win.destroy(); app.exit(0); return
   }
   const send = async status => { win.webContents.send('odk-personal-agent-status', status); await delay() }
+  // Visibility receipts and responses cross IPC asynchronously. Wait for the state under test
+  // instead of assuming it landed within one fixed delay.
+  const waitForCommand = async (predicate, label, timeoutMs = 3000) => {
+    const deadline = performance.now() + timeoutMs
+    while (performance.now() < deadline) {
+      const found = commands.find(predicate)
+      if (found) return found
+      await delay(25)
+    }
+    throw Error('Timed out waiting for ' + label + ': ' + JSON.stringify(commands))
+  }
   // Recommendations share the actual conversation scroll view.
   const showComposer = () => run(`(() => { document.querySelector('.personal-agent-proposal-advice')?.scrollIntoView({block:'center', inline:'nearest'}); return document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) })()`)
   const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry-soil', status: 'pending', offered: true, presented: false, reason: 'A current soil reading is below the selected threshold.', nextStep: '保存检查盆土备忘', advice: '<script>untrusted reading</script> 检查盆土。', action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土' } }, confirmation: '记住 watering：检查盆土', evidence: [{ readingId: 'odk.tile.hydra', field: 'plants.0.soilPercent', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z', ruleId: 'dry-soil' }] }
@@ -106,11 +117,12 @@ app.whenReady().then(async () => {
   assert.equal(await run(`!!document.querySelector('.personal-agent-proposal-sources, .personal-agent-ride-details, button[data-proposal-action="view-sources"]')`), false)
   assert.equal(await run(`[...document.querySelectorAll('[aria-modal="true"]')].some(node => node.checkVisibility())`), false, 'An inline recommendation must not open any modal surface')
   assert.equal(await run(`!!document.querySelector('.personal-agent-proposals script')`), false)
-  assert.equal(commands[0].type, 'proposal_presented')
+  await waitForCommand(c => c.type === 'proposal_presented', 'the first presentation receipt')
   await run(`[...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === '保存检查盆土备忘').click()`)
   await delay(); assert.equal(commands.some(c => c.type === 'proposal_respond'), false)
   await run(`[...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === '记住 watering：检查盆土').click()`)
-  await delay(); assert.equal(commands.at(-1).confirmation, p.confirmation)
+  const confirmed = await waitForCommand(c => c.type === 'proposal_respond', 'the exact confirmation')
+  assert.equal(confirmed.confirmation, p.confirmation)
   await send({ state: 'idle', proposals: [p], proposalHiddenCount: 0, proposalPopup: true, proposalError: 'generation_unavailable' })
   assert.equal(await run(`document.querySelector('.personal-agent-proposal-error')?.textContent`), 'generation_unavailable')
   await run(`window.__proposalControls = [...document.querySelectorAll('.personal-agent-proposals button')]`)
@@ -269,7 +281,8 @@ app.whenReady().then(async () => {
   await run(`(() => { const control = [...document.querySelectorAll('.personal-agent-proposal button')].find(b => b.textContent === 'Later'); control.scrollIntoView({block:'center'}); control.focus(); return control.getBoundingClientRect().height })()`)
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
   await delay()
-  assert.equal(commands.at(-1).decision, 'snooze'); assert.equal(commands.at(-1).id, laterCard.id)
+  const lastResponse = () => commands.filter(c => c.type === 'proposal_respond').at(-1)
+  assert.equal(lastResponse().decision, 'snooze'); assert.equal(lastResponse().id, laterCard.id)
   await send({ state: 'idle', proposals: [{ ...laterCard, snoozedUntil: Date.now() + 60000 }], proposalPopup: false })
   await send({ state: 'idle', proposals: [laterCard], proposalPopup: true })
   assert.equal(await run(`document.querySelector('.agent-composer textarea').value`), 'Keep this unfinished draft.')
@@ -280,7 +293,7 @@ app.whenReady().then(async () => {
   await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...touch, id: 1 }] })
   await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
   await delay()
-  assert.equal(commands.at(-1).decision, 'snooze'); assert.equal(commands.at(-1).id, touched.id)
+  assert.equal(lastResponse().decision, 'snooze'); assert.equal(lastResponse().id, touched.id)
   await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: false })
   const beforeReadOnly = commands.length, beforeReadOnlyTurns = ownerTurns.length
   await send({ state: 'idle', proposals: [ride], proposalPopup: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })

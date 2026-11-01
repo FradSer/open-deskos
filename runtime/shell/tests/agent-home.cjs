@@ -1099,11 +1099,13 @@ app.whenReady().then(async () => {
       const gutter=await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),r=c.getBoundingClientRect();return{x:Math.floor(r.right-6),y:Math.ceil(r.top),width:6,height:Math.floor(r.height)-1}})()`)
       const activeThumb=(await capturePaintedPage(win, gutter)).toBitmap()
       if(evidence&&[1920,320].includes(width))fs.writeFileSync(path.join(evidence,`scroll-overlay-${theme}-${width}-scrolling.png`),(await capturePaintedPage(win)).toPNG(),{mode:0o600})
-      await evaluate(`(async()=>{const c=document.querySelector('.agent-conversation'),end=performance.now()+1200;while(c.dataset.scrolling==='true'){if(performance.now()>end)throw Error('Scrollbar idle did not settle');await new Promise(r=>setTimeout(r,20))}await new Promise(r=>setTimeout(r,60))})()`)
-      const fading=await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`)
-      assert.notEqual(fading,'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)','the scrollbar fades instead of disappearing immediately')
-      await evaluate(`new Promise(r=>setTimeout(r,160))`)
-      assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`),'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)','idle scrollbar fades to transparent')
+      // A fade is a transition, not a jump cut. Sampling a mid-transition frame is timing
+      // dependent, so assert the declared transition and the settled end state instead.
+      const fadeSpec=await evaluate(`(()=>{const s=getComputedStyle(document.querySelector('.agent-conversation'));return{property:s.transitionProperty,duration:s.transitionDuration}})()`)
+      assert.match(fadeSpec.property,/scrollbar-color/,'the scrollbar fades instead of disappearing immediately')
+      assert.ok(parseFloat(fadeSpec.duration)>0,'the scrollbar fade has a non-zero duration')
+      await evaluate(`(async()=>{const c=document.querySelector('.agent-conversation'),end=performance.now()+2000;while(c.dataset.scrolling==='true'){if(performance.now()>end)throw Error('Scrollbar idle did not settle');await new Promise(r=>setTimeout(r,20))}while(getComputedStyle(c).scrollbarColor!=='rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)'){if(performance.now()>end)throw Error('Scrollbar did not settle to transparent: '+getComputedStyle(c).scrollbarColor);await new Promise(r=>setTimeout(r,20))}})()`)
+      assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`),'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)','idle scrollbar settles to transparent')
       const idleThumb=(await capturePaintedPage(win, gutter)).toBitmap()
       let changed=0;for(let p=0;p<activeThumb.length;p+=4)if(activeThumb[p]!==idleThumb[p]||activeThumb[p+1]!==idleThumb[p+1]||activeThumb[p+2]!==idleThumb[p+2])changed++
       assert.ok(changed>=8,'the actual painted native thumb changes between scrolling and idle: '+JSON.stringify({theme,width,changed}))
