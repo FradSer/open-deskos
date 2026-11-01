@@ -127,19 +127,23 @@
         const preview = proposal.preview || proposal.ridePreview
         if (!preview || typeof preview !== 'object') return
         let requests = rideRequests.get(proposal.id)
-        if (requests?.handle !== preview.handle) {
+        if (preview.handle && requests?.handle !== preview.handle) {
           requests = { handle: preview.handle, quote: false, refresh: false }
           rideRequests.set(proposal.id, requests)
         }
-        const current = () => proposal.status === 'pending' && Number.isFinite(preview.expiresAt) && preview.expiresAt > Date.now()
+        const hasExpiry = Number.isFinite(preview.expiresAt)
+        const expired = hasExpiry && preview.expiresAt <= Date.now()
+        const current = () => proposal.status === 'pending' && (!hasExpiry || !expired)
         const card = document.createElement('div')
         card.className = 'personal-agent-preview-card personal-agent-ride-card'
 
-        const summaryText = preview.summary || [preview.from, preview.to].map(places => Array.isArray(places) && places.length === 1 ? String(places[0].name ?? '').slice(0, 256) : 'Choose a place').join(' → ')
-        const summary = document.createElement('p')
-        summary.className = 'personal-agent-preview-summary personal-agent-ride-route-display'
-        summary.textContent = summaryText
-        card.append(summary)
+        const summaryText = preview.summary || (preview.from && preview.to ? [preview.from, preview.to].map(places => Array.isArray(places) && places.length === 1 ? String(places[0].name ?? '').slice(0, 256) : 'Choose a place').join(' → ') : '')
+        if (summaryText) {
+          const summary = document.createElement('p')
+          summary.className = 'personal-agent-preview-summary personal-agent-ride-route-display'
+          summary.textContent = summaryText
+          card.append(summary)
+        }
 
         const items = document.createElement('div')
         items.className = 'personal-agent-preview-chips personal-agent-ride-items'
@@ -159,7 +163,7 @@
 
         const note = document.createElement('p')
         note.className = 'personal-agent-preview-notice personal-agent-ride-note'
-        if (!current()) note.textContent = 'Estimate expired. Refresh to check the route again.'
+        if (hasExpiry && expired) note.textContent = 'Estimate expired. Refresh to check the route again.'
         let sandbox
         if (preview.sandbox === true) {
           sandbox = document.createElement('p')
@@ -173,31 +177,34 @@
           if (sandbox) notes.append(sandbox)
           card.append(notes)
         }
-        article.append(card)
+        if (card.children.length) article.append(card)
 
-        const panel = document.createElement('section')
-        panel.className = 'personal-agent-preview-fields personal-agent-ride-route'
-        panel.id = `ride-route-${proposal.id}`
-        panel.setAttribute('aria-label', 'Ride route')
-        panel.hidden = true
-        const selectors = []
-        for (const [key, caption] of [['from', 'Pickup'], ['to', 'Destination']]) {
-          const label = document.createElement('label')
-          label.textContent = caption
-          const select = document.createElement('select')
-          select.setAttribute('aria-label', caption)
-          const choices = Array.isArray(preview[key]) ? preview[key].slice(0, 8) : []
-          const blank = document.createElement('option')
-          blank.value = ''; blank.textContent = `Choose ${caption.toLowerCase()}`
-          select.append(blank)
-          for (const place of choices) {
-            const option = document.createElement('option')
-            option.value = typeof place.handle === 'string' ? place.handle : ''
-            option.textContent = `${String(place.name ?? '').slice(0, 256)} — ${String(place.city ?? '').slice(0, 80)} ${String(place.address ?? '').slice(0, 256)}`
-            select.append(option)
+        const hasSelectors = Boolean(preview.from && preview.to)
+        let panel, selectors = []
+        if (hasSelectors) {
+          panel = document.createElement('section')
+          panel.className = 'personal-agent-preview-fields personal-agent-ride-route'
+          panel.id = `ride-route-${proposal.id}`
+          panel.setAttribute('aria-label', 'Ride route')
+          panel.hidden = true
+          for (const [key, caption] of [['from', 'Pickup'], ['to', 'Destination']]) {
+            const label = document.createElement('label')
+            label.textContent = caption
+            const select = document.createElement('select')
+            select.setAttribute('aria-label', caption)
+            const choices = Array.isArray(preview[key]) ? preview[key].slice(0, 8) : []
+            const blank = document.createElement('option')
+            blank.value = ''; blank.textContent = `Choose ${caption.toLowerCase()}`
+            select.append(blank)
+            for (const place of choices) {
+              const option = document.createElement('option')
+              option.value = typeof place.handle === 'string' ? place.handle : ''
+              option.textContent = `${String(place.name ?? '').slice(0, 256)} — ${String(place.city ?? '').slice(0, 80)} ${String(place.address ?? '').slice(0, 256)}`
+              select.append(option)
+            }
+            select.value = choices.length === 1 ? choices[0].handle : ''
+            label.append(select); panel.append(label); selectors.push(select)
           }
-          select.value = choices.length === 1 ? choices[0].handle : ''
-          label.append(select); panel.append(label); selectors.push(select)
         }
         const actions = document.createElement('div')
         actions.className = 'personal-agent-proposal-actions personal-agent-ride-actions'
@@ -208,19 +215,19 @@
         rideStatusNodes.set(proposal.id, { requests, node: requestStatus })
         if (requests) requests.view = requestStatus
         const showRequestStatus = text => {
-          requests.message = text
-          if (requests.view) requests.view.textContent = text
+          if (requests) requests.message = text
+          if (requests?.view) requests.view.textContent = text
         }
         let quoteButton
         const validPreviewHandle = typeof preview.handle === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(preview.handle)
-        if (canRespond && validPreviewHandle && current()) {
+        if (canRespond && validPreviewHandle && current() && !proposal.action) {
           quoteButton = button('Get current quote', async function () {
-            if (closed || !surface.contains(quoteButton) || quoteButton.disabled || requests.quote) return
+            if (closed || !surface.contains(quoteButton) || quoteButton.disabled || requests?.quote) return
             const handles = [preview.handle, ...selectors.map(select => select.value)]
-            if (!current() || !handles.every(value => typeof value === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(value)) || !selectors.every((select, index) => preview[index === 0 ? 'from' : 'to'].some(p => p.handle === select.value))) {
+            if (!current() || !handles.every(value => typeof value === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(value)) || (selectors.length && !selectors.every((select, index) => preview[index === 0 ? 'from' : 'to'].some(p => p.handle === select.value)))) {
               note.textContent = 'Choose both actual places. If the preview expired, ask the Agent to search again.'
               if (!note.parentElement) card.append(note)
-              panel.hidden = false
+              if (panel) panel.hidden = false
               const missing = selectors.find(select => !select.value)
               if (missing) missing.focus()
               return
@@ -237,14 +244,14 @@
             }
           })
           quoteButton.className = 'personal-agent-proposal-primary'
-          quoteButton.disabled = requests.quote
+          quoteButton.disabled = requests?.quote === true
           quoteButton.dataset.proposalId = proposal.id
           quoteButton.dataset.proposalAction = 'ride-quote'
           actions.append(quoteButton)
         }
-        if (canRespond && validPreviewHandle && ['pending', 'expired'].includes(proposal.status)) {
+        if (canRespond && validPreviewHandle && ['pending', 'expired'].includes(proposal.status) && !proposal.action) {
           const refresh = button('Refresh preview', async () => {
-            if (closed || !surface.contains(refresh) || refresh.disabled || requests.refresh) return
+            if (closed || !surface.contains(refresh) || refresh.disabled || requests?.refresh) return
             requests.refresh = true
             refresh.disabled = true
             showRequestStatus('Sending preview refresh…')
@@ -255,13 +262,14 @@
             } catch { showRequestStatus('Preview refresh delivery is uncertain. Check the Agent conversation before trying again.') }
           })
           refresh.dataset.proposalId = proposal.id
-          refresh.disabled = requests.refresh
+          refresh.disabled = requests?.refresh === true
           refresh.dataset.proposalAction = 'ride-refresh'
           if (!quoteButton) refresh.className = 'personal-agent-proposal-primary'
-          else panel.append(refresh)
+          else if (panel) panel.append(refresh)
           if (!quoteButton) actions.append(refresh)
         }
-        article.append(actions, requestStatus, panel)
+        article.append(actions, requestStatus)
+        if (panel) article.append(panel)
         return actions.children.length > 0
       }
       const expandedDisclosures = new Set()
