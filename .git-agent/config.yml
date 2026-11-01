@@ -15,3 +15,15 @@ scopes:
       description: Experimental prototypes and proof-of-concept projects in experiments/; does not cover core product runtime or peripherals
     - name: tool
       description: Build automation, codegen scripts, and repository infrastructure in tools/; does not cover core application logic
+    - name: runtime
+      description: Core desktop shell, app lifecycle, UI renderer, and Android host in runtime/; does not cover integration-level services
+    - name: integrations
+      description: Connectivity bridges, personal agent services, and transport protocols in integrations/; does not cover desktop shell UI
+    - name: peripherals
+      description: ESP32 firmware drivers, peripheral control, and hardware components in peripherals/; does not cover Linux-side host processes
+    - name: research
+      description: Hardware research and experimental firmware simulation in research/; does not cover production drivers
+    - name: experiments
+      description: Experimental prototypes and proof-of-concept projects in experiments/; does not cover core product runtime
+    - name: tools
+      description: Build automation, codegen scripts, and repository infrastructure in tools/; does not cover core application logic
