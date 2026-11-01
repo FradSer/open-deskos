@@ -62,7 +62,7 @@ html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summar
 }
 
 html[data-theme='liquid-glass'] #personal-agent :is(button, input, select, summary):not(.agent-session-open) {
-  border-radius: var(--odk-radius-pill);
+  border-radius: var(--agent-radius-control, var(--odk-radius-pill));
 }
 
 
@@ -115,7 +115,7 @@ html[data-theme='liquid-glass'] input:is([type='checkbox'], [type='radio'], [typ
 
 html[data-theme='liquid-glass'] #personal-agent .agent-composer.lg-surface {
   visibility: inherit;
-  border-radius: var(--odk-radius-pill) !important;
+  border-radius: var(--agent-radius-surface, var(--odk-radius-pill)) !important;
 }
 
 html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #personal-agent .agent-composer.lg-surface {

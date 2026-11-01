@@ -36,6 +36,14 @@ Feature: Independent resident Personal Agent
     When the owner returns to the latest message
     Then the overlay disappears and the padding returns to the base inset
 
+  Scenario: Agent surfaces share one concentric radius scale
+    Given a recommendation message renders inside the conversation
+    When the owner inspects the message bubble, its nested cards, and its controls
+    Then the bubble, the nested card, the inset panel, and the control each use the shared scale
+    And every inner radius is smaller than or equal to its containing radius
+    And no Agent surface falls back to an unrelated fixed or pill radius
+    And the Pixel theme collapses every level of that scale to zero
+
   Scenario: Changed readings carry an optional state tone
     Given a preview reading reports a change away from its expected state
     When the recommendation message renders that reading

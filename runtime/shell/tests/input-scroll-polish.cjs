@@ -171,8 +171,9 @@ app.whenReady().then(async () => {
       const identity = await js(`(()=>{const name=document.querySelector('.agent-name'),pill=document.querySelector('.agent-identity .agent-capsule');return {height:pill.getBoundingClientRect().height,nameHeight:name.getBoundingClientRect().height,nameLine:parseFloat(getComputedStyle(name).lineHeight),nameWhole:name.scrollWidth<=name.clientWidth+1}})()`)
       check(where + ': default name is whole on one line', identity.nameHeight <= identity.nameLine + 1 && identity.nameWhole)
       check(where + ': identity capsule keeps control height', identity.height >= 44 && identity.height <= 84)
-      const focus = await js(`(()=>{const input=document.querySelector('.agent-composer textarea'),box=input.closest('form'),s=getComputedStyle(box),t=getComputedStyle(input);return {focused:input.matches(':focus-visible'),outline:s.outlineStyle,width:s.outlineWidth,color:s.outlineColor,radius:s.borderTopLeftRadius,inputOutline:t.outlineStyle}})()`)
-      check(where + ': outer composer focus follows theme shape', focus.focused && focus.outline === 'solid' && focus.width === '2px' && (theme === 'pixel' ? focus.radius === '0px' : parseFloat(focus.radius) >= 32))
+      // The composer shares the Agent surface radius, so every theme keeps one concentric scale.
+      const focus = await js(`(()=>{const input=document.querySelector('.agent-composer textarea'),box=input.closest('form'),s=getComputedStyle(box),t=getComputedStyle(input),probe=document.createElement('span');probe.style.borderRadius='var(--agent-radius-surface)';box.append(probe);const surface=getComputedStyle(probe).borderTopLeftRadius;probe.remove();return {focused:input.matches(':focus-visible'),outline:s.outlineStyle,width:s.outlineWidth,color:s.outlineColor,radius:s.borderTopLeftRadius,surface,inputOutline:t.outlineStyle}})()`)
+      check(where + ': outer composer focus follows theme shape', focus.focused && focus.outline === 'solid' && focus.width === '2px' && focus.radius === focus.surface && (theme === 'pixel' ? focus.radius === '0px' : parseFloat(focus.radius) >= 20))
       check(where + ': no rectangular input outline', focus.inputOutline === 'none')
       if (theme === 'instrument' && width === 1280) await capture('composer-focused')
       for (const button of ['.agent-mic', '.agent-send']) {
