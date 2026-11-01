@@ -70,6 +70,7 @@ app.whenReady().then(async () => {
     const token = name => scale.getPropertyValue(name).trim()
     return {
       tokens: {
+        padSurface: token('--agent-pad-surface'), padCard: token('--agent-pad-card'),
         surface: token('--agent-radius-surface'), card: token('--agent-radius-card'),
         inset: token('--agent-radius-inset'), control: token('--agent-radius-control'), chip: token('--agent-radius-chip')
       },
@@ -103,18 +104,32 @@ app.whenReady().then(async () => {
       assert.equal(part.tl, part.tr, `${theme}/${name}: horizontal and vertical radii differ`)
       assert.equal(part.tl, part.br, `${theme}/${name}: opposite corners differ`)
     }
-    // The declared scale must be strictly ordered, outermost to innermost.
-    const order = ['bubble', 'card', 'next', 'inset', 'control']
-    const radius = name => name in m.parts && m.parts[name] ? m.parts[name].radius : null
-    const bubble = radius('bubble'), card = radius('card'), inset = radius('inset'), control = m.parts.confirm.radius, chip = m.parts.chip.radius
-    assert.ok(bubble >= card, `${theme}: card ${card} must not exceed bubble ${bubble}`)
-    assert.ok(card >= inset, `${theme}: inset ${inset} must not exceed card ${card}`)
-    assert.ok(card >= control, `${theme}: control ${control} must not exceed card ${card}`)
-    assert.ok(inset >= chip, `${theme}: chip ${chip} must not exceed inset ${inset}`)
+    // Concentric means each inner radius equals its container radius minus the padding
+    // between them, so the corners stay tangent. A proportional guess would pass an
+    // ordering check but fail this one.
+    const radius = name => (name in m.parts && m.parts[name]) ? m.parts[name].radius : null
+    const bubble = radius('bubble'), card = radius('card'), inset = radius('inset'), control = m.parts.confirm.radius, chip = radius('chip')
+    const padSurface = parseFloat(m.tokens.padSurface), padCard = parseFloat(m.tokens.padCard)
+    const near = (a, b) => Math.abs(a - b) <= 0.02
+    if (theme === 'pixel') {
+      assert.equal(bubble, 0, 'pixel: surface collapses')
+      assert.equal(card, 0, 'pixel: card collapses')
+      assert.equal(inset, 0, 'pixel: inset collapses')
+      assert.equal(control, 0, 'pixel: control collapses')
+      assert.equal(chip, 0, 'pixel: chip collapses')
+    } else {
+      assert.ok(near(bubble - card, padSurface), `${theme}: card ${card} must equal surface ${bubble} minus padding ${padSurface}`)
+      assert.ok(near(card - inset, padCard), `${theme}: inset ${inset} must equal card ${card} minus padding ${padCard}`)
+      assert.equal(chip, inset, `${theme}: a chip inside the card shares the inset radius`)
+      assert.ok(control < card && control > chip, `${theme}: control ${control} sits strictly between chip ${chip} and card ${card}`)
+      assert.ok(bubble > card && card > inset, `${theme}: the surface chain decreases strictly`)
+    }
     assert.equal(m.parts.composer.radius, bubble, `${theme}: composer and bubble share one surface radius`)
     assert.equal(m.parts.composerButton.radius, control, `${theme}: composer buttons use the control radius`)
     assert.equal(m.parts.latest.radius, control, `${theme}: the latest overlay uses the control radius`)
-    assert.equal(m.parts.select.radius, inset, `${theme}: a field inside the inset panel uses the inset radius`)
+    // A field control inside the inset panel shares the panel radius so the control reads as
+    // part of its container. The concentric surface chain stops at the panel.
+    assert.equal(m.parts.select.radius, inset, `${theme}: a field control matches its inset panel`)
     // Pixel collapses every level to a hard edge.
     if (theme === 'pixel') for (const [name, part] of Object.entries(m.parts)) {
       if (part) assert.equal(part.radius, 0, `pixel/${name}: expected a hard edge, got ${part.tl}`)
@@ -124,10 +139,10 @@ app.whenReady().then(async () => {
         if (part) assert.ok(Number.isFinite(part.radius) && part.radius < 40, `${theme}/${name}: ${part.tl} is not part of the concentric scale`)
       }
     }
-    console.log(`AGENT_RADIUS ${theme} ${JSON.stringify({ bubble, card, inset, control, chip })}`)
+    console.log(`AGENT_RADIUS ${theme} ${JSON.stringify({ bubble, card, inset, control, chip, padSurface, padCard })}`)
   }
   fs.writeFileSync(path.join(os.tmpdir(), 'odk-agent-radius.json'), JSON.stringify(record, null, 2))
-  console.log('AGENT_RADIUS_PASS: one concentric scale across 4 themes; Pixel collapses to 0')
+  console.log('AGENT_RADIUS_PASS: concentric (radius minus padding) across 4 themes; Pixel collapses to 0')
   clearTimeout(timer)
   win.destroy()
   app.exit(0)

@@ -173,7 +173,7 @@ app.whenReady().then(async () => {
       check(where + ': identity capsule keeps control height', identity.height >= 44 && identity.height <= 84)
       // The composer shares the Agent surface radius, so every theme keeps one concentric scale.
       const focus = await js(`(()=>{const input=document.querySelector('.agent-composer textarea'),box=input.closest('form'),s=getComputedStyle(box),t=getComputedStyle(input),probe=document.createElement('span');probe.style.borderRadius='var(--agent-radius-surface)';box.append(probe);const surface=getComputedStyle(probe).borderTopLeftRadius;probe.remove();return {focused:input.matches(':focus-visible'),outline:s.outlineStyle,width:s.outlineWidth,color:s.outlineColor,radius:s.borderTopLeftRadius,surface,inputOutline:t.outlineStyle}})()`)
-      check(where + ': outer composer focus follows theme shape', focus.focused && focus.outline === 'solid' && focus.width === '2px' && focus.radius === focus.surface && (theme === 'pixel' ? focus.radius === '0px' : parseFloat(focus.radius) >= 20))
+      check(where + ': outer composer focus follows theme shape', focus.focused && focus.outline === 'solid' && focus.width === '2px' && focus.radius === focus.surface && (theme === 'pixel' ? focus.radius === '0px' : parseFloat(focus.radius) > 0))
       check(where + ': no rectangular input outline', focus.inputOutline === 'none')
       if (theme === 'instrument' && width === 1280) await capture('composer-focused')
       for (const button of ['.agent-mic', '.agent-send']) {

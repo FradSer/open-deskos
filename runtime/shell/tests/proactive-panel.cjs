@@ -303,6 +303,9 @@ app.whenReady().then(async () => {
     for (const revoked of [{ state: 'unavailable' }, { state: 'idle', proposalCapabilities: { read: false, respond: false, acknowledge: false } }]) {
       await send({ state: 'idle', proposals: [{ ...p, action: null, confirmation: '' }], proposalPopup: true })
       assert.equal(await run(`document.querySelector('.personal-agent-proposals').hidden`), false)
+      // A visibility receipt is asynchronous and theme-dependent. Let it land before the
+      // withdrawal snapshot, otherwise a queued receipt reads as a post-withdrawal command.
+      await delay(350)
       const beforeWithdrawal = commands.length
       await send(revoked)
       assert.equal(await run(`document.querySelectorAll('.personal-agent-proposal').length`), 0, 'Withdrawal removes recommendation messages')

@@ -247,7 +247,7 @@
 
 /* Generic structured preview primitives for generative agent content */
 .personal-agent-preview-card,
-.personal-agent-ride-card { display: grid; gap: 8px; padding: 12px 14px; background: color-mix(in srgb, var(--odk-elevated) 65%, transparent); border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-card); margin-block: 2px; }
+.personal-agent-ride-card { display: grid; gap: 8px; padding: var(--agent-pad-card) 14px; background: color-mix(in srgb, var(--odk-elevated) 65%, transparent); border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-card); margin-block: 2px; }
 .personal-agent-preview-summary,
 .personal-agent-ride-route-display { margin: 0; font-size: 16px; font-weight: 500; line-height: 1.4; color: var(--odk-primary); overflow-wrap: anywhere; }
 .personal-agent-preview-chips,

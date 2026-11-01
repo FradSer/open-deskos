@@ -35,11 +35,13 @@ Feature: Independent resident Personal Agent
     When the owner returns to the latest message
     Then the overlay disappears and the padding returns to the base inset
 
-  Scenario: Agent surfaces share one concentric radius scale
+  Scenario: Agent surfaces are geometrically concentric
     Given a recommendation message renders inside the conversation
-    When the owner inspects the message bubble, its nested cards, and its controls
-    Then the bubble, the nested card, the inset panel, and the control each use the shared scale
-    And every inner radius is smaller than or equal to its containing radius
+    When the owner inspects the message bubble, its nested card, and the inset panel
+    Then each inner radius equals its container radius minus the padding between them
+    And a chip inside the card matches the inset radius
+    And a field control matches its inset panel
+    And a control keeps one independent radius smaller than the card
     And no Agent surface falls back to an unrelated fixed or pill radius
     And the Pixel theme collapses every level of that scale to zero
 
