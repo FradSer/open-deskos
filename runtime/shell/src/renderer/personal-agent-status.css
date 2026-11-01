@@ -251,13 +251,18 @@
 .personal-agent-preview-summary,
 .personal-agent-ride-route-display { margin: 0; font-size: 16px; font-weight: 500; line-height: 1.4; color: var(--odk-primary); overflow-wrap: anywhere; }
 .personal-agent-preview-chips,
-.personal-agent-ride-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.personal-agent-ride-items { display: flex; flex-wrap: wrap; gap: 8px 6px; }
 .personal-agent-preview-chip,
 .personal-agent-ride-item { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px; background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); font-size: 13px; line-height: 1.4; }
 .personal-agent-preview-label,
 .personal-agent-ride-product { color: var(--odk-secondary-strong); }
 .personal-agent-preview-value,
 .personal-agent-ride-price { color: var(--odk-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Optional change-of-state emphasis. The label keeps the meaning when color is unavailable. */
+.personal-agent-preview-chip[data-tone='warn'] .personal-agent-preview-value,
+.personal-agent-ride-item[data-tone='warn'] .personal-agent-ride-price { color: var(--odk-accent-red); }
+.personal-agent-preview-chip[data-tone='good'] .personal-agent-preview-value,
+.personal-agent-ride-item[data-tone='good'] .personal-agent-ride-price { color: var(--odk-accent-green); }
 .personal-agent-preview-notes,
 .personal-agent-ride-notes { display: grid; gap: 2px; }
 .personal-agent-preview-notice,

@@ -47,7 +47,7 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 .agent-avatar svg { width: 32px; height: 32px; }
 .agent-name { margin: 0; min-width: 0; flex: 0 1 auto; font-size: 18px; font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .agent-identity { position: relative; z-index: 1; margin-block-start: calc(0px - var(--agent-head-overlap)); pointer-events: none; width: max-content; max-width: 100%; min-width: 0; }
-.agent-identity .agent-capsule { min-height: 44px; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; justify-content: center; row-gap: 2px; padding: calc((var(--agent-capsule-top) + 10px) / 2) 14px; cursor: default; border: 1px solid color-mix(in srgb, var(--odk-stroke) 55%, transparent); border-radius: 28px; background: color-mix(in srgb, var(--odk-surface) 90%, transparent); }
+.agent-identity .agent-capsule { min-height: 44px; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; justify-content: center; row-gap: 2px; padding: calc((var(--agent-capsule-top) + 10px) / 2) 14px; cursor: default; border: 1px solid color-mix(in srgb, var(--odk-stroke) 55%, transparent); border-radius: 28px; background: var(--odk-surface); }
 .agent-identity .agent-capsule > .agent-name { grid-area: 1 / 1; text-align: center; }
 .agent-identity .agent-capsule > .agent-state { grid-area: 2 / 1; text-align: center; }
 .agent-history { grid-area: 1 / 1; position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
@@ -55,6 +55,8 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 .agent-panel:has(.agent-thread-nav:not([hidden])) .agent-conversation { padding-block-start: calc(var(--agent-head-space) + 60px); scroll-padding-block-start: calc(var(--agent-head-space) + 60px); }
 @media (forced-colors: active) { .agent-conversation { mask-image: none; } }
 .agent-conversation[data-scrolling="true"] { scrollbar-color: var(--odk-secondary-strong) transparent; }
+/* The overlay never covers the last visible controls. */
+.agent-history:has(.agent-latest:not([hidden])) .agent-conversation { padding-block-end: 60px; }
 @media (prefers-reduced-motion: reduce) { .agent-conversation { transition: none; } }
 .agent-empty { color: var(--odk-secondary-strong); font-size: 16px; line-height: 1.6; }
 .agent-message { margin: 0; overflow-wrap: anywhere; font-size: clamp(20px, calc(18px + 0.65cqw), 24px); line-height: 1.6; }
@@ -78,9 +80,9 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 .agent-message-assistant:has(.agent-message-body:empty):not(:has(.agent-history-state)) { display: none; }
 .agent-composer { grid-column: 1; flex: none; display: flex; align-items: flex-end; gap: 8px; padding: 8px; border: 1px solid var(--odk-stroke); border-radius: 32px; background: var(--odk-surface); box-shadow: 0 4px 16px color-mix(in srgb, var(--odk-bg) 20%, transparent); }
 .agent-composer textarea { min-width: 0; flex: 1; min-height: 46px; height: 46px; max-height: none; resize: none; padding: 8px; scrollbar-width: thin; font: inherit; font-size: clamp(20px, calc(18px + 0.5cqw), 22px); line-height: 1.5; color: var(--odk-primary); background: transparent; border: 0; }
-.agent-composer textarea::placeholder { color: var(--odk-secondary-strong); }
+.agent-composer textarea::placeholder { color: var(--odk-secondary-strong); font-size: 0.8em; white-space: nowrap; overflow: hidden; }
 .agent-latest { min-width: 44px; min-height: 44px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: 14px; cursor: pointer; }
-.agent-latest { position: absolute; z-index: 1; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); padding-inline: 16px; pointer-events: auto; }
+.agent-latest { position: absolute; z-index: 1; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); padding-inline: 16px; pointer-events: auto; white-space: nowrap; }
 .agent-panel button:disabled { opacity: 0.5; cursor: default; }
 .agent-panel :is(button, input, textarea, select, summary):focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 /* The capsule owns text focus; action buttons keep their individual rings. */

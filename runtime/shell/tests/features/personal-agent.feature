@@ -28,6 +28,21 @@ Feature: Independent resident Personal Agent
     And its feedback, execution state, and result stay inside that message
     And an unknown execution outcome cannot be repeated
 
+  Scenario: The latest overlay never covers recommendation controls
+    Given a recommendation message shows actions near the end of the conversation
+    When the owner scrolls earlier messages and the latest overlay appears
+    Then the overlay keeps its position and stays out of the conversation flow
+    And the message padding keeps the last controls clear of the overlay
+    When the owner returns to the latest message
+    Then the overlay disappears and the padding returns to the base inset
+
+  Scenario: Changed readings carry an optional state tone
+    Given a preview reading reports a change away from its expected state
+    When the recommendation message renders that reading
+    Then the reading keeps its label and value as text
+    And the value may carry the warn or good state tone
+    And a reading without a tone keeps the neutral value color
+
   Scenario: Queued recommendations do not appear before their offer
     Given a pending recommendation has not been offered by the resident
     When the Personal Agent receives its proposal snapshot

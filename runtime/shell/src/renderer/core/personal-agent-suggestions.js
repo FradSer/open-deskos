@@ -150,6 +150,7 @@
         for (const item of Array.isArray(preview.items) ? preview.items.slice(0, 16) : []) {
           const line = document.createElement('span')
           line.className = 'personal-agent-preview-chip personal-agent-ride-item'
+          if (item.tone === 'warn' || item.tone === 'good') line.dataset.tone = item.tone
           const name = document.createElement('span')
           name.className = 'personal-agent-preview-label personal-agent-ride-product'
           name.textContent = `${String(item.productName || item.label || '').slice(0, 256)}: `

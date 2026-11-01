@@ -27,3 +27,5 @@ scopes:
       description: Experimental prototypes and proof-of-concept projects in experiments/; does not cover core product runtime
     - name: tools
       description: Build automation, codegen scripts, and repository infrastructure in tools/; does not cover core application logic
+    - name: screenshots
+      description: Visual test artifacts, product screenshots, and UI captures in screenshots/; does not cover source code or assets
