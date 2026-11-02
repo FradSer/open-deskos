@@ -33,7 +33,7 @@ Use affected Node contracts for subsystem changes. Use multi-size smoke for comp
 
 Electron checks need a graphical test session and regenerate CSS. Headless setup is in @README.md. Host tests do not prove CM5 GPU presentation, evdev touch or graphical autostart. A macOS/Linux fixture cannot execute Windows branches or build the native reader; report Windows acceptance separately.
 
-A candidate release needs `release.json` and `pnpm preflight`. Preflight is not required for an unrelated local edit. Deployment and acceptance use `scripts/cm5-stage-release.sh` and `scripts/cm5-acceptance.sh`. Live `./run.sh` reads configured services/user state; it is not an isolated fixture.
+A candidate release needs `release.json`, a host test receipt for its content digest (`node scripts/release-host-preflight.js --run`), and the device activation smoke. Preflight is not required for an unrelated local edit. Deployment and acceptance use `scripts/cm5-stage-release.sh` and `scripts/cm5-acceptance.sh`. Live `./run.sh` reads configured services/user state; it is not an isolated fixture.
 
 ## Harness and code rules
 

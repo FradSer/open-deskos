@@ -198,6 +198,8 @@ The [child contract](../../../integrations/personal-agent/docs/AGENT_TASKS.md) o
 | `TYPESAFE_API_KEY` | device | none | External consumer: Pi ModelRuntime | config | Private TypeSafe environment credential; never expose its value |
 | `ODK_PROACTIVE_GENERATION_TIMEOUT_MS` | device | 90000 | integrations/personal-agent/src/agent.mjs | config | Total generation deadline, integer 1000 through 180000 |
 | `ODK_PERSONAL_AGENT_MODEL` | device | none | integrations/personal-agent/src/main.mjs | config | Resident Pi model at startup; absent uses Pi's new-session selection |
+| `ODK_HOST_PREFLIGHT_DIR` | development host | `$XDG_STATE_HOME/odk/host-preflight` | runtime/shell/scripts/release-host-preflight.js | config | Receipt directory for the content-digest host test gate |
+| `ODK_SKIP_HOST_PREFLIGHT` | development host | none | runtime/shell/scripts/cm5-stage-release.sh | config | Set to 1 to stage without a host test receipt; the device smoke still runs |
 
 ## Saved plugin preferences
 

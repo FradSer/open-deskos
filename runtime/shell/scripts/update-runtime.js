@@ -11,7 +11,7 @@ const {
 
 // docs/PLUGIN_COVERAGE.md records a complete reference CM5 test pass in 3051 seconds.
 // Bound the full test/style/smoke aggregate separately from each individual watchdog.
-const PREFLIGHT_TIMEOUT_SECONDS = 3600
+const PREFLIGHT_TIMEOUT_SECONDS = 900
 
 function requiredEnv(name) {
   const value = process.env[name]
@@ -171,8 +171,11 @@ function main() {
     preflight: (releasePath) => {
       const composition = validateRuntimeComposition(releasePath)
       if (!composition.ok) return composition
+      // The host receipt covers the contract suite; this device gate covers the
+      // artifact (dependency integrity and the style build), and activation is
+      // followed by the Electron smoke before the transaction is accepted.
       const preflight = preflightRelease(releasePath, {
-        run: (target) => runReleaseCommand(target, ['pnpm', 'preflight'], kiosk, PREFLIGHT_TIMEOUT_SECONDS),
+        run: (target) => runReleaseCommand(target, ['bash', 'scripts/runtime-preflight.sh'], kiosk, PREFLIGHT_TIMEOUT_SECONDS),
       })
       return preflight.ok ? sealRelease(releasePath, kiosk) : preflight
     },

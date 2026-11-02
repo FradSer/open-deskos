@@ -108,7 +108,8 @@ They do not reserve capacity or authorize deployment. Legacy execution has not m
 Run from the repository root after deployment authorization:
 
 ```sh
-# From the development checkout: stage, preflight, activate, then verify on CM5.
+# From the development checkout: verify the host suite, stage, activate, then verify on CM5.
+cd runtime/shell && node scripts/release-host-preflight.js --run
 bash runtime/shell/scripts/cm5-stage-release.sh
 
 # Optional, only after the camera hardware acceptance gate:
@@ -123,7 +124,7 @@ Composition validation requires `schemaVersion:1`. Extra declared fields such as
 
 ## Controlled runtime update
 
-The installer builds a versioned release and creates `/opt/odk/current`. A candidate needs valid `release.json`: schema version 1 and an ID matching its directory. It must pass `pnpm preflight` before activation. Failed post-activation kiosk/smoke restores the previous release.
+The installer builds a versioned release and creates `/opt/odk/current`. A candidate needs valid `release.json`: schema version 1 and an ID matching its directory. The staging host must hold a passing test receipt for the candidate's content digest (`node scripts/release-host-preflight.js --run`); staging refuses without it. The device then checks dependency integrity and the style build, and the activation smoke must pass before the transaction is accepted. Failed post-activation kiosk/smoke restores the previous release.
 
 Run the standalone updater from the runtime directory only for an approved activation:
 
