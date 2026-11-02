@@ -93,6 +93,14 @@ test('generated Jev requests independently batch grounding and current usefulnes
   assert.equal(result.answers.c0.groundingProbability, 0.12)
   assert.ok(!JSON.stringify(body.questions).includes('soil'))
   assert.match(JSON.parse(body.questions.c0.instructions).policy, /For a generated candidate.*nextStep.*concrete, feasible owner action/)
+  // A preview candidate also asks whether text and visuals complement.
+  const withPreview = { id: 'p0', generated: true, advice: '通勤延误 28 分钟。', nextStep: 'Open the plan', evidence: [{ id: 'e0', field: 'minutes', value: 52 }], preview: { items: [{ label: '预计耗时', value: '52 分钟' }] } }
+  const previewJudge = createJevJudge({ env: { TYPESAFE_API_KEY: 'fixture-not-a-real-key' }, fetchImpl: async (_url, options) => {
+    const previewBody = JSON.parse(options.body)
+    return new Response(JSON.stringify({ model: 'jev-fixture', answers: Object.fromEntries(Object.keys(previewBody.questions).map(id => [id, { type: 'noul', noul: id.endsWith('_complementary') ? 0.9 : 0.95 }])) }))
+  } })
+  const previewBody = await previewJudge({ candidates: [withPreview], trigger: { kind: 'heartbeat', readingIds: [] }, context: {}, recent: [] })
+  assert.equal(previewBody.answers.p0.complementarityProbability, 0.9)
   assert.match(JSON.parse(body.questions.c0_grounded.instructions).question, /advice.*nextStep/)
   assert.match(JSON.parse(body.questions.c0_unsupported.instructions).question, /advice.*nextStep/)
   assert.doesNotMatch(JSON.stringify(body.questions), /\.reason|generated reason/)
@@ -312,7 +320,7 @@ test('suggestion schema correction identifies missing advice without disclosing 
 test('generation and correction lead with concise advice while retaining stored compatibility', () => {
   for (const instructions of [generationInstructions, generatedFormatCorrection(new SyntaxError())]) {
     assert.match(instructions, /one short sentence/)
-    assert.match(instructions, /the advice carries the meaning/)
+    assert.match(instructions, /The advice and the preview must complement each other/)
     assert.match(instructions, /cited observation/)
   }
   const topics = [{ id: 'deliveries', actions: [approved], evidence: [{ id: 'e0' }] }]

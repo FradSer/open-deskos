@@ -27,6 +27,8 @@ import { createProposalTools } from './proactive-tools.mjs'
 import { createJevIntentRouter, createIntentTurn, guardIntentTools, intentToolNames, proposalConfirmations, isExtensionTool } from './intent-routing.mjs'
 import { normalizeCapabilityDeclarations, createReviewedCapabilities, childCapabilityDeclarations } from './reviewed-capabilities.mjs'
 import { generationInstructions, validateGeneratedBatch, generatedFormatCorrection } from './proactive-generation.mjs'
+import { createJevJudge } from './proactive-jev.mjs'
+import { createProactiveInvestigationTools } from './proactive-investigation.mjs'
 import { createAgentPluginRuntime, pluginWorkKind } from './agent-plugins/runtime.mjs'
 import { renderPluginInput } from './agent-plugins/prompt.mjs'
 import { createExperienceStore } from './agent-plugins/experience.mjs'
@@ -470,7 +472,15 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         if(model)await session.setModel(model)
         if(thinkingLevel!==undefined)await session.setThinkingLevel(thinkingLevel)
       },
-      generateProposals: async ({ signal, ...input }) => generateWithinDeadline({
+      generateProposals: async ({ signal, ...input }) => {
+        // The Agent investigates and revises inside its process; the judgment client
+        // keeps the documented Jev-or-ordinary degrade path for every judgment.
+        const investigation = createProactiveInvestigationTools({
+          input,
+          judge: createJevJudge({ env: config.env ?? process.env, request: judgment.request }),
+          read: (id, callSignal) => odkDataRequest('read', { id, signal: callSignal, env: config.env ?? process.env }),
+        })
+        return generateWithinDeadline({
         signal, timeoutMs: (config.env ?? process.env).ODK_PROACTIVE_GENERATION_TIMEOUT_MS,
         formatCorrection: generatedFormatCorrection,
         validate: raw => { validateGeneratedBatch(raw, input.topics, input.maxCandidates) },
@@ -479,12 +489,13 @@ export async function createPersonalAgent(config, { createSession = createDurabl
             settingsManager: SettingsManager.inMemory({}), agentsFilesOverride: () => ({ agentsFiles: [] }),
             appendSystemPromptOverride: () => [], systemPromptOverride: () => generationInstructions })
           await loader.reload()
-          const { session: generator } = await createSession({ cwd, resourceLoader: loader, modelRuntime, model: session.model, thinkingLevel:session.getThinkingLevel?.(), tools: [], customTools: [], ephemeral: true,
+          const { session: generator } = await createSession({ cwd, resourceLoader: loader, modelRuntime, model: session.model, thinkingLevel:session.getThinkingLevel?.(), tools: [], customTools: investigation.tools, ephemeral: true,
             settingsManager: SettingsManager.inMemory({ defaultTools: [], retry: { enabled: false }, compaction: { enabled: false } }), sessionManager: SessionManager.inMemory(cwd) })
           return generator
         },
         prompt: (generator, text) => sessionAdapter(generator).prompt(text),
-      }, input),
+        }, input)
+      },
       feedbackMemoryEnabled,
       ...(feedbackMemoryEnabled ? { refineFeedbackMemory: async ({ signal, ...input }) => generateWithinDeadline({
         signal: signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal,

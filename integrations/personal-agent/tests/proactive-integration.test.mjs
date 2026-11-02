@@ -336,7 +336,7 @@ test('an older selected Agent remains loadable without granting executable sugge
   } finally { await resident.stop() }
 })
 
-test('real SDK generator has no tools, skills or durable memory and can return several candidates', async t => {
+test('real SDK generator carries only scoped investigation tools and no skills, durable memory or owner memory', async t => {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'odk-generator-sdk-')))
   t.after(() => rm(dir, { recursive: true, force: true }))
   await isolateAgentDirectory(t, dir)
@@ -354,9 +354,10 @@ test('real SDK generator has no tools, skills or durable memory and can return s
   t.after(() => agent.close())
   const result = await agent.generateProposals({ topics: [{ id: 'packages', goal: '领取物品', actions: [{ id: 'inspect-package', label: '检查物品' }], evidence: [{ id: 'e0', value: 2 }] }], maxCandidates: 8 })
   assert.equal(result.suggestions.length, 2)
-  assert.deepEqual(optionsSeen[1].tools, []); assert.deepEqual(optionsSeen[1].customTools, [])
+  assert.deepEqual(optionsSeen[1].tools, [])
+  assert.deepEqual(optionsSeen[1].customTools.map(tool => tool.name), ['proactive_read', 'proactive_judge'])
   assert.equal(optionsSeen[1].sessionManager.getSessionFile(), undefined)
-  assert.ok(requests.every(context => visibleTools(context).length === 0))
+  assert.ok(requests.every(context => visibleTools(context).every(name => ['proactive_read', 'proactive_judge'].includes(name))))
   assert.ok(JSON.stringify(requests).includes('领取物品'))
   assert.ok(!JSON.stringify(requests).includes('MUST_NOT_ENTER_GENERATION'))
 })

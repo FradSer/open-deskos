@@ -147,9 +147,11 @@ test('the generator instructions teach the preview shape', () => {
   assert.match(generationInstructions, /preview object/)
   assert.match(generationInstructions, /preview\.items is 1-6/)
   assert.match(generationInstructions, /Every value is copied from a cited observation/)
-  assert.match(generationInstructions, /Do not repeat a value across items/)
   assert.match(generationInstructions, /Prefer a difference that the observations already measure/)
-  assert.match(generationInstructions, /the advice states what changed and what to do, the preview shows the raw measurements/)
+  assert.match(generationInstructions, /The advice and the preview must complement each other/)
+  assert.match(generationInstructions, /equal values for genuinely different facts are valid/)
+  assert.match(generationInstructions, /proactive_judge returns typed judgments/)
+  assert.match(generationInstructions, /The host independently re-judges every returned candidate/)
   assert.match(generationInstructions, /"warn"/)
   assert.match(generationInstructions, /"good"/)
   assert.match(generationInstructions, /neutral/)
@@ -173,18 +175,60 @@ test('the validator accepts each paradigm preview and rejects a fabricated shape
   }
 })
 
-test('the validator rejects an advice that repeats a preview reading', () => {
-  const topics = [{ id: 'commute-anomaly', actions: [action], evidence: [{ id: 'e0', readingId: 'commute.traffic', field: 'minutes', value: 52, state: 'live', measuredAt: stamp }] }]
-  const base = { topicId: 'commute-anomaly', key: 'primary', actionId: action.id, evidenceIds: ['e0'] }
-  const items = [{ label: '预计耗时', value: '52 分钟', tone: 'warn' }, { label: '基准耗时', value: '24 分钟' }]
-  // The advice states meaning only.
-  assert.doesNotThrow(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤明显慢于常态。', preview: { items } }] }, topics, 8))
-  // Repeating 52 in the advice wastes the message.
-  assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤 52 分钟，明显慢于常态。', preview: { items } }] }, topics, 8), /repeats a preview reading/)
-  // The summary carries the comparison label, not the numbers.
-  assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤明显慢于常态。', preview: { summary: '52 与 24 的对比', items } }] }, topics, 8), /Summary repeats/)
-  // Two items cannot show the same value.
-  assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤明显慢于常态。', preview: { items: [...items, { label: '重复', value: '52 分钟' }] } }] }, topics, 8), /Duplicate preview value/)
+test('equal values for distinct facts remain valid when each part adds information', () => {
+  const topics = [{ id: 'commute-anomaly', actions: [action], evidence: [{ id: 'e0', readingId: 'commute.traffic', field: 'minutes', value: 24, state: 'live', measuredAt: stamp }, { id: 'e1', readingId: 'commute.traffic', field: 'baselineMinutes', value: 24, state: 'live', measuredAt: stamp }] }]
+  const base = { topicId: 'commute-anomaly', key: 'primary', actionId: action.id, evidenceIds: ['e0', 'e1'] }
+  // Two different facts can carry equal values; the validator must not reject them.
+  assert.doesNotThrow(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤与常态一致。',
+    preview: { items: [{ label: '当前耗时', value: '24 分钟' }, { label: '基准耗时', value: '24 分钟' }] } }] }, topics, 8))
+  // A number shared by unrelated facts is not a repetition either.
+  assert.doesNotThrow(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '价格差 5 元，请选定方案。',
+    preview: { items: [{ label: '等待时长', value: '5 分钟' }] } }] }, topics, 8))
+})
+
+test('a candidate whose text and visuals repeat each other cannot publish', async () => {
+  let asked
+  const judge = createJevJudge({ request: async ({ questions }) => {
+    asked = questions
+    return { model: 'jev-fixture', answers: Object.fromEntries(Object.keys(questions).map(id => [id, { type: 'noul', noul: id.endsWith('_unsupported') ? 0.05 : id.endsWith('_complementary') ? 0.2 : 0.95 }])) }
+  } })
+  const frames = []
+  const watch = new ProactiveWatch({
+    config: { ...config(), rules: [structuredClone(rules[0])] },
+    now: () => Date.parse(stamp),
+    canExecute: () => true,
+    read: async id => ({ id, state: 'live', value: readings[id] }),
+    generate: async () => ({ suggestions: [{ topicId: 'commute-anomaly', key: 'primary', advice: '通勤耗时 52 分钟，基准 24 分钟。', actionId: action.id,
+      preview: { items: [{ label: '预计耗时', value: '52 分钟', tone: 'warn' }, { label: '基准耗时', value: '24 分钟' }] }, evidenceIds: ['e0'] }] }),
+    judge, publish: frame => frames.push(frame),
+    save: async () => {}, saveState: () => {}, execute: async () => 'done', phrase: async ({ advice }) => advice,
+  })
+  await watch.tick()
+  // The judgment asks whether text and visuals complement for a preview candidate.
+  assert.ok(asked.c0_complementary, 'a preview candidate receives a complementarity question')
+  assert.match(asked.c0_complementary.instructions.question, /complement/)
+  assert.equal(watch.list().length, 0, 'a draft whose text and visuals repeat cannot publish')
+  await watch.close()
+})
+
+test('a complementary candidate with equal values publishes', async () => {
+  const frames = []
+  const watch = new ProactiveWatch({
+    config: { ...config(), rules: [structuredClone(rules[0])] },
+    now: () => Date.parse(stamp),
+    canExecute: () => true,
+    read: async id => ({ id, state: 'live', value: readings[id] }),
+    generate: async ({ topics }) => ({ suggestions: [{ topicId: 'commute-anomaly', key: 'primary', advice: '通勤与常态一致。', actionId: action.id,
+      preview: { items: [{ label: '当前耗时', value: '24 分钟' }, { label: '基准耗时', value: '24 分钟' }] }, evidenceIds: topics[0].evidence.map(entry => entry.id) }] }),
+    judge: createJevJudge({ request: async ({ questions }) => ({ model: 'jev-fixture',
+      answers: Object.fromEntries(Object.keys(questions).map(id => [id, { type: 'noul', noul: id.endsWith('_unsupported') ? 0.05 : 0.95 }])) }) }),
+    publish: frame => frames.push(frame),
+    save: async () => {}, saveState: () => {}, execute: async () => 'done', phrase: async ({ advice }) => advice,
+  })
+  await watch.tick()
+  const proposals = watch.list().filter(p => p.status === 'pending')
+  assert.equal(proposals.length, 1, 'equal values for distinct facts publish when each part adds information')
+  await watch.close()
 })
 
 test('all four paradigms reach a proposal through generation, validation, and judgment', async () => {

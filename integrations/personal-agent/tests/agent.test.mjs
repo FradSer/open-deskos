@@ -499,10 +499,16 @@ test('all fact batches and their final selection use the isolated SDK generator'
   const bot = await generationFixture(t, {}, async (emit, text) => {
     calls++
     const request = JSON.parse(text.slice(text.indexOf('{')))
+    if (request.task) {
+      // A briefing batch: every variable reaches the model, then the fixture selects.
+      for (const variable of request.variables) seen.add(variable.id)
+      const selector = request.variables.findIndex(variable => variable.id === 'source-299')
+      emit({ type: 'message_end', message: assistant(JSON.stringify({ items: [{ sources: [Math.max(0, selector)] }] })) })
+      return
+    }
+    // A proposal round.
     assert.ok(Buffer.byteLength(JSON.stringify(request)) <= 48000)
-    for (const variable of request.variables) seen.add(variable.id)
-    const selector = request.variables.findIndex(variable => variable.id === 'source-299')
-    emit({ type: 'message_end', message: assistant(JSON.stringify({ items: [{ sources: [Math.max(0, selector)] }] })) })
+    emit({ type: 'message_end', message: assistant('{"suggestions":[]}') })
   })
   const readings = Array.from({ length: 300 }, (_, i) => ({ id: `source-${i}`, label: `Source ${i}`, state: 'live', value: { subject: `Current fact ${i}` } }))
   const result = await bot.generateBriefing({ readings })
@@ -589,12 +595,36 @@ test('Intent generation repairs an omitted advice field through the actual isola
   }, options => {
     instructions = options.resourceLoader.getSystemPrompt()
     assert.deepEqual(options.tools, [])
-    assert.deepEqual(options.customTools, [])
+    // The generation session carries only the two scoped investigation tools.
+    assert.deepEqual(options.customTools.map(tool => tool.name), ['proactive_read', 'proactive_judge'])
   })
   assert.deepEqual(await bot.generateProposals({ topics: [topic], maxCandidates: 1 }), { suggestions: [repaired] })
   assert.equal(calls, 2)
   assert.match(instructions, /Every candidate, including an Intent preview, must include advice/)
   assert.equal(Object.hasOwn(missing, 'advice'), false)
+})
+
+test('suggestion generation investigates through scoped tools inside the ephemeral session', async t => {
+  const topic = { id: 'commute', goal: '通勤提醒。', actions: [{ id: 'open', label: 'Open the plan' }],
+    evidence: [{ id: 'e0', readingId: 'commute.traffic', field: 'minutes', value: 52, state: 'live', measuredAt: '2026-11-02T09:40:00.000Z' }] }
+  let tools = []
+  const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only' }, async (emit, text) => {
+    // The judgment fallback path prompts a separate zero-tool session with typed questions.
+    const input = JSON.parse(text.slice(text.indexOf('{')))
+    if (input.questions) {
+      const answers = Object.fromEntries(Object.keys(input.questions).map(id => [id, { type: 'noul', noul: id.endsWith('_unsupported') ? 0.05 : 0.9 }]))
+      emit({ type: 'message_end', message: assistant(JSON.stringify({ answers })) })
+      return
+    }
+    emit({ type: 'message_end', message: assistant('{"suggestions":[]}') })
+  }, options => { tools = options.customTools })
+  await bot.generateProposals({ topics: [topic], maxCandidates: 1 })
+  assert.deepEqual(tools.map(tool => tool.name), ['proactive_read', 'proactive_judge'])
+  // The scope is this round's citations: an outside reading is refused even though the desk holds it.
+  await assert.rejects(tools[0].execute('t0', { readingId: 'weather.outdoor' }), /not cited/)
+  // The judgment tool maps a draft onto the typed judgment path with the round's evidence.
+  const judged = await tools[1].execute('t0', { suggestions: [{ topicId: 'commute', advice: '通勤延误。', actionId: 'open', evidenceIds: ['e0'] }] })
+  assert.equal(typeof judged.structuredContent.answers.d0.probability, 'number')
 })
 
 test('Intent generation cannot substitute a next step for advice after its one correction', async t => {

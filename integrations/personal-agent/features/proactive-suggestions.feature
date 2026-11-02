@@ -128,6 +128,35 @@ Feature: Owner controlled proactive Personal Agent proposals
     And due time and urgency precede judgment probability for eligible presentations
     And generated advice cannot supply tools, permissions or fabricated evidence
 
+  Scenario: The generation Agent investigates through scoped tools
+    Given a generation round supplies topics with cited owner-selected readings
+    When the model needs context beyond the cited fields
+    Then it can reread a cited reading through a scoped read-only tool
+    And a reading outside the round's citations is refused
+    And read calls stay within a bounded budget
+    And no Skill, project context, owner memory or persisted transcript becomes available
+
+  Scenario: The generation Agent checks drafts with Jev inside its process
+    Given the model composes a draft suggestion during generation
+    When it requests a typed judgment through the scoped judgment tool
+    Then it receives usefulness and factual-support probabilities for that exact draft
+    And a preview draft also learns whether text and visuals complement
+    And judgment calls stay within a bounded budget
+    And the in-process judgment grants no action permission
+
+  Scenario: Text and visuals must complement, judged semantically
+    Given a generated candidate carries advice and a generic preview
+    When the judgment service evaluates it
+    Then it judges whether the preview adds information beyond the advice
+    And a candidate whose text and visuals merely repeat each other cannot publish
+    And equal values for distinct facts remain valid when each part adds information
+
+  Scenario: Host qualification stays independent of the Agent's self-checks
+    Given the generation Agent judged its own draft inside its process
+    When the round finishes
+    Then the host still qualifies every returned candidate through its own judgment
+    And only host-qualified candidates publish
+
   Scenario: Generic generation preserves source and lifecycle boundaries
     Given a generated batch is in flight
     When newer service facts arrive or the owner suppresses the topic
