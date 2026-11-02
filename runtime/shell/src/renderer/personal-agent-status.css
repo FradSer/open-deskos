@@ -267,6 +267,7 @@
 .personal-agent-ride-item[data-tone='warn'] .personal-agent-ride-price { color: var(--odk-accent-red); }
 .personal-agent-preview-chip[data-tone='good'] .personal-agent-preview-value,
 .personal-agent-ride-item[data-tone='good'] .personal-agent-ride-price { color: var(--odk-accent-green); }
+/* A neutral tone keeps the default value color; only warn and good carry a hue. */
 .personal-agent-preview-notes,
 .personal-agent-ride-notes { display: grid; gap: 2px; }
 .personal-agent-preview-notice,
