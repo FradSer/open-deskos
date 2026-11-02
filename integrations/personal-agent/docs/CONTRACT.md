@@ -696,6 +696,7 @@ Judgment receipts retain the actual `jev-*` or `provider/model` identity across 
 Ordinary model probabilities are estimates, not calibrated Jev probabilities.
 Effective support is `min(factualSupport, 1 - unsupportedAssertion)`.
 Usefulness and effective support must both meet `ODK_JEV_THRESHOLD`, default 0.8.
+A draft that passes usefulness and support but repeats its preview returns once for bounded repair within the round generation budget. A still-repeating revision stays unpublished.
 Labels/symbols cannot add attributes; uncited rankings, causes, and aggregates are forbidden.
 Owner preferences do not add facts.
 Retain supported candidates independently of the presentation limit.

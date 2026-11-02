@@ -157,6 +157,15 @@ Feature: Owner controlled proactive Personal Agent proposals
     Then the host still qualifies every returned candidate through its own judgment
     And only host-qualified candidates publish
 
+  Scenario: A redundant but supported draft gets one bounded repair
+    Given a generated draft whose usefulness and factual support pass their thresholds
+    When its advice and preview merely repeat each other
+    Then the host returns that draft for one bounded revision before rejecting it
+    And a revised draft that complements its preview can publish
+    And a revision that still repeats cannot publish
+    And repairs stay bounded within the round budget
+    And the owner sees no draft whose revision failed
+
   Scenario: Generic generation preserves source and lifecycle boundaries
     Given a generated batch is in flight
     When newer service facts arrive or the owner suppresses the topic

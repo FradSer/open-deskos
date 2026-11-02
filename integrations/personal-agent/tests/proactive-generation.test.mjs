@@ -317,6 +317,38 @@ test('suggestion schema correction identifies missing advice without disclosing 
   }
 })
 
+test('a redundant but supported draft is repaired once and can publish', async t => {
+  const calls = { generate: [], judge: [] }
+  const redundant = { topicId: 'deliveries', key: 'primary', advice: '领取待取物品 2 件。', actionId: 'inspect', evidenceIds: ['e0'],
+    preview: { summary: '待取物品', items: [{ label: '待取', value: '2', tone: 'warn' }] } }
+  const revised = { ...redundant, advice: '有包裹可以领取了。' }
+  const f = fixture({
+    generate: async input => { calls.generate.push(input); return { suggestions: [input.repair ? revised : redundant] } },
+    judge: async ({ candidates }) => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id,
+      // The first batch judges the redundant wording; the repair re-judge scores the revision.
+      { probability: 0.9, groundingProbability: 0.9, complementarityProbability: calls.judge.push(1) && calls.judge.length > 1 ? 0.95 : 0.3, threshold: 0.8 }])) }),
+  })
+  await f.watch.tick()
+  assert.equal(calls.generate.length, 2, 'the host returned the draft once for repair')
+  assert.ok(calls.generate[1].repair, 'the repair request carries the draft and its scores')
+  const pending = f.watch.list().filter(p => p.status === 'pending')
+  assert.deepEqual(pending.map(p => p.advice), ['有包裹可以领取了。'], 'only the repaired wording publishes')
+})
+
+test('a repair that still repeats cannot publish', async t => {
+  const calls = { generate: 0 }
+  const redundant = { topicId: 'deliveries', key: 'primary', advice: '领取待取物品 2 件。', actionId: 'inspect', evidenceIds: ['e0'],
+    preview: { summary: '待取物品', items: [{ label: '待取', value: '2', tone: 'warn' }] } }
+  const f = fixture({
+    generate: async input => { calls.generate++; return { suggestions: [{ ...redundant, advice: input.repair ? '待取物品仍是 2 件。' : redundant.advice }] } },
+    judge: async ({ candidates }) => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id,
+      { probability: 0.9, groundingProbability: 0.9, complementarityProbability: 0.3, threshold: 0.8 }])) }),
+  })
+  await f.watch.tick()
+  assert.equal(calls.generate, 2, 'exactly one repair round runs')
+  assert.equal(f.watch.list().filter(p => p.status === 'pending').length, 0, 'a still-repeating revision stays unpublished')
+})
+
 test('generation and correction lead with concise advice while retaining stored compatibility', () => {
   for (const instructions of [generationInstructions, generatedFormatCorrection(new SyntaxError())]) {
     assert.match(instructions, /one short sentence/)

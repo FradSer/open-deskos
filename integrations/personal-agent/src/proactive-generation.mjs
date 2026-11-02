@@ -289,6 +289,49 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
         } catch { /* A solo retry cannot lower an existing verdict. */ }
       }
       if (nearMiss.length) auditGeneration({ phase: 'solo-reconsider', candidates: nearMiss.length, topics: nearMiss.map(c => c.ruleId), cachedTopics, budget })
+      // A supported draft whose only failing gate is complementarity is repairable
+      // redundancy: return it once for revision instead of discarding the need.
+      const repairable = usable.filter(c => {
+        const a = result.answers[c.id]
+        return c.preview && a && Number.isFinite(a.probability) && Number.isFinite(a.groundingProbability)
+          && Number.isFinite(a.complementarityProbability)
+          && a.probability >= a.threshold && a.groundingProbability >= a.threshold
+          && a.complementarityProbability < a.threshold
+      }).slice(0, 2)
+      for (const candidate of repairable) {
+        if (!current() || attempts >= budget) break
+        attempts++
+        try {
+          const scores = result.answers[candidate.id]
+          generationCalls++
+          const raw = await watch.generate({
+            trigger, context, topics: selected.map(({ sourceSnapshot, ...topic }) => topic), recent: recentFor(selected),
+            maxCandidates: watch.config.maxCandidates ?? 8, signal: watch.controller.signal,
+            repair: { topicId: candidate.ruleId, key: candidate.key, advice: candidate.advice, ...(candidate.preview ? { preview: candidate.preview } : {}),
+              judgment: { probability: scores.probability, groundingProbability: scores.groundingProbability, complementarityProbability: scores.complementarityProbability },
+              instruction: 'The advice and the preview repeat each other. Return the same suggestion with advice restated so it carries only what the preview does not show. Keep the same topicId, key, actionId and evidenceIds. Copy preview values exactly as observed with units in the item labels.' },
+          })
+          if (!current()) return
+          const matched = validateGeneratedBatch(raw, selected, watch.config.maxCandidates ?? 8).filter(s => s.topicId === candidate.ruleId)
+          if (matched.length !== 1) continue
+          const revised = matched[0]
+          revised.key = candidate.key
+          const next = identifyCandidate(watch, revised, selected.find(t => t.id === revised.topicId))
+          // A revision paraphrasing a sibling adds nothing; keep the original rejection.
+          const equivalent = usable.some(c => c !== candidate && c.ruleId === next.ruleId
+            && c.advice.normalize('NFKC').replace(/[\p{P}\p{Z}\s]/gu, '').toLowerCase() === next.advice.normalize('NFKC').replace(/[\p{P}\p{Z}\s]/gu, '').toLowerCase())
+          if (equivalent) continue
+          next.id = candidate.id
+          candidates[candidates.indexOf(candidate)] = next
+          usable[usable.indexOf(candidate)] = next
+          judgmentCalls++
+          const retry = await watch.judge({ candidates: [next], trigger, context, recent: recentFor(selected), signal: watch.controller.signal })
+          if (!current()) return
+          if (!validAnswer(retry, next)) continue
+          result.answers[next.id] = retry.answers[next.id]
+          auditGeneration({ phase: 'repaired', candidates: 1, topics: [candidate.ruleId], cachedTopics, budget })
+        } catch { /* A failed repair keeps the original rejection. */ }
+      }
       await complete(healthy, usable, result)
     } catch {
       if (!current()) return
