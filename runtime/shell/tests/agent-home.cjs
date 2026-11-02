@@ -989,7 +989,7 @@ app.whenReady().then(async () => {
     publishStatus(final);publishStatus(final);await evaluate('new Promise(r=>setTimeout(r,30))')
     assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user').length`),3,'durable replies share the central owner identity')
     assert.equal(await evaluate(`document.querySelectorAll('[data-reply-id="${third}"]').length`),1)
-    assert.match(await evaluate(`document.querySelector('[data-reply-id="${third}"]').textContent`),/Delivery not confirmed/)
+    assert.match(await evaluate(`document.querySelector('[data-reply-id="${third}"]').textContent`),/Delivery is unconfirmed/)
     assert.equal(await evaluate(`document.querySelector('textarea').value`),'Unsent local draft')
     const interrupted='44444444-4444-4444-8444-444444444444'
     publishStatus({state:'thinking',ownerTurnId:interrupted,transcript:'Synthetic interrupted live turn',message:'Synthetic unfinished draft',conversation:final.conversation});await evaluate('new Promise(r=>setTimeout(r,20))')
@@ -1066,7 +1066,7 @@ app.whenReady().then(async () => {
     assert.equal(rows.owners,1,'AI-selected durable reply must not duplicate the original owner bubble')
     assert.equal(rows.answerThread,source.threadId,'AI-selected answer belongs to the durable session thread')
     assert.equal(await evaluate(`document.querySelector('[data-reply-id="${queued.id}"]')===unboundOwner && [...document.querySelectorAll('.agent-message-assistant')].find(n=>n.querySelector('.agent-message-body')?.textContent===${JSON.stringify(answer)})===unboundAnswer`),true,'binding reuses both original nodes')
-    assert.match(await evaluate(`document.querySelector('[data-reply-id="${queued.id}"] .agent-reply-status').textContent`),/Delivery not confirmed/,'an answer does not upgrade unknown transport delivery')
+    assert.match(await evaluate(`document.querySelector('[data-reply-id="${queued.id}"] .agent-reply-status').textContent`),/Delivery is unconfirmed/,'an answer does not upgrade unknown transport delivery')
     const secondId='22222222-2222-4222-8222-222222222222',second={...queued,id:secondId,at:3000,status:'answered',answer:'Synthetic second answer'}
     publishStatus({...initial,ownerTurnId:secondId,remote:{...remote,replies:[{...queued,status:'unknown',answer}]}});await evaluate('new Promise(r=>setTimeout(r,20))')
     const final={...initial,state:'idle',ownerTurnId:secondId,replyTo:second.replyTo,threadId:source.threadId,message:second.answer,remote:{...remote,replies:[second,{...queued,status:'unknown',answer}]}}

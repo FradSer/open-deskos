@@ -14,7 +14,7 @@
         <header class="agent-head"><span class="agent-avatar" data-avatar="onee" aria-hidden="true"><img class="agent-avatar-fallback" src="avatars/onee.svg" alt="" /></span>
           <div class="agent-identity"><div class="agent-capsule" role="group" aria-label="Personal Agent"><h1 class="agent-name"></h1><span class="agent-state" role="status">Checking Personal Agent…</span></div></div></header>
         <nav class="agent-thread-nav" aria-label="Session thread" hidden><button class="agent-thread-all" type="button">All messages</button><span></span></nav>
-        <div class="agent-history"><div class="agent-conversation" tabindex="0" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"><p class="agent-empty">Ask about your desk or continue a task.</p></div>
+        <div class="agent-history"><div class="agent-conversation" tabindex="0" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"><p class="agent-empty">Ask about your desk.</p></div>
         <button class="agent-latest" type="button" hidden>Jump to latest <svg data-tabler="arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 13l-6 6" /><path d="M6 13l6 6" /></svg></button>
         </div>
         <aside class="agent-reply-context" aria-label="Reply reference" hidden><div><span class="agent-reply-session"></span><span class="agent-reply-preview"></span></div><button class="agent-reply-cancel" type="button">Cancel reply</button></aside>
@@ -462,7 +462,7 @@
             if (reply.sessionId) row.details.append(sessionLabel({ ...replySource(reply), sessionId: reply.sessionId, threadId }, {}))
             row.threadId = threadId;row.taskName = taskName(replySource(reply) || {})
           }
-          row.status.textContent = ({ queued: 'Queued for this session', dispatching: 'Sending to this session', delivered: 'Sent to this session', unknown: 'Delivery not confirmed. Check the session before retrying.', answered: 'Personal Agent replied', failed: 'Reply failed. Check connection details before retrying.' })[reply.status] || 'Status unavailable'
+          row.status.textContent = ({ queued: 'Queued for this session', dispatching: 'Sending to this session', delivered: 'Sent to this session', unknown: 'Delivery unconfirmed. Check the session before retrying.', answered: 'Personal Agent replied', failed: 'Reply failed. Check connection details before retrying.' })[reply.status] || 'Status unavailable'
           row.status.hidden = !['queued', 'dispatching', 'unknown', 'failed'].includes(reply.status)
           row.article.append(row.status)
           if (reply.answer) {
@@ -616,7 +616,7 @@
         lastStatus = status.state
         if (activeSubmission?.uncertain) {
           setState('')
-          showNotice('Delivery not confirmed. Check before sending again.', 'Check status', checkStatus)
+          showNotice('Delivery is unconfirmed. Check before resending.', 'Check status', checkStatus)
         } else if (status.state === 'unavailable') {
           showNotice('Connection unavailable. Your draft is kept.', 'Check status', checkStatus)
         } else if (status.state === 'error') {
@@ -669,7 +669,7 @@
         } catch {
           if (!released && activeSubmission === request) {
             if (refused) { activeSubmission = null;setState('');showNotice('Message was not sent. You can edit and send again.') }
-            else { request.uncertain = true;setState('');showNotice('Delivery not confirmed. Check before sending again.', 'Check status', checkStatus) }
+            else { request.uncertain = true;setState('');showNotice('Delivery is unconfirmed. Check before resending.', 'Check status', checkStatus) }
             if (revision === submittedRevision) avatar.fail(avatarIntent)
           }
         } finally {

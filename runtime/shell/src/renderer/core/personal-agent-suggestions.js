@@ -164,12 +164,12 @@
 
         const note = document.createElement('p')
         note.className = 'personal-agent-preview-notice personal-agent-ride-note'
-        if (hasExpiry && expired) note.textContent = 'Estimate expired. Refresh to check the route again.'
+        if (hasExpiry && expired) note.textContent = 'Estimate expired.'
         let sandbox
         if (preview.sandbox === true) {
           sandbox = document.createElement('p')
           sandbox.className = 'personal-agent-preview-notice personal-agent-ride-sandbox'
-          sandbox.textContent = 'Sandbox preview; no real vehicle or trip.'
+          sandbox.textContent = 'Sandbox preview, so no real trip.'
         }
         if (note.textContent || sandbox) {
           const notes = document.createElement('div')
@@ -226,7 +226,7 @@
             if (closed || !surface.contains(quoteButton) || quoteButton.disabled || requests?.quote) return
             const handles = [preview.handle, ...selectors.map(select => select.value)]
             if (!current() || !handles.every(value => typeof value === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(value)) || (selectors.length && !selectors.every((select, index) => preview[index === 0 ? 'from' : 'to'].some(p => p.handle === select.value)))) {
-              note.textContent = 'Choose both actual places. If the preview expired, ask the Agent to search again.'
+              note.textContent = 'Choose both places.'
               if (!note.parentElement) card.append(note)
               if (panel) panel.hidden = false
               const missing = selectors.find(select => !select.value)
@@ -239,9 +239,9 @@
             try {
               const receipt = await api.sendText(`${rideQuotePrefix} ${handles.join(' ')}`)
               if (!receipt?.accepted) throw Error('Unavailable')
-              showRequestStatus('Quote request sent. Follow its result in the Agent conversation.')
+              showRequestStatus('Quote requested.')
             } catch {
-              showRequestStatus('Quote request delivery is uncertain. Check the Agent conversation before trying again. No order confirmation was sent.')
+              showRequestStatus('Delivery is unconfirmed, so check before retrying. No order confirmation was sent.')
             }
           })
           quoteButton.className = 'personal-agent-proposal-primary'
@@ -259,8 +259,8 @@
             try {
               const receipt = await api.sendText(`${rideRefreshPrefix} ${preview.handle}`)
               if (!receipt?.accepted) throw Error('Unavailable')
-              showRequestStatus('Preview refresh sent. Follow its result in the Agent conversation.')
-            } catch { showRequestStatus('Preview refresh delivery is uncertain. Check the Agent conversation before trying again.') }
+              showRequestStatus('Refresh requested.')
+            } catch { showRequestStatus('Delivery is unconfirmed, so check before retrying.') }
           })
           refresh.dataset.proposalId = proposal.id
           refresh.disabled = requests?.refresh === true
@@ -334,7 +334,7 @@
             if (!suggestionCapabilities.respond) {
               const note = document.createElement('p')
               note.className = 'personal-agent-proposal-capability'
-              note.textContent = 'Suggestions are read-only on this device. Respond from the desk.'
+              note.textContent = 'Read-only here; respond from the desk.'
               article.append(note)
             }
             const state = document.createElement('p')
@@ -352,7 +352,7 @@
               if (readOnlyStep) state.textContent += ' · Read-only preview'
               else if (!executableAction && !p.ridePreview) state.textContent += ' · No executable action'
             }
-            advice.textContent = technicalAdvice ? 'Earlier recommendation unavailable. Ask the Agent for an updated suggestion.' : p.advice
+            advice.textContent = technicalAdvice ? 'This suggestion is no longer available. Ask for a new one.' : p.advice
             if (!technicalAdvice && p.advice.length > 180) {
               advice.dataset.long = 'true'
               advice.setAttribute('tabindex', '0')
@@ -386,7 +386,7 @@
               const pending = document.createElement('p')
               pending.className = 'personal-agent-proposal-note'
               pending.setAttribute('role', 'status')
-              pending.textContent = 'Operation submitted; waiting for its confirmed outcome. Do not repeat this action.'
+              pending.textContent = 'Submitted. Waiting for the result, so do not resend.'
               article.append(pending)
             }
             if (p.preview || p.ridePreview) structuredPreview(article, p, suggestionCapabilities.respond && typeof api.sendText === 'function')
@@ -402,7 +402,7 @@
               result.textContent = p.result
               result.setAttribute('role', 'status')
               if (technicalText.test(p.result) || structuredResult) {
-                result.textContent = 'Operation result recorded. Check its status in the Agent conversation.'
+                result.textContent = 'Result recorded.'
                 article.append(result)
               } else article.append(result)
             }
