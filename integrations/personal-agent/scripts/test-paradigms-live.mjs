@@ -38,7 +38,8 @@ const topics = [
       reading('e5', 'calendar.next', 'startsAt', '14:00'),
       reading('e6', 'calendar.next', 'title', '产品评审'),
       reading('e7', 'calendar.next', 'bufferMinutes', 12),
-      reading('e8', 'calendar.next', 'travelMinutes', 34)
+      reading('e8', 'calendar.next', 'travelMinutes', 34),
+      reading('e8b', 'calendar.next', 'shortfallMinutes', 22)
     ]
   },
   {
@@ -61,7 +62,9 @@ const topics = [
       reading('e14', 'ci.main', 'commit', '1998604'),
       reading('e15', 'ci.main', 'passed', 116),
       reading('e16', 'ci.main', 'failed', 0),
-      reading('e17', 'ci.main', 'target', 'cm5')
+      reading('e17', 'ci.main', 'target', 'cm5'),
+      reading('e18', 'ci.main', 'deployPending', true),
+      reading('e19', 'ci.main', 'deployedRevision', '1998603')
     ]
   }
 ]
@@ -72,11 +75,14 @@ const input = {
   topics, recent: [], maxCandidates: 8
 }
 
+let RAW = ''
 // The live generator runs through the Pi CLI so this script needs no resident service.
+// -ne skips local extensions: this run needs a plain model call, not the operator's toolchain.
 function generate() {
-  const raw = execFileSync('pi', ['-p', generationInstructions + '\n\nInput:\n' + JSON.stringify(input)], {
+  const raw = execFileSync('pi', ['-ne', '-p', generationInstructions + '\n\nInput:\n' + JSON.stringify(input)], {
     encoding: 'utf8', timeout: 240000, maxBuffer: 4 << 20
   })
+  RAW = raw
   const text = raw.trim().replace(/^```(?:json)?\s*\n/, '').replace(/\n```$/, '')
   return validateGeneratedBatch(JSON.parse(text), topics, 8)
 }
@@ -91,10 +97,18 @@ for (let run = 1; run <= repeat; run++) {
   }
   if (!candidates.length) { console.log(`run ${run}: the model proposed nothing`); continue }
   const judged = candidates.map((candidate, index) => ({ ...candidate, id: `r${run}c${index}`, generated: true }))
-  const result = await judge({
-    candidates: judged,
-    trigger: input.trigger, context: input.context, recent: []
-  })
+  // The classifier occasionally times out on a four-candidate batch; one retry is enough.
+  let result
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      result = await judge({ candidates: judged, trigger: input.trigger, context: input.context, recent: [] })
+      break
+    } catch (error) {
+      if (attempt === 2) { console.log(`run ${run}: judge failed — ${error.code ?? error.message}`); break }
+      await new Promise(resolve => setTimeout(resolve, 2000))
+    }
+  }
+  if (!result) continue
   for (const candidate of judged) {
     const answer = result.answers[candidate.id]
     rows.push({
