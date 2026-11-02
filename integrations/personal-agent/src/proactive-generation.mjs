@@ -32,9 +32,11 @@ export const boundedPreview = value => {
   if (!value || typeof value !== 'object' || Array.isArray(value) || !exact(value, ['summary', 'items'])) return null
   if (value.summary !== undefined && !text(value.summary, 120)) return null
   if (!Array.isArray(value.items) || !value.items.length || value.items.length > 6) return null
-  if (!value.items.every(item => exact(item, ['label', 'value', 'tone']) && text(item.label, 40) && text(item.value, 40)
+  // An observed value may arrive as the number the source holds; both forms are the same observation.
+  if (!value.items.every(item => exact(item, ['label', 'value', 'tone']) && text(item.label, 40)
+    && (typeof item.value === 'number' ? Number.isFinite(item.value) : text(item.value, 40))
     && (item.tone === undefined || PREVIEW_TONES.has(item.tone)))) return null
-  return { ...(value.summary === undefined ? {} : { summary: value.summary }), items: value.items.map(i => ({ label: i.label, value: i.value, ...(i.tone && i.tone !== 'neutral' ? { tone: i.tone } : {}) })) }
+  return { ...(value.summary === undefined ? {} : { summary: value.summary }), items: value.items.map(i => ({ label: i.label, value: typeof i.value === 'number' ? String(i.value) : i.value, ...(i.tone && i.tone !== 'neutral' ? { tone: i.tone } : {}) })) }
 }
 
 export function validateGeneratedBatch(raw, topics, maxCandidates) {

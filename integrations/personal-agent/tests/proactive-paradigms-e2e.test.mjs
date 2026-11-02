@@ -175,6 +175,16 @@ test('the validator accepts each paradigm preview and rejects a fabricated shape
   }
 })
 
+test('numeric preview values are observations too and normalize to strings', () => {
+  const topics = [{ id: 'commute-anomaly', actions: [action], evidence: [{ id: 'e0', readingId: 'commute.traffic', field: 'minutes', value: 52, state: 'live', measuredAt: stamp }] }]
+  const base = { topicId: 'commute-anomaly', key: 'primary', actionId: action.id, evidenceIds: ['e0'] }
+  // The model sometimes copies the observed number instead of a string; both are the same observation.
+  const ok = validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤明显慢于常态。', preview: { items: [{ label: '预计耗时（分钟）', value: 52, tone: 'warn' }] } }] }, topics, 8)
+  assert.equal(ok[0].preview.items[0].value, '52', 'a numeric observation normalizes to its string form')
+  // Non-finite numbers stay rejected.
+  assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤明显慢于常态。', preview: { items: [{ label: 'a', value: Number.NaN }] } }] }, topics, 8), /preview/)
+})
+
 test('equal values for distinct facts remain valid when each part adds information', () => {
   const topics = [{ id: 'commute-anomaly', actions: [action], evidence: [{ id: 'e0', readingId: 'commute.traffic', field: 'minutes', value: 24, state: 'live', measuredAt: stamp }, { id: 'e1', readingId: 'commute.traffic', field: 'baselineMinutes', value: 24, state: 'live', measuredAt: stamp }] }]
   const base = { topicId: 'commute-anomaly', key: 'primary', actionId: action.id, evidenceIds: ['e0', 'e1'] }
