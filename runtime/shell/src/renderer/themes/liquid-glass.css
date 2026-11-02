@@ -113,6 +113,14 @@ html[data-theme='liquid-glass'] input:is([type='checkbox'], [type='radio'], [typ
   accent-color: var(--odk-primary);
 }
 
+/* Composer controls keep their own shapes instead of the control radius. */
+html[data-theme='liquid-glass'] #personal-agent .agent-composer > button {
+  border-radius: 50%;
+}
+html[data-theme='liquid-glass'] #personal-agent .agent-composer[data-mode='voice'] .agent-mic {
+  border-radius: var(--odk-radius-pill);
+}
+
 /* A field control stays inside the concentric chain: it matches its inset panel instead of
    taking the control radius, so no inner element is rounder than its container. */
 html[data-theme='liquid-glass'] #personal-agent .personal-agent-preview-fields select,

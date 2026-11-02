@@ -128,14 +128,15 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 
 .agent-composer button svg, .agent-latest svg { width: 24px; height: 24px; flex: none; }
 .agent-latest { display: flex; align-items: center; justify-content: center; gap: 10px; }
-.agent-composer > button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; width: 46px; height: 46px; min-width: 46px; min-height: 46px; border: 0; border-radius: var(--agent-radius-control); padding: 0; background: transparent; color: var(--odk-secondary-strong); font: inherit; cursor: pointer; }
+.agent-composer > button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; width: 46px; height: 46px; min-width: 46px; min-height: 46px; border: 0; border-radius: 50%; padding: 0; background: transparent; color: var(--odk-secondary-strong); font: inherit; cursor: pointer; }
 .agent-composer :is(.agent-mic, .agent-keys, .agent-cancel):hover:not(:disabled) { background: var(--odk-elevated); color: var(--odk-primary); }
 .agent-composer .agent-send { background: var(--odk-primary); color: var(--odk-bg); padding: 0; }
 .agent-composer .agent-send:hover:not(:disabled) { background: color-mix(in srgb, var(--odk-primary) 86%, var(--odk-bg)); color: var(--odk-bg); }
 .agent-composer .agent-send:active:not(:disabled) { background: color-mix(in srgb, var(--odk-primary) 78%, var(--odk-bg)); color: var(--odk-bg); }
 .agent-composer .agent-send:disabled { opacity: 1; background: var(--odk-button); color: var(--odk-secondary-strong); }
 .agent-mic-label { display: none; font-size: var(--agent-text-label); color: inherit; }
-.agent-composer[data-mode="voice"] .agent-mic { flex: 1; width: auto; min-width: 0; padding-inline: 8px; color: var(--odk-primary); }
+/* The voice button spans the field, so it keeps the pill shape instead of a circle. */
+.agent-composer[data-mode="voice"] .agent-mic { flex: 1; width: auto; min-width: 0; padding-inline: 8px; border-radius: var(--odk-radius-pill); color: var(--odk-primary); }
 .agent-composer[data-mode="voice"] .agent-mic-label { display: inline; }
 .agent-recording-feedback { flex: 1; min-width: 0; height: 46px; display: flex; align-items: center; justify-content: center; }
 .agent-input-level { width: min(100%, 150px); height: 6px; overflow: hidden; border-radius: var(--odk-radius-pill); background: var(--odk-stroke); }

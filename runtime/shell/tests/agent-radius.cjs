@@ -65,7 +65,7 @@ app.whenReady().then(async () => {
       const m = v.match(/(-?[\\d.]+)px/)
       return m ? parseFloat(m[1]) : NaN
     }
-    const px = sel => { const n = document.querySelector(sel); if (!n) return null; const s = getComputedStyle(n); return { sel, tl: s.borderTopLeftRadius, tr: s.borderTopRightRadius, br: s.borderBottomRightRadius, radius: num(s.borderTopLeftRadius) } }
+    const px = sel => { const n = document.querySelector(sel); if (!n) return null; const s = getComputedStyle(n); const r = n.getBoundingClientRect(); return { sel, tl: s.borderTopLeftRadius, tr: s.borderTopRightRadius, br: s.borderBottomRightRadius, radius: num(s.borderTopLeftRadius), width: r.width, height: r.height } }
     const scale = getComputedStyle(document.querySelector('.agent-panel'))
     const token = name => scale.getPropertyValue(name).trim()
     return {
@@ -85,7 +85,7 @@ app.whenReady().then(async () => {
         confirm: px('.personal-agent-proposal-primary'),
         secondary: px('.personal-agent-proposal-secondary'),
         composer: px('.agent-composer'),
-        composerButton: px('.agent-composer .agent-mic'),
+        composerButton: px('.agent-composer .agent-send'),
         latest: px('.agent-latest')
       }
     }
@@ -125,21 +125,25 @@ app.whenReady().then(async () => {
       assert.ok(bubble > card && card > inset, `${theme}: the surface chain decreases strictly`)
     }
     assert.equal(m.parts.composer.radius, bubble, `${theme}: composer and bubble share one surface radius`)
-    assert.equal(m.parts.composerButton.radius, control, `${theme}: composer buttons use the control radius`)
     assert.equal(m.parts.latest.radius, control, `${theme}: the latest overlay uses the control radius`)
     // A field control inside the inset panel shares the panel radius so the control reads as
     // part of its container. The concentric surface chain stops at the panel.
-    assert.equal(m.parts.select.radius, inset, `${theme}: a field control matches its inset panel`)
+    assert.equal(m.parts.select.radius, inset, `${theme}: a field control matches its inset panel (inset ${inset}, select ${m.parts.select.tl}, control ${control})`)
     // Pixel collapses every level to a hard edge.
     if (theme === 'pixel') for (const [name, part] of Object.entries(m.parts)) {
       if (part) assert.equal(part.radius, 0, `pixel/${name}: expected a hard edge, got ${part.tl}`)
     } else {
       // No level may fall back to a pill or an unrelated fixed value.
       for (const [name, part] of Object.entries(m.parts)) {
-        if (part) assert.ok(Number.isFinite(part.radius) && part.radius < 40, `${theme}/${name}: ${part.tl} is not part of the concentric scale`)
+        if (!part || name === 'composerButton') continue
+        assert.ok(Number.isFinite(part.radius) && part.radius < 40, `${theme}/${name}: ${part.tl} is not part of the concentric scale`)
       }
+      // A square icon control reads as a circle, so it is not part of the surface chain.
+      const cbtn = m.parts.composerButton
+      assert.equal(cbtn.tl, '50%', `${theme}: the square send control is a circle, got ${cbtn.tl}`)
+      assert.ok(Math.abs(cbtn.width - cbtn.height) < 1, `${theme}: the circle needs a square box, got ${cbtn.width}x${cbtn.height}`)
     }
-    console.log(`AGENT_RADIUS ${theme} ${JSON.stringify({ bubble, card, inset, control, chip, padSurface, padCard })}`)
+    console.log(`AGENT_RADIUS ${theme} ${JSON.stringify({ bubble, card, inset, control, chip, select: m.parts.select?.tl, send: m.parts.composerButton?.tl })}`)
   }
   fs.writeFileSync(path.join(os.tmpdir(), 'odk-agent-radius.json'), JSON.stringify(record, null, 2))
   console.log('AGENT_RADIUS_PASS: concentric (radius minus padding) across 4 themes; Pixel collapses to 0')
