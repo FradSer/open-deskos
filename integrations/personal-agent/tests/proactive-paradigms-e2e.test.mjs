@@ -33,7 +33,7 @@ const rules = [
     goal: 'Show the time and price trade-off before I choose a ride.',
     delivery: 'immediate',
     urgent: false,
-    observations: [{ readingId: 'commute.options', fields: ['nowPrice', 'nowDelay', 'laterPrice', 'laterDelay', 'waitMinutes', 'historyPrice'] }],
+    observations: [{ readingId: 'commute.options', fields: ['nowPrice', 'nowDelay', 'laterPrice', 'laterDelay', 'waitMinutes', 'priceDelta', 'delayDelta'] }],
     actions: [action]
   },
   {
@@ -50,15 +50,15 @@ const rules = [
 const readings = {
   'commute.traffic': { minutes: 52, baselineMinutes: 24, delayMinutes: 28, rainAt: '18:15', rainChance: 80, measured_at: stamp },
   'calendar.next': { startsAt: '14:00', title: '产品评审', bufferMinutes: 12, travelMinutes: 34, shortfallMinutes: 22, measured_at: stamp },
-  'commute.options': { nowPrice: 32, nowDelay: 28, laterPrice: 58, laterDelay: 9, waitMinutes: 40, historyPrice: 34, measured_at: stamp },
+  'commute.options': { nowPrice: 32, nowDelay: 28, laterPrice: 58, laterDelay: 9, waitMinutes: 40, historyPrice: 34, priceDelta: 26, delayDelta: 19, measured_at: stamp },
   'ci.main': { commit: '1998604', passed: 116, failed: 0, target: 'cm5', measured_at: stamp }
 }
 
 // Each paradigm's preview shape. Values are copied from the cited readings.
 const paradigm = {
   'commute-anomaly': {
-    advice: '通勤当前 52 分钟，基准 24 分钟，超出 28 分钟。',
-    summary: '理想中心（公司） → 静安里（家）',
+    advice: '通勤比平时慢 28 分钟，建议提前出发。',
+    summary: '通勤时长与常态对比',
     items: [
       { label: '预计耗时', value: '52 分钟', tone: 'warn' },
       { label: '基准耗时', value: '24 分钟' },
@@ -67,26 +67,26 @@ const paradigm = {
     ]
   },
   'commitment-guard': {
-    advice: '产品评审 14:00 开始；通勤 34 分钟，缓冲 12 分钟。',
-    summary: '14:00 产品评审',
+    advice: '行程缺口 22 分钟，建议立即出发。',
+    summary: '下一场评审的时间缺口',
     items: [
       { label: '剩余缓冲', value: '12 分钟', tone: 'warn' },
-      { label: '缺口', value: '22 分钟', tone: 'warn' },
       { label: '通勤耗时', value: '34 分钟' }
     ]
   },
   'commute-tradeoff': {
-    advice: '同一路线：现在走 32 元、延迟 28 分钟；等 40 分钟走 58 元、延迟 9 分钟。',
-    summary: '同一路线：现在 32 元 / 等 40 分钟 58 元',
+    advice: '等待可省 19 分钟但多付 26 元，请选定方案。',
+    summary: '同一路线的两个出发时机',
     items: [
-      { label: '现在出发', value: '32 元 · 延迟 28 分钟', tone: 'warn' },
-      { label: '等 40 分钟', value: '58 元 · 延迟 9 分钟' },
-      { label: '历史均价', value: '34 元' }
+      { label: '现在出发', value: '32 元', tone: 'warn' },
+      { label: '等 40 分钟', value: '58 元' },
+      { label: '现在延误', value: '28 分钟' },
+      { label: '之后延误', value: '9 分钟' }
     ]
   },
   'release-pipeline': {
-    advice: 'main 分支 116 项通过、0 项失败，目标机 cm5。',
-    summary: 'main · Commit 1998604',
+    advice: '验证已全部通过，等待部署。',
+    summary: 'main 分支验证结果',
     items: [
       { label: '自动化验证', value: '116 通过', tone: 'good' },
       { label: '失败', value: '0' },
@@ -146,16 +146,20 @@ const deterministic = () => createJevJudge({
 test('the generator instructions teach the preview shape', () => {
   assert.match(generationInstructions, /preview object/)
   assert.match(generationInstructions, /preview\.items is 1-6/)
-  assert.match(generationInstructions, /Copy every value from a cited observation/)
+  assert.match(generationInstructions, /Every value is copied from a cited observation/)
+  assert.match(generationInstructions, /Do not repeat a value across items/)
+  assert.match(generationInstructions, /Prefer a difference that the observations already measure/)
+  assert.match(generationInstructions, /the advice states what changed and what to do, the preview shows the raw measurements/)
   assert.match(generationInstructions, /"warn"/)
   assert.match(generationInstructions, /"good"/)
+  assert.match(generationInstructions, /neutral/)
 })
 
 test('the validator accepts each paradigm preview and rejects a fabricated shape', () => {
   const topics = [{ id: 'commute-anomaly', actions: [action], evidence: [{ id: 'e0', readingId: 'commute.traffic', field: 'minutes', value: 52, state: 'live', measuredAt: stamp }] }]
   const base = { topicId: 'commute-anomaly', key: 'primary', actionId: action.id, evidenceIds: ['e0'] }
   const shape = paradigm['commute-anomaly']
-  const ok = validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤耗时 52 分钟。', preview: { summary: shape.summary, items: shape.items } }] }, topics, 8)
+  const ok = validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤明显慢于常态。', preview: { summary: shape.summary, items: shape.items } }] }, topics, 8)
   assert.deepEqual(ok[0].preview.items[0], { label: '预计耗时', value: '52 分钟', tone: 'warn' })
   for (const preview of [
     { items: [] },
@@ -165,8 +169,22 @@ test('the validator accepts each paradigm preview and rejects a fabricated shape
     { summary: 'x'.repeat(121), items: [{ label: 'a', value: 'b' }] },
     { items: [{ label: 'a', value: 'b' }], extra: 1 }
   ]) {
-    assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤耗时 52 分钟。', preview }] }, topics, 8), /preview/, JSON.stringify(preview).slice(0, 60))
+    assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤明显慢于常态。', preview }] }, topics, 8), /preview/, JSON.stringify(preview).slice(0, 60))
   }
+})
+
+test('the validator rejects an advice that repeats a preview reading', () => {
+  const topics = [{ id: 'commute-anomaly', actions: [action], evidence: [{ id: 'e0', readingId: 'commute.traffic', field: 'minutes', value: 52, state: 'live', measuredAt: stamp }] }]
+  const base = { topicId: 'commute-anomaly', key: 'primary', actionId: action.id, evidenceIds: ['e0'] }
+  const items = [{ label: '预计耗时', value: '52 分钟', tone: 'warn' }, { label: '基准耗时', value: '24 分钟' }]
+  // The advice states meaning only.
+  assert.doesNotThrow(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤明显慢于常态。', preview: { items } }] }, topics, 8))
+  // Repeating 52 in the advice wastes the message.
+  assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤 52 分钟，明显慢于常态。', preview: { items } }] }, topics, 8), /repeats a preview reading/)
+  // The summary carries the comparison label, not the numbers.
+  assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤明显慢于常态。', preview: { summary: '52 与 24 的对比', items } }] }, topics, 8), /Summary repeats/)
+  // Two items cannot show the same value.
+  assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤明显慢于常态。', preview: { items: [...items, { label: '重复', value: '52 分钟' }] } }] }, topics, 8), /Duplicate preview value/)
 })
 
 test('all four paradigms reach a proposal through generation, validation, and judgment', async () => {
@@ -210,7 +228,7 @@ test('a malformed preview cannot publish a proposal', async () => {
     now: () => Date.parse(stamp),
     canExecute: () => true,
     read: async id => ({ id, state: 'live', value: readings[id] }),
-    generate: async () => ({ suggestions: [{ topicId: 'commute-anomaly', key: 'primary', advice: '通勤耗时 52 分钟。', actionId: action.id, preview: { items: [{ label: 'a', value: 'b', tone: 'alarm' }] }, evidenceIds: ['e0'] }] }),
+    generate: async () => ({ suggestions: [{ topicId: 'commute-anomaly', key: 'primary', advice: '通勤明显慢于常态。', actionId: action.id, preview: { items: [{ label: 'a', value: 'b', tone: 'alarm' }] }, evidenceIds: ['e0'] }] }),
     judge: deterministic(),
     publish: frame => frames.push(frame),
     save: async () => {}, saveState: () => {}, execute: async () => 'done', phrase: async ({ advice }) => advice

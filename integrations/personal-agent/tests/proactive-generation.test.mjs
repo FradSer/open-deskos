@@ -312,8 +312,8 @@ test('suggestion schema correction identifies missing advice without disclosing 
 test('generation and correction lead with concise advice while retaining stored compatibility', () => {
   for (const instructions of [generationInstructions, generatedFormatCorrection(new SyntaxError())]) {
     assert.match(instructions, /one short sentence/)
-    assert.match(instructions, /itemized quotes/)
-    assert.match(instructions, /cited observations/)
+    assert.match(instructions, /the advice carries the meaning/)
+    assert.match(instructions, /cited observation/)
   }
   const topics = [{ id: 'deliveries', actions: [approved], evidence: [{ id: 'e0' }] }]
   const retained = suggestion('retained', '查'.repeat(400))
