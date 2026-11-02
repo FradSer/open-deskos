@@ -199,14 +199,15 @@ test('resident Agent tasks and every remote report page join the shared source i
   const seen = []
   const selected = await generateHomeSelection(readings, { choose: async request => {
     seen.push(...request.variables)
-    const agent = request.variables.filter(fact => fact.id.startsWith('odk.agent.') && /:(state|goal)$/.test(fact.factId))
-    const pi = request.variables.find(fact => fact.id === 'odk.app.pi-sessions')
-    const reports = request.variables.filter(fact => fact.id.startsWith('odk.remote.') && fact.factId.endsWith(':report')).slice(0, 2)
+    const agent = request.variables.filter(fact => fact.icon === 'tasks' && /(?:state|goal):/.test(fact.text))
+    const reports = request.variables.filter(fact => fact.icon === 'sessions' && fact.text.includes('report:')).slice(0, 2)
+    const pi = request.variables.find(fact => fact.icon === 'status' && fact.serviceId === reports[0]?.serviceId)
     return { items: [{ sources: [...agent, ...reports, pi].map(fact => fact.selector) }] }
   } })
   assert.equal(seen.length, homeFactVariables(readings).length)
   assert.equal(resolveHomeTemplate(selected, readings).items.flatMap(item => item.segments).length, 2, 'Declared services cannot create repeated Overview facts')
-  assert.deepEqual([...new Set(seen.filter(fact => fact.id.startsWith('odk.remote.')).map(fact => fact.serviceId))], ['odk.app.pi-sessions'])
+  const reportServices = new Set(seen.filter(fact => fact.icon === 'sessions' && fact.text.includes('report:')).map(fact => fact.serviceId))
+  assert.equal(reportServices.size, 1, 'Remote reports retain one anonymous service identity')
   const agent = await access.read(entries.find(entry => entry.id.startsWith('odk.agent.')).id)
   assert.equal(agent.value.goal, 'Check the runtime')
   assert.equal(agent.value.state, 'running')
@@ -389,6 +390,25 @@ test('a source push during confirmation cannot publish captured old data as live
   await home.refresh()
   assert.equal(frames.at(-1).state, 'live')
   home.close()
+})
+
+test('a push during confirmation cannot publish an old bound Weather value as live', async t => {
+  const { compileHomeSelection, homeFactVariables } = await import('../src/home-template.mjs')
+  let temperatureC = 24, reads = 0
+  const frames = []
+  const weather = () => ({ id: 'weather', label: 'Weather', state: 'live', value: { temperatureC },
+    home: { mode: 'optional', priority: 0, icon: 'weather', fields: ['temperatureC'] } })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [weather()], read: async () => {
+    const captured = weather()
+    if (++reads === 2) { temperatureC = 40; home.invalidate() }
+    return captured
+  }, generate: async ({ readings }) => compileHomeSelection({ items: [{ sources: [0] }] }, homeFactVariables(readings)),
+  publish: frame => frames.push(frame) })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.ok(!frames.some(frame => frame.state === 'live' && frame.items.some(item => item.text.includes('24°C'))))
+  await home.refresh()
+  assert.match(home.frame.items[0].text, /40°C/)
 })
 
 test('a newly connected error source participates and updates coverage', async () => {
@@ -694,7 +714,7 @@ test('a retained template cannot clear failure cooldown without another successf
   now += 15 * 60000; fail = false; await home.refresh()
   assert.equal(home.frame.state, 'live'); assert.deepEqual(home.frame.items, modelItems); assert.equal(calls, 3)
   sources = [source(true)]; now += 15 * 60000; fail = true; await home.refresh()
-  assert.equal(home.frame.state, 'error'); assert.match(home.frame.items[0].text, /2 Synthetic sessions/)
+  assert.equal(home.frame.state, 'error'); assert.match(home.frame.items[0].text, /Synthetic sessions (?:running: 1|.*2)/)
 })
 
 test('busy Pi activity publishes current bound facts and reselects with new completion qualifiers', async t => {

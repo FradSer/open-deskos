@@ -32,7 +32,9 @@ Configuration files are private (0600 on POSIX; protected user ACLs on Windows):
 
 - `~/.config/odk/runtime.env`: shared `ODK_WORKSPACE` and optional `ODK_STT_PORT` (default 17840).
 - `~/.config/odk/perosnal-agent.env`: Agent service and device settings. Pi owns model selection and credentials under `PI_CODING_AGENT_DIR`, which defaults to `~/.pi/agent`.
-- Both profiles use the configured ordinary model when Jev is disabled, unavailable, or not configured. Set `ODK_JEV_PROVIDER=disabled` to avoid Jev requests.
+- Typed judgments use the configured ordinary model when Jev is disabled or unavailable.
+  Set `ODK_JEV_PROVIDER=disabled` to avoid Jev requests.
+  If an enabled Jev request fails, Overview uses local facts and reports an error state.
 - Jev credentials are optional. Opt into the personal profile through `ODK_PERSONAL_AGENT_CONFIG`; otherwise coding coordination is the default.
 
 STT defaults to the [device-local bridge](../local-stt-bridge/README.md) at `http://127.0.0.1:<ODK_STT_PORT>/inference`, which needs no key.
@@ -240,15 +242,19 @@ Configuration changes require an idle Agent. Close cancels an unfinished login.
 
 Use Pi `/login` on CM5 as the service user to configure credentials outside the Shell.
 OpenCode Zen and Go retain native Pi provider IDs and authentication precedence.
-Custom endpoints belong in Pi `models.json`. Personal Agent does not override provider endpoints or keys.
-
+Configure generation endpoints in Pi `models.json`.
 Jev remains optional. `ODK_JEV_PROVIDER` selects `typesafe`, `opencode`, or `disabled`.
 `ODK_JEV_MODEL` selects a registered Pi classifier model. The defaults are `jev-latest` and `jev-1.13`, respectively.
-Jev resolves credentials, headers, and endpoint overrides through Pi ModelRuntime.
+Set `ODK_JEV_MODEL=jev-free` to use the OpenCode free model.
+`ODK_JEV_BASE_URL` can select a separate System One endpoint.
+Jev uses Pi provider credentials and headers for that address.
+A remote address requires HTTPS. Authentication address conflicts cause an error.
 Pi serializes and parses classifier requests through `ModelRuntime.classify()`.
 The host retains deadlines, response limits, and the existing typed judgment contract.
 Only `stopReason: "stop"` supplies answers. Jev is not a chat model and is excluded from `/model`.
-Unavailable Jev uses ordinary model judgment. No OpenCode-specific key file is required.
+Other typed judgments use the ordinary model if Jev is unavailable.
+Overview uses local facts and reports an error if an enabled Jev request fails.
+No OpenCode-specific key file is required.
 
 The service environment file is `~/.config/odk/perosnal-agent.env`.
 This exact filename retains the requested spelling.

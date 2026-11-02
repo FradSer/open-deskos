@@ -35,6 +35,55 @@ test('Jev uses native classifier configuration and request auth including header
  assert.equal((await ask({state:{},questions:{check:{type:'noul',instructions:'Check',criteria:{true:'yes',false:'no'}}}})).answers.check.noul,0.9)
 })
 
+test('an unspecified OpenCode classifier preserves the existing non-free model selection',async()=>{
+ const runtime=await ModelRuntime.create({modelsPath:null,allowModelNetwork:false,credentials:credentials({opencode:{type:'api_key',key:'synthetic-stored'}})})
+ let selected
+ const nativeGet=runtime.getModelOfType.bind(runtime)
+ runtime.getModelOfType=(kind,provider,id)=>{selected=id;return nativeGet(kind,provider,id)}
+ const ask=createJevClient({runtime,env:{ODK_JEV_PROVIDER:'opencode'},fetchImpl:async()=>Response.json({model:'jev-1.13',answers:{check:{type:'noul',noul:0.9}}})})
+ await ask({state:{},questions:{check:{type:'noul',instructions:'Check'}}})
+ assert.equal(selected,'jev-1.13')
+})
+
+test('a separate Jev endpoint does not change the shared generation provider',async()=>{
+ const runtime=await ModelRuntime.create({modelsPath:null,allowModelNetwork:false,credentials:credentials({opencode:{type:'api_key',key:'synthetic-stored'}})})
+ runtime.registerProvider('opencode',{baseUrl:'https://generation.invalid/v1',headers:{'x-config':'native'}})
+ const generationBefore=runtime.getModel('opencode','big-pickle')
+ const classifierBefore=runtime.getModelOfType('classifier','opencode','jev-1.13-free')
+ let requested
+ const ask=createJevClient({runtime,env:{ODK_JEV_PROVIDER:'opencode',ODK_JEV_MODEL:'jev-1.13-free',ODK_JEV_BASE_URL:'https://judgment.invalid/v1'},fetchImpl:async(url,options)=>{
+  requested=String(url)
+  assert.equal(new Headers(options.headers).get('authorization'),'Bearer synthetic-stored')
+  assert.equal(new Headers(options.headers).get('x-config'),'native')
+  return Response.json({model:'jev-1.13-free',answers:{check:{type:'noul',noul:0.9}}})
+ }})
+ await ask({state:{},questions:{check:{type:'noul',instructions:'Check'}}})
+ assert.equal(requested,'https://judgment.invalid/v1/systemone')
+ assert.equal(runtime.getModel('opencode','big-pickle').baseUrl,generationBefore.baseUrl)
+ assert.equal(runtime.getModelOfType('classifier','opencode','jev-1.13-free').baseUrl,classifierBefore.baseUrl)
+})
+
+test('a configured Jev gateway rejects a conflicting native authentication address before dispatch',async()=>{
+ const runtime=await ModelRuntime.create({modelsPath:null,allowModelNetwork:false,credentials:credentials({opencode:{type:'api_key',key:'synthetic-stored'}})})
+ const nativeAuth=runtime.getAuth.bind(runtime)
+ runtime.getAuth=async(...args)=>{const result=await nativeAuth(...args);return {...result,auth:{...result.auth,baseUrl:'https://auth.invalid/v1'}}}
+ let dispatched=false
+ const ask=createJevClient({runtime,env:{ODK_JEV_PROVIDER:'opencode',ODK_JEV_BASE_URL:'https://judgment.invalid/v1'},fetchImpl:async()=>{
+  dispatched=true
+  throw Error('Unexpected dispatch')
+ }})
+ await assert.rejects(ask({state:{},questions:{check:{type:'noul',instructions:'Check'}}}),error=>error.code==='configuration')
+ assert.equal(dispatched,false)
+})
+
+test('a non-loopback plaintext Jev gateway cannot receive provider credentials',async()=>{
+ let dispatched=false
+ const runtime=await ModelRuntime.create({modelsPath:null,allowModelNetwork:false,credentials:credentials({opencode:{type:'api_key',key:'synthetic-stored'}})})
+ const ask=createJevClient({runtime,env:{ODK_JEV_PROVIDER:'opencode',ODK_JEV_BASE_URL:'http://gateway.invalid/v1'},fetchImpl:async()=>{dispatched=true;throw Error('Unexpected dispatch')}})
+ await assert.rejects(ask({state:{},questions:{check:{type:'noul',instructions:'Check'}}}),error=>error.code==='configuration')
+ assert.equal(dispatched,false)
+})
+
 test('Jev uses Pi stored provider credentials instead of removed ODK key files',async()=>{
  const runtime=await ModelRuntime.create({modelsPath:null,allowModelNetwork:false,credentials:credentials({typesafe:{type:'api_key',key:'native-stored'}})})
  const ask=createJevClient({runtime,env:{ODK_JEV_KEY_FILE:'/must-not-read',TYPESAFE_API_KEY:'ambient'},fetchImpl:async(url,options)=>{

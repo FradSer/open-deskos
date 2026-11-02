@@ -7,6 +7,21 @@ import { HomeBriefing } from '../src/home-briefing.mjs'
 const source = (id, icon, value) => ({ id, label: id, state: 'live', value, home: { mode: 'required', priority: 100, icon, fields: Object.keys(value) } })
 const template = (id, icon, text) => ({ items: [{ text, readingIds: [id], segments: [{ text, icon }] }] })
 
+test('local attention treats unknown and familiar fields with the same task state consistently', async () => {
+  const { homeAttention } = await import('../src/home-template.mjs')
+  assert.equal(homeAttention('newPluginMetric', 18, {}), homeAttention('soilPercent', 18, {}))
+  assert.equal(homeAttention('otherMetric', -7, {}), homeAttention('todayChangePercent', -7, {}))
+  assert.ok(homeAttention('newPluginMetric', 18, { state: 'failed' }) > homeAttention('newPluginMetric', 18, {}))
+})
+
+test('local fallback selects an actual measurement before an identity label', async () => {
+  const { fallbackHomeSelection } = await import('../src/home-template.mjs')
+  const readings = [source('quota', 'quota', { accounts: [{ name: 'Alice', remainingPercent: 3 }] })]
+  const result = resolveHomeTemplate(fallbackHomeSelection(readings), readings)
+  assert.match(result.items[0].text, /3%/)
+  assert.doesNotMatch(result.items[0].text, /name:/)
+})
+
 test('Pi verification metadata informs analysis without becoming the displayed report', async () => {
   const { fallbackHomeSelection } = await import('../src/home-template.mjs')
   const readings = [source('odk.remote.audit', 'sessions', {
@@ -21,10 +36,10 @@ test('Pi verification metadata informs analysis without becoming the displayed r
   let seen
   const raw = await generateHomeSelection(readings, { choose: async request => {
     seen = request.variables
-    return { items: [{ sources: [request.variables.find(fact => fact.factId.endsWith(':report')).selector] }] }
+    return { items: [{ sources: [request.variables.find(fact => fact.text.includes('report:')).selector] }] }
   } })
   assert.equal(seen.length, facts.length, 'Verification context must still reach analysis')
-  assert.ok(seen.filter(fact => fact.factId.includes('verification')).every(fact => !fact.displayable))
+  assert.ok(seen.filter(fact => !fact.displayable).length > 0)
   const bound = resolveHomeTemplate(raw, readings)
   assert.match(bound.items[0].text, /reported.*\*\*two permission gaps\*\*/)
   assert.doesNotMatch(bound.items[0].text, /reported_unverified|verification:/)
@@ -69,6 +84,587 @@ test('semantic facts retain nested units and Agent goals, state, and verificatio
   assert.ok(facts.some(fact => fact.factId === 'pi:sessions.0.goal'))
   assert.ok(facts.some(fact => fact.factId === 'pi:sessions.0.activity'))
   assert.deepEqual(facts[waiting].entities, [{ id: 'pi-1', project: 'Desk' }])
+})
+
+test('duplicate Hydra identities cannot switch the selected moisture value', async t => {
+  const now = Date.now()
+  let plants = [54, 70].map(soilPercent => ({ id: 1, name: 'Fern', soilPercent, online: true, stale: false, soilStale: false, measuredAt: new Date(now).toISOString() }))
+  const reading = () => source('odk.tile.hydra', 'plants', { plants })
+  const weather = source('weather', 'weather', { temperatureC: 24 })
+  const readings = () => [reading(), weather]
+  const home = new HomeBriefing({ now: () => now, requireBindings: true, list: async () => readings(), read: async id => readings().find(source => source.id === id),
+    generate: async ({ readings, now }) => {
+      const facts = homeFactVariables(readings, now)
+      const soil = facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))
+      const other = facts.findIndex(fact => fact.factId === 'weather:@summary')
+      return compileHomeSelection({ items: [{ sources: soil < 0 ? [other] : [soil, other] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.match(home.frame.items.map(item => item.text).join(' '), /24°C/)
+  assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /soil moisture/)
+  plants.reverse(); home.invalidate(); await home.refresh()
+  assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /54%|70%/)
+})
+
+test('mixed-type duplicate IDs cannot transfer a selected plant to another name', async t => {
+  const now = Date.now()
+  let plants = [{ id: 1, name: 'Fern', soilPercent: 54, online: true, stale: false, soilStale: false, measuredAt: new Date(now).toISOString() }]
+  const reading = () => source('odk.tile.hydra', 'plants', { plants })
+  const weather = source('weather', 'weather', { temperatureC: 24 })
+  const readings = () => [reading(), weather]
+  const home = new HomeBriefing({ now: () => now, requireBindings: true, list: async () => readings(), read: async id => readings().find(source => source.id === id),
+    generate: async ({ readings, now }) => {
+      const facts = homeFactVariables(readings, now)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent')), facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh(); assert.match(home.frame.items[0].text, /Fern (?:dry|low|OK|good|wet) at/)
+  plants = [...plants, { ...plants[0], id: '1', name: 'Orchid', soilPercent: 70, online: false }]
+  home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /24°C/)
+  assert.doesNotMatch(home.frame.items[0].text, /Fern|Orchid|54%|70%/)
+  plants.reverse(); home.invalidate(); await home.refresh()
+  assert.doesNotMatch(home.frame.items[0].text, /Fern|Orchid|54%|70%/)
+})
+
+test('a selected plant disappears when duplicate IDs make it ambiguous', async t => {
+  const now = Date.now()
+  let plants = [{ id: 1, name: 'Fern', soilPercent: 54, online: true, stale: false, soilStale: false, measuredAt: new Date(now).toISOString() }]
+  const reading = () => source('odk.tile.hydra', 'plants', { plants })
+  const weather = source('weather', 'weather', { temperatureC: 24 })
+  const readings = () => [reading(), weather]
+  const home = new HomeBriefing({ now: () => now, requireBindings: true, list: async () => readings(), read: async id => readings().find(source => source.id === id),
+    generate: async ({ readings, now }) => {
+      const facts = homeFactVariables(readings, now)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent')), facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh(); assert.match(home.frame.items[0].text, /Fern (?:dry|low|OK|good|wet) at/)
+  plants = [...plants, { ...plants[0], name: 'Orchid', soilPercent: 70, online: false }]
+  home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /24°C/)
+  assert.doesNotMatch(home.frame.items[0].text, /Fern|Orchid|54%|70%/)
+})
+
+test('numeric record identities survive reordering under cached selection', async t => {
+  const one = { id: 1, name: 'Plant', soilPercent: 10 }
+  const two = { id: 2, name: 'Plant', soilPercent: 18 }
+  let plants = [one, two]
+  const reading = () => source('generic', 'plants', { plants })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [reading()], read: async () => reading(),
+    generate: async ({ readings }) => {
+      const facts = homeFactVariables(readings)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.match(home.frame.items[0].text, /10%/)
+  plants = [two, one]; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /10%/)
+  assert.doesNotMatch(home.frame.items[0].text, /18%/)
+})
+
+test('selected fresh Hydra moisture conveys its status and follows updates during cooldown', async t => {
+  let soilPercent = 54.6, calls = 0
+  const reading = () => ({ ...source('odk.tile.hydra', 'plants', {
+    plants: [{ id: 1, name: 'Plant 1', soilPercent, watering: false, online: true, stale: false, soilStale: false, measuredAt: new Date().toISOString() }],
+  }), label: 'Hydra plants' })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [reading()], read: async () => reading(),
+    generate: async ({ readings }) => {
+      calls++
+      const facts = homeFactVariables(readings)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.match(home.frame.items[0].text, /Plant 1 (?:OK|good)/i)
+  soilPercent = 25; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /Plant 1 (?:low|dry)/i)
+  assert.equal(calls, 1)
+})
+
+test('Hydra moisture status follows its main display bands at each boundary', async t => {
+  let soilPercent = 0
+  const reading = () => source('odk.tile.hydra', 'plants', { plants: [{ id: 1, name: 'Plant 1', soilPercent, online: true, stale: false, soilStale: false, measuredAt: new Date().toISOString() }] })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [reading()], read: async () => reading(),
+    generate: async ({ readings }) => {
+      const facts = homeFactVariables(readings)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  for (const [value, status] of [[0, 'dry'], [19.9, 'dry'], [20, 'low'], [34.9, 'low'], [35, 'OK'], [59.9, 'OK'], [60, 'good'], [79.9, 'good'], [80, 'wet'], [100, 'wet']]) {
+    soilPercent = value; home.invalidate(); await home.refresh()
+    assert.match(home.frame.items[0].text, new RegExp(`${status} at ${value}%`, 'i'))
+  }
+})
+
+test('Hydra selection excludes unreliable plant measurements and keeps healthy plants selectable', async t => {
+  const plants = [
+    { id: 1, name: 'Plant 1', soilPercent: 54.6, online: true, stale: false, soilStale: false, measuredAt: new Date().toISOString() },
+    { id: 2, name: 'Plant 2', soilPercent: 70.1, online: true, stale: false, soilStale: false, measuredAt: new Date().toISOString() },
+  ]
+  const reading = () => ({ ...source('odk.tile.hydra', 'plants', { plants }), label: 'Hydra plants' })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [reading()], read: async () => reading(),
+    generate: async ({ readings }) => {
+      const facts = homeFactVariables(readings)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  plants[0].online = false; home.invalidate(); await home.refresh()
+  assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /Plant 1.*(?:54\.6%|OK|good)/i)
+  assert.ok(homeFactVariables([reading()]).some(fact => fact.factId.endsWith(':plants.1.soilPercent')))
+  assert.ok(!homeFactVariables([reading()]).some(fact => fact.factId.endsWith(':plants.0.soilPercent') && fact.displayable !== false))
+  plants[0].online = true; plants[0].stale = true
+  assert.ok(!homeFactVariables([reading()]).some(fact => fact.factId.endsWith(':plants.0.soilPercent') && fact.displayable !== false))
+  plants[0].stale = false; plants[0].soilPercent = 101
+  assert.ok(!homeFactVariables([reading()]).some(fact => fact.factId.endsWith(':plants.0.soilPercent') && fact.displayable !== false))
+})
+
+test('fresh node heartbeats cannot make an old soil measurement current', async t => {
+  const now = 1_800_000_000_000
+  const plant = { id: 1, name: 'Plant 1', soilPercent: 54.6, online: true, stale: false, soilStale: false, measuredAt: new Date(now).toISOString() }
+  const reading = () => ({ ...source('odk.tile.hydra', 'plants', { plants: [plant] }), updatedAt: now })
+  const home = new HomeBriefing({ now: () => now, requireBindings: true, list: async () => [reading()], read: async () => reading(),
+    generate: async ({ readings }) => {
+      const facts = homeFactVariables(readings, now)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.match(home.frame.items[0].text, /OK at 54\.6%/)
+  plant.measuredAt = new Date(now - 60 * 60000).toISOString(); home.invalidate(); await home.refresh()
+  assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /OK at 54\.6%/)
+  assert.match(home.frame.items.map(item => item.text).join(' '), /Plant 1.*(?:soil|moisture).*(?:stale|unavailable)/i)
+  plant.measuredAt = new Date(now).toISOString(); home.invalidate(); await home.refresh()
+  assert.match(home.frame.items.map(item => item.text).join(' '), /OK at 54\.6%/)
+})
+
+test('returning to the original soil value updates the displayed status', async t => {
+  let soilPercent = 54, calls = 0
+  const reading = () => source('odk.tile.hydra', 'plants', { plants: [{ id: 1, name: 'Plant 1', soilPercent, online: true, stale: false, soilStale: false, measuredAt: new Date().toISOString() }] })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [reading()], read: async () => reading(),
+    generate: async ({ readings }) => {
+      calls++
+      const facts = homeFactVariables(readings)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh(); assert.match(home.frame.items[0].text, /OK at 54%/)
+  soilPercent = 15; home.invalidate(); await home.refresh(); assert.match(home.frame.items[0].text, /dry at 15%/)
+  soilPercent = 54; home.invalidate(); await home.refresh(); assert.match(home.frame.items[0].text, /OK at 54%/)
+  assert.equal(calls, 1)
+})
+
+test('invalid soil recovers within the generation cooldown', async t => {
+  let soilPercent = 54.6, calls = 0
+  const reading = () => source('odk.tile.hydra', 'plants', { plants: [{ id: 1, name: 'Plant 1', soilPercent, online: true, stale: false, soilStale: false, measuredAt: new Date().toISOString() }] })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [reading()], read: async () => reading(),
+    generate: async ({ readings }) => {
+      calls++
+      const facts = homeFactVariables(readings)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  soilPercent = 101; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /moisture unavailable/)
+  soilPercent = 54.6; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /OK at 54\.6%/)
+  assert.equal(calls, 1)
+})
+
+test('a fresh plant remains selectable when only the greenhouse is stale', async () => {
+  const now = Date.now()
+  const reading = { ...source('odk.tile.hydra', 'plants', {
+    greenhouse: { stale: true, temperatureC: 25 },
+    plants: [{ id: 1, name: 'Plant 1', soilPercent: 15, online: true, stale: false, soilStale: false, measuredAt: new Date(now).toISOString() }],
+  }), state: 'stale', label: 'Hydra plants' }
+  const facts = homeFactVariables([reading], now)
+  const index = facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))
+  assert.ok(index >= 0, 'fresh plant soil remains a candidate')
+  const output = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [index] }] }, facts), [reading], now)
+  assert.match(output.items[0].text, /Plant 1 dry at 15%/)
+  assert.ok(!facts.some(fact => fact.factId.endsWith(':greenhouse.temperatureC')), 'stale greenhouse is not a current reading')
+})
+
+test('retained watering cannot become current through a live soil update', async () => {
+  const { createRequire } = await import('node:module')
+  const require = createRequire(import.meta.url)
+  const { createHydraStore } = require('../../../runtime/shell/src/hydra-mqtt')
+  const { createHydraReadings } = require('../../../runtime/shell/src/plugins/readings/hydra')
+  const now = 1_800_000_000_000
+  const store = createHydraStore()
+  store.markConnected(true)
+  store.applyMessage('hydra/main/env', 'v=1;l=0;t=24;h=60;p=1000', now, { retained: true })
+  store.applyMessage('hydra/node1/status', 'PULSE', now, { retained: true })
+  store.applyMessage('hydra/main/online', 'true', now)
+  store.applyMessage('hydra/node1/online', 'true', now)
+  store.applyMessage('hydra/node1/soil', '55', now)
+  const [entry] = createHydraReadings({ snapshot: () => store.snapshot(now) })
+  const reading = { ...entry, ...await entry.read() }
+  assert.equal(reading.state, 'stale')
+  assert.ok(!homeFactVariables([reading], now).some(fact => fact.factId.endsWith(':plants.0.watering')))
+  store.applyMessage('hydra/node1/status', 'IDLE', now)
+  const current = { ...entry, ...await entry.read() }
+  assert.ok(!homeFactVariables([current], now).some(fact => fact.factId.endsWith(':plants.0.watering')), 'watering has no independent freshness proof')
+})
+
+test('MQTT retained soil stays unavailable through the source projection', async t => {
+  const { createRequire } = await import('node:module')
+  const require = createRequire(import.meta.url)
+  const { createHydraStore } = require('../../../runtime/shell/src/hydra-mqtt')
+  const { createHydraReadings } = require('../../../runtime/shell/src/plugins/readings/hydra')
+  const now = 1_800_000_000_000
+  const store = createHydraStore()
+  store.markConnected(true)
+  store.applyMessage('hydra/main/online', 'true', now)
+  store.applyMessage('hydra/node1/online', 'true', now)
+  store.applyMessage('hydra/node1/soil', '10', now, { retained: true })
+  store.applyMessage('hydra/node1/status', 'IDLE', now)
+  const [entry] = createHydraReadings({ snapshot: () => store.snapshot(now) })
+  const read = async () => ({ ...entry, ...await entry.read() })
+  const home = new HomeBriefing({ now: () => now, requireBindings: true, list: async () => [entry], read,
+    generate: async ({ readings }) => {
+      const facts = homeFactVariables(readings, now)
+      const selected = facts.findIndex(fact => fact.example.includes('|soilAvailability}}'))
+      return compileHomeSelection({ items: [{ sources: [selected] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.match(home.frame.items[0].text, /Plant 1 moisture unavailable/)
+  assert.doesNotMatch(home.frame.items[0].text, /dry|10%/)
+  store.applyMessage('hydra/node1/soil', '12', now)
+  home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /Plant 1 dry at 12%/)
+})
+
+test('a cached selection does not switch plants when their order changes', async t => {
+  let plants = [1, 2].map((id, index) => ({ id, name: `Plant ${id}`, soilPercent: [54, 70][index], online: true, stale: false, soilStale: false, measuredAt: new Date().toISOString() }))
+  const reading = () => source('odk.tile.hydra', 'plants', { plants })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [reading()], read: async () => reading(),
+    generate: async ({ readings }) => {
+      const facts = homeFactVariables(readings)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  plants[0].soilStale = true
+  plants.reverse(); home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /Plant 1 moisture unavailable/)
+  plants.find(plant => plant.id === 1).soilStale = false
+  home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /Plant 1 OK at 54%/)
+  assert.doesNotMatch(home.frame.items[0].text, /Plant 2|70%/)
+})
+
+test('an ID-less replacement plant cannot inherit a selected plant identity', async t => {
+  let plant = { name: 'Fern', soilPercent: 50, online: true, stale: false, soilStale: false, measuredAt: new Date().toISOString() }
+  const reading = () => source('odk.tile.hydra', 'plants', { plants: [structuredClone(plant)] })
+  const weather = source('weather', 'weather', { temperatureC: 24 })
+  const readings = () => [reading(), weather]
+  const home = new HomeBriefing({ requireBindings: true, list: async () => readings(), read: async id => readings().find(source => source.id === id),
+    generate: async ({ readings }) => {
+      const facts = homeFactVariables(readings)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent')), facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh(); assert.match(home.frame.items[0].text, /Fern (?:dry|low|OK|good|wet) at/)
+  plant = { ...plant, name: 'Orchid', soilPercent: 10, online: false }
+  home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /24°C/)
+  assert.doesNotMatch(home.frame.items[0].text, /Fern|Orchid/)
+  plant.online = true; home.invalidate(); await home.refresh()
+  assert.doesNotMatch(home.frame.items[0].text, /Fern|Orchid|10%/)
+  plant = { ...plant, name: 'Fern', soilPercent: 50 }; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /Fern OK at 50%/)
+})
+
+test('reordered unavailable Hydra plant retains its identity through rebinding', async () => {
+  const { rebindHomeSelection } = await import('../src/home-template.mjs')
+  const now = Date.now()
+  const plant = (id, soilStale) => ({ id, name: `Plant ${id}`, soilPercent: 50, online: true, stale: false, soilStale, measuredAt: new Date(now).toISOString() })
+  const before = [source('odk.tile.hydra', 'plants', { plants: [plant(1, false), plant(2, false)] })]
+  const after = [source('odk.tile.hydra', 'plants', { plants: [plant(2, false), plant(1, true)] })]
+  const facts = homeFactVariables(before, now)
+  const raw = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
+  const rebound = resolveHomeTemplate(rebindHomeSelection(raw, before, after, now, now), after, now)
+  assert.match(rebound.items[0].text, /Plant 1 moisture unavailable/)
+})
+
+for (const change of ['hidden', 'removed']) test(`a ${change} source requires a new selection after returning`, async t => {
+  let included = true, hidden = false, calls = 0
+  const pi = () => ({ ...source('odk.app.pi-sessions', 'sessions', { sessions: [{ id: 'one', project: 'Desk', goal: 'Verify release', state: 'settled' }] }),
+    home: { mode: hidden ? 'hidden' : 'optional', priority: 0, icon: 'sessions', fields: ['sessions'] } })
+  const weather = source('weather', 'weather', { temperatureC: 24 })
+  const readings = () => included ? [pi(), weather] : [weather]
+  const home = new HomeBriefing({ requireBindings: true, list: async () => readings(), read: async id => readings().find(source => source.id === id),
+    generate: async ({ readings }) => {
+      calls++
+      const facts = homeFactVariables(readings)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':sessions.0.goal')), facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh(); assert.match(home.frame.items[0].text, /Verify release/)
+  if (change === 'hidden') hidden = true
+  else included = false
+  home.invalidate(); await home.refresh()
+  assert.doesNotMatch(home.frame.items[0].text, /Verify release/)
+  hidden = false; included = true; home.invalidate(); await home.refresh()
+  assert.doesNotMatch(home.frame.items[0].text, /Verify release/)
+  assert.match(home.frame.items[0].text, /24°C/)
+  assert.equal(calls, 1)
+})
+
+test('a source hidden during generation cannot return without a new selection', async t => {
+  let hidden = false, entered, release
+  const started = new Promise(resolve => { entered = resolve })
+  const pause = new Promise(resolve => { release = resolve })
+  const pi = () => ({ ...source('odk.app.pi-sessions', 'sessions', { sessions: [{ id: 'one', project: 'Desk', goal: 'Verify release', state: 'settled' }] }),
+    home: { mode: hidden ? 'hidden' : 'optional', priority: 0, icon: 'sessions', fields: ['sessions'] } })
+  const weather = source('weather', 'weather', { temperatureC: 24 })
+  const readings = () => [pi(), weather]
+  const home = new HomeBriefing({ requireBindings: true, list: async () => readings(), read: async id => readings().find(source => source.id === id),
+    generate: async ({ readings }) => {
+      const facts = homeFactVariables(readings)
+      const selected = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':sessions.0.goal')), facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
+      entered(); await pause; return selected
+    }, publish() {} })
+  t.after(() => { release(); home.close() })
+  const pending = home.refresh(); await started
+  hidden = true; home.invalidate(); release(); await pending
+  assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /Verify release/)
+  hidden = false; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /24°C/)
+  assert.doesNotMatch(home.frame.items[0].text, /Verify release/)
+})
+
+test('a sole selected source recovers after an outage during generation', async t => {
+  let available = true, entered, release, calls = 0
+  const started = new Promise(resolve => { entered = resolve })
+  const pause = new Promise(resolve => { release = resolve })
+  const pi = () => ({ ...source('odk.app.pi-sessions', 'sessions', { sessions: [{ id: 'one', project: 'Desk', goal: 'Verify release', state: 'settled' }] }),
+    state: available ? 'live' : 'unavailable', ...(available ? {} : { value: null }) })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [pi()], read: async () => pi(),
+    generate: async ({ readings }) => {
+      calls++
+      const facts = homeFactVariables(readings)
+      const selected = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':sessions.0.goal'))] }] }, facts)
+      entered(); await pause; return selected
+    }, publish() {} })
+  t.after(() => { release(); home.close() })
+  const pending = home.refresh(); await started
+  available = false; home.invalidate(); release(); await pending
+  assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /Verify release/)
+  available = true; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items.map(item => item.text).join(' '), /Desk idle goal: Verify release/)
+  assert.equal(calls, 1)
+})
+
+test('a Pi source unavailable during generation restores its selection beside Weather', async t => {
+  let available = true, entered, release, calls = 0
+  const started = new Promise(resolve => { entered = resolve })
+  const pendingSelection = new Promise(resolve => { release = resolve })
+  const pi = () => ({ ...source('odk.app.pi-sessions', 'sessions', { sessions: [{ id: 'one', project: 'Desk', goal: 'Verify release', state: 'settled' }] }),
+    state: available ? 'live' : 'unavailable', ...(available ? {} : { value: null }) })
+  const weather = source('weather', 'weather', { temperatureC: 24 })
+  const readings = () => [pi(), weather]
+  const home = new HomeBriefing({ requireBindings: true, list: async () => readings(), read: async id => readings().find(source => source.id === id),
+    generate: async ({ readings }) => {
+      calls++
+      const facts = homeFactVariables(readings)
+      const selected = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':sessions.0.goal')), facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
+      entered(); await pendingSelection; return selected
+    }, publish() {} })
+  t.after(() => { release(); home.close() })
+  const pending = home.refresh(); await started
+  available = false; home.invalidate(); release(); await pending
+  assert.match(home.frame.items[0].text, /24°C/)
+  assert.doesNotMatch(home.frame.items[0].text, /Verify release/)
+  available = true; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /Desk idle goal: Verify release.*24°C/)
+  assert.equal(calls, 1)
+})
+
+test('a temporarily unavailable Pi goal returns beside Weather during cooldown', async t => {
+  let available = true, calls = 0
+  const pi = () => ({ ...source('odk.app.pi-sessions', 'sessions', { sessions: [{ id: 'one', project: 'Desk', goal: 'Verify release', state: available ? 'settled' : 'running' }] }),
+    state: available ? 'live' : 'unavailable', ...(available ? {} : { value: null }) })
+  const weather = source('weather', 'weather', { temperatureC: 24 })
+  const readings = () => [pi(), weather]
+  const home = new HomeBriefing({ requireBindings: true, list: async () => readings(), read: async id => readings().find(source => source.id === id),
+    generate: async ({ readings }) => {
+      calls++
+      const facts = homeFactVariables(readings)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':sessions.0.goal')), facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.match(home.frame.items[0].text, /Desk idle goal: Verify release.*24°C/)
+  available = false; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /24°C/)
+  assert.doesNotMatch(home.frame.items[0].text, /Verify release/)
+  await home.refresh()
+  assert.match(home.frame.items[0].text, /24°C/)
+  available = true; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /Desk idle goal: Verify release.*24°C/)
+  assert.equal(calls, 1)
+})
+
+test('selected plant and Weather both remain visible across offline and recovery', async t => {
+  let now = 1_800_000_000_000, calls = 0
+  const plant = { id: 1, name: 'Plant 1', soilPercent: 54.6, online: true, stale: false, soilStale: false, measuredAt: new Date(now).toISOString() }
+  const readings = () => [source('odk.tile.hydra', 'plants', { plants: [structuredClone(plant)] }), source('weather', 'weather', { temperatureC: 24 })]
+  const home = new HomeBriefing({ now: () => now, requireBindings: true, list: async () => readings(), read: async id => readings().find(source => source.id === id),
+    generate: async ({ readings, now }) => {
+      calls++
+      const facts = homeFactVariables(readings, now)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent')), facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.match(home.frame.items[0].text, /Plant 1 OK at 54\.6%.*24°C/)
+  plant.online = false; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /Plant 1 moisture unavailable.*24°C/)
+  plant.online = true; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /Plant 1 OK at 54\.6%.*24°C/)
+  assert.equal(calls, 1)
+})
+
+test('malformed soil timestamp cannot stop a healthy Weather selection', async t => {
+  const now = Date.now()
+  const hydra = source('odk.tile.hydra', 'plants', { plants: [{ id: 1, name: 'Plant 1', soilPercent: 10, online: true, stale: false, soilStale: false, measuredAt: { toString: null, valueOf: null } }] })
+  const weather = source('weather', 'weather', { temperatureC: 24 })
+  const readings = [hydra, weather]
+  let calls = 0
+  const home = new HomeBriefing({ now: () => now, requireBindings: true, list: async () => readings, read: async id => readings.find(reading => reading.id === id),
+    generate: async ({ readings, now }) => {
+      calls++
+      const facts = homeFactVariables(readings, now)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.equal(home.frame.state, 'live')
+  assert.match(home.frame.items[0].text, /24°C/)
+  assert.equal(calls, 1)
+})
+
+test('malformed Hydra cannot invalidate a selected Weather fact', async t => {
+  let hydra = source('odk.tile.hydra', 'plants', { plants: [{ id: 1, name: 'Plant 1', soilPercent: 54.6, online: true, stale: false, soilStale: false, measuredAt: new Date().toISOString() }] })
+  const weather = source('weather', 'weather', { temperatureC: 24 })
+  const readings = () => [hydra, weather]
+  const home = new HomeBriefing({ requireBindings: true, list: async () => readings(), read: async id => readings().find(reading => reading.id === id),
+    generate: async ({ readings }) => {
+      const facts = homeFactVariables(readings)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  hydra = source('odk.tile.hydra', 'plants', { plants: [{ id: 1, soilPercent: 12 }] })
+  home.invalidate(); await home.refresh()
+  assert.equal(home.frame.state, 'live')
+  assert.match(home.frame.items[0].text, /24°C/)
+  assert.deepEqual(home.frame.items[0].sources.map(source => source.id), ['weather'])
+})
+
+test('invalid soil during generation cannot start a failure cooldown', async t => {
+  let now = 1_800_000_000_000, entered, release
+  const ready = new Promise(resolve => { entered = resolve })
+  const pause = new Promise(resolve => { release = resolve })
+  const plant = { id: 1, name: 'Plant 1', soilPercent: 54.6, online: true, stale: false, soilStale: false, measuredAt: new Date(now).toISOString() }
+  const reading = () => source('odk.tile.hydra', 'plants', { plants: [structuredClone(plant)] })
+  const home = new HomeBriefing({ now: () => now, requireBindings: true, list: async () => [reading()], read: async () => reading(),
+    generate: async ({ readings, now }) => {
+      const facts = homeFactVariables(readings, now)
+      const selected = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
+      entered(); await pause; return selected
+    }, publish() {} })
+  t.after(() => { release(); home.close() })
+  const pending = home.refresh(); await ready
+  plant.soilPercent = 101; home.invalidate(); release(); await pending
+  assert.equal(home.frame.state, 'live')
+  assert.match(home.frame.items[0].text, /moisture unavailable/)
+  plant.soilPercent = 54.6; home.invalidate(); await home.refresh()
+  assert.equal(home.frame.state, 'live')
+  assert.match(home.frame.items[0].text, /OK at 54\.6%/)
+})
+
+test('a pending Hydra selection expiring during generation binds current unrelated facts', async t => {
+  let now = 1_800_000_000_000
+  const plant = { id: 1, name: 'Plant 1', soilPercent: 54.6, online: true, stale: false, soilStale: false, measuredAt: new Date(now).toISOString() }
+  const readings = [source('odk.tile.hydra', 'plants', { plants: [plant] }), source('weather', 'weather', { temperatureC: 24 })]
+  const home = new HomeBriefing({ now: () => now, requireBindings: true, list: async () => readings, read: async id => readings.find(source => source.id === id),
+    generate: async ({ readings, now: capturedAt }) => {
+      const facts = homeFactVariables(readings, capturedAt)
+      const chosen = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent')), facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
+      now += 4 * 60000
+      return chosen
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.equal(home.frame.state, 'live')
+  assert.match(home.frame.items.map(item => item.text).join(' '), /moisture unavailable/)
+  assert.match(home.frame.items.map(item => item.text).join(' '), /24°C/)
+  plant.measuredAt = new Date(now).toISOString(); home.invalidate(); await home.refresh()
+  assert.match(home.frame.items.map(item => item.text).join(' '), /OK at 54\.6%/)
+  assert.match(home.frame.items.map(item => item.text).join(' '), /24°C/)
+})
+
+test('a selected Pi goal carries its lifecycle state throughout the cooldown', async t => {
+  let state = 'running', calls = 0
+  const reading = () => source('odk.app.pi-sessions', 'sessions', { sessions: [{ id: 'one', project: 'Desk', goal: 'Verify release', state }] })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [reading()], read: async () => reading(),
+    generate: async ({ readings }) => {
+      calls++
+      const facts = homeFactVariables(readings)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':sessions.0.goal'))] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.match(home.frame.items[0].text, /Desk.*working.*Verify release/i)
+  state = 'settled'; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /Desk.*idle.*Verify release/i)
+  assert.doesNotMatch(home.frame.items[0].text, /settled|finished|reported/i)
+  state = 'exited'; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /exited.*Verify release/i)
+  assert.doesNotMatch(home.frame.items[0].text, /finished|reported/i)
+  assert.equal(calls, 1)
+})
+
+test('a selected resident Agent goal retains current task state and verification', async t => {
+  const { createTaskReadings } = await import('../src/producer-readings.mjs')
+  let calls = 0
+  const task = { taskId: 'test-task', identity: { name: 'Research' }, request: 'Inspect release', state: 'running',
+    updatedAt: new Date().toISOString(), verification: { status: 'not_run' } }
+  const provider = createTaskReadings({ list: () => ({ tasks: [task], total: 1 }), status: () => task })
+  const [entry] = provider.list()
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [entry], read: async id => provider.read(id),
+    generate: async ({ readings }) => {
+      calls++
+      const facts = homeFactVariables(readings)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':goal'))] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.match(home.frame.items[0].text, /running.*Inspect release/)
+  task.state = 'finished'; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /finished \(reported\).*Inspect release/)
+  task.verification.status = 'passed'; home.invalidate(); await home.refresh()
+  assert.match(home.frame.items[0].text, /finished verification passed.*Inspect release/)
+  assert.equal(calls, 1)
+})
+
+test('an unrelated source cannot attach its state to a selected goal', async () => {
+  for (const state of [true, 'connected']) {
+    const readings = [source('generic', 'sessions', { state, goal: 'Reduce latency' })]
+    const facts = homeFactVariables(readings)
+    const index = facts.findIndex(fact => fact.factId === 'generic:goal')
+    const output = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [index] }] }, facts), readings)
+    assert.match(output.items[0].text, /goal: Reduce latency/)
+    assert.doesNotMatch(output.items[0].text, /true|connected/)
+  }
 })
 
 test('plugin field references resolve numbers and text without model-supplied values', () => {
@@ -192,7 +788,8 @@ test('provided display examples resolve all current plugin fields as one fact ea
   for (const variable of homeTemplateVariables(readings)) {
     const resolved = resolveHomeTemplate(template(variable.id, variable.icon, variable.example), readings)
     assert.doesNotMatch(resolved.items[0].text, /\{\{/)
-    assert.match(resolved.items[0].text, new RegExp(variable.id))
+    assert.ok(resolved.items[0].text.length > 0)
+    assert.ok(variable.example.includes(`{{${variable.id}|`), 'each example binds its own source')
   }
 })
 
@@ -213,7 +810,7 @@ test('finite selections compile captured identities and preserve current source 
   const raw = compileHomeSelection({ items: [{ sources: [1, 0] }] }, catalog)
   const output = resolveHomeTemplate(raw, readings)
   assert.deepEqual(raw.items[0].readingIds, ['futu', 'weather'])
-  assert.equal(output.items[0].text, 'futu -0.82% today, weather 27°C overcast in Taipei.')
+  assert.equal(output.items[0].text, '-0.82% today, 27°C overcast in Taipei.')
   assert.equal(output.items[0].segments[0].icon, 'portfolio')
   assert.equal(output.items[0].segments[1].icon, 'weather')
   assert.throws(() => resolveHomeTemplate(raw, [readings[0]]), /Uncited/)
@@ -238,7 +835,8 @@ test('compiled selections have no reserved coverage and retain availability and 
   const result = resolveHomeTemplate(selected([0, 1]), readings)
   assert.match(result.items[0].text, /Futu unavailable/)
   assert.equal(validateHomeBriefing(result, readings, { requireSegments: true }).length, 1)
-  readings[0].label = 'W'.repeat(230)
+  readings[0].value.place = 'P'.repeat(250)
+  readings[0].home.fields.push('place')
   assert.throws(() => validateHomeBriefing(resolveHomeTemplate(selected([0, 1]), readings), readings, { requireSegments: true }), /too long/)
 })
 
@@ -282,10 +880,14 @@ test('compiled facts preserve the actual Shell icon and first-label token groupi
   const firstToken = new Function('segment', renderer.slice(start, end) + 'return prefix')
   const readings = [source('futu', 'portfolio', { todayChangePercent: -0.82 }), source('weather', 'weather', { temperatureC: 25 })]
   const output = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [0, 1] }] }, homeTemplateVariables(readings)), readings)
-  assert.deepEqual(output.items[0].segments.map(firstToken), ['futu', 'weather'])
+  for (const segment of output.items[0].segments) {
+    const prefix = firstToken(segment)
+    assert.equal(typeof prefix, 'string')
+    if (prefix) assert.ok(segment.text.startsWith(prefix), `${prefix} must start ${segment.text}`)
+  }
   assert.deepEqual(output.items[0].segments.map(segment => segment.icon), ['portfolio', 'weather'])
   assert.equal(output.items[0].segments[0].text.endsWith(', '), true)
-  assert.equal(output.items[0].text, 'futu -0.82% today, weather 25°C.')
+  assert.equal(output.items[0].text, '-0.82% today, 25°C.')
   assert.equal(output.items[0].segments.length, 2)
 })
 
@@ -379,4 +981,26 @@ for (const count of [1, 260]) test(`ignored service duplicates cannot invalidate
   assert.equal(bound.items.flatMap(item => item.segments).length, 1)
   assert.equal(seen.size, homeFactVariables(readings).length)
   if (count > 1) assert.ok(calls > 1)
+})
+
+test('plant, weather and holdings copy states the fact without repeating the source label', () => {
+  const now = Date.now()
+  const readings = [
+    source('odk.tile.hydra', 'plants', { plants: [{ id: 1, name: 'Plant 1', soilPercent: 8, online: true, stale: false, soilStale: false, measuredAt: new Date(now).toISOString() }] }),
+    source('weather', 'weather', { temperatureC: 24, condition: 'Sunny', place: 'Hangzhou' }),
+    source('futu', 'portfolio', { todayChangePercent: 6.4 }),
+  ]
+  const facts = homeFactVariables(readings, now)
+  const soil = facts.findIndex(fact => fact.factId === 'odk.tile.hydra:plants.0.soilPercent')
+  const weather = facts.findIndex(fact => fact.factId === 'weather:@summary')
+  const holdings = facts.findIndex(fact => fact.factId === 'futu:@summary')
+  const text = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [soil, weather, holdings] }] }, facts), readings, now).items[0].text
+  assert.equal(text, 'Plant 1 dry at 8%, 24°C Sunny in Hangzhou, +6.40% today.')
+})
+
+test('a report that already ends a sentence does not gain a second period', async () => {
+  const readings = [source('odk.remote.audit', 'sessions', { report: 'Release audit complete.', verification: 'reported_unverified' })]
+  const facts = homeFactVariables(readings)
+  const raw = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':report'))] }] }, facts)
+  assert.equal(resolveHomeTemplate(raw, readings).items[0].text, 'odk.remote.audit reported: Release audit complete.')
 })

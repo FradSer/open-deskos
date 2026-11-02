@@ -67,25 +67,34 @@ export async function generateWithinDeadline({ create, prompt, validate, signal,
     throw error
   }
   finally {
-    finished = true
-    clearTimeout(timer)
-    signal?.removeEventListener('abort', cancel)
     const disposal = Promise.resolve().then(() => session?.dispose())
-    if (stopped) {
-      // A provider can ignore abort. Retain the response deadline, but observe
-      // asynchronous cleanup failures instead of leaving a rejected promise.
-      void disposal.catch(() => { console.error('Proactive generation cleanup failed'); process.exitCode = 1 })
-      if (primaryFailure) reportFailure(primaryFailure.phase, primaryFailure.error,
-        { cleanup: 'pending', attempt: primaryFailure.attempt, timedOut, cancelled })
-    } else {
-      try { await disposal }
-      catch (error) {
-        reportFailure(primaryFailure?.phase ?? 'dispose', primaryFailure ? primaryFailure.error : error,
-          { cleanup: 'failed', attempt: primaryFailure?.attempt ?? attempt, cleanupError: error })
-        throw error
+    const observeLateCleanup = () => { void disposal.catch(() => { console.error('Proactive generation cleanup failed'); process.exitCode = 1 }) }
+    try {
+      if (stopped) {
+        observeLateCleanup()
+        if (primaryFailure) reportFailure(primaryFailure.phase, primaryFailure.error,
+          { cleanup: 'pending', attempt: primaryFailure.attempt, timedOut, cancelled })
+      } else {
+        try {
+          await Promise.race([disposal, deadline])
+        } catch (error) {
+          if (stopped) {
+            observeLateCleanup()
+            reportFailure(primaryFailure?.phase ?? stopSnapshot?.phase ?? 'dispose', primaryFailure?.error ?? error,
+              { cleanup: 'pending', attempt: primaryFailure?.attempt ?? attempt, timedOut, cancelled })
+          } else {
+            reportFailure(primaryFailure?.phase ?? 'dispose', primaryFailure ? primaryFailure.error : error,
+              { cleanup: 'failed', attempt: primaryFailure?.attempt ?? attempt, cleanupError: error })
+          }
+          throw error
+        }
+        if (primaryFailure) reportFailure(primaryFailure.phase, primaryFailure.error,
+          { cleanup: session ? 'completed' : 'not_started', attempt: primaryFailure.attempt })
       }
-      if (primaryFailure) reportFailure(primaryFailure.phase, primaryFailure.error,
-        { cleanup: session ? 'completed' : 'not_started', attempt: primaryFailure.attempt })
+    } finally {
+      finished = true
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', cancel)
     }
   }
 }

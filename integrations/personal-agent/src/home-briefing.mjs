@@ -1,4 +1,4 @@
-import { resolveHomeTemplate, homeTemplateVariables, homeSelectionInstructions, homeAttention, fallbackHomeSelection, rebindHomeSelection } from './home-template.mjs'
+import { resolveHomeTemplate, homeTemplateVariables, homeFactVariables, compileHomeSelection, homeSelectionInstructions, homeAttention, fallbackHomeSelection, rebindHomeSelection } from './home-template.mjs'
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const STATES = new Set(['live', 'stale', 'unavailable', 'unconfigured', 'unauthorized', 'error'])
 const ICONS = new Set(['sessions', 'plants', 'weather', 'mail', 'calendar', 'tasks', 'reading', 'portfolio', 'quota', 'apps', 'status'])
@@ -33,6 +33,7 @@ function valueShape(value) {
 }
 function selectionValue(value, path = '', now = Date.now()) {
   if (Array.isArray(value)) return value.map((item, index) => selectionValue(item, `${path}.${index}`, now))
+  if (/(?:^|\.)(?:id|sessionId|taskId)$/.test(path) && (typeof value === 'string' || Number.isFinite(value))) return value
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([key]) => !MEASUREMENT_TIMES.has(key)).map(([key, child]) => [key, selectionValue(child, path ? `${path}.${key}` : key, now)]))
   if (typeof value === 'number') return /(?:^|\.)(waiting|blocked|failed|error)$/.test(path) ? value : { type: 'number', attention: homeAttention(path, value, {}, now) }
   if (typeof value === 'string' && /(?:At|Time|deadline)$/.test(path)) return { value, attention: homeAttention(path, value, {}, now) }
@@ -94,7 +95,24 @@ export function validateHomeBriefing(raw, readings, { requireSegments = false } 
 }
 
 function boundSourceFacts(readings, now) {
-  return validateHomeBriefing(resolveHomeTemplate(fallbackHomeSelection(readings, now), readings), readings, { requireSegments: true })
+  return validateHomeBriefing(resolveHomeTemplate(fallbackHomeSelection(readings, now), readings, now), readings, { requireSegments: true })
+}
+
+// Withdrawn sources lose their selection. Temporary read failures remain in the catalog.
+function retainVisibleSelection(raw, readings, visible, now) {
+  if (!raw) return null
+  const ids = new Set(visible.map(source => source.id))
+  if (raw.items.every(item => item.readingIds.every(id => ids.has(id)))) return raw
+  const facts = homeFactVariables(readings, now)
+  const items = raw.items.flatMap(item => {
+    const sources = item.segments.flatMap(segment => {
+      const example = segment.text.replace(/(?:\. |, |\.)$/, '')
+      const index = facts.findIndex(fact => fact.example === example && ids.has(fact.id))
+      return index < 0 ? [] : [index]
+    })
+    return sources.length ? [{ sources }] : []
+  })
+  return compileHomeSelection({ items }, facts)
 }
 
 /** A read-only, replaceable home synthesis, independent of voice and proposals. */
@@ -106,6 +124,7 @@ export class HomeBriefing {
     this.templateCreatedAt = 0
     this.templateLayout = ''
     this.templateReadings = null
+    this.templateReadingsAt = 0
     this.nextGenerationAt = 0
     this.generationFailures = 0
     this.list = list
@@ -155,15 +174,16 @@ export class HomeBriefing {
   }
 
   publishDeferred(readings, omittedSources) {
+    if (this.template && this.templateReadings) this.template = retainVisibleSelection(this.template, this.templateReadings, readings, this.templateReadingsAt)
     if (!this.requireBindings) {
       this.emit(this.frame.items.length ? 'stale' : 'error')
       return
     }
-    let items, retained = false
+    let items, reboundTemplate, retained = false
     if (this.template && this.templateReadings) {
       try {
-        const rebound = rebindHomeSelection(this.template, this.templateReadings, readings)
-        items = validateHomeBriefing(resolveHomeTemplate(rebound, readings), readings, { requireSegments: true })
+        reboundTemplate = rebindHomeSelection(this.template, this.templateReadings, readings, this.now(), this.templateReadingsAt)
+        items = validateHomeBriefing(resolveHomeTemplate(reboundTemplate, readings, this.now()), readings, { requireSegments: true })
         retained = items.length > 0
       } catch { /* Changed identities cannot keep an old selected fact. */ }
     }
@@ -172,6 +192,8 @@ export class HomeBriefing {
       catch { items = [] }
     }
     this.sourceOnly = !retained
+    // Force the next refresh to reconsider every originally selected identity.
+    this.templateLayout = ''
     // Source checks remain useful, but cannot imply another successful selection.
     const state = this.generationFailures ? 'error' : retained && this.now() - this.templateCreatedAt < MAX_AGE_MS ? 'live' : 'stale'
     this.emit(state, {
@@ -248,6 +270,7 @@ export class HomeBriefing {
           return { readings, omittedSources }
         }
         let { readings, omittedSources } = await snapshot()
+        if (this.requireBindings && this.template && this.templateReadings) this.template = retainVisibleSelection(this.template, this.templateReadings, readings, this.templateReadingsAt)
         if (!readings.length) {
           this.fingerprint = ''
           this.emit(omittedSources ? 'unavailable' : 'empty', { items: [], generatedAt: this.now(), omittedSources })
@@ -267,12 +290,12 @@ export class HomeBriefing {
         }
         if (!this.generationFailures && this.requireBindings && this.template && this.templateLayout === layout && this.now() - this.templateCreatedAt < MAX_AGE_MS) {
           try {
-            const items = validateHomeBriefing(resolveHomeTemplate(this.template, readings), readings, { requireSegments: true })
+            const items = validateHomeBriefing(resolveHomeTemplate(this.template, readings, this.now()), readings, { requireSegments: true })
             this.sourceOnly = false
             if (fingerprint !== this.fingerprint || this.frame.state !== 'live' || this.frame.omittedSources !== omittedSources) this.emit(items.length ? 'live' : 'empty', { items, generatedAt: this.now(), omittedSources })
             this.fingerprint = fingerprint
             return
-          } catch { this.template = null }
+          } catch { /* Rebind current facts through the deferred path. */ }
         }
         if (!this.generationFailures && !this.requireBindings && fingerprint === this.fingerprint && this.frame.state !== 'stale' && this.now() - this.frame.generatedAt < MAX_AGE_MS) {
           if (this.frame.omittedSources !== omittedSources) this.emit(this.frame.state, { omittedSources })
@@ -294,28 +317,42 @@ export class HomeBriefing {
         } else this.emit('loading')
         stage = 'generate'
         attempted = true
-        let raw = await this.generate({ readings, omittedSources, now: this.now(), previous: this.frame.items.filter(item => item.sources.every(source => readings.some(reading => reading.id === source.id))), ...(this.requireBindings ? { variables: homeTemplateVariables(readings) } : {}), signal: controller.signal })
+        const capturedAt = this.now()
+        let raw = await this.generate({ readings, omittedSources, now: capturedAt, previous: this.frame.items.filter(item => item.sources.every(source => readings.some(reading => reading.id === source.id))), ...(this.requireBindings ? { variables: homeTemplateVariables(readings, capturedAt) } : {}), signal: controller.signal })
         if (!current()) return
+        let selectedTemplate = raw
+        const selectedReadings = readings
         let selectionChanged = false
         // A push reports possible change, not changed content. Repeated telemetry
         // must not cancel a slow model; confirm against fresh readings before use.
         if (this.requireBindings || revision !== this.revision) {
+          const confirmationRevision = this.revision
           const latest = await snapshot()
           if (!current()) return
-          if (!this.requireBindings && (contentFingerprint(latest.readings) !== fingerprint || latest.omittedSources !== omittedSources)) {
+          if (confirmationRevision !== this.revision || !this.requireBindings && (contentFingerprint(latest.readings) !== fingerprint || latest.omittedSources !== omittedSources)) {
             this.fingerprint = ''
             this.emit(this.frame.items.length ? 'stale' : 'loading')
             this.schedule()
             return
           }
           if (this.requireBindings) {
+            selectedTemplate = retainVisibleSelection(selectedTemplate, selectedReadings, latest.readings, capturedAt)
+            raw = selectedTemplate
             selectionChanged = layoutFingerprint(latest.readings, this.now()) !== layout || latest.omittedSources !== omittedSources
+            if (!selectionChanged) {
+              try { resolveHomeTemplate(raw, latest.readings, this.now()) }
+              catch { selectionChanged = true }
+            }
             if (selectionChanged) {
               stage = 'validate'
-              raw = rebindHomeSelection(raw, readings, latest.readings)
+              raw = rebindHomeSelection(raw, readings, latest.readings, this.now(), capturedAt)
               if (!raw.items.length) {
                 const items = boundSourceFacts(latest.readings, this.now())
-                this.template = null
+                this.template = structuredClone(selectedTemplate)
+                this.templateReadings = structuredClone(selectedReadings)
+                this.templateReadingsAt = capturedAt
+                this.templateCreatedAt = this.now()
+                this.templateLayout = ''
                 this.sourceOnly = true
                 this.generationFailures = 0
                 this.emit('stale', { items, generatedAt: 0, omittedSources: latest.omittedSources })
@@ -329,12 +366,13 @@ export class HomeBriefing {
           }
         }
         stage = 'validate'
-        const items = validateHomeBriefing(this.requireBindings ? resolveHomeTemplate(raw, readings) : raw, readings, { requireSegments: this.requireBindings })
+        const items = validateHomeBriefing(this.requireBindings ? resolveHomeTemplate(raw, readings, this.now()) : raw, readings, { requireSegments: this.requireBindings })
         if (this.requireBindings) {
-          this.template = structuredClone(raw)
+          this.template = structuredClone(selectedTemplate)
           this.templateLayout = selectionChanged ? '' : layoutFingerprint(readings, this.now())
           this.templateCreatedAt = this.now()
-          this.templateReadings = structuredClone(readings)
+          this.templateReadings = structuredClone(selectedReadings)
+          this.templateReadingsAt = capturedAt
         }
         this.generationFailures = 0
         this.fingerprint = fingerprint
@@ -351,7 +389,7 @@ export class HomeBriefing {
           const code = typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]{0,31}$/.test(error.code) ? error.code : undefined
           const rawStatus = error?.status ?? error?.statusCode
           const status = Number.isInteger(rawStatus) && rawStatus >= 400 && rawStatus <= 599 ? rawStatus : undefined
-          const failure = { stage, kind: failureKind(stage, error, code, status), name, detail: error?.message, ...(code ? { code } : {}), ...(status ? { status } : {}) }
+          const failure = { stage, kind: failureKind(stage, error, code, status), name, ...(code ? { code } : {}), ...(status ? { status } : {}) }
           try { this.onFailure(failure) } catch { /* Diagnostics cannot affect briefing recovery. */ }
           if (this.requireBindings && ['generate', 'validate'].includes(stage)) {
             try {

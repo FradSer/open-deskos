@@ -36,9 +36,11 @@ async function boundedResponse(response, onFailure) {
 
 /** Native Pi classifier adapter. Host judgments retain their existing Noul contract. */
 export function createJevClient({ env = process.env, fetchImpl = fetch, runtime = undefined } = {}) {
-  const provider = env.ODK_JEV_PROVIDER || 'typesafe'
+  const rawProvider = env.ODK_JEV_PROVIDER || 'typesafe'
+  const provider = ['opencode-zen', 'zen'].includes(rawProvider) ? 'opencode' : rawProvider
   if (!['typesafe', 'opencode'].includes(provider)) throw new JevRequestError('configuration', 'Invalid Jev provider configuration')
-  const model = env.ODK_JEV_MODEL || (provider === 'opencode' ? 'jev-1.13' : 'jev-latest')
+  let model = env.ODK_JEV_MODEL || (provider === 'opencode' ? 'jev-1.13' : 'jev-latest')
+  if (['jev-free', 'free'].includes(model)) model = 'jev-1.13-free'
   const timeout = Number(env.ODK_JEV_TIMEOUT_MS ?? 10000)
   if (!isJevModel(model) || !Number.isInteger(timeout) || timeout < 1000 || timeout > 30000) throw new JevRequestError('configuration', 'Invalid Jev configuration')
   let nativeRuntime
@@ -52,9 +54,18 @@ export function createJevClient({ env = process.env, fetchImpl = fetch, runtime 
         || Buffer.byteLength(JSON.stringify({state, questions})) > 96000) throw new JevRequestError('configuration')
       nativeRuntime ??= runtime ? Promise.resolve(typeof runtime === 'function' ? runtime() : runtime) : ModelRuntime.create({signal: requestSignal})
       const models = await nativeRuntime
-      const selected = models.getModelOfType('classifier', provider, model)
-      if (!selected) throw new JevRequestError('configuration')
-      if (!await models.getAuth(selected, {signal: requestSignal, env})) throw new JevRequestError('missing_credential', 'Jev credential missing or unavailable')
+      const configured = models.getModelOfType('classifier', provider, model)
+      if (!configured) throw new JevRequestError('configuration')
+      const selected = env.ODK_JEV_BASE_URL ? { ...configured, baseUrl: env.ODK_JEV_BASE_URL.replace(/\/+$/, '').replace(/\/systemone$/, '') } : configured
+      if (env.ODK_JEV_BASE_URL) {
+        let url
+        try { url = new URL(selected.baseUrl) } catch { throw new JevRequestError('configuration') }
+        if (url.username || url.password || url.search || url.hash || !(url.protocol === 'https:'
+          || url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))) throw new JevRequestError('configuration')
+      }
+      const auth = await models.getAuth(selected, {signal: requestSignal, env})
+      if (!auth) throw new JevRequestError('missing_credential', 'Jev credential missing or unavailable')
+      if (env.ODK_JEV_BASE_URL && auth.auth.baseUrl && auth.auth.baseUrl.replace(/\/+$/, '') !== selected.baseUrl) throw new JevRequestError('configuration')
       requestSignal.throwIfAborted()
       const nativeQuestions = Object.fromEntries(Object.entries(questions).map(([id, question]) => [id, {
         ...question, type: question.type === 'noul' ? 'bool' : question.type,

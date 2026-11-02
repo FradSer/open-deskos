@@ -120,6 +120,20 @@ test('a successful generation waits for asynchronous Harness disposal', async ()
  release();assert.deepEqual(await work,{suggestions:[]})
 })
 
+test('a provider whose cleanup hangs cannot defeat the generation deadline', async t => {
+ t.mock.timers.enable({apis:['setTimeout']})
+ let entered,release,aborted=0
+ const ready=new Promise(resolve=>{entered=resolve})
+ const disposal=new Promise(resolve=>{release=resolve})
+ const work=generateWithinDeadline({timeoutMs:1000,create:async()=>({dispose:async()=>{entered();await disposal},abort:async()=>{aborted++}}),prompt:async()=>'{}'}, {})
+ const rejected=assert.rejects(work,/timed out/)
+ await ready
+ t.mock.timers.tick(1000)
+ try { await Promise.race([rejected,new Promise((_resolve,reject)=>setImmediate(()=>reject(Error('cleanup defeated deadline'))))]) }
+ finally { release() }
+ assert.equal(aborted,1)
+})
+
 test('asynchronous Harness disposal failure rejects a successful generation', async () => {
  await assert.rejects(generateWithinDeadline({create:async()=>({dispose:async()=>{throw Error('fixture cleanup failure')},abort:async()=>{}}),prompt:async()=>'{"suggestions":[]}'},{}),/cleanup failure/)
 })
