@@ -1,7 +1,7 @@
 // Full production pipeline against live model and live Jev: batch judgment,
 // near-miss reconsideration, the bounded repair round, and host qualification.
 // Opt in with: node scripts/test-agent-loop-live.mjs [--rounds 3]
-import { execFileSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -33,26 +33,50 @@ const readings = {
 const log = []
 const note = line => { log.push(line); console.log(line) }
 
-function liveGenerate(input) {
+// One model call at a time: the runtime serialises its own generation, and concurrent
+// child processes would otherwise contend for the same provider session.
+let queue = Promise.resolve()
+// Chain after the previous task settles; the returned promise keeps this task's own outcome.
+const serial = task => {
+  const result = queue.then(task, task)
+  queue = result.then(() => {}, () => {})
+  return result
+}
+async function liveGenerate(input) {
   // The resident retries once through generatedFormatCorrection; mirror that here.
-  const attempt = request => {
-    const raw = execFileSync('pi', ['-ne', '-p', generationInstructions + '\n\nInput:\n' + JSON.stringify(request)], {
-      encoding: 'utf8', timeout: 200000, maxBuffer: 4 << 20
-    })
-    return raw.trim().replace(/^```(?:json)?\s*\n/, '').replace(/\n```$/, '')
-  }
-  let text = attempt(input)
+  // The instruction block plus a four-topic input exceeds the argument limit, so the
+  // prompt goes in on stdin: `pi -p` with no positional prompt reads it from there.
+  const attempt = request => serial(async () => {
+    const child = spawn('pi', ['-ne', '-p'], { stdio: ['pipe', 'pipe', 'pipe'] })
+    let stdout = '', stderr = ''
+    child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8')
+    child.stdout.on('data', chunk => { stdout += chunk })
+    child.stderr.on('data', chunk => { stderr += chunk })
+    child.stdin.end(generationInstructions + '\n\nInput:\n' + JSON.stringify(request))
+    const timer = setTimeout(() => child.kill('SIGKILL'), 200000)
+    const code = await new Promise(resolve => child.on('close', resolve))
+    clearTimeout(timer)
+    if (code !== 0) throw Error(`pi exited ${code}: ${stderr.split('\n').filter(line => !line.startsWith('Warning: No models')).join(' ').slice(0, 300)}`)
+    return stdout.trim().replace(/^```(?:json)?\s*\n/, '').replace(/\n```$/, '')
+  })
+  // The watch validates and normalises the raw response itself, so this returns raw JSON.
+  const parse = text => JSON.parse(text)
+  let text = await attempt(input)
   try {
-    return validateGeneratedBatch(JSON.parse(text), input.topics, input.maxCandidates)
+    validateGeneratedBatch(parse(text), input.topics, input.maxCandidates)
+    note(`  generate ok: ${parse(text).suggestions.length} candidates`)
+    return parse(text)
   } catch (first) {
     note(`  first attempt failed: ${first.message}; correcting format`)
     const correction = { ...input, formatCorrection: generatedFormatCorrection(first) }
-    text = attempt(correction)
+    text = await attempt(correction)
     try {
-      return validateGeneratedBatch(JSON.parse(text), input.topics, input.maxCandidates)
+      validateGeneratedBatch(parse(text), input.topics, input.maxCandidates)
+      note(`  generate ok after correction: ${parse(text).suggestions.length} candidates`)
+      return parse(text)
     } catch (second) {
       note(`  correction failed: ${second.message}`)
-      note(`  raw head: ${JSON.stringify(text.slice(0, 400))}`)
+      note(`  raw head: ${JSON.stringify(text.slice(0, 500))}`)
       throw second
     }
   }
@@ -67,10 +91,26 @@ async function runRound(index) {
     read: async id => ({ id, state: 'live', value: readings[id] }),
     generate: async input => {
       note(`  generate ${input.repair ? 'REPAIR' : 'batch'} (${input.topics.length} topics)`)
-      return liveGenerate(input)
+      try { return await liveGenerate(input) } catch (error) { note(`  generate failed: ${error.message}`); throw error }
     },
-    judge: createJevJudge({ env: process.env }),
-    onGeneration: record => note(`  phase=${record.phase} candidates=${record.candidates}`),
+    judge: async args => {
+      try {
+        const out = await createJevJudge({ env: process.env })(args)
+        for (const c of args.candidates) {
+          const a = out.answers[c.id]
+          note(`  judge ${c.topicId} p=${Number(a.probability).toFixed(2)} g=${Number(a.groundingProbability).toFixed(2)} compl=${a.complementarityProbability === undefined ? 'n/a' : Number(a.complementarityProbability).toFixed(2)}`)
+        }
+        return out
+      } catch (error) {
+        note(`  JUDGE ERROR ${error?.stack?.split('\n').slice(0, 2).join(' | ')}`)
+        throw error
+      }
+    },
+    onGeneration: record => note(`  phase=${record.phase} candidates=${record.candidates} topics=${(record.topics ?? []).join(',')}${record.budgetUsed !== undefined ? ` budgetUsed=${record.budgetUsed}` : ''}`),
+    onJudgment: record => {
+      // The runtime receipt carries usefulness, support and threshold; complementarity stays in the answer map.
+      for (const d of record.decisions) note(`  judged ${d.ruleId} p=${Number(d.probability).toFixed(2)} g=${Number(d.groundingProbability).toFixed(2)} thr=${d.threshold}`)
+    },
     publish: () => {},
     save: async () => {}, saveState: () => {}, execute: async () => 'done', phrase: async ({ advice }) => advice,
   })
@@ -81,7 +121,7 @@ async function runRound(index) {
       probability: p.judgment.probability, grounding: p.judgment.groundingProbability,
       complementarity: p.judgment.complementarityProbability ?? null, threshold: p.judgment.threshold,
     }))
-    note(`round ${index}: ${published.length} published`)
+    note(`round ${index}: ${published.length} published; judgmentError=${JSON.stringify(watch.judgmentError ?? '')} failed=${JSON.stringify([...(watch.failedJudgments ?? [])])}`)
     return published
   } catch (error) {
     note(`round ${index} failed: ${error.message}`)

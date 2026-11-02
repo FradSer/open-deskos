@@ -21,7 +21,12 @@ const corpusPath = arg('--corpus', '/tmp/odk-threshold-corpus.json')
 const outDir = arg('--out', fs.mkdtempSync(path.join(os.tmpdir(), 'odk-threshold-out-')))
 fs.mkdirSync(outDir, { recursive: true })
 const parsed = JSON.parse(fs.readFileSync(corpusPath, 'utf8'))
-const corpus = Array.isArray(parsed) ? parsed : parsed.rows
+// Accepted shapes: a flat array of judged rows, {stamp,rows}, or the live pipeline's {rounds:[{proposals}]}.
+const corpus = Array.isArray(parsed) ? parsed
+  : Array.isArray(parsed.rows) ? parsed.rows
+  : (parsed.rounds ?? []).flatMap(round => round.proposals.map(p => ({ run: round.round, topic: p.ruleId, advice: p.advice,
+      preview: p.preview ?? null, nextStep: p.nextStep ?? null, probability: p.probability, grounding: p.grounding,
+      complementarity: p.complementarity, threshold: p.threshold, pass: true })))
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 const proposalFor = (row, index) => ({
@@ -76,8 +81,8 @@ app.whenReady().then(async () => {
   for (const threshold of [0.8, 0.7]) {
     for (const round of rounds) {
       const candidates = corpus.filter(row => row.run === round)
-      const passing = candidates.filter(row => row.probability >= threshold && row.grounding >= threshold
-        && (row.preview ? (row.complementarity ?? 0) >= threshold : true))
+      const passing = candidates.filter(row => row.pass === true || (row.probability >= threshold && row.grounding >= threshold
+        && (row.preview ? (row.complementarity ?? 0) >= threshold : true)))
       await send({ state: 'idle', proposals: [], proposalCapabilities: { read: true, respond: true, acknowledge: true } })
       await send({ state: 'idle', proposals: passing.map(proposalFor), proposalCapabilities: { read: true, respond: true, acknowledge: true } })
       const name = `threshold-${String(threshold).replace('.', '')}-run-${round}.png`
