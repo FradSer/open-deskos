@@ -190,12 +190,14 @@ The [child contract](../../../integrations/personal-agent/docs/AGENT_TASKS.md) o
 | `ODK_JEV_PROVIDER` | device | typesafe | integrations/personal-agent/src/jev-client.mjs | config | Select typesafe or opencode; disabled uses ordinary model judgment |
 | `OPENCODE_API_KEY` | device | none | External consumer: Pi ModelRuntime | config | Native Pi OpenCode environment credential; stored credentials take precedence |
 | `ODK_PERSONAL_AGENT_MAIN_SSH` | device | none | integrations/personal-agent/src/display-client.mjs | config | Windows display requires the fixed odk-cm5-agent SSH alias |
-| `ODK_JEV_MODEL` | device | provider default | integrations/personal-agent/src/jev-client.mjs | config | TypeSafe defaults to jev-latest; OpenCode Zen defaults to jev-1.13 |
+| `ODK_JEV_MODEL` | device | provider default | integrations/personal-agent/src/jev-client.mjs | config | TypeSafe defaults to jev-latest; OpenCode defaults to jev-1.13; jev-free selects the free model |
+| `ODK_JEV_BASE_URL` | device | provider default | integrations/personal-agent/src/jev-client.mjs | config | Optional System One address; remote addresses require HTTPS and use the selected Pi provider credentials |
 | `ODK_JEV_INTENT_THRESHOLD` | device | 0.8 | integrations/personal-agent/src/intent-routing.mjs | config | Minimum selected probability and confidence; initially uncalibrated, must exceed 0.5 |
 | `ODK_JEV_THRESHOLD` | device | 0.8 | integrations/personal-agent/src/proactive-jev.mjs | config | Minimum usefulness and factual support |
 | `ODK_JEV_TIMEOUT_MS` | device | 10000 | integrations/personal-agent/src/jev-client.mjs | config | Judgment deadline, integer 1000 through 30000 milliseconds |
 | `TYPESAFE_API_KEY` | device | none | External consumer: Pi ModelRuntime | config | Private TypeSafe environment credential; never expose its value |
 | `ODK_PROACTIVE_GENERATION_TIMEOUT_MS` | device | 90000 | integrations/personal-agent/src/agent.mjs | config | Total generation deadline, integer 1000 through 180000 |
+| `ODK_PERSONAL_AGENT_MODEL` | device | none | integrations/personal-agent/src/main.mjs | config | Resident Pi model at startup; absent uses Pi's new-session selection |
 
 ## Saved plugin preferences
 

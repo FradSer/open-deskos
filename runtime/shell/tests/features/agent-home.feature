@@ -1,5 +1,115 @@
 Feature: Personal Agent home briefing
 
+  Scenario: Overview explains fresh plant moisture and updates its status
+    Given Hydra reports a fresh online plant with a valid soil moisture reading
+    When Overview selects that reading
+    Then the text includes the plant identity and its moisture status
+    And the status follows Hydra's established display bands
+    When the moisture crosses a band during the selection cooldown
+    Then the text reflects the new status without another model request
+    And offline, stale, or invalid readings cannot be described as current moisture
+    And a recent node heartbeat cannot refresh an older or retained soil measurement
+    And stale greenhouse data cannot hide a fresh plant measurement
+    And a malformed Hydra record cannot invalidate another source's selected fact
+    And watering status stays out of Overview when its freshness is not established
+    And reordering plants preserves the selected plant identity
+    And an ambiguous plant identity cannot bind another plant's reading
+    And an unavailable plant measurement has a clear availability status
+    When a fresh measurement returns during the cooldown
+    Then Overview shows its current moisture status
+
+  Scenario: Overview presents the state alongside an Agent goal
+    Given a Pi session reports a goal and its current state
+    When Overview selects the goal
+    Then it includes the current state with the goal
+    And it updates that state without another model request
+    And a Pi session reports its lifecycle with product terms
+    And an unrelated source cannot assign its state to a goal
+    And a resident Agent goal includes its current task state
+
+  Scenario: A selected source recovers beside another source
+    Given Overview selects a Pi goal and a Weather fact
+    When Pi becomes unavailable during the selection cooldown
+    Then the current Weather fact remains visible
+    When Pi returns with the selected goal and a new state
+    Then both selected facts return without another model request
+    And hidden or removed sources cannot restore their old facts
+    And the same recovery applies when the source disconnects during generation
+    And a hidden or removed source needs a new selection after it returns
+
+  Scenario: A temporary producer catalog failure preserves a selection
+    Given Overview selects an Agent goal and a Weather fact
+    When the Agent producer catalog cannot be read
+    Then the Weather fact remains visible without the Agent goal
+    When the producer catalog and goal become available again
+    Then both facts return without another model request
+    When the producer catalog confirms the Agent goal was removed
+    Then its old selection cannot return
+
+  Scenario: A source changes during the final confirmation
+    Given Overview selects a local Weather fact
+    When a source update arrives during the confirmation read
+    Then Overview does not present the captured old reading as current
+    And a later refresh can show the new reading
+
+  Scenario: A judgment endpoint has an independent address
+    Given dialogue and judgment use the same configured provider
+    When a separate judgment address is configured
+    Then classification uses the judgment address
+    And dialogue retains its configured address and authentication
+
+  Scenario: A judgment endpoint stops delaying Overview
+    Given the judgment endpoint does not respond
+    When the judgment deadline passes
+    Then Overview can use local source facts
+    And the pending judgment cannot publish a later selection
+
+  Scenario: Judgment is unavailable
+    Given Overview has current facts from visible sources
+    When the judgment endpoint rejects the request
+    Then Overview selects facts locally without another model request
+    And it preserves current source values in the displayed text
+    And it reports that model selection failed
+    And the local order does not depend on a specific sensor or account field
+    And an invalid judgment configuration cannot prevent dialogue
+    And an Overview request failure cannot disable other judgment consumers
+
+  Scenario: Judgment selects facts across a large inventory
+    Given visible sources provide more than one judgment batch of facts
+    When the judgment endpoint scores their current importance
+    Then the highest scored displayable fact appears in Overview
+    And each selected fact still binds to its local source
+
+  Scenario: A judged glance stays short and ordered by importance
+    Given judged facts score well above the routine ones
+    When Overview builds the glance
+    Then it shows only facts close to the highest score
+    And it shows at most three services
+    And a tie in scores prefers a measurement over an identity label
+
+  Scenario: An empty model selection cannot blank the desk
+    Given visible sources provide current facts
+    When the selection model returns no items
+    Then Overview still shows the most important current facts
+    And those facts bind to their local sources
+
+  Scenario: Concise copy carries the fact, not the source label
+    Given a plant, the weather and a holding are selected
+    When Overview renders their text
+    Then the plant reads as its name, moisture status and percentage
+    And the weather reads as its temperature, condition and place
+    And the holding reads as its daily change
+    And the leading icon still identifies each service
+    And the moisture status word carries the firmware severity colour
+    And a low remaining percentage carries the severity colour
+    And a healthy remaining percentage stays uncoloured
+
+  Scenario: Overview limits private data sent for model selection
+    Given Overview receives private facts from visible sources
+    When models evaluate the facts
+    Then the requests omit private identifiers and source text
+    And the selected fact binds to the current local source
+
   Scenario: Overview limits model generation while current readings keep updating
     Given Overview has completed an initial model selection
     When Pi activity and other source values change repeatedly

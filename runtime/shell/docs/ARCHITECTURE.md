@@ -362,6 +362,32 @@ The [C6 Gateway contract](C6-GATEWAY.md) owns implementation stages, Remote Cont
 The [Bridge contract](../../../integrations/remote-bridge/README.md#shared-device-channel) defines gateway state and the trusted device interface.
 Package, general peer, and physical Remote acceptance remain separate gates.
 
+<a id="adr-0039"></a>
+### ADR-0039: Separate generation and judgment endpoints
+
+The Personal Agent uses the Pi model runtime for generation and Jev judgment.
+An operator can set a separate Jev base URL without changing the generation model.
+The gateway owns account selection and upstream failover.
+The configured gateway must support the System One protocol for Jev requests.
+A separate address uses the selected Pi provider credentials and headers.
+An authentication address that conflicts with an explicit Jev address causes a configuration error.
+A remote custom Jev address requires HTTPS.
+
+For Overview, the host sends anonymous source and service identifiers.
+It replaces free text with a fixed marker and sends coarse numeric ranges.
+State words, data categories, length ranges, and timing can still reveal information.
+The host ranks returned scores and binds display text to current local source templates.
+A judged glance shows at most three services near the highest score.
+An empty model selection keeps the most important current facts.
+Plant, weather, and holding copy omits the repeated source label; the icon names the service.
+Those bindings do not verify the source or guarantee correct ranking.
+
+Overview waits at most three seconds for the complete judgment.
+If judgment fails or times out, the host selects local source facts and reports an error state.
+Local fallback uses the same three-service and twelve-point bound.
+An explicit cancellation stops the request instead of publishing a fallback.
+Other Agent requests have their own data and fallback contracts.
+
 ## Current Shell plugin composition
 
 The Electron main process, renderer surfaces, appearance plugins, and Remote Bridge use the local host from [plugin-host.js](../src/plugin-host.js).

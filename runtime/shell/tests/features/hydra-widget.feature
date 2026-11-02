@@ -5,6 +5,21 @@ Feature: Hydra plant and environment Widget on the Desk page
   (soil moisture, pump state, online state) and the main node's
   environment sensors (temperature, humidity, pressure, lux).
 
+  Scenario: Retained soil readings remain historical after an unrelated update
+    Given a retained soil measurement and a current node status
+    When the Shell reports Hydra data to Overview
+    Then the retained soil measurement cannot be a live plant status
+    When a fresh soil measurement arrives
+    Then that plant can report its current moisture status
+
+  Scenario: Invalid soil messages cannot make a historical node current
+    Given a plant has a retained watering status and a retained online state
+    When the bridge receives an invalid soil measurement
+    Then soil moisture is unavailable
+    And the retained watering status remains historical
+    When the bridge receives a valid current soil measurement
+    Then the current moisture is available
+
   Scenario: Hydra runtime browser replacement preserves rendered consumers without navigation
     Given authenticated discovery exposes a trusted independent Hydra entry while the Shell is running
     When the browser loads that entry and the runtime controller replaces the surface

@@ -52,8 +52,47 @@ test('declared producer data joins the existing registry without retaining value
   online = false
   assert.equal((await data.registry.read(entry.id)).ok, false)
   await source.refresh(); data.syncServices()
-  assert.deepEqual(data.registry.list(), [])
+  assert.deepEqual(data.registry.list().map(reading => reading.id), [entry.id], 'a failed inventory retains declarations but no values')
+  assert.equal((await data.registry.read(entry.id)).ok, false)
   await source.close()
+})
+
+for (const outage of ['after selection', 'during generation']) test(`Overview retains an Agent selection when its producer catalog fails ${outage}`, async t => {
+  const { HomeBriefing } = await import(integrationURL('personal-agent/src/home-briefing.mjs', __dirname))
+  const { homeFactVariables, compileHomeSelection } = await import(integrationURL('personal-agent/src/home-template.mjs', __dirname))
+  let online = true, declared = true, calls = 0, entered, release
+  const started = new Promise(resolve => { entered = resolve })
+  const gate = new Promise(resolve => { release = resolve })
+  const source = createPersonalAgentReadingSource({ request: async ({ request }) => {
+    if (request.command === 'producer_list') {
+      if (!online) throw Error('producer catalog temporarily unavailable')
+      return { interface: contract, readings: declared ? [entry] : [] }
+    }
+    return { interface: contract, reading: { id: entry.id, state: 'live', value: { state: 'waiting', goal: 'Verify release' } } }
+  } })
+  await source.refresh()
+  const weather = { id: 'weather', label: 'weather', kind: 'service', home: { mode: 'optional', priority: 0, icon: 'weather', fields: ['temperatureC'] }, read: async () => ({ state: 'live', value: { temperatureC: 24 } }) }
+  const data = createShellOdkData({ readings: [weather], serviceReadings: source.readings })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => data.registry.list(), read: async id => (await data.registry.read(id)).reading,
+    generate: async ({ readings, now }) => {
+      calls++
+      const facts = homeFactVariables(readings, now)
+      const result = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId === `${entry.id}:goal`), facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
+      entered(); if (outage === 'during generation') await gate
+      return result
+    }, publish() {} })
+  t.after(async () => { release(); home.close(); await source.close() })
+  const initial = home.refresh(); await started
+  if (outage === 'after selection') await initial
+  online = false; await source.refresh(); data.syncServices(); home.invalidate(); release(); await initial; await home.refresh()
+  assert.match(home.frame.items.map(item => item.text).join(' '), /24°C/)
+  assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /Verify release/)
+  online = true; await source.refresh(); data.syncServices(); home.invalidate(); await home.refresh()
+  assert.match(home.frame.items.map(item => item.text).join(' '), /Verify release.*24°C/)
+  assert.equal(calls, 1)
+  declared = false; await source.refresh(); data.syncServices(); home.invalidate(); await home.refresh()
+  declared = true; await source.refresh(); data.syncServices(); home.invalidate(); await home.refresh()
+  assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /Verify release/)
 })
 
 test('producer replacement and shutdown cannot publish late declarations or values', async () => {
@@ -67,6 +106,28 @@ test('producer replacement and shutdown cannot publish late declarations or valu
   release()
   await Promise.all([pending, closing])
   assert.deepEqual(source.readings(), [])
+})
+
+test('a producer read started before catalog failure cannot return after recovery', async t => {
+  let release, entered, fail = false
+  const started = new Promise(resolve => { entered = resolve })
+  const gate = new Promise(resolve => { release = resolve })
+  const source = createPersonalAgentReadingSource({ request: async ({ request }) => {
+    if (request.command === 'producer_list') {
+      if (fail) throw Error('catalog unavailable')
+      return { interface: contract, readings: [entry] }
+    }
+    entered(); await gate
+    return { interface: contract, reading: { id: entry.id, state: 'live', value: { state: 'waiting', goal: 'Old goal' } } }
+  } })
+  t.after(async () => { release(); await source.close() })
+  await source.refresh()
+  const pending = source.readings()[0].read()
+  await started
+  fail = true; await source.refresh()
+  fail = false; await source.refresh()
+  release()
+  await assert.rejects(pending, /unavailable|invalid/)
 })
 
 test('invalid inventory cannot register arbitrary owners or malformed fields', async () => {

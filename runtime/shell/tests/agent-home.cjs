@@ -100,7 +100,7 @@ async function assertAllSourceOverview() {
   const sources = [source('futu', 'Futu holdings', 'portfolio', { todayChangePercent: 0.02 }),
     source('weather', 'Weather', 'weather', { temperatureC: 25, condition: 'cloudy' }),
     source('pi', 'Pi sessions', 'sessions', { total: 1, sessions: [{ project: 'Desk', goal: 'Review release', state: 'waiting', activity: 'Needs input' }] }),
-    source('hydra', 'Hydra plants', 'plants', { plants: [{ name: 'Fern', soilPercent: 55 }] }),
+    source('odk.tile.hydra', 'Hydra plants', 'plants', { plants: [{ id: 1, name: 'Plant 1', soilPercent: 54.6, online: true, stale: false, soilStale: false, measuredAt: new Date().toISOString() }] }),
     source('quota', 'API quota', 'quota', { accounts: [{ name: 'Main', remainingPercent: 2 }] }),
     source('reading', 'Reading', 'reading', { title: 'A synthetic book' })]
   const task = { taskId: '00000000-0000-0000-0000-000000000001', identity: { name: 'Release agent' }, state: 'failed',
@@ -112,8 +112,8 @@ async function assertAllSourceOverview() {
   const home = new HomeBriefing({ requireBindings: true, list: access.list, read: access.read, publish() {},
     generate: input => generateHomeSelection(input.readings, { choose: async request => {
       for (const variable of request.variables) seen.add(variable.factId)
-      const failed = request.variables.find(variable => variable.factId === `odk.agent.${task.taskId}:state`)
-      const quota = request.variables.find(variable => variable.factId === 'quota:accounts.0.remainingPercent')
+      const failed = request.variables.find(variable => variable.icon === 'tasks' && variable.text.includes('state: failed'))
+      const quota = request.variables.find(variable => variable.icon === 'quota' && variable.text.includes('remaining percentage:'))
       return { items: [{ sources: [failed.selector, quota.selector] }] }
     } }) })
   try {
@@ -122,7 +122,7 @@ async function assertAllSourceOverview() {
     assert.equal(frame.state, 'live')
     assert.equal(frame.coverage.readSources, 7)
     assert.equal(frame.coverage.selectedSources, 2)
-    assert.ok(seen.has('pi:sessions.0.goal') && seen.has('pi:sessions.0.activity'))
+    assert.ok(seen.size >= 7, 'All source facts reach analysis under anonymous identities')
     assert.match(frame.items[0].text, /failed.*2%/)
     assert.doesNotMatch(frame.items[0].text, /Futu|Weather/)
     await resize(1280, 800)
@@ -144,6 +144,35 @@ async function assertAllSourceOverview() {
       assert.equal(rendered.strong, 'Permission gap', theme)
       assert.match(rendered.text, /reported: Permission gap needs repair/)
       assert.doesNotMatch(rendered.text, /reported_unverified|verification:/)
+      const plant = sources.find(source => source.id === 'odk.tile.hydra')
+      const plantFacts = homeFactVariables([plant])
+      const plantRaw = compileHomeSelection({ items: [{ sources: [plantFacts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, plantFacts)
+      const plantBound = resolveHomeTemplate(plantRaw, [plant])
+      await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: plantBound.items.map(item => ({ text: item.text, segments: item.segments, sources: [{ id: plant.id, label: plant.label, state: plant.state }] })) })
+      const plantRender = await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');return {text:n.textContent,overflow:n.scrollWidth>n.clientWidth+1}})()`)
+      assert.match(plantRender.text, /Plant 1 OK at 54\.6%/, theme)
+      assert.equal(plantRender.overflow, false, theme)
+      if (theme === 'instrument') {
+        await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: [{ text: 'API quota Main 6% remaining, Spare account 88% remaining, Plant 1 dry at 8%, Plant 2 OK at 54%, +1.20% today.',
+          segments: [
+            { text: 'API quota Main 6% remaining, Spare account 88% remaining', icon: 'quota' },
+            { text: 'Plant 1 dry at 8%', icon: 'plants' },
+            { text: 'Plant 2 OK at 54%', icon: 'plants' },
+            { text: '+1.20% today', icon: 'portfolio' },
+          ], sources: [{ id: 'quota', label: 'Quota', state: 'live' }, { id: 'hydra', label: 'Hydra', state: 'live' }, { id: 'futu', label: 'Futu', state: 'live' }] }] })
+        const severity = await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');return {
+          soilDry: n.querySelector('.dash-soil[data-status="dry"]')?.textContent,
+          soilOk: n.querySelector('.dash-soil[data-status="ok"]')?.textContent,
+          remaining: n.querySelector('.dash-remaining[data-level="low"]')?.textContent,
+          healthy: n.querySelector('.dash-remaining[data-level="ok"]')?.textContent,
+          change: n.querySelector('.dash-change[data-direction="up"]')?.textContent }})()`)
+        assert.equal(severity.soilDry, 'dry', theme)
+        assert.equal(severity.soilOk, 'OK', theme)
+        assert.equal(severity.remaining, '6%', theme)
+        assert.equal(severity.healthy, '88%', 'a healthy remaining value is present but uncoloured')
+        assert.equal(severity.change, '+1.20%', theme)
+        assert.equal(await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');return n.scrollWidth>n.clientWidth+1})()`), false)
+      }
     }
   } finally {
     home.close()

@@ -557,11 +557,18 @@ body.kiosk {
 }
 .dash-icon[data-kind="portfolio"] { color: color-mix(in srgb, var(--odk-accent-green) 35%, var(--odk-primary)); }
 .dash-temperature { display: inline-block; white-space: nowrap; }
-.dash-unit { font-family: "Montserrat", "Noto Sans SC", sans-serif; font-weight: 700; font-size: 0.8em; letter-spacing: -0.04em; white-space: nowrap; }
-[data-theme="pixel"] .dash-unit { font-family: "Zpix", "Noto Sans SC", monospace !important; font-weight: inherit !important; display: inline-block; position: relative; padding-left: 0.36em; letter-spacing: normal; }
-[data-theme="pixel"] .dash-unit-degree { position: absolute; top: 0.12em; left: 0; width: 0.32em; height: 0.32em; border: 0.07em solid currentColor; box-sizing: border-box; text-indent: -9999px; overflow: hidden; flex: none; }
+.dash-unit { font-family: inherit; font-weight: 600; font-size: 1em; letter-spacing: -0.04em; white-space: nowrap; }
+.dash-unit-degree { display: inline-block; font-size: 0.85em; vertical-align: 0.22em; margin-inline-end: -0.04em; }
+[data-theme="pixel"] .dash-unit { font-family: "Zpix", "Noto Sans SC", monospace !important; font-weight: inherit !important; font-size: 1em !important; display: inline-block; position: relative; padding-left: 0.36em; letter-spacing: normal; }
+[data-theme="pixel"] .dash-unit-degree { position: absolute; top: 0.12em; left: 0; width: 0.28em; height: 0.28em; border: 0.08em solid currentColor; box-sizing: border-box; text-indent: -9999px; overflow: hidden; flex: none; font-size: inherit; vertical-align: baseline; margin-inline-end: 0; }
 .dash-change[data-direction="up"] { color: color-mix(in srgb, var(--odk-accent-green) 60%, var(--odk-primary)); }
 .dash-change[data-direction="down"] { color: color-mix(in srgb, var(--odk-accent-red) 60%, var(--odk-primary)); }
+.dash-soil { white-space: nowrap; }
+.dash-soil[data-status="dry"] { color: color-mix(in srgb, var(--odk-accent-red) 60%, var(--odk-primary)); }
+.dash-soil[data-status="low"] { color: color-mix(in srgb, color-mix(in oklch, var(--odk-accent-red) 50%, var(--odk-accent-green)) 60%, var(--odk-primary)); }
+.dash-soil:is([data-status="ok"], [data-status="good"]) { color: color-mix(in srgb, var(--odk-accent-green) 60%, var(--odk-primary)); }
+.dash-soil[data-status="wet"] { color: color-mix(in srgb, var(--odk-accent-blue) 60%, var(--odk-primary)); }
+.dash-remaining[data-level="low"] { color: color-mix(in srgb, var(--odk-accent-red) 60%, var(--odk-primary)); }
 .dash-token { display: inline-block; white-space: nowrap; }
 .dash-icon svg {
   display: inline-block;

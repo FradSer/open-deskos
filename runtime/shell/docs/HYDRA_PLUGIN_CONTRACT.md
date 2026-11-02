@@ -74,6 +74,10 @@ Hydra application liveness expires after ten seconds.
 The general Bridge peer's 3500-millisecond freshness does not define Hydra liveness.
 Environment and node ages use the firmware's measurement age, not the display refresh time.
 Environment age retains its five-minute limit. Node age retains its three-minute limit.
+A node heartbeat does not establish soil measurement freshness.
+`soilStale` identifies retained or expired soil separately from node status.
+Open DeskOS Data carries `soilStale` with each plant measurement.
+A source without this evidence cannot present its soil measurement as current in Overview.
 Offline readings remain historical and explicitly stale. An invalid environment message clears the environment.
 Clock validity is reported separately and never creates a fabricated sensor timestamp.
 
