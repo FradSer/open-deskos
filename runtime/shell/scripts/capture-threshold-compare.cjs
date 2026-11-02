@@ -20,7 +20,8 @@ const arg = (name, fallback) => {
 const corpusPath = arg('--corpus', '/tmp/odk-threshold-corpus.json')
 const outDir = arg('--out', fs.mkdtempSync(path.join(os.tmpdir(), 'odk-threshold-out-')))
 fs.mkdirSync(outDir, { recursive: true })
-const corpus = JSON.parse(fs.readFileSync(corpusPath, 'utf8'))
+const parsed = JSON.parse(fs.readFileSync(corpusPath, 'utf8'))
+const corpus = Array.isArray(parsed) ? parsed : parsed.rows
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 const proposalFor = (row, index) => ({
@@ -75,7 +76,8 @@ app.whenReady().then(async () => {
   for (const threshold of [0.8, 0.7]) {
     for (const round of rounds) {
       const candidates = corpus.filter(row => row.run === round)
-      const passing = candidates.filter(row => row.probability >= threshold && row.grounding >= threshold)
+      const passing = candidates.filter(row => row.probability >= threshold && row.grounding >= threshold
+        && (row.preview ? (row.complementarity ?? 0) >= threshold : true))
       await send({ state: 'idle', proposals: [], proposalCapabilities: { read: true, respond: true, acknowledge: true } })
       await send({ state: 'idle', proposals: passing.map(proposalFor), proposalCapabilities: { read: true, respond: true, acknowledge: true } })
       const name = `threshold-${String(threshold).replace('.', '')}-run-${round}.png`
@@ -93,7 +95,8 @@ app.whenReady().then(async () => {
   const best07 = gap(0.7)
 
   const url = png => 'data:image/png;base64,' + png.toString('base64')
-  const totals = threshold => ({ pass: corpus.filter(r => r.probability >= threshold && r.grounding >= threshold).length })
+  const totals = threshold => ({ pass: corpus.filter(r => r.probability >= threshold && r.grounding >= threshold
+    && (r.preview ? (r.complementarity ?? 0) >= threshold : true)).length })
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;width:1080px;height:2090px;padding:22px;display:flex;flex-direction:column;gap:14px}
@@ -111,7 +114,7 @@ app.whenReady().then(async () => {
     .frame img{width:100%;height:100%;object-fit:contain;object-position:top}
   </style></head><body>
   <header><h1>Jev 阈值 0.8 与 0.7：同一批真实生成候选，用户看到的差别</h1>
-    <p>16 candidates from 4 live model rounds · judged by live Jev · threshold ${'0.8'} keeps ${totals(0.8).pass}/16 · threshold 0.7 keeps ${totals(0.7).pass}/16</p></header>
+    <p>${corpus.length} candidates from ${rounds.length} live model rounds · judged by live Jev · threshold 0.8 keeps ${totals(0.8).pass}/${corpus.length} · threshold 0.7 keeps ${totals(0.7).pass}/${corpus.length}</p></header>
   <div class="panes">
     <div class="pane"><div class="top"><span class="badge a">阈值 0.80</span><span class="stat">这一轮 ${best08.pass}/${best08.total} 条可见</span></div><div class="frame"><img src="${url(best08.png)}"/></div></div>
     <div class="pane"><div class="top"><span class="badge b">阈值 0.70</span><span class="stat">这一轮 ${best07.pass}/${best07.total} 条可见</span></div><div class="frame"><img src="${url(best07.png)}"/></div></div>
@@ -125,8 +128,8 @@ app.whenReady().then(async () => {
   fs.writeFileSync(path.join(outDir, 'threshold-compare.png'), (await capturePaintedPage(grid)).toPNG())
   console.log('CAPTURED threshold-compare.png')
 
-  console.log('\nSUMMARY threshold pass/16')
-  for (const t of [0.8, 0.7, 0.6]) console.log(`  ${t} → ${corpus.filter(r => r.probability >= t && r.grounding >= t).length}`)
+  console.log(`\nSUMMARY threshold pass/${corpus.length} (host gate: probability + grounding + preview complementarity)`)
+  for (const t of [0.8, 0.7, 0.6]) console.log(`  ${t} → ${totals(t).pass}`)
   console.log('OUT_DIR', outDir)
   win.destroy(); grid.destroy(); app.exit(0)
 }).catch(error => { console.error(error); app.exit(1) })
