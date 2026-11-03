@@ -30,7 +30,7 @@ function normalizeNodes(nodes) {
   return result
 }
 
-function normalizeSnapshot(snapshot) {
+function normalizeHydraSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot) || snapshot.configured !== true
     || snapshot.connected !== true || typeof snapshot.mainOnline !== 'boolean') return null
   const env = snapshot.env === null || snapshot.env === undefined ? null : normalizeEnv(snapshot.env)
@@ -48,8 +48,8 @@ async function readCentralHydraSnapshot(port) {
   try {
     const reading = await entry.read()
     if (!reading || reading.id !== HYDRA_PROJECTION_ID || reading.state !== 'live' || !reading.value || typeof reading.value !== 'object') return null
-    return normalizeSnapshot(reading.value.snapshot)
+    return normalizeHydraSnapshot(reading.value.snapshot)
   } catch { return null }
 }
 
-module.exports = { HYDRA_PROJECTION_ID, readCentralHydraSnapshot }
+module.exports = { HYDRA_PROJECTION_ID, readCentralHydraSnapshot, normalizeHydraSnapshot }

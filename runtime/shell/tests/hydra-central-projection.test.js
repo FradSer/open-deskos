@@ -16,7 +16,8 @@ const snapshot = () => ({
   updatedAt: 1000,
 })
 
-function handler(local, port) {
+function handler(local, port, personalAgent = undefined) {
+  const SYSTEM_PORTS = { personalAgent: 'odk:system/personal-agent/v1' }
   const definition = createDataSourcePlugins().find(plugin => plugin.manifest.id === 'odk.source.hydra')
   const handlers = new Map()
   const source = { snapshot: () => local, stop() {} }
@@ -25,7 +26,7 @@ function handler(local, port) {
     capability: name => name === 'source.hydra' ? capability : {
       handle: (id, fn) => handlers.set(id, fn), removeHandler: id => handlers.delete(id),
     },
-    get: name => name === READING_PORT ? port : undefined,
+    get: name => name === READING_PORT ? port : name === SYSTEM_PORTS.personalAgent ? personalAgent : undefined,
     onCleanup: () => {},
   }
   definition.create(context)
@@ -60,4 +61,23 @@ test('an unavailable or malformed projection states the local truth', async () =
     assert.equal(await handler(local, port)(), local)
   }
   assert.equal(await readCentralHydraSnapshot(undefined), null)
+})
+
+
+test('a display host prefers the resident status projection over the producer channel', async () => {
+  const local = { configured: false, connected: false, env: null, nodes: [] }
+  const personalAgent = { snapshot: () => ({ state: 'idle', hydra: snapshot() }) }
+  const port = { refresh: async () => { throw Error('producer channel must not be read') }, readings: () => [] }
+  const result = handler(local, port, personalAgent)()
+  assert.equal(result.projection, true)
+  assert.equal(result.nodes[1].soilPercent, 55)
+})
+
+test('an invalid status projection cannot become a live Hydra reading', async () => {
+  const local = { configured: false, connected: false, env: null, nodes: [] }
+  const personalAgent = { snapshot: () => ({ state: 'idle', hydra: { ...snapshot(), env: { ...snapshot().env, humidity: 900 } } }) }
+  const port = { refresh: async () => {}, readings: () => [{ id: HYDRA_PROJECTION_ID, read: async () => ({ id: HYDRA_PROJECTION_ID, state: 'live', value: { snapshot: snapshot() } }) }] }
+  const result = await handler(local, port, personalAgent)()
+  assert.equal(result.nodes[0].soilPercent, 50)
+  assert.equal(result.projection, true)
 })

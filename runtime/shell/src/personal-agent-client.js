@@ -9,6 +9,7 @@ const { parseRemoteConversation } = require('./remote-conversation-frame')
 const { parseJevStatus } = require('./jev-status-frame')
 const { parseJudgmentStatus } = require('./judgment-status-frame')
 const { parseAgentTasks } = require('./agent-task-frame')
+const { normalizeHydraSnapshot } = require('./hydra-projection')
 const { readOrCreateToken, requiresToken, writeHandshake } = require('./local-channel')
 const { resolveShellHost } = require('./platform')
 
@@ -45,6 +46,7 @@ function createPersonalAgentClient({ socketPath, env = process.env, platform = p
   let running = false
   let timer = null
   let historyRevision = -1
+  let hydra = null
   let status = { state: 'unavailable', message: 'Personal Agent service unavailable' }
   const listeners = new Set()
   const diagnoses = new Map()
@@ -92,8 +94,18 @@ function createPersonalAgentClient({ socketPath, env = process.env, platform = p
     return history
   }
 
+  function receiveHydra(record) {
+    const candidate = record?.briefing?.hydra ?? record?.hydra
+    if (candidate === undefined) {
+      if (record?.type === 'status' && record.state === 'unavailable') hydra = null
+      return
+    }
+    hydra = normalizeHydraSnapshot(candidate)
+  }
+
   function publish(next) {
-    status = next
+    const { hydra: carried, ...rest } = next
+    status = { ...rest, ...(hydra ? { hydra } : {}) }
     for (const listener of listeners) listener({ ...status })
   }
 
@@ -158,6 +170,7 @@ function createPersonalAgentClient({ socketPath, env = process.env, platform = p
         if (Buffer.byteLength(line) > MAX_STATUS_BYTES) return active.destroy()
         let record
         try { record = JSON.parse(line) } catch { continue }
+        receiveHydra(record)
         if(record?.v===1 && record.type==='pi_config_result'){finishConfig(record.requestId,record.result,record.error);continue}
         if (record?.v === 1 && record.type === 'text_receipt') { finishText(record.requestId, record.accepted === true, record.accepted === true ? 'accepted' : record.accepted === false ? 'refused' : 'unknown'); continue }
         if (record?.v === 1 && record.type === 'runtime_diagnosis') {

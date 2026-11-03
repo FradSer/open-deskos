@@ -10,7 +10,7 @@ const { createQuotaReadings } = require('./readings/quota')
 const { createQuotaSource } = require('../quota-source')
 const { SYSTEM_PORTS } = require('./system-channels')
 const { READING_PORT } = require('./personal-agent-readings')
-const { readCentralHydraSnapshot } = require('../hydra-projection')
+const { readCentralHydraSnapshot, normalizeHydraSnapshot } = require('../hydra-projection')
 
 const DATA_PORTS = Object.freeze({
   odkLink: 'odk:source/link/v1',
@@ -92,6 +92,11 @@ function createDataSourcePlugins() {
         'odk-hydra-status': (source, _request, _event, ctx) => {
           const local = source.snapshot()
           if (local?.configured !== false && local?.connected === true && local?.mainOnline !== false) return local
+          // The resident status frame already reaches a display-only host.
+          const statusProjection = (() => {
+            try { return normalizeHydraSnapshot(ctx?.get?.(SYSTEM_PORTS.personalAgent)?.snapshot?.()?.hydra) } catch { return null }
+          })()
+          if (statusProjection) return statusProjection
           let port
           try { port = ctx?.get?.(READING_PORT) } catch { return local }
           if (!port) return local
