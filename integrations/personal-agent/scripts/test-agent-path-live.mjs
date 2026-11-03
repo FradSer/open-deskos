@@ -4,7 +4,7 @@
 //     -> ProactiveWatch (real Jev host qualification)
 //     -> published proposals, rendered into the conversation.
 // No bare `pi -ne -p` generator. No scripted model responses.
-// Usage: node scripts/test-agent-path-live.mjs [--rounds 2]
+// Usage: node scripts/test-agent-path-live.mjs [--rounds 2] [--cases]
 import { createServer } from 'node:net'
 import { mkdtemp, rm, mkdir, realpath } from 'node:fs/promises'
 import { writeFileSync } from 'node:fs'
@@ -18,6 +18,7 @@ import { createJevJudge } from '../src/proactive-jev.mjs'
 const roundIndex = process.argv.indexOf('--rounds')
 const rounds = Number(roundIndex > -1 ? process.argv[roundIndex + 1] : 2)
 const total = Number.isInteger(rounds) && rounds >= 1 && rounds <= 4 ? rounds : 2
+const casesMode = process.argv.includes('--cases')
 const stamp = new Date().toISOString()
 const action = { id: 'open', label: '打开计划', tool: 'memory_update', params: { category: 'note', value: 'opened' } }
 
@@ -94,10 +95,17 @@ try {
   note(`agent ready: real ModelRuntime + real Durable session`)
 
   const results = []
-  for (let round = 1; round <= total; round++) {
+  // --cases runs each paradigm alone, so each case has its own real generation,
+  // tool calls and host qualification. Otherwise all topics share one round.
+  const plan = casesMode
+    ? rules.map((rule, index) => ({ round: index + 1, selected: [rule] }))
+    : Array.from({ length: total }, (_, index) => ({ round: index + 1, selected: rules }))
+  const caseEvidence = []
+  for (const item of plan) {
+    const before = { ...toolCalls }
     const watch = new ProactiveWatch({
       config: { version: 2, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 60000, maxCandidates: 8, maxPush: 4,
-        generationIntervalMs: 0, attentionCooldownMs: 0, maxGenerationCalls: 4, suppressed: [], snoozed: {}, routineDays: {}, rules: structuredClone(rules) },
+        generationIntervalMs: 0, attentionCooldownMs: 0, maxGenerationCalls: 4, suppressed: [], snoozed: {}, routineDays: {}, rules: structuredClone(item.selected) },
       now: () => Date.now(),
       canExecute: () => true,
       read: async id => ({ id, state: 'live', value: readings[id] }),
@@ -110,24 +118,28 @@ try {
     try {
       await watch.tick()
       const proposals = watch.list().filter(p => p.status === 'pending').map(p => ({
-        run: round, topic: p.ruleId, advice: p.advice, preview: p.preview ?? null, nextStep: p.nextStep,
+        run: item.round, topic: p.ruleId, advice: p.advice, preview: p.preview ?? null, nextStep: p.nextStep,
         probability: p.judgment.probability, grounding: p.judgment.groundingProbability,
         threshold: p.judgment.threshold, pass: true,
       }))
-      note(`round ${round}: ${proposals.length} published`)
+      note(`case ${item.round} (${item.selected.map(r => r.id).join(',')}): ${proposals.length} published`)
       results.push(...proposals)
+      caseEvidence.push({ round: item.round, topics: item.selected.map(r => r.id),
+        toolCalls: { read: toolCalls.proactive_read - before.proactive_read, judge: toolCalls.proactive_judge - before.proactive_judge },
+        proposals: proposals.map(p => ({ topic: p.topic, advice: p.advice, probability: p.probability, grounding: p.grounding })) })
     } finally { await watch.close().catch(() => {}) }
   }
+  const roundCount = plan.length
 
   note(`tool executions: proactive_read=${toolCalls.proactive_read} proactive_judge=${toolCalls.proactive_judge}`)
   note(`data-link reads real by tool: ${dataReads.length} (${[...new Set(dataReads)].join(', ') || 'none'})`)
   const evidence = { stamp, path: 'createPersonalAgent -> generateProposals -> real ephemeral Durable session',
-    toolCalls: { ...toolCalls }, dataReads, log, rounds: total, proposals: results }
+    toolCalls: { ...toolCalls }, dataReads, log, rounds: roundCount, cases: caseEvidence, proposals: results }
   writeFileSync(join(tmpdir(), 'odk-agent-path-live.json'), JSON.stringify({ stamp, log,
-    rounds: Array.from({ length: total }, (_, i) => ({ round: i + 1,
+    rounds: Array.from({ length: roundCount }, (_, i) => ({ round: i + 1,
       proposals: results.filter(r => r.run === i + 1) })) }, null, 2))
   writeFileSync(join(tmpdir(), 'odk-agent-path-evidence.json'), JSON.stringify(evidence, null, 2))
-  console.log(`\n${results.length} proposals across ${total} rounds`)
+  console.log(`\n${results.length} proposals across ${roundCount} ${casesMode ? 'cases' : 'rounds'}`)
   console.log(`corpus: ${join(tmpdir(), 'odk-agent-path-live.json')}`)
   console.log(`evidence: ${join(tmpdir(), 'odk-agent-path-evidence.json')}`)
 } catch (error) {
