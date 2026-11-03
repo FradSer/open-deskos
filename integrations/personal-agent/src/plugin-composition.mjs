@@ -13,12 +13,13 @@ export const BOT_PORTS = Object.freeze({
   watch: 'odk:personal-agent/watch/v1',
   'task-readings': 'odk:producer-readings/personal-agent-tasks/v1',
   'remote-readings': 'odk:producer-readings/personal-agent-reports/v1',
+  'hydra-readings': 'odk:producer-readings/personal-agent-hydra/v1',
 })
 
 const componentDependencies = Object.freeze({
   service: [], channel: ['service'], runtime: ['service', 'channel'],
   home: ['service', 'runtime'], watch: ['service', 'runtime'],
-  'task-readings': ['runtime'], 'remote-readings': ['runtime'],
+  'task-readings': ['runtime'], 'remote-readings': ['runtime'], 'hydra-readings': ['runtime'],
 })
 
 export function personalAgentManifest(name, { legacy = false } = {}) {
@@ -87,9 +88,9 @@ function once(operation) {
   }
 }
 
-export function createPersonalAgentComposition({ createService, openChannel, initialize, createHome, createWatch = undefined, createTaskReadings = undefined, createRemoteReadings = undefined, onRuntime = (_runtime, _context = { stopping: false }) => {}, onError = (_id, _error) => {}, replacementPlugins = [], disabled = [], onService = (_service) => {}, onHome = (_home, _service, _context) => {}, onWatch = (_watch, _service, _context) => {}, control = undefined }) {
+export function createPersonalAgentComposition({ createService, openChannel, initialize, createHome, createWatch = undefined, createTaskReadings = undefined, createRemoteReadings = undefined, createHydraReadings = undefined, onRuntime = (_runtime, _context = { stopping: false }) => {}, onError = (_id, _error) => {}, replacementPlugins = [], disabled = [], onService = (_service) => {}, onHome = (_home, _service, _context) => {}, onWatch = (_watch, _service, _context) => {}, control = undefined }) {
   const replacements = new Map()
-  const active = new Set(['service', 'channel', 'runtime', ...(createHome ? ['home'] : []), ...(createWatch ? ['watch'] : []), ...(createTaskReadings ? ['task-readings'] : []), ...(createRemoteReadings ? ['remote-readings'] : [])].map(name => `odk.personal-agent.${name}`))
+  const active = new Set(['service', 'channel', 'runtime', ...(createHome ? ['home'] : []), ...(createWatch ? ['watch'] : []), ...(createTaskReadings ? ['task-readings'] : []), ...(createRemoteReadings ? ['remote-readings'] : []), ...(createHydraReadings ? ['hydra-readings'] : [])].map(name => `odk.personal-agent.${name}`))
   for (const definition of replacementPlugins) {
     const manifest = validatePersonalAgentReplacement(definition.manifest)
     if (!active.has(manifest.id) || replacements.has(manifest.id) || typeof definition.create !== 'function') throw Error('invalid or inactive resident replacement')
@@ -167,7 +168,7 @@ export function createPersonalAgentComposition({ createService, openChannel, ini
     if (!context.signal.aborted) onRuntime(runtime, { stopping: false })
     return { ports: { [BOT_PORTS.runtime]: runtime } }
   })
-  for (const [name, factory] of [['task-readings', createTaskReadings], ['remote-readings', createRemoteReadings]]) {
+  for (const [name, factory] of [['task-readings', createTaskReadings], ['remote-readings', createRemoteReadings], ['hydra-readings', createHydraReadings]]) {
     if (!factory) continue
     register(name, async context => {
       const provider = await selected(name, context, () => factory(context.get(BOT_PORTS.runtime), context))

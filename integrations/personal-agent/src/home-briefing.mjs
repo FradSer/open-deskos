@@ -1,3 +1,4 @@
+import { DEFAULT_OVERVIEW_PREFERENCES } from './overview-preferences.mjs'
 import { resolveHomeTemplate, homeTemplateVariables, homeFactVariables, compileHomeSelection, homeSelectionInstructions, homeAttention, fallbackHomeSelection, rebindHomeSelection } from './home-template.mjs'
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const STATES = new Set(['live', 'stale', 'unavailable', 'unconfigured', 'unauthorized', 'error'])
@@ -99,16 +100,16 @@ export function validateHomeBriefing(raw, readings, { requireSegments = false } 
   })
 }
 
-function boundSourceFacts(readings, now) {
-  return validateHomeBriefing(resolveHomeTemplate(fallbackHomeSelection(readings, now), readings, now), readings, { requireSegments: true })
+function boundSourceFacts(readings, now, preferences = DEFAULT_OVERVIEW_PREFERENCES) {
+  return validateHomeBriefing(resolveHomeTemplate(fallbackHomeSelection(readings, now, preferences), readings, now), readings, { requireSegments: true })
 }
 
 // Withdrawn sources lose their selection. Temporary read failures remain in the catalog.
-function retainVisibleSelection(raw, readings, visible, now) {
+function retainVisibleSelection(raw, readings, visible, now, preferences = DEFAULT_OVERVIEW_PREFERENCES) {
   if (!raw) return null
   const ids = new Set(visible.map(source => source.id))
   if (raw.items.every(item => item.readingIds.every(id => ids.has(id)))) return raw
-  const facts = homeFactVariables(readings, now)
+  const facts = homeFactVariables(readings, now, preferences)
   const items = raw.items.flatMap(item => {
     const sources = item.segments.flatMap(segment => {
       const example = segment.text.replace(/(?:\. |, |\.)$/, '')
@@ -122,7 +123,7 @@ function retainVisibleSelection(raw, readings, visible, now) {
 
 /** A read-only, replaceable home synthesis, independent of voice and proposals. */
 export class HomeBriefing {
-  constructor({ list, read, generate, publish, onFailure = (_failure) => {}, now = Date.now, requireBindings = false, readTimeoutMs = 10000 }) {
+  constructor({ list, read, generate, publish, onFailure = (_failure) => {}, now = Date.now, requireBindings = false, readTimeoutMs = 10000, preferences = DEFAULT_OVERVIEW_PREFERENCES }) {
     this.requireBindings = requireBindings
     this.template = null
     this.sourceOnly = false
@@ -139,6 +140,8 @@ export class HomeBriefing {
     this.onFailure = onFailure
     this.now = now
     this.readTimeoutMs = readTimeoutMs
+    this.preferences = preferences
+    this.preferences = preferences
     this.coverage = undefined
     this.frame = { state: 'unavailable', items: [], generatedAt: 0, omittedSources: 0 }
     this.revision = 0
@@ -179,7 +182,7 @@ export class HomeBriefing {
   }
 
   publishDeferred(readings, omittedSources) {
-    if (this.template && this.templateReadings) this.template = retainVisibleSelection(this.template, this.templateReadings, readings, this.templateReadingsAt)
+    if (this.template && this.templateReadings) this.template = retainVisibleSelection(this.template, this.templateReadings, readings, this.templateReadingsAt, this.preferences)
     if (!this.requireBindings) {
       this.emit(this.frame.items.length ? 'stale' : 'error')
       return
@@ -187,13 +190,13 @@ export class HomeBriefing {
     let items, reboundTemplate, retained = false
     if (this.template && this.templateReadings) {
       try {
-        reboundTemplate = rebindHomeSelection(this.template, this.templateReadings, readings, this.now(), this.templateReadingsAt)
+        reboundTemplate = rebindHomeSelection(this.template, this.templateReadings, readings, this.now(), this.templateReadingsAt, this.preferences)
         items = validateHomeBriefing(resolveHomeTemplate(reboundTemplate, readings, this.now()), readings, { requireSegments: true })
         retained = items.length > 0
       } catch { /* Changed identities cannot keep an old selected fact. */ }
     }
     if (!retained) {
-      try { items = boundSourceFacts(readings, this.now()) }
+      try { items = boundSourceFacts(readings, this.now(), this.preferences) }
       catch { items = [] }
     }
     this.sourceOnly = !retained
@@ -281,7 +284,7 @@ export class HomeBriefing {
           return { readings, omittedSources }
         }
         let { readings, omittedSources } = await snapshot()
-        if (this.requireBindings && this.template && this.templateReadings) this.template = retainVisibleSelection(this.template, this.templateReadings, readings, this.templateReadingsAt)
+        if (this.requireBindings && this.template && this.templateReadings) this.template = retainVisibleSelection(this.template, this.templateReadings, readings, this.templateReadingsAt, this.preferences)
         if (!readings.length) {
           this.fingerprint = ''
           this.emit(omittedSources ? 'unavailable' : 'empty', { items: [], generatedAt: this.now(), omittedSources })
@@ -318,7 +321,7 @@ export class HomeBriefing {
         }
         if (this.requireBindings && (!this.frame.items.length || this.sourceOnly)) {
           try {
-            const items = boundSourceFacts(readings, this.now())
+            const items = boundSourceFacts(readings, this.now(), this.preferences)
             this.sourceOnly = true
             this.emit('loading', { items, generatedAt: 0, omittedSources })
           } catch {
@@ -329,7 +332,7 @@ export class HomeBriefing {
         stage = 'generate'
         attempted = true
         const capturedAt = this.now()
-        let raw = await this.generate({ readings, omittedSources, now: capturedAt, previous: this.frame.items.filter(item => item.sources.every(source => readings.some(reading => reading.id === source.id))), ...(this.requireBindings ? { variables: homeTemplateVariables(readings, capturedAt) } : {}), signal: controller.signal })
+        let raw = await this.generate({ readings, omittedSources, now: capturedAt, previous: this.frame.items.filter(item => item.sources.every(source => readings.some(reading => reading.id === source.id))), ...(this.requireBindings ? { variables: homeTemplateVariables(readings, capturedAt) } : {}), preferences: this.preferences, signal: controller.signal })
         if (!current()) return
         let selectedTemplate = raw
         const selectedReadings = readings
@@ -348,7 +351,7 @@ export class HomeBriefing {
             const fresh = await snapshot()
             if (!current()) return
             try {
-              const items = boundSourceFacts(fresh.readings, this.now())
+              const items = boundSourceFacts(fresh.readings, this.now(), this.preferences)
               this.sourceOnly = true
               this.emit('live', { items, generatedAt: 0, omittedSources: fresh.omittedSources })
             } catch {
@@ -358,7 +361,7 @@ export class HomeBriefing {
             return
           }
           if (this.requireBindings) {
-            selectedTemplate = retainVisibleSelection(selectedTemplate, selectedReadings, latest.readings, capturedAt)
+            selectedTemplate = retainVisibleSelection(selectedTemplate, selectedReadings, latest.readings, capturedAt, this.preferences)
             raw = selectedTemplate
             selectionChanged = layoutFingerprint(latest.readings, this.now()) !== layout || latest.omittedSources !== omittedSources
             if (!selectionChanged) {
@@ -367,9 +370,9 @@ export class HomeBriefing {
             }
             if (selectionChanged) {
               stage = 'validate'
-              raw = rebindHomeSelection(raw, readings, latest.readings, this.now(), capturedAt)
+              raw = rebindHomeSelection(raw, readings, latest.readings, this.now(), capturedAt, this.preferences)
               if (!raw.items.length) {
-                const items = boundSourceFacts(latest.readings, this.now())
+                const items = boundSourceFacts(latest.readings, this.now(), this.preferences)
                 this.template = structuredClone(selectedTemplate)
                 this.templateReadings = structuredClone(selectedReadings)
                 this.templateReadingsAt = capturedAt
@@ -418,7 +421,7 @@ export class HomeBriefing {
               const recheckRevision = this.revision
               const fresh = await snapshot()
               if (!current() || recheckRevision !== this.revision) return
-              const items = boundSourceFacts(fresh.readings, this.now())
+              const items = boundSourceFacts(fresh.readings, this.now(), this.preferences)
               // These are current bound source values, not a successful model summary.
               this.sourceOnly = true
               this.emit('error', { items, generatedAt: 0, omittedSources: fresh.omittedSources })

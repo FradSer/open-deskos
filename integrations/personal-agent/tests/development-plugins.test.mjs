@@ -34,6 +34,7 @@ function composition(replacementPlugins, events = []) {
     createWatch: () => ({ start() {}, close() {} }),
     createTaskReadings: () => ({ list: () => [], read: () => null }),
     createRemoteReadings: () => ({ list: () => [], read: () => null }),
+    createHydraReadings: () => ({ list: () => [], read: () => null }),
   })
 }
 
@@ -1211,7 +1212,7 @@ test('inspection is lazy and native trust is required', async t => {
   const selected = await selection(t, 'home', "throw Error('entry executed')")
   assert.throws(() => loadPersonalAgentReplacements(selected.config), /trust/)
   const resident = composition(loadPersonalAgentReplacements(selected.config, { trusted: true }))
-  assert.equal(resident.catalog().length, 7)
+  assert.equal(resident.catalog().length, 8)
 })
 
 test('incompatible replacement fails before any factory runs', () => {

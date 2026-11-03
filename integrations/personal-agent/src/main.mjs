@@ -25,7 +25,8 @@ import { loadTargets, taskRequest } from './task-client.mjs'
 import { createRideNotifier } from './ride-notification.mjs'
 import { attachRemoteConversation } from './remote-pi-reader.mjs'
 import { HomeBriefing } from './home-briefing.mjs'
-import { createTaskReadings, createRemoteReadings } from './producer-readings.mjs'
+import { createTaskReadings, createRemoteReadings, createHydraReadings as createHydraProjectionReadings } from './producer-readings.mjs'
+import { loadOverviewPreferences } from './overview-preferences.mjs'
 
 async function initialize(env, report, onRideUpdate, platform = process.platform, getWatch = undefined, signal = undefined, onAgentUpdate = undefined, onRemoteUpdate = undefined) {
   signal?.throwIfAborted()
@@ -240,9 +241,12 @@ async function main() {
     },
     createTaskReadings: runtime => createTaskReadings(runtime.agent.agentTasks),
     createRemoteReadings: runtime => createRemoteReadings(runtime.remote),
-    createHome(_runtime, _service) {
+    createHydraReadings: () => createHydraProjectionReadings({ read: (id, signal) => odkDataRequest('read', { id, signal, env, platform }).then(result => result.reading) }),
+    async createHome(_runtime, _service) {
+      const preferences = await loadOverviewPreferences({ env, platform })
       home = new HomeBriefing({
         requireBindings: true,
+        preferences,
         list: async signal => (await odkDataRequest('list', { signal, env, platform })).readings,
         read: async (id, signal) => (await odkDataRequest('read', { id, signal, env, platform })).reading,
         generate: runtime.agent.generateBriefing,
