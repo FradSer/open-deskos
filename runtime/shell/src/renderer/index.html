@@ -21,6 +21,26 @@
   <script src="core/theme.js"></script>
 </head>
 <body>
+  <!-- The Pixel theme samples Onee into square cells. These definitions paint
+       nothing; they only supply the two local SVG filters used by themes/pixel.css. -->
+  <svg class="odk-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+      <filter id="odk-avatar-pixelate" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+        <feFlood x="2" y="2" width="1" height="1" flood-color="#ffffff" result="dot" />
+        <feComposite in="dot" in2="dot" operator="in" width="4" height="4" result="tile" />
+        <feTile in="tile" result="grid" />
+        <feComposite in="SourceGraphic" in2="grid" operator="in" result="samples" />
+        <feMorphology in="samples" operator="dilate" radius="2" />
+      </filter>
+      <filter id="odk-avatar-pixelate-compact" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+        <feFlood x="1" y="1" width="1" height="1" flood-color="#ffffff" result="dot" />
+        <feComposite in="dot" in2="dot" operator="in" width="2" height="2" result="tile" />
+        <feTile in="tile" result="grid" />
+        <feComposite in="SourceGraphic" in2="grid" operator="in" result="samples" />
+        <feMorphology in="samples" operator="dilate" radius="1" />
+      </filter>
+    </defs>
+  </svg>
   <!-- Shell skeleton only. Everything visible is mounted by core/composer.js
        and core plugin hosts from src/renderer/plugins/*.js registrations:
        pages/tiles via config/desktop_layout.js and status-bar via kind="status"
