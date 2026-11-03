@@ -273,7 +273,10 @@ export function homeTemplateVariables(readings, now = Date.now()) {
 const atPath = (value, path) => path.split('.').reduce((node, key) => node?.[key], value)
 const fieldLabel = path => path.split('.').filter(key => !/^\d+$/.test(key)).join(' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').toLowerCase()
 const analysisMetadata = /(?:^|\.)(?:verification(?:\.status)?|execution)$/
-const metadata = /(?:^|\.)(?:id|taskId|sessionId|control|revision|workingDirectory|reportingMachine|asOf|updatedAt|measuredAt|publishedAt|truncated)$/
+// A window label such as "Weekly Limit Remaining" repeats the measurement the
+// fact already states. The icon names the service, so keep only one subject.
+const MEASUREMENT_LABEL = /\b(?:remaining|limit|percent|quota|usage|used|available|allowance)\b/i
+const metadata = /(?:^|\.)(?:id|taskId|sessionId|control|revision|workingDirectory|reportingMachine|asOf|updatedAt|measuredAt|publishedAt|truncated|provider|account|plan|email)$/
 
 /** Source-neutral attention hints support deterministic recovery, not category slots. */
 export function homeAttention(path, value, record = {}, now = Date.now()) {
@@ -330,10 +333,14 @@ export function homeFactVariables(readings, now = Date.now()) {
           ...(record.reportingMachine ? { machine: record.reportingMachine } : {}),
           ...(record.project || record.workingDirectory ? { project: record.project || record.workingDirectory } : {}) })
       }
+      // A label that only restates a measurement is analysis context, not a
+      // second sentence saying "Remaining" next to "100% remaining".
+      const analysisOnly = analysisMetadata.test(path)
+        || /(?:^|\.)label$/.test(path) && typeof value === 'string' && MEASUREMENT_LABEL.test(value)
       facts.push({ id: source.id, serviceId: variable.serviceId, icon, factId: `${source.id}:${path}`, example, attention, entities,
         // A measurement says more than a boolean flag when scores tie.
         weight: typeof value === 'boolean' ? 0 : typeof value === 'number' ? 2 : 1,
-        ...(analysisMetadata.test(path) ? { displayable: false } : {}) })
+        ...(analysisOnly ? { displayable: false } : {}) })
     }
     if ((source.state !== 'live' && !(source.id === 'odk.tile.hydra' && source.state === 'stale')) || !variable.references[3]) {
       add('@availability', `${label} ${refFor('@availability')}`, source.state === 'error' ? 40 : 0)
@@ -359,7 +366,7 @@ export function homeFactVariables(readings, now = Date.now()) {
       const parentPath = parts.slice(0, -1).join('.')
       const parent = parentPath ? atPath(source.value, parentPath) : source.value
       const value = atPath(source.value, path)
-      let context = ''
+      const identities = []
       // Include the identities of enclosing array records, for example account and task.
       for (let depth = 1; depth < parts.length; depth++) {
         if (!/^\d+$/.test(parts[depth - 1])) continue
@@ -367,8 +374,12 @@ export function homeFactVariables(readings, now = Date.now()) {
         const ancestor = atPath(source.value, ancestorPath)
         const name = ['taskName', 'name', 'project', 'goal', 'title', 'provider', 'account', 'label'].find(key => typeof ancestor?.[key] === 'string' && refFor(`${ancestorPath}.${key}`))
         const identity = name && refFor(`${ancestorPath}.${name}`)
-        if (identity && !reference.startsWith(`{{${source.id}|${ancestorPath}.${name}|`)) context += `${identity} `
+        if (!identity || reference.startsWith(`{{${source.id}|${ancestorPath}.${name}|`)) continue
+        const text = name ? ancestor[name] : undefined
+        if (typeof text === 'string' && (text.includes('@') || MEASUREMENT_LABEL.test(text))) continue
+        identities.push(identity)
       }
+      const context = identities.length ? `${identities.at(-1)} ` : ''
       const piSession = source.id === 'odk.app.pi-sessions' && /^sessions\.\d+\./.test(path)
       const verification = parent?.verification?.status ?? parent?.verification
       const verificationPath = [parentPath, parent?.verification?.status ? 'verification.status' : 'verification'].filter(Boolean).join('.')
@@ -391,7 +402,7 @@ export function homeFactVariables(readings, now = Date.now()) {
           : field === 'state' && piSession && piState ? piState
             : ['state', 'status', 'activity'].includes(field) ? reference
               : field === 'goal' && (piState || agentState) ? `${piState || agentState}${agentState ? evidence : ''} goal: ${reference}` : `${fieldLabel(field)}: ${reference}`
-      const prefix = field === 'soilPercent' && icon === 'plants' ? '' : `${label} `
+      const prefix = context || field === 'soilPercent' && icon === 'plants' ? '' : `${label} `
       add(path, `${prefix}${context}${statement}${agentState ? '' : evidence}`, homeAttention(path, value, parent, now), value)
     }
     if (!facts.length) add('@availability', `${label} ${refFor('@availability')}`)

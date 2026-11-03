@@ -1016,3 +1016,22 @@ test('local fallback keeps several services when idle sessions score highest', a
   assert.match(text, /\+2\.37% today/)
   assert.match(text, /24°C clear/)
 })
+
+test('a quota fact states its allowance once without repeating window labels or the service name', () => {
+  const readings = [{
+    id: 'odk.page.quota', label: 'API quota', kind: 'page', state: 'live',
+    value: { accounts: [{
+      id: 'antigravity', provider: 'antigravity', account: 'owner@example.test', plan: 'Pro',
+      groups: [{ title: 'Claude and GPT models', windows: [
+        { label: 'Weekly Limit Remaining', remainingPercent: 100, resetsAt: null },
+      ] }],
+    }] },
+    home: { mode: 'optional', priority: 0, icon: 'quota', fields: ['accounts'] },
+  }]
+  const facts = homeFactVariables(readings)
+  const index = facts.findIndex(fact => fact.factId.endsWith('remainingPercent'))
+  const text = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [index] }] }, facts), readings).items[0].text
+  assert.equal(text, 'Claude and GPT models 100% remaining.')
+  assert.ok(!facts.some(fact => /\.(?:provider|account|plan|email)$/.test(fact.factId)), 'identity metadata is not a desk fact')
+  assert.equal(facts.find(fact => fact.factId.endsWith('.label')).displayable, false)
+})

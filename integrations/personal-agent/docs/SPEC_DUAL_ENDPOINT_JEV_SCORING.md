@@ -32,7 +32,7 @@ It permits one selected fact for each service and enforces the display budget.
 After successful judgment, the host shows at most three services.
 It keeps only facts within twelve score points of the highest score.
 A tie prefers a measurement over an identity-only label.
-Plant, weather, and holding text states the fact without repeating the source label.
+Plant, weather, holding, and quota text states the fact without repeating source labels or measurement words.
 The leading icon identifies the service.
 When the selection model returns no items, the host keeps the most important current facts.
 Local fallback shows at most three services without a score band; local attention is coarse.

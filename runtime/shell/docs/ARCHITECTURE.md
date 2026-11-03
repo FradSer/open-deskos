@@ -379,7 +379,7 @@ State words, data categories, length ranges, and timing can still reveal informa
 The host ranks returned scores and binds display text to current local source templates.
 A judged glance shows at most three services near the highest score.
 An empty model selection keeps the most important current facts.
-Plant, weather, and holding copy omits the repeated source label; the icon names the service.
+Plant, weather, holding, and quota copy omits repeated source labels and window words; the icon names the service.
 Those bindings do not verify the source or guarantee correct ranking.
 
 Overview waits at most three seconds for the complete judgment.

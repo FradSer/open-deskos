@@ -99,6 +99,7 @@ Feature: Personal Agent home briefing
     Then the plant reads as its name, moisture status and percentage
     And the weather reads as its temperature, condition and place
     And the holding reads as its daily change
+    And the quota window states its allowance once without repeating labels or the service name
     And the leading icon still identifies each service
     And the moisture status word and its percentage carry the firmware severity colour
     And every remaining percentage carries a severity colour: critical red, low amber, healthy green
