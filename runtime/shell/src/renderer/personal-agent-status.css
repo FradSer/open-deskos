@@ -241,6 +241,10 @@
 }
 
 .agent-recommendation .personal-agent-proposals { min-width: 0; }
+/* An action button is a sibling of the preview card, not a nested surface.
+   It shares the card radius so the two corners stay tangent at that level.
+   Controls outside a recommendation keep the independent control token. */
+.agent-recommendation .personal-agent-proposals button { border-radius: var(--agent-radius-card); }
 /* One 17px reading size for every visible text inside a recommendation bubble.
    iOS-style hierarchy comes from weight and colour, not a second size. Scoped so
    other conversation messages and the nonmodal panel retain their own scale. */
@@ -271,7 +275,13 @@
 .agent-recommendation .personal-agent-proposals .personal-agent-proposal-primary { font-size: var(--agent-text-body); }
 /* Advice leads by weight; the Pixel theme keeps its single weight by order and colour. */
 .agent-recommendation .personal-agent-proposal-advice { font-weight: 500; }
-.agent-recommendation .personal-agent-preview-summary { font-weight: 400; }
+/* The advice is the only leading line. A preview summary names what the items
+   show, so it sits at the supporting label colour; chips keep one reading size
+   and hold each label/value pair on one line. */
+.agent-recommendation .personal-agent-preview-summary { font-weight: 400; color: var(--odk-secondary-strong); text-wrap: pretty; }
+.agent-recommendation .personal-agent-preview-chip { padding: 8px 12px; gap: var(--agent-gap-inline); align-items: center; }
+.agent-recommendation .personal-agent-preview-value { white-space: nowrap; }
+.agent-recommendation .personal-agent-preview-label { text-wrap: pretty; }
 .personal-agent-proposal { display: grid; gap: var(--agent-gap-block); min-width: 0; white-space: normal; }
 .personal-agent-proposal p { margin: 0; }
 .personal-agent-proposal-state, .personal-agent-proposal-evidence { color: var(--odk-secondary-strong); font-size: var(--agent-text-label); font-variant-numeric: tabular-nums; }
