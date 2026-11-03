@@ -33,7 +33,7 @@ function options(argv = process.argv.slice(2)) {
     modelId: values['model-id'] ?? DEFAULTS.modelId,
     providerId: values['provider-id'] ?? DEFAULTS.providerId,
     providerName: values['provider-name'] ?? DEFAULTS.providerName,
-    clientName: values['client-name'] ?? DEFAULTS.clientName,
+    clientName: values['client-name'] ?? process.env.ODK_MODEL_CLIENT_NAME ?? DEFAULTS.clientName,
     keyEnv: values['key-env'] ?? DEFAULTS.keyEnv }
 }
 

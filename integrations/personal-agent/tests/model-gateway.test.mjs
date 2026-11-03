@@ -11,6 +11,20 @@ const script = fileURLToPath(new URL('../scripts/configure-model-gateway.mjs', i
 const credentials = { read: async () => undefined, list: async () => [],
   modify: async () => { throw Error('Read only fixture') }, delete: async () => { throw Error('Read only fixture') } }
 
+test('the project-wide client name applies to every gateway client header', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'odk-client-name-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const modelsPath = join(dir, 'models.json')
+  const configured = spawnSync(process.execPath, [script, '--models-path', modelsPath], {
+    encoding: 'utf8', env: { ...process.env, ODK_MODEL_CLIENT_NAME: 'Fixture Desk' },
+  })
+  assert.equal(configured.status, 0, configured.stderr)
+  const headers = JSON.parse(await readFile(modelsPath, 'utf8')).providers.magpie.headers
+  const decode = value => Buffer.from(value, 'latin1').toString('utf8').replace(/\u00a0/g, ' ')
+  assert.equal(decode(headers['User-Agent']), 'Fixture Desk')
+  assert.equal(decode(headers['X-Client-Name']), 'Fixture Desk')
+})
+
 test('the Open deskOS gateway config sends one model through the shared endpoint as Open deskOS', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'odk-model-gateway-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
