@@ -1,4 +1,6 @@
 import {createJevClient, checkJevAuthentication} from './jev-client.mjs'
+import {withOpenDeskOSClient} from './model-client-identity.mjs'
+import {DEFAULT_OVERVIEW_PREFERENCES} from './overview-preferences.mjs'
 import {createJudgmentClient, judgmentInstructions, validateOrdinaryJudgmentAnswers} from './judgment-client.mjs'
 import { guardReplyTools, hostedPromptAcknowledgement } from './session-replies.mjs'
 import { remoteTaskNamesInstructions, remoteTaskNamesReviewInstructions, validateRemoteTaskNames, remoteSummaryInstructions, validateRemoteSummary, remoteReviewInstructions, validateRemoteReview } from './remote-conversation.mjs'
@@ -144,7 +146,7 @@ export function agentOptions(cwd, stateDir, customTools, profile = 'coding', set
   }
 }
 
-export async function createPersonalAgent(config, { createSession = createDurableAgentSession, createRuntime = options => ModelRuntime.create(options), createIntentRouter = createJevIntentRouter, createIntentJudgment = createIntentJudge, onIntentDiagnostic = undefined } = {}) {
+export async function createPersonalAgent(config, { createSession = createDurableAgentSession, createRuntime = async options => withOpenDeskOSClient(await ModelRuntime.create(options)), createIntentRouter = createJevIntentRouter, createIntentJudgment = createIntentJudge, onIntentDiagnostic = undefined } = {}) {
   const signal = config.signal
   signal?.throwIfAborted()
   const profile = config.personal?.profile || 'coding'
@@ -450,6 +452,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         const combined = AbortSignal.any([lifetime.signal, AbortSignal.timeout(duration), ...(signal ? [signal] : [])])
         let judgmentFailed = false
         const selection = await generateHomeSelection(input.readings, { now: input.now, previous: input.previous, judge: input.judge ?? overviewJudge, signal: combined,
+          preferences: input.preferences ?? DEFAULT_OVERVIEW_PREFERENCES,
           onJudgmentFailure: () => { judgmentFailed = true },
           choose: (request, variables, batchSignal) => generateWithinDeadline({
           signal: batchSignal, timeoutMs: Math.max(1000, deadlineAt - Date.now()),

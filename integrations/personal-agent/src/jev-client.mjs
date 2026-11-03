@@ -1,4 +1,5 @@
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
+import { withOpenDeskOSClient } from './model-client-identity.mjs'
 
 export const isJevModel = value => typeof value === 'string' && /^jev-[a-zA-Z0-9_.-]{1,60}$/.test(value)
 
@@ -52,7 +53,7 @@ export function createJevClient({ env = process.env, fetchImpl = fetch, runtime 
       requestSignal.throwIfAborted()
       if (!questions || !Object.keys(questions).length || Object.keys(questions).length > 256
         || Buffer.byteLength(JSON.stringify({state, questions})) > 96000) throw new JevRequestError('configuration')
-      nativeRuntime ??= runtime ? Promise.resolve(typeof runtime === 'function' ? runtime() : runtime) : ModelRuntime.create({signal: requestSignal})
+      nativeRuntime ??= Promise.resolve(runtime ? (typeof runtime === 'function' ? runtime() : runtime) : ModelRuntime.create({signal: requestSignal})).then(withOpenDeskOSClient)
       const models = await nativeRuntime
       const configured = models.getModelOfType('classifier', provider, model)
       if (!configured) throw new JevRequestError('configuration')

@@ -11,3 +11,8 @@ Feature: One Open deskOS model gateway
     And the provider name and the client name stay independent
     And the configuration file contains no literal credential
     And every client of the project reads the same client name from ODK_MODEL_CLIENT_NAME
+
+  Scenario: The client name does not depend on a configured models.json
+    Given a fresh installation has no gateway headers in its Pi agent directory
+    When any Open DeskOS model runtime sends a request
+    Then the request carries the Open deskOS client name
