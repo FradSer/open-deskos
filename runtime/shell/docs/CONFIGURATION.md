@@ -187,6 +187,7 @@ The [child contract](../../../integrations/personal-agent/docs/AGENT_TASKS.md) o
 
 | Variable | Layer | Default | Consumer | Kind | Note |
 | --- | --- | --- | --- | --- | --- |
+| `ODK_MODEL_CLIENT_NAME` | device | Open deskOS | integrations/personal-agent/scripts/configure-model-gateway.mjs | config | Shared client name for gateway requests; its spaces are escaped for Usage |
 | `ODK_JEV_PROVIDER` | device | typesafe | integrations/personal-agent/src/jev-client.mjs | config | Select typesafe or opencode; disabled uses ordinary model judgment |
 | `OPENCODE_API_KEY` | device | none | External consumer: Pi ModelRuntime | config | Native Pi OpenCode environment credential; stored credentials take precedence |
 | `ODK_PERSONAL_AGENT_MAIN_SSH` | device | none | integrations/personal-agent/src/display-client.mjs | config | Windows display requires the fixed odk-cm5-agent SSH alias |
