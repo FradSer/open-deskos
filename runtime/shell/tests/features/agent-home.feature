@@ -74,6 +74,18 @@ Feature: Personal Agent home briefing
     And an invalid judgment configuration cannot prevent dialogue
     And an Overview request failure cannot disable other judgment consumers
 
+  Scenario: Overview survives a failing selection model
+    Given current sources provide facts
+    When the selection model fails
+    Then Overview shows current local facts without an error marker
+    And the failure does not stop later refreshes
+
+  Scenario: Pi sessions are summarized by count
+    Given several Pi sessions report the same state
+    When Overview builds the glance
+    Then it states how many sessions share that state once
+    And it does not repeat the same state for every session
+
   Scenario: Judgment selects facts across a large inventory
     Given visible sources provide more than one judgment batch of facts
     When the judgment endpoint scores their current importance
