@@ -17,6 +17,7 @@ test('the composer keeps voice and keyboard controls while suggestions use the c
   assert.ok(notice >= 0 && controls > notice, 'delivery and recovery notices stay above the controls row')
   assert.ok(form?.includes('class="agent-mic"') && form.includes('<textarea') && form.includes('class="agent-keys"'))
   assert.ok(!form.includes('agent-suggestions') && !form.includes('agent-composer-controls'), 'recommendations and extra wrappers stay out of the input')
+  assert.ok(!form.includes('class="agent-command-toggle"') && !markup.includes('class="agent-pi-command"'), 'no command button or separate dropdown remains in the composer')
 })
 
 class Element {

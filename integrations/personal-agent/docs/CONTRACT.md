@@ -1351,7 +1351,8 @@ The host accepts only successful stop reasons and retains response limits, deadl
 The chat model selector excludes classifiers.
 Disabled Jev sends no startup check. Unavailable Jev falls back to ordinary model judgment.
 
-The composer exposes `/login`, `/model`, and `/thinking` through native selection controls.
+The composer exposes `/login`, `/model`, and `/thinking` through a menu that `/` opens in the text field.
+An exact command in the text field opens the same native selection control.
 Authentication prompts belong to their requesting connection. Secrets never enter public conversation or status records.
 Model and thinking changes require idle state. They apply to Durable and persist native Pi defaults.
 Startup resolves a new Pi session from these defaults. Historical context imports do not replace the configured model.

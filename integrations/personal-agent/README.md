@@ -229,8 +229,8 @@ Personal Agent uses Pi `settings.json`, `auth.json`, and `models.json` from the 
 `PI_CODING_AGENT_DIR` selects that directory. Its default is `~/.pi/agent`.
 Project configuration remains untrusted. Reviewed capability selection remains separate from model configuration.
 
-Open the Pi dropdown beside the composer. Select `/login`, `/model`, or `/thinking`.
-The same commands open their menus when submitted from the composer.
+Type `/` as the first character in the composer. Select `/login`, `/model`, or `/thinking`.
+An exact command submitted from the text field opens the same native control.
 `/login` uses native Pi provider authentication, including API keys and OAuth prompts.
 Secrets do not enter conversation history or status broadcasts.
 `/model` lists authenticated native Pi models. `/thinking` lists levels supported by the selected model.

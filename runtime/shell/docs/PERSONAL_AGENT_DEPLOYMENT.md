@@ -74,7 +74,7 @@ does not create or overwrite either file. Set actual absolute paths on the CM5:
   setting for you.
 - Pi owns models and authentication through `settings.json`, `auth.json`, and `models.json` in the service user's agent directory.
   Use `PI_CODING_AGENT_DIR` to select another directory.
-  The Shell Pi dropdown provides `/login`, `/model`, and `/thinking`.
+  The composer provides `/login`, `/model`, and `/thinking`. Type `/` as the first character to open and filter the command menu.
   The STT credential does not authenticate the conversation model.
 - `ODK_TASK_TARGETS_FILE`: the Personal Agent coordinator's own Hosted Pi target list
   (see @../../../integrations/personal-agent/docs/CONTRACT.md#hosted-pi). Declare it in the

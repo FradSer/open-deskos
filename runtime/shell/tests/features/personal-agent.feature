@@ -7,7 +7,7 @@ Feature: Independent resident Personal Agent
     When the Personal Agent receives the current proposal snapshot
     Then the recommendation and its controls appear in one Personal Agent message
     And the message belongs to the conversation scroll view
-    And the composer contains only its voice and keyboard input controls
+    And no recommendation control appears in the composer
     And no recommendation popup opens or takes focus
     And the draft, input mode, and selection remain unchanged
     And Sources and details, technical receipts, and Why are absent

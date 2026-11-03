@@ -54,7 +54,7 @@ Feature: Explicit personal assistant configuration and private opt-in note memor
 
   Scenario: Configure Pi from the composer
     Given Personal Agent has no authenticated model
-    When the owner opens /login from the command dropdown
+    When the owner opens /login from the composer command menu
     Then Pi supplies provider choices and authentication prompts
     And secrets are excluded from messages and status broadcasts
     When the owner selects /model or /thinking

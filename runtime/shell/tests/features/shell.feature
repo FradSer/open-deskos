@@ -448,14 +448,54 @@ Feature: Open DeskOS 跨平台 Display Shell
     When the user focuses the bottom handle and presses Escape
     Then the App closes and restores its source focus
 
-  Scenario: Personal Agent offers native Pi command menus
+  Scenario: The command menu opens from the text field only
     Given the composer is available without model authentication
-    When the owner enters a slash command or opens the command dropdown
-    Then /login, /model, and /thinking open labelled native selection controls
-    And Escape closes the panel and returns focus to the composer
-    And the dropdown and composer share one full-width input row
+    When the owner inspects the input row
+    Then no command button sits in the composer
+    And no separate command dropdown sits outside the composer
     And compact reply views retain a scrollable conversation
+
+  Scenario: Typing a slash opens and filters the command menu
+    Given the composer shows the text field with an empty draft
+    When the owner types / as the first character
+    Then /login, /model, and /thinking appear above the composer
+    And the text field keeps focus and the / draft
+    When the owner types mo after the slash
+    Then only /model remains in the menu
+    When the owner presses Escape
+    Then the menu closes and the draft stays editable
+
+  Scenario: A slash query that matches no command stays ordinary text
+    Given the composer shows the text field
+    When the owner types a slash query with no matching command
+    Then the menu states that no command matches
+    And the draft remains ordinary text that the owner can send
+    When a slash appears after ordinary text or a space
+    Then no command menu opens
+
+  Scenario: Selecting a command opens its native Pi control
+    Given the command menu is open
+    When the owner selects /model with touch or the keyboard
+    Then the labelled native Model control opens
+    And the slash query leaves the draft
+    And the menu closes without adding a message to the conversation
+    And Escape closes the panel and returns focus to the composer
     And authentication secrets never enter the conversation
+
+  Scenario: An ordinary draft never opens the command menu
+    Given the composer holds an unfinished ordinary draft
+    When the owner types text or uses another control
+    Then no command menu opens
+    And the unfinished draft remains
+    When the owner starts a fresh draft with /
+    Then /login, /model, and /thinking appear
+
+  Scenario: The native Pi choice field keeps the Shell surface
+    Given the owner opens /thinking from the command menu
+    When the owner inspects the Thinking level control
+    Then the choice field carries no browser dropdown arrow
+    And its options are readable and keep a 44-pixel target
+    And focus keeps the shared outline
 
   Scenario: Shared smoke preserves the canonical generated stylesheet
     Given the Shell package and shared smoke use the same renderer sources
