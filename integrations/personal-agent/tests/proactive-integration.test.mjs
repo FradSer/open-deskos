@@ -342,7 +342,7 @@ test('real SDK generator carries only scoped investigation tools and no skills, 
   await isolateAgentDirectory(t, dir)
   const optionsSeen = [], requests = []
   await writeFile(join(dir, 'memory.json'), JSON.stringify({ private: 'MUST_NOT_ENTER_GENERATION' }))
-  const suggestions = [1, 2].map(i => ({ topicId: 'packages', key: `item-${i}`, advice: `检查物品 ${i}。`, actionId: 'inspect-package', evidenceIds: ['e0'] }))
+  const suggestions = [1, 2].map(i => ({ topicId: 'packages', key: `item-${i}`, advice: `待取物品 ${i} 件已到。`, actionId: 'inspect-package', evidenceIds: ['e0'] }))
   const agent = await createPersonalAgent({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') } }, {
     createIntentRouter: fixtureIntentRouter,
     createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel }),

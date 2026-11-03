@@ -43,7 +43,7 @@ Replacements applied in the shell (free set, 24x24 grid):
 | `chevron-down` | chevron-down |
 | `chevron-left` | chevron-left |
 | `file-code` | code |
-| `device-desktop` | computer |
+| `server` | server |
 | `folder` | folder |
 | `leaf` | leaf |
 | `message` | message |

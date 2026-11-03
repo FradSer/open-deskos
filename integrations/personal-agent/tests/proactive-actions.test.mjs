@@ -213,7 +213,7 @@ test('owner and generated action identifiers must be explicit strings', async ()
   const { validateGeneratedBatch } = await import('../src/proactive-generation.mjs')
   for (const actionId of [undefined, null, 7, {}, ['inspect']]) {
     const topic = { id: 'work', actions: [{ id: actionId, label: 'Inspect task.' }], evidence: [{ id: 'e0' }] }
-    assert.throws(() => validateGeneratedBatch({ suggestions: [{ topicId: 'work', key: 'work', advice: 'Inspect task.', actionId, evidenceIds: ['e0'] }] }, [topic], 1), /Invalid generated suggestion/)
+    assert.throws(() => validateGeneratedBatch({ suggestions: [{ topicId: 'work', key: 'work', advice: 'Task changed.', actionId, evidenceIds: ['e0'] }] }, [topic], 1), /Invalid generated suggestion/)
   }
 })
 

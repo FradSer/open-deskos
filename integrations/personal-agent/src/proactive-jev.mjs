@@ -57,7 +57,12 @@ export function createJevJudge({ env = process.env, fetchImpl = fetch, runtime =
         if (grounding?.type !== 'noul' || !Number.isFinite(grounding.noul) || grounding.noul < 0 || grounding.noul > 1) throw Error('Invalid Jev grounding answer')
         const unsupported = result.answers[`${candidate.id}_unsupported`]
         if (unsupported?.type !== 'noul' || !Number.isFinite(unsupported.noul) || unsupported.noul < 0 || unsupported.noul > 1) throw Error('Invalid Jev unsupported assertion answer')
-        answers[candidate.id].groundingProbability = Math.min(grounding.noul, 1 - unsupported.noul)
+        // A conjunction ("are all assertions supported?") is conservative for a
+        // sentence with several clauses. Keep it as a separate signal; the veto
+        // belongs to an identifiable invented or recomputed fact.
+        answers[candidate.id].supportProbability = grounding.noul
+        answers[candidate.id].unsupportedProbability = unsupported.noul
+        answers[candidate.id].groundingProbability = 1 - unsupported.noul
       }
     }
     return { model: result.model, answers }
