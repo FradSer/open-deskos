@@ -4,12 +4,26 @@ Feature: Read AI quotas with clear provenance and recovery
   # Use provider headings without new icons; retain existing App provider icons.
   # Verify 186px and 348px Cells, account identity, rotation, and App containment.
   Scenario: Show quota windows for the account plan
-    Given Codex Pro, other Codex plans, and Antigravity accounts
+    Given Codex Pro, Plus, Team, and Antigravity accounts
     When the Widget or App displays their quotas
     Then Codex Pro hides the 5h window and retains Weekly
-    And other Codex plans display 5h and Weekly
+    And Codex Plus and Team display 5h and Weekly
     And Antigravity displays 5h and Weekly for each model group
     And missing Antigravity windows remain explicitly unavailable
+
+  Scenario: Antigravity names the windows of each model group
+    Given a model group reports 5h and weekly buckets with provider window names
+    When the quota source normalizes the response and the surfaces display it
+    Then the 5h bucket stays short and the weekly bucket stays long
+    And the App invents no unavailable 5h row beside the reported windows
+    And the Widget's supporting 5h reading uses the reported percentage
+
+  Scenario: Codex plans report the windows their subscription owns
+    Given a Pro response with one weekly window and Team and Plus responses with two windows
+    When the quota source normalizes each response
+    Then the Pro reading has no 5h window and keeps its weekly allowance
+    And the Team and Plus readings keep their 5h and Weekly windows
+    And the App shows the Pro weekly allowance instead of an empty account
 
   Scenario: Account states describe the windows that are displayed
     Given a Codex Pro account with exhausted 5h and healthy Weekly quota
@@ -23,6 +37,15 @@ Feature: Read AI quotas with clear provenance and recovery
     Given an account with a 2 hour short window and a Weekly window
     When the Widget displays its supporting reading
     Then the supporting label retains the supplied 2 hour duration
+    And the second meter carries the same 2 hour percentage
+
+  Scenario: The Home Widget draws a meter for each window it reports
+    Given Codex Plus, Codex Team, Antigravity, and Codex Pro accounts
+    When the Home Widget reads their 5h and weekly windows
+    Then accounts with a 5h window show two progress meters
+    And the second meter names its short window and carries an accessible percentage
+    And Codex Pro shows only its weekly meter
+    And an unavailable short window hides the second meter without a reading
 
   Scenario: Read each connected account in the Home Widget
     Given several accounts with known quota windows
@@ -45,6 +68,7 @@ Feature: Read AI quotas with clear provenance and recovery
     And all readings fit inside the shared content inset
     And the primary percentage uses 40px text in every theme
     And the quota track and fill retain their 6px height
+    And a reported short window retains its own 6px track
     And the bar width and accessible reading match the displayed percentage
 
   Scenario: Hidden consumer acceptance uses its private profile on every host

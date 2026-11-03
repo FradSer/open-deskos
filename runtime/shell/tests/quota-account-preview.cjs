@@ -90,7 +90,11 @@ app.whenReady().then(async () => {
           const meterBounds=meter.getBoundingClientRect(), fillBounds=fill.getBoundingClientRect();
           const meterStyle=getComputedStyle(meter), fillStyle=getComputedStyle(fill);
           const meterReading={hidden:meter.hidden,role:meter.getAttribute('role'),now:Number(meter.getAttribute('aria-valuenow')),min:meter.getAttribute('aria-valuemin'),max:meter.getAttribute('aria-valuemax'),label:meter.getAttribute('aria-label'),spoken:meter.getAttribute('aria-valuetext'),height:meterBounds.height,width:meterBounds.width,fillHeight:fillBounds.height,fillWidth:fillBounds.width,visible:meterStyle.display!=='none'&&meterStyle.visibility==='visible'&&fillStyle.display!=='none'&&fillStyle.visibility==='visible',contained:inside(meterBounds)&&inside(fillBounds)};
-          return {account:tile.querySelector('.quota-tile-account').textContent,value:tile.querySelector('.quota-tile-value').textContent,position:tile.querySelector('.quota-tile-position').textContent,nodes,meter:meterReading};
+          const short=tile.querySelector('.quota-tile-short-meter'), shortFill=short.querySelector('.quota-tile-short-fill');
+          const shortBounds=short.getBoundingClientRect(), shortFillBounds=shortFill.getBoundingClientRect();
+          const secondary=tile.querySelector('.quota-tile-secondary').textContent;
+          const shortReading={hidden:short.hidden,now:Number(short.getAttribute('aria-valuenow')),label:short.getAttribute('aria-label'),text:secondary,expected:Number(String(secondary.split('·')[1]||'').trim().split('%')[0]),height:shortBounds.height,width:shortBounds.width,fillHeight:shortFillBounds.height,fillWidth:shortFillBounds.width,visible:getComputedStyle(short).display!=='none'&&getComputedStyle(shortFill).display!=='none',contained:inside(shortBounds)&&inside(shortFillBounds)};
+          return {account:tile.querySelector('.quota-tile-account').textContent,value:tile.querySelector('.quota-tile-value').textContent,position:tile.querySelector('.quota-tile-position').textContent,nodes,meter:meterReading,shortMeter:shortReading};
         });
       })()`)
       const record = { theme, cell, readings }
@@ -114,6 +118,17 @@ app.whenReady().then(async () => {
         if(Math.abs(meter.height-6)>0.5||Math.abs(meter.fillHeight-6)>0.5)widgetErrors.push(`${label} track and fill must retain 6px height: ${meter.height}/${meter.fillHeight}`);
         if(!meter.contained)widgetErrors.push(`${label} must remain inside the Widget content inset`);
         if(meter.width<=0||Math.abs(meter.fillWidth-meter.width*meter.now/100)>1)widgetErrors.push(`${label} fill width must represent its percentage`);
+        const short=reading.shortMeter, shortLabel=`${label} short meter`;
+        if(reading.position==='2 / 3'){
+          if(!short.hidden)widgetErrors.push(`${shortLabel} must stay hidden without a 5h window`);
+        }else{
+          if(short.hidden||!short.visible)widgetErrors.push(`${shortLabel} must remain visible`);
+          if(short.label!=='5h window')widgetErrors.push(`${shortLabel} must name its short window`);
+          if(short.now!==short.expected)widgetErrors.push(`${shortLabel} reading must match ${short.text}`);
+          if(Math.abs(short.height-6)>0.5||Math.abs(short.fillHeight-6)>0.5)widgetErrors.push(`${shortLabel} track and fill must retain 6px height: ${short.height}/${short.fillHeight}`);
+          if(!short.contained)widgetErrors.push(`${shortLabel} must remain inside the Widget content inset`);
+          if(short.width<=0||Math.abs(short.fillWidth-short.width*short.now/100)>1)widgetErrors.push(`${shortLabel} fill width must represent its percentage`);
+        }
       }
       fs.writeFileSync(path.join(output,`widget-${theme}-${cell}.png`),(await capturePaintedPage(win)).toPNG())
     }
