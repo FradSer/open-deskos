@@ -223,7 +223,9 @@
             token.className = 'dash-token'
             const leading = segment.text.match(/^\s*/)[0]
             const word = segment.text.slice(leading.length).match(/^\S+/)[0]
-            const prefix = leading + (word.length <= 8 || /^[+-]?\d+(?:\.\d+)?%$/.test(word) || stateLevel(word) ? word : Array.from(word)[0])
+            // Keep the whole first word with its icon. Truncating a long word
+            // to one character lets the browser break the word across two lines.
+            const prefix = leading + word
             token.append(glyph)
             appendText(token, prefix, live, segment.icon)
             span.append(token)

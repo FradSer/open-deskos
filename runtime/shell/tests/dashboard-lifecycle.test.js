@@ -265,3 +265,16 @@ test('a hyphenated project state word uses the shared status tier', async t => {
   assert.equal(state.dataset.level, 'critical')
   assert.equal(f.nodes.get('#dash-narrative').textContent, item.text)
 })
+
+test('the first word stays whole with its icon instead of breaking across lines', async t => {
+  const f = await fixture(t)
+  const segments = [{ text: 'Temperature is 23°C.', icon: 'weather' }]
+  const item = { text: 'Temperature is 23°C.', segments, sources: [{ id: 'weather', label: 'Weather', state: 'live' }] }
+  f.briefings[0]({ ...f.frame('live'), items: [item] })
+  const collect = (n, out = []) => { out.push(n); for (const c of n.children || []) collect(c, out); return out }
+  const all = collect(f.nodes.get('#dash-narrative'))
+  const token = all.find(n => n.className === 'dash-token')
+  assert.ok(token, 'the first word has a token')
+  assert.match(token.textContent, /^Temperature$/, 'the whole word stays with the icon')
+  assert.equal(f.nodes.get('#dash-narrative').textContent, item.text)
+})
