@@ -74,6 +74,10 @@ does not create or overwrite either file. Set actual absolute paths on the CM5:
   setting for you.
 - Pi owns models and authentication through `settings.json`, `auth.json`, and `models.json` in the service user's agent directory.
   Use `PI_CODING_AGENT_DIR` to select another directory.
+- One gateway serves every chat model. Run `node integrations/personal-agent/scripts/configure-model-gateway.mjs --models-path ~/.pi/agent/models.json`
+  to write the `open-deskos` provider, the default model, and the client name.
+  Set `MAGPIE_API_KEY` in `runtime.env` with mode `0600`; `models.json` stores only `$MAGPIE_API_KEY`.
+  Jev uses a separate System One endpoint. Keep `ODK_JEV_PROVIDER=disabled` until the gateway serves `/systemone`.
   The Shell Pi dropdown provides `/login`, `/model`, and `/thinking`.
   The STT credential does not authenticate the conversation model.
 - `ODK_TASK_TARGETS_FILE`: the Personal Agent coordinator's own Hosted Pi target list
