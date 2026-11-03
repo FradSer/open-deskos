@@ -334,3 +334,18 @@ Feature: Hydra plant and environment Widget on the Desk page
     When the fixture supplies outer Cell widths of 338, 337, and 334 pixels
     Then the measured content lanes are 280, 279, and 276 pixels in each theme
     And Pixel environment readings use 40, 32, and 32 pixels respectively
+
+  Scenario: A display host with no local Hydra source shows the central reading
+    Given Windows has no local ESP-NOW gateway or legacy MQTT source
+    And the resident Personal Agent reads a live Hydra reading on the reference host
+    When the Hydra Widget refreshes on Windows
+    Then the Widget shows the two plant percentages and the four environment readings
+    And the Hydra App shows the same current values
+    And a live local Hydra source keeps precedence over the central projection
+
+  Scenario: A missing central Hydra projection states the local truth
+    Given Windows has no local Hydra source
+    And the resident Personal Agent reports the Hydra reading unavailable
+    When the Hydra Widget refreshes on Windows
+    Then the Widget shows an unavailable state instead of invented numbers
+    And a malformed projection cannot become a live reading

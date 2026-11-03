@@ -9,6 +9,8 @@ const { createPiSessionReadings } = require('./readings/pi-sessions')
 const { createQuotaReadings } = require('./readings/quota')
 const { createQuotaSource } = require('../quota-source')
 const { SYSTEM_PORTS } = require('./system-channels')
+const { READING_PORT } = require('./personal-agent-readings')
+const { readCentralHydraSnapshot } = require('../hydra-projection')
 
 const DATA_PORTS = Object.freeze({
   odkLink: 'odk:source/link/v1',
@@ -41,7 +43,7 @@ function sourcePlugin({ id, name, port, requires = [], optionalRequires = [], ch
       if (stop) ctx.onCleanup(() => stop(source))
       for (const [channel, dispatch] of Object.entries(channels)) {
         const ipc = ctx.capability('ipc')
-        ipc.handle(channel, (event, request) => dispatch(source, request, event))
+        ipc.handle(channel, (event, request) => dispatch(source, request, event, ctx))
         ctx.onCleanup(() => ipc.removeHandler(channel))
       }
       const readings = readingPort ? createReadings(source) : null
@@ -87,7 +89,14 @@ function createDataSourcePlugins() {
         ? config.createDefault({ ...config.options, deviceGateway: ctx.get(DATA_PORTS.deviceGateway) })
         : config.create(config.options),
       channels: {
-        'odk-hydra-status': source => source.snapshot(),
+        'odk-hydra-status': (source, _request, _event, ctx) => {
+          const local = source.snapshot()
+          if (local?.configured !== false && local?.connected === true && local?.mainOnline !== false) return local
+          let port
+          try { port = ctx?.get?.(READING_PORT) } catch { return local }
+          if (!port) return local
+          return readCentralHydraSnapshot(port).then(projection => projection ?? local)
+        },
         'odk-hydra-device': (source, action, event) => source.dispatchDevice?.(event, action) ?? { ok: false, error: 'unsupported-transport' },
       }, stop: source => source.stop(),
     }),

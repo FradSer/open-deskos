@@ -220,6 +220,17 @@ node scripts\personal-agent-acceptance.mjs --status
 The first command performs live microphone and central provider work. `--status` only reads state.
 Host fixture checks do not establish pairing, device audio, or central model acceptance.
 
+## Hydra on a display host
+
+Windows has no local Hydra controller. The resident agent projects the current
+Hydra reading from the reference host. The Shell reads that projection through
+the authenticated producer channel. A configured local ESP-NOW or MQTT source
+keeps precedence. A missing projection shows the local unavailable state.
+
+This projection is read-only. It does not grant Windows control of watering or
+device pairing. Verify a populated Widget on the Windows display after the
+resident agent and the Windows Shell run the same release.
+
 ## State and private configuration
 
 Display state is under `%LOCALAPPDATA%\odk`. The central Personal Agent owns its memory and model authentication on CM5. Separate local Pi tools can retain their own `~\.pi\agent` configuration. Use `.env.local` for Shell settings and `perosnal-agent.env` for the display alias and microphone. See [CONFIGURATION](CONFIGURATION.md) for the complete inventory and location privacy rules.

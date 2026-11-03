@@ -193,3 +193,42 @@ control is required for source implementation requests, not for desk readings.
 Use [Hosted Pi contract](../../../integrations/personal-agent/docs/CONTRACT.md#hosted-pi) for current daemon operations and admission. A configured root scopes task admission, not every file/tool operation. Hosted Pi tools retain the service user's permissions. Use fixed configured targets and executables, strict SSH host-key checks and correlated bounded JSON. Prompts and projects travel on stdin, never command arguments.
 
 Keep durable identity after an ambiguous start. Reconcile status rather than create a new ID and repeat a mutation. Accepted is not completed. A daemon restart can interrupt work without undoing existing edits. Never discard unrelated changes. Live SDK/provider, service provisioning and physical voice checks need separate approval and evidence. Historical Pi 0.85.1 research is not the current SDK contract.
+
+
+## Client name on every host
+
+The resident agent names its client `Open deskOS` at the model request boundary.
+`integrations/personal-agent/src/model-client-identity.mjs` injects the escaped
+name into chat, completion and judgment requests. A fresh installation does not
+need a configured `models.json` header to show the name in Usage. Set
+`ODK_MODEL_CLIENT_NAME` only to use another name. The gateway URL stays a
+device-local setting; `configure-model-gateway.mjs` is an operator helper, not
+part of installation.
+
+## Owner Overview preferences
+
+The resident agent reads one owner preference file. The default is
+`~/.config/odk/overview-preferences.json`. Set
+`ODK_OVERVIEW_PREFERENCES_FILE` to use another path. Keep the file at mode
+`0600`. Preferences select facts only. Displayed values stay bound to current
+local readings.
+
+```json
+{
+  "version": 1,
+  "mustShow": ["odk.service.futu-main"],
+  "privateSources": ["odk.app.pi-sessions"]
+}
+```
+
+`mustShow` keeps one fact per listed source in Overview. `privateSources` stops
+a source from showing its contents. It still shows an aggregate count. Pi
+sessions are private by default, so Overview states how many sessions run rather
+than what a session works on. A missing or invalid file keeps this default.
+Restart the resident service after editing the file. Use the operator helper:
+
+```sh
+node integrations/personal-agent/scripts/set-overview-preferences.mjs --show
+node integrations/personal-agent/scripts/set-overview-preferences.mjs \
+  --must-show odk.service.futu-main --private-source odk.app.pi-sessions
+```
