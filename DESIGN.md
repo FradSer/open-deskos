@@ -48,6 +48,7 @@ Use a quiet black field, charcoal surfaces, outlined instruments, and heavy tabu
 ## Tokens and geometry
 
 - White carries primary reading. Red, green, and blue mark a specific state or focal action; inactive surfaces stay neutral.
+- Declare `--odk-status-critical`, `--odk-status-warning`, `--odk-status-healthy`, and `--odk-status-info` once in `runtime/shell/src/renderer/shell.css`. Status text and meters reference these tokens; do not repeat `color-mix` in each rule.
 - `stroke` separates Widgets; `stroke-focus` marks keyboard focus. Depth uses tone and outlines, without drop shadows or glow.
 - Montserrat Bold carries numerals/compact labels; Noto Sans SC Regular carries body text. Supporting text on charcoal uses `secondary-strong`; `secondary` is for subdued non-text indicators.
 - Widget supporting text is at least 12px. Compact layouts retain readable square cells and scroll vertically.
