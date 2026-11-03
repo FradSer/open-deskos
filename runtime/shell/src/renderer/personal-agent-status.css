@@ -241,6 +241,35 @@
 }
 
 .agent-recommendation .personal-agent-proposals { min-width: 0; }
+/* One reading size inside a recommendation bubble. The advice and the card below it
+   share `--agent-text-body`; weight and colour carry hierarchy, not a second size.
+   Non-data captions keep the smaller label size. Scoped so other conversation
+   messages and the nonmodal panel retain their own scale. */
+.agent-recommendation .agent-message-body,
+.agent-recommendation .personal-agent-proposal,
+.agent-recommendation .personal-agent-proposal-advice,
+.agent-recommendation .personal-agent-preview-card,
+.agent-recommendation .personal-agent-preview-summary,
+.agent-recommendation .personal-agent-preview-chip,
+.agent-recommendation .personal-agent-preview-label,
+.agent-recommendation .personal-agent-preview-value,
+.agent-recommendation .personal-agent-proposal-next-step,
+.agent-recommendation .personal-agent-proposal-result,
+.agent-recommendation .personal-agent-proposals button,
+.agent-recommendation .personal-agent-proposals .personal-agent-proposal-primary { font-size: var(--agent-text-body); }
+.agent-recommendation .personal-agent-proposal-state,
+.agent-recommendation .personal-agent-proposal-evidence,
+.agent-recommendation .personal-agent-proposal-next-label,
+.agent-recommendation .personal-agent-proposal-capability,
+.agent-recommendation .personal-agent-proposal-note,
+.agent-recommendation .personal-agent-proposal-error,
+.agent-recommendation .personal-agent-proposal-request-status,
+.agent-recommendation .personal-agent-preview-notice,
+.agent-recommendation .personal-agent-preview-fields label,
+.agent-recommendation .personal-agent-preview-fields select { font-size: var(--agent-text-label); }
+/* Advice leads by weight; the Pixel theme keeps its single weight by order and colour. */
+.agent-recommendation .personal-agent-proposal-advice { font-weight: 500; }
+.agent-recommendation .personal-agent-preview-summary { font-weight: 400; }
 .personal-agent-proposal { display: grid; gap: var(--odk-space-2, 10px); min-width: 0; white-space: normal; }
 .personal-agent-proposal p { margin: 0; }
 .personal-agent-proposal-state, .personal-agent-proposal-evidence { color: var(--odk-secondary-strong); font-size: var(--agent-text-label); font-variant-numeric: tabular-nums; }

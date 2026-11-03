@@ -209,7 +209,10 @@ app.whenReady().then(async () => {
       assert.equal(layout.ratingControls, 0, 'no rating control renders'); assert.equal(layout.disclosure, false, 'no rating disclosure renders')
       for (const key of ['sourcesAbsent', 'hashAbsent', 'ordered', 'controls', 'inline', 'popupHidden']) assert.equal(layout[key], true, JSON.stringify({ theme, width, height, key, ...layout }))
       assert.equal(layout.reason, false); assert.equal(layout.overflow, false)
-      assert.ok(layout.adviceSize >= 18); assert.ok(layout.adviceSize > layout.stateSize); assert.ok(layout.adviceSize >= layout.actionSize); assert.ok(layout.actionSize >= 16); assert.ok(layout.primaryHeight >= 48)
+      // One reading size inside the recommendation bubble: advice, card and controls agree.
+      assert.ok(layout.adviceSize >= 16); assert.equal(layout.adviceSize, layout.actionSize, 'advice and primary action share one reading size')
+      assert.ok(layout.adviceSize > layout.stateSize, 'state stays a smaller caption')
+      assert.ok(layout.actionSize >= 16); assert.ok(layout.primaryHeight >= 48)
       await run(`document.querySelector('.personal-agent-proposal-primary').focus()`)
       win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
       await delay()

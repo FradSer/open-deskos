@@ -45,6 +45,16 @@ Feature: Independent resident Personal Agent
     And no Agent surface falls back to an unrelated fixed or pill radius
     And the Pixel theme collapses every level of that scale to zero
 
+  Scenario: One message bubble uses one reading size for its text and card
+    Given a recommendation message shows advice above a generic preview card
+    When the owner reads the message and its card
+    Then the advice, card summary, chip labels, chip values, next step, buttons and message body share one reading size
+    And only non-data captions such as state, capability and notices use the smaller label size
+    And the advice keeps visual priority through weight where the theme permits synthetic weight
+    And the Pixel theme keeps its single weight hierarchy through order and colour instead
+    And no text or chip overflows the bubble or the card
+    And the same reading size holds across Instrument, Pixel, Border Beam and Liquid Glass themes
+
   Scenario: Changed readings carry an optional state tone
     Given a preview reading reports a change away from its expected state
     When the recommendation message renders that reading
