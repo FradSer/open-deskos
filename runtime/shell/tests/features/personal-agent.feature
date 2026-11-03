@@ -18,7 +18,7 @@ Feature: Independent resident Personal Agent
     Then the current conversation position and focus remain unchanged
     And Jump to latest remains available
     When the owner returns to the latest messages
-    Then the recommendation and any authoritative state are visible in the conversation
+    Then the recommendation is visible and the capsule names any outcome that needs the owner's attention
 
   Scenario: Recommendation messages retain identity and outcomes
     Given a recommendation is visible in the conversation
@@ -55,14 +55,14 @@ Feature: Independent resident Personal Agent
     And no text or chip overflows the bubble or the card
     And the same reading size holds across Instrument, Pixel, Border Beam and Liquid Glass themes
 
-  Scenario: A recommendation message omits the Suggested label
-    Given a pending recommendation has an executable action and a generic preview
-    When the message renders in the conversation
-    Then no Suggested label or internal suggestion wording appears
-    And the advice, readings and action remain readable as content
-    When the recommendation reaches an authoritative or uncertain outcome
-    Then its state and every safety assertion remain visible
-    And a read-only surface still names the read-only preview
+  Scenario: A recommendation message omits state and metadata text
+    Given a recommendation has a preview and an executable action
+    When the message renders in any proposal state
+    Then the bubble shows only the advice, readings, next step and action controls
+    And no status label, capability note, safety notice or result caption appears in the bubble
+    When the recommendation reaches an authoritative, uncertain, read-only or expired outcome
+    Then the capsule state names that outcome and carries its safety assertion
+    And the capsule keeps its accessible name and bounded one-line geometry
 
   Scenario: Changed readings carry an optional state tone
     Given a preview reading reports a change away from its expected state
@@ -419,7 +419,7 @@ Feature: Independent resident Personal Agent
     When the Android host projects the status
     Then advice, the next step, source evidence, and suggestion state remain readable
     And the desk projection preserves bounded next-step text and excludes the retired reason
-    And a current next step is labelled as a read-only preview instead of an earlier suggestion
+    And the capsule names the read-only preview instead of adding a label to the message
     And the frame explicitly declares read-only suggestion capabilities
     And the renderer shows no response, execution, or ride quote control
     And no suggestion acknowledgement or response crosses the read-only link
@@ -543,7 +543,7 @@ Feature: Independent resident Personal Agent
   Scenario: Execution receipts remain private
     Given an accepted operation has a structured execution receipt
     When the recommendation appears in the conversation
-    Then its authoritative state remains visible
+    Then the capsule names that authoritative state without a status label in the bubble
     And no technical receipt, source disclosure, or execution parameter appears
     And receipt presence does not assert completion
 

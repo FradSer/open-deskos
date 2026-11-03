@@ -30,7 +30,18 @@
       const input = $('textarea')
       const composer = $('.agent-composer')
       let closePiConfig = () => {}
+      let proposalState = { caption: '', detail: '' }
+      let capsuleContext = { state: 'idle', busy: false }
+      const reportProposalState = value => {
+        proposalState = value && typeof value === 'object' ? value : { caption: '', detail: '' }
+        // A proposal error is a connection-level fact; the main render already names it.
+        if (capsuleContext.proposalError) return
+        // Asynchronous reports (a failed command, a quote request) must be visible at once
+        // unless a voice or thinking turn owns the capsule.
+        if (capsuleContext.state === 'idle' && !capsuleContext.busy && !activeSubmission) setState(proposalState.caption, proposalState.detail)
+      }
       const suggestions = root.odkPersonalAgentSuggestions?.mount(conversation, {
+        onState: reportProposalState,
         focusInput: () => fieldControl().focus({ preventScroll: true }),
         createMessage: proposal => {
           const body = message('assistant', '')
@@ -179,16 +190,18 @@
       let lastStatus = 'unknown'
       let pending = false
       setComposerMode(voiceAvailable() ? 'voice' : 'keyboard')
-      function setState(caption) {
+      let stateDetail = ''
+      function setState(caption, detail = caption) {
+        stateDetail = detail || caption
         const changed = state.textContent !== caption
         if (changed) state.textContent = caption
         state.hidden = !caption
         if (changed) animateCapsule()
-        capsule.setAttribute('aria-label', `${identity.name}${caption ? ', ' + caption : ''}`)
+        capsule.setAttribute('aria-label', `${identity.name}${caption ? ', ' + stateDetail : ''}`)
       }
       function applyIdentity() {
         $('.agent-name').textContent = identity.name
-        capsule.setAttribute('aria-label', `${identity.name}${state.textContent ? ', ' + state.textContent : ''}`)
+        capsule.setAttribute('aria-label', `${identity.name}${state.textContent ? ', ' + (stateDetail || state.textContent) : ''}`)
         for (const node of el.querySelectorAll('.agent-message-assistant')) node.setAttribute('aria-label', identity.name)
         root.odkIcons?.apply?.(el)
         input.placeholder = 'Message…'
@@ -610,9 +623,12 @@
           turn.response.setAttribute('aria-busy', String(status.state === 'thinking'))
           if (['idle', 'error'].includes(status.state)) turn.completed = true
         }
+        capsuleContext = { state: status.state, busy, proposalError: Boolean(status.proposalError) }
+        const passive = readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '') || captionFor(status)
         const caption = activeSubmission && !activeSubmission.uncertain ? 'Thinking...'
-          : status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '') || captionFor(status)) : captionFor(status)
-        setState(status.proposalError ? 'Updates unavailable' : caption)
+          : status.state === 'idle' ? (proposalState.caption || passive) : captionFor(status)
+        const finalCaption = status.proposalError ? 'Updates unavailable' : caption
+        setState(finalCaption, status.proposalError ? finalCaption : (proposalState.caption ? proposalState.detail : finalCaption))
         lastStatus = status.state
         if (activeSubmission?.uncertain) {
           setState('')

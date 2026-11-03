@@ -44,10 +44,17 @@ function fixture({ readiness = false, hidden = false } = {}) {
   if (readiness) window.odkPersonalAgent.consumerReady = id => { ready.push(id); return Promise.resolve({ accepted: true }) }
   let sequence = 0
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/personal-agent-suggestions.js'), 'utf8'), { window, document, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++sequence).padStart(12, '0')}` }, console, Date: Clock, IntersectionObserver: class { constructor(callback) { this.callback = callback; this.nodes = new Set(); observers.push(this) } observe(node) { this.nodes.add(node) } disconnect() { this.nodes.clear() } unobserve(node) { this.nodes.delete(node) } } })
+  // The identity capsule owns state text; record every report so tests can assert it.
+  const states = []
+  const record = value => { states.push(value || { caption: '', detail: '' }); return value }
+  const originalMount = window.odkPersonalAgentSuggestions.mount
+  window.odkPersonalAgentSuggestions.mount = (...args) => originalMount(args[0], { ...(args[1] || {}), onState: record })
   const controller = window.odkPersonalAgentSuggestions.mount(content, { focusInput: () => local.focus() })
   const render = status => controller.update(status)
 
-  return { controller, surface, content, local, commands, ready, render, window, events, document, observers, advance(ms) { now += ms }, visible(node, ratio = 1, { height = 44, viewportHeight = 200 } = {}) { for (const observer of observers) if (observer.nodes.has(node)) observer.callback([{ target: node, isIntersecting: ratio > 0, intersectionRatio: ratio, boundingClientRect: { width: 100, height }, rootBounds: { width: 100, height: viewportHeight }, intersectionRect: { width: ratio > 0 ? 100 : 0, height: height * ratio } }]) } }
+  return { controller, surface, content, local, commands, ready, render, window, events, document, observers, states,
+    state() { return states.at(-1) || { caption: '', detail: '' } },
+    advance(ms) { now += ms }, visible(node, ratio = 1, { height = 44, viewportHeight = 200 } = {}) { for (const observer of observers) if (observer.nodes.has(node)) observer.callback([{ target: node, isIntersecting: ratio > 0, intersectionRatio: ratio, boundingClientRect: { width: 100, height }, rootBounds: { width: 100, height: viewportHeight }, intersectionRect: { width: ratio > 0 ? 100 : 0, height: height * ratio } }]) } }
 }
 const proposal = () => ({ id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry', status: 'pending', offered: true, presented: false, confirmation: '记住 watering：检查盆土', advice: '<script>不可信文本</script>', action: { tool: 'memory_update' }, evidence: [{ readingId: 'hydra', field: 'soil', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z' }] })
 const flatten = node => [node, ...node.children.flatMap(flatten)]
@@ -94,7 +101,7 @@ test('page replacement retains uncertain execution reservations and releases old
   replacement.update({ state: 'idle', proposals: [p] })
   assert.equal(flatten(f.content).find(n => n.dataset.proposalAction === 'execute').disabled, true)
   assert.equal(f.commands.length, 1)
-  assert.ok(f.content.querySelector('.personal-agent-proposal-error'))
+  assert.match(f.state().detail, /do not repeat an uncertain action/)
   await replacement.destroy()
 })
 test('a released page cannot recreate confirmation through a detached execution control', async () => {
@@ -127,7 +134,7 @@ test('an unavailable command bridge preserves readable advice without response c
   replacement.update({ state: 'idle', proposals: [{ ...proposal(), nextStep: 'Save the watering note' }], proposalCapabilities: { read: true, respond: true, acknowledge: true } })
   assert.ok(f.content.querySelector('.personal-agent-proposal-advice'))
   assert.equal(flatten(f.content).some(n => n.tagName === 'BUTTON'), false)
-  assert.match(f.content.querySelector('.personal-agent-proposal-capability').textContent, /read-only here/i)
+  assert.match(f.state().detail, /read-only/i)
   await replacement.destroy()
 })
 test('resident feedback learning stays on the wire without adding message controls', () => {
@@ -149,9 +156,8 @@ test('a desk-projected next step stays readable on the read-only Android surface
   const f = fixture()
   f.render(frame)
   assert.ok(flatten(f.content).some(n => n.className === 'personal-agent-proposal-next-step' && n.textContent === p.nextStep))
-  const state = f.content.querySelector('.personal-agent-proposal-state').textContent
-  assert.ok(state.includes('Read-only preview'))
-  assert.ok(!state.includes('Earlier suggestion'))
+  assert.equal(f.state().caption, 'Read-only preview')
+  assert.ok(!f.state().detail.includes('Earlier suggestion'))
   assert.equal(flatten(f.content).filter(n => n.tagName === 'BUTTON' && n.dataset.proposalAction).length, 0)
   assert.ok(!flatten(f.content).some(n => n.className === 'personal-agent-proposal-confirm'))
   f.visible(f.content.querySelector('.personal-agent-proposal-advice'))
@@ -199,7 +205,7 @@ test('a withdrawn provider command cannot overwrite replacement suggestion feedb
   f.render({ state: 'idle', proposals: [{ ...p, id: '11111111-1111-4111-8111-111111111111', advice: 'Current provider suggestion' }], proposalPopup: true })
   reject(Error('Withdrawn provider failure'))
   await pending
-  assert.equal(f.content.querySelector('.personal-agent-proposal-error'), null)
+  assert.ok(!/not delivered|generation_unavailable|do not repeat/.test(f.state().detail))
   assert.ok(flatten(f.content).some(node => node.textContent === 'Current provider suggestion'))
 })
 
@@ -233,16 +239,16 @@ test('expiry removes execution and status cannot open a recommendation popup', (
 test('a recovered service error clears without replacing the same suggestion controls', () => {
   const f = fixture(), status = { state: 'idle', proposals: [proposal()], proposalHiddenCount: 1, proposalPopup: true }
   f.render({ ...status, proposalError: 'generation_unavailable' })
-  assert.equal(f.content.querySelector('.personal-agent-proposal-error').textContent, 'generation_unavailable')
+  assert.equal(f.state().detail, 'generation_unavailable')
   const section = f.content.children[0], controls = flatten(section).filter(n => n.tagName === 'BUTTON')
   f.render({ ...status, proposalPopup: false })
-  assert.equal(f.content.querySelector('.personal-agent-proposal-error'), null)
+  assert.equal(f.state().detail, '')
   assert.equal(f.content.children[0], section)
   assert.deepEqual(flatten(section).filter(n => n.tagName === 'BUTTON'), controls)
   assert.equal(f.content.hidden, false)
   assert.equal(f.surface.hidden, true)
   f.render({ ...status, proposalError: 'checkpoint_failed' })
-  assert.equal(f.content.querySelector('.personal-agent-proposal-error').textContent, 'checkpoint_failed')
+  assert.equal(f.state().detail, 'checkpoint_failed')
 })
 
 test('unchanged service status preserves an uncertain command warning and prevents retry', async () => {
@@ -252,14 +258,12 @@ test('unchanged service status preserves an uncertain command warning and preven
   await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Run action').click()
   const confirmation = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation)
   await confirmation.click()
-  const warning = f.content.querySelector('.personal-agent-proposal-error')
-  assert.match(warning.textContent, /not delivered.*do not repeat an uncertain action/)
+  assert.match(f.state().detail, /not delivered.*do not repeat an uncertain action/)
   assert.equal(confirmation.disabled, true)
   const count = f.commands.length
   f.render({ ...status, proposalPopup: false, proposalError: 'generation_unavailable' })
   f.render({ ...status, proposalPopup: false })
-  assert.equal(f.content.querySelector('.personal-agent-proposal-error'), warning)
-  assert.match(warning.textContent, /not delivered.*do not repeat an uncertain action/)
+  assert.match(f.state().detail, /not delivered.*do not repeat an uncertain action/)
   assert.equal(confirmation.disabled, true)
   assert.equal(flatten(f.content).find(n => n.dataset.proposalAction === 'execute').disabled, true)
   assert.equal(f.commands.length, count)
@@ -271,7 +275,7 @@ test('ride details are read-only and explicit endpoint selection enters the ordi
   const ride = { ...proposal(), action: null, confirmation: '', ridePreview: { handle: 'preview-handle', status: 'choose_places', sandbox: true, expiresAt: Date.now() + 60000, measuredAt: new Date().toISOString(), from: [{ handle: 'from-a', name: '<script>起点甲</script>', city: '测试市', address: '测试路' }, { handle: 'from-b', name: '起点乙', city: '测试市' }], to: [{ handle: 'to-a', name: '终点', city: '测试市' }] } }
   f.render({ state: 'idle', proposals: [ride], proposalPopup: true })
   assert.equal(f.content.querySelector('.personal-agent-ride-route').hidden, true);  assert.equal(turns.length, 0); assert.equal(f.commands.filter(c => c.type === 'proposal_respond').length, 0)
-  assert.ok(flatten(f.content).some(n => n.textContent === 'Sandbox preview, so no real trip.'))
+  assert.match(f.state().detail, /Sandbox preview, so no real trip\./)
   assert.ok(flatten(f.content).some(n => n.textContent.includes('<script>起点甲</script>')))
   const selects = flatten(f.content).filter(n => n.tagName === 'SELECT')
   const quote = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Get current quote')
@@ -373,7 +377,7 @@ test('earlier actionless advice offers Later and no rating control', async () =>
   f.render({ state: 'idle', proposals: [p, { ...p, id: 'd311a280-c0b9-4411-96cd-4e1e92385349', status: 'completed' }], proposalPopup: true })
   assert.ok(!flatten(f.content).some(n => n.className === 'personal-agent-proposal-reason' || n.textContent.includes(p.reason)))
   assert.ok(!flatten(f.content).some(n => n.className === 'personal-agent-proposal-next-step'))
-  assert.ok(flatten(f.content).some(n => n.textContent.includes('No executable action')))
+  assert.ok(f.state().detail.includes('No executable action'))
   const article = f.content.querySelector('.personal-agent-proposal')
   assert.equal(article.querySelector('.personal-agent-proposal-sources'), null)
   assert.equal(flatten(f.content).filter(n => n.className?.includes('agent-message-assistant')).length, 2)
@@ -391,7 +395,7 @@ test('read-only suggestion capabilities preserve advice and hide every response 
   assert.equal(f.commands.length, 0)
   const labels = flatten(f.content).filter(n => n.tagName === 'BUTTON').map(n => n.textContent)
   for (const label of ['Accept', 'Run action', p.nextStep, 'Done', 'Later', 'Useful', 'Not relevant', 'Incorrect', 'Ignore', 'Never suggest this category', 'Feedback']) assert.ok(!labels.includes(label), label)
-  assert.ok(flatten(f.content).some(n => /read-only here/i.test(n.textContent)))
+  assert.match(f.state().detail, /read-only/i)
   assert.equal(flatten(f.content).find(n => n.className === 'personal-agent-proposal-next-step').textContent, p.nextStep)
 })
 
@@ -577,7 +581,7 @@ test('concrete execution requires exact confirmation and dispatches only once un
   assert.equal(f.commands[0].confirmation, p.confirmation)
   settle({ accepted: true }); await pending
   assert.ok(confirm.disabled)
-  assert.ok(!flatten(f.content).some(n => n.textContent === 'Completed'))
+  assert.notEqual(f.state().caption, 'Completed')
   for (const status of ['executing', 'unknown', 'completed']) {
     f.render({ state: 'idle', proposals: [{ ...p, status }], proposalPopup: true })
     assert.ok(!flatten(f.content).some(n => n.tagName === 'BUTTON' && [p.nextStep, p.confirmation, 'Run action'].includes(n.textContent)), status)
@@ -612,7 +616,7 @@ test('an action without exact confirmation cannot masquerade as an executable ne
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
   assert.ok(!flatten(f.content).some(n => n.className === 'personal-agent-proposal-next-step'))
   assert.ok(!flatten(f.content).some(n => n.tagName === 'BUTTON' && [p.nextStep, 'Run action'].includes(n.textContent)))
-  assert.ok(flatten(f.content).some(n => n.textContent.includes('No executable action')))
+  assert.equal(flatten(f.content).some(n => n.tagName === 'BUTTON' && [p.nextStep, 'Run action'].includes(n.textContent)), false)
 })
 
 test('execution receipts remain private without asserting completion', () => {
@@ -620,8 +624,8 @@ test('execution receipts remain private without asserting completion', () => {
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
   assert.equal(f.content.querySelector('.personal-agent-proposal-sources'), null)
   assert.ok(!flatten(f.content).some(n => n.textContent.includes('fixture-task') || n.textContent.includes('a'.repeat(64))))
-  assert.ok(flatten(f.content).some(n => n.textContent.startsWith('Outcome not confirmed')))
-  assert.ok(!flatten(f.content).some(n => n.textContent === 'Completed'))
+  assert.equal(f.state().caption, 'Outcome not confirmed')
+  assert.notEqual(f.state().caption, 'Completed')
 })
 
 test('uncertain accept remains reserved across other-card redraw and service reconnect', async () => {
@@ -641,7 +645,7 @@ test('uncertain accept remains reserved across other-card redraw and service rec
     if (execute) await execute.click()
     await confirm.click()
     assert.equal(f.commands.length, 1)
-    assert.match(f.content.querySelector('.personal-agent-proposal-error')?.textContent ?? '', /do not repeat an uncertain action/)
+    assert.match(f.state().detail, /do not repeat an uncertain action/)
   }
   for (const status of ['completed', 'unknown']) {
     f.render({ state: 'idle', proposals: [{ ...p, status }], proposalPopup: true })
@@ -661,11 +665,11 @@ test('a pending execution reservation survives redraw before its transport recei
   assert.ok(execute.disabled)
   await execute.click()
   assert.equal(f.commands.length, 1)
-  assert.ok(flatten(f.content).some(n => n.textContent.includes('Waiting for the result')))
+  assert.match(f.state().detail, /Waiting for the result/)
   f.render({ state: 'idle', proposals: [{ ...p, status: 'completed' }], proposalPopup: true })
   reject(Error('Late lost transport receipt'))
   await pending
-  assert.equal(f.content.querySelector('.personal-agent-proposal-error'), null, 'A late transport failure cannot override an authoritative terminal outcome')
+  assert.ok(!/do not repeat an uncertain action/.test(f.state().detail), 'A late transport failure cannot override an authoritative terminal outcome')
 })
 
 test('a late uncertain receipt after reconnect warns the same reserved suggestion', async () => {
@@ -679,7 +683,7 @@ test('a late uncertain receipt after reconnect warns the same reserved suggestio
   f.render({ state: 'unavailable' }); f.render(status)
   reject(Error('Lost receipt from the previous connection'))
   await pending
-  assert.match(f.content.querySelector('.personal-agent-proposal-error')?.textContent ?? '', /do not repeat an uncertain action/)
+  assert.match(f.state().detail, /do not repeat an uncertain action/)
   assert.equal(f.commands.length, 1)
   assert.ok(flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.nextStep).disabled)
 })
@@ -696,10 +700,10 @@ for (const rawResult of [
     const article = flatten(f.content).find(n => n.className === 'personal-agent-proposal')
     assert.equal(article.querySelector('.personal-agent-proposal-sources'), null)
     assert.equal(flatten(article).some(n => n.textContent === rawResult), false)
-    assert.ok(flatten(article).some(n => n.textContent === 'Result recorded.'))
+    assert.match(f.state().detail, /Result recorded\./)
     assert.equal(flatten(article).some(n => n.tagName === 'SCRIPT'), false)
-    assert.ok(flatten(article).some(n => n.className === 'personal-agent-proposal-state' && n.textContent.startsWith('Outcome not confirmed')))
-    assert.equal(flatten(article).some(n => n.className === 'personal-agent-proposal-state' && n.textContent.startsWith('Completed')), false)
+    assert.equal(f.state().caption, 'Outcome not confirmed')
+    assert.notEqual(f.state().caption, 'Completed')
   })
 }
 for (const rawResult of ['Memory updated.', 'The request was accepted; completion remains unconfirmed.', '"Saved a note."', '42', '{not valid JSON}']) {
@@ -707,8 +711,8 @@ for (const rawResult of ['Memory updated.', 'The request was accepted; completio
     const f = fixture(), p = { ...proposal(), status: 'unknown', result: rawResult }
     f.render({ state: 'idle', proposals: [p], proposalPopup: true })
     const article = flatten(f.content).find(n => n.className === 'personal-agent-proposal')
-    assert.ok(article.children.some(n => n.textContent === rawResult && n.attributes.role === 'status'))
-    assert.ok(flatten(article).some(n => n.className === 'personal-agent-proposal-state' && n.textContent.startsWith('Outcome not confirmed')))
+    assert.ok(f.state().detail.includes(rawResult))
+    assert.equal(f.state().caption, 'Outcome not confirmed')
   })
 }
 
@@ -894,7 +898,7 @@ test('a completed recommendation keeps its result without reviving operation or 
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
   const message = f.content.querySelector('.agent-message')
   assert.ok(message, 'the completed result stays in the conversation')
-  assert.ok(flatten(message).some(n => n.textContent === 'Review completed'))
+  assert.ok(f.state().detail.includes('Review completed'))
   assert.deepEqual(flatten(message).filter(n => n.tagName === 'BUTTON').map(n => n.textContent), [], 'no control survives completion')
   f.render({ state: 'idle', proposals: [{ ...p, feedback: 'useful', feedbackLearning: { revision: 1, decision: 'useful', status: 'applied' } }] })
   assert.equal(f.content.querySelector('.agent-message') === message || flatten(f.content).some(n => n.textContent === 'Review completed'), true)

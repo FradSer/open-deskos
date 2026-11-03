@@ -32,6 +32,7 @@ const READING = ['.agent-message-body', '.personal-agent-proposal', '.personal-a
   '.personal-agent-preview-card', '.personal-agent-preview-summary', '.personal-agent-preview-chip',
   '.personal-agent-preview-label', '.personal-agent-preview-value',
   '.personal-agent-proposal-next-step', '.personal-agent-proposal-primary', '.personal-agent-proposal-secondary']
+// These state nodes no longer exist inside a bubble; the capsule owns them.
 const CAPTION = ['.personal-agent-proposal-state', '.personal-agent-proposal-next-label',
   '.personal-agent-proposal-capability', '.personal-agent-preview-notice']
 
@@ -90,6 +91,8 @@ app.whenReady().then(async () => {
       assert.equal(sizes[0], 17, `${theme}/${width}: the reading size must be 17px like iOS body text`)
       assert.equal(sizes[0], measured.token, `${theme}/${width}: reading size must equal the body token ${measured.token}`)
       assert.ok(!measured.textNodes.some(n => /suggest(ed|ion)/i.test(n.text)), `${theme}/${width}: internal suggestion wording must not appear: ${JSON.stringify(measured.textNodes.map(n => n.text))}`)
+      assert.ok(!measured.textNodes.some(n => /Dismissed|Expired|In progress|Completed|Outcome not confirmed|Read-only|No executable action|do not resend|do not repeat|Sandbox|Estimate expired|Result recorded|Next step/i.test(n.text)),
+        `${theme}/${width}: state text must live in the capsule, not the bubble`)
       assert.equal(measured.bubbleOverflow, false, `${theme}/${width}: bubble overflows`)
       assert.equal(measured.cardOverflow, false, `${theme}/${width}: card overflows`)
       assert.equal(measured.chipOverflow, false, `${theme}/${width}: chip escapes card`)

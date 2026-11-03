@@ -124,13 +124,13 @@ app.whenReady().then(async () => {
   const confirmed = await waitForCommand(c => c.type === 'proposal_respond', 'the exact confirmation')
   assert.equal(confirmed.confirmation, p.confirmation)
   await send({ state: 'idle', proposals: [p], proposalHiddenCount: 0, proposalPopup: true, proposalError: 'generation_unavailable' })
-  assert.equal(await run(`document.querySelector('.personal-agent-proposal-error')?.textContent`), 'generation_unavailable')
+  assert.match(await run(`document.querySelector('.agent-state').textContent`), /Updates unavailable/)
   await run(`window.__proposalControls = [...document.querySelectorAll('.personal-agent-proposals button')]`)
   await send({ state: 'idle', proposals: [p], proposalHiddenCount: 0, proposalPopup: false })
-  assert.equal(await run(`!!document.querySelector('.personal-agent-proposal-error')`), false)
+  assert.equal(await run(`/Updates unavailable|Connection unavailable/.test(document.querySelector('.agent-state').textContent)`), false)
   assert.equal(await run(`window.__proposalControls.every((node, index) => document.querySelectorAll('.personal-agent-proposals button')[index] === node)`), true)
   await send({ state: 'idle', proposals: [p], proposalHiddenCount: 0, proposalPopup: false, proposalError: 'checkpoint_failed' })
-  assert.equal(await run(`!!document.querySelector('.personal-agent-proposal-error')`), true)
+  assert.match(await run(`document.querySelector('.agent-state').textContent`), /Updates unavailable/)
   const uncertain = { ...p, id: 'a91cb070-410b-42a8-b15e-f0508d2f9dbf' }
   await send({ state: 'idle', proposals: [uncertain], proposalHiddenCount: 0, proposalPopup: true })
   rejectResponse = true
@@ -141,7 +141,7 @@ app.whenReady().then(async () => {
   await run(`window.__disabledConfirmation = [...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === '记住 watering：检查盆土')`)
   await send({ state: 'idle', proposals: [uncertain], proposalHiddenCount: 0, proposalPopup: false, proposalError: 'generation_unavailable' })
   await send({ state: 'idle', proposals: [uncertain], proposalHiddenCount: 0, proposalPopup: false })
-  assert.match(await run(`document.querySelector('.personal-agent-proposal-error')?.textContent ?? ''`), /not delivered.*do not repeat an uncertain action/)
+  assert.match(await run(`document.querySelector('.agent-identity .agent-capsule').getAttribute('aria-label')`), /not delivered.*do not repeat an uncertain action/)
   assert.equal(await run(`!!document.querySelector('[data-proposal-action="execute"]')?.disabled`), true)
   assert.equal(commands.filter(c => c.type === 'proposal_respond').length, commandCount)
   rejectResponse = false
@@ -153,7 +153,7 @@ app.whenReady().then(async () => {
   const beforeRoute = commands.length
   assert.equal(await run(`(() => { const quote = document.querySelector('.personal-agent-ride-actions .personal-agent-proposal-primary'); const route = document.querySelector('.personal-agent-ride-route'); return !!quote && quote.checkVisibility() && !!route && route.hidden && !route.contains(quote) && !document.querySelector('.personal-agent-ride-details, .personal-agent-proposal-sources') })()`), true, 'Prepared preview exposes its real next action without a Details control')
   assert.equal(await run(`!!document.querySelector('.personal-agent-ride-route script')`), false)
-  assert.match(await run(`document.querySelector('.personal-agent-proposal').textContent`), /Sandbox preview, so no real trip\./)
+  assert.match(await run(`document.querySelector('.agent-identity .agent-capsule').getAttribute('aria-label')`), /Sandbox preview, so no real trip\./)
   assert.match(await run(`document.querySelector('.personal-agent-proposal').textContent`), /20元/)
   await run(`[...document.querySelectorAll('.personal-agent-ride-actions button')].find(b => b.textContent === 'Get current quote').click()`)
   await delay(); assert.equal(ownerTurns.length, 0); assert.equal(commands.length, beforeRoute)
@@ -306,7 +306,7 @@ app.whenReady().then(async () => {
   await delay()
   assert.equal(commands.length, beforeReadOnly)
   assert.equal(await run(`!![...document.querySelectorAll('.personal-agent-proposals button')].find(b => ['Accept','Run action','保存检查盆土备忘','Done','Later','Useful','Not relevant','Incorrect','Ignore','Get current quote','Refresh preview'].includes(b.textContent))`), false)
-  assert.match(await run(`document.querySelector('.personal-agent-proposal-capability').textContent`), /read-only here/i)
+  assert.match(await run(`document.querySelector('.agent-identity .agent-capsule').getAttribute('aria-label')`), /read-only/i)
   assert.equal(ownerTurns.length, beforeReadOnlyTurns)
   await run(`document.querySelector('.agent-composer textarea').focus()`)
   await send({ state: 'idle', proposals: [ride], proposalPopup: true, proposalRecovery: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } })
