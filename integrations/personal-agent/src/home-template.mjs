@@ -1,7 +1,8 @@
-const REFERENCE = /\{\{([A-Za-z0-9][A-Za-z0-9._-]{0,127})\|(@label|@state|@availability|[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+){0,7})\|(text|number|integer|celsius|percent|signedPercent|soilStatus|soilAvailability|piSessionState)\}\}/g
+const REFERENCE = /\{\{([A-Za-z0-9][A-Za-z0-9._-]{0,127})\|(@label|@state|@availability|[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+){0,7})\|(text|number|integer|count|celsius|percent|signedPercent|soilStatus|soilAvailability|piSessionState)\}\}/g
 const CONNECTORS = new Set('you your have has is are and or but in at with of for the a an its today now show shows include includes contains'.split(' '))
 const ICON_NOUNS = { sessions: ['session', 'sessions'], portfolio: ['daily', 'percentage'], plants: ['plant', 'plants'], tasks: ['task', 'tasks'], calendar: ['calendar'], mail: ['mail'], reading: ['reading'], quota: ['quota'], apps: ['app', 'apps'] }
 const UNSAFE_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
+const STATE_WORDS = new Set(['running', 'working', 'settled', 'idle', 'waiting', 'failed', 'finished', 'completed', 'blocked', 'needs_input'])
 // Match the Hydra node's three-minute freshness window to its soil measurement.
 const HYDRA_SOIL_MAX_AGE_MS = 3 * 60 * 1000
 // Producer source IDs retain their service identity through the public data registry.
@@ -64,6 +65,10 @@ function formatValue(value, format) {
     if (String(value).length > 240) throw Error('Home variable too long')
     return String(value)
   }
+  if (format === 'count') {
+    if (!Array.isArray(value)) throw Error('Invalid home count variable')
+    return String(value.length)
+  }
   if (format === 'soilAvailability') return 'unavailable'
   if (format === 'piSessionState') {
     if (value === 'running') return 'working'
@@ -98,7 +103,7 @@ export function resolveHomeTemplate(raw, readings, now = Date.now()) {
     const segments = item.segments.map((segment, index) => {
       if (!segment || Object.keys(segment).some(key => !['text', 'icon'].includes(key)) || typeof segment.text !== 'string' || segment.text.length > 2048) throw Error('Invalid home template segment')
       let references = 0, values = 0
-      const words = new Set(CONNECTORS)
+      const words = new Set([...CONNECTORS, ...STATE_WORDS])
       if (segment.icon) {
         for (const word of ICON_NOUNS[segment.icon] || []) words.add(word)
         for (const match of segment.text.matchAll(REFERENCE)) {
@@ -223,6 +228,9 @@ export function homeTemplateVariables(readings, now = Date.now()) {
           || measuredAt > now || now - measuredAt > HYDRA_SOIL_MAX_AGE_MS) return
       }
       if (value && typeof value === 'object') {
+        if (Array.isArray(value) && path && value.some(record => record && typeof record === 'object' && typeof record.state === 'string')) {
+          refs.push(`{{${source.id}|${path}|count}}`)
+        }
         for (const [key, child] of Object.entries(value)) {
           if (/^[A-Za-z0-9_]+$/.test(key)) visit(child, `${path}.${key}`, depth + 1)
         }
@@ -259,6 +267,11 @@ export function homeTemplateVariables(readings, now = Date.now()) {
       example = `${reference('temperatureC')}${reference('condition') ? ` ${reference('condition')}` : ''}${reference('place') ? ` in ${reference('place')}` : ''}`
     }
     if (source.home?.icon === 'sessions' && !reference('total') && reference('count')) example = `${label} ${reference('count')} sessions`
+    if (source.home?.icon === 'sessions' && !reference('total') && !reference('count') && reference('sessions')) {
+      const states = (Array.isArray(source.value?.sessions) ? source.value.sessions : []).map(record => record?.state).filter(state => typeof state === 'string')
+      const dominant = states.length ? [...states].sort((a, b) => states.filter(state => state === b).length - states.filter(state => state === a).length)[0] : 'running'
+      example = `${reference('sessions')} ${label} ${STATE_WORDS.has(dominant) ? dominant : 'running'}`
+    }
     if (source.home?.icon === 'sessions' && reference('total')) {
       const counts = Object.keys(source.value?.counts || {}).sort((a, b) => {
         const order = ['running', 'waiting', 'settled', 'exited']
@@ -335,7 +348,12 @@ export function homeFactVariables(readings, now = Date.now()) {
       }
       // A label that only restates a measurement is analysis context, not a
       // second sentence saying "Remaining" next to "100% remaining".
-      const analysisOnly = analysisMetadata.test(path)
+      const recordPath = parts.slice(0, -1).join('.')
+      const arrayPath = recordPath.includes('.') ? recordPath.slice(0, recordPath.lastIndexOf('.')) : ''
+      const records = arrayPath ? atPath(source.value, arrayPath) : undefined
+      const repeatedRecordState = /^\d+$/.test(parts.at(-2) ?? '') && Array.isArray(records) && records.length > 2
+        && ['state', 'status', 'activity', 'project'].includes(parts.at(-1))
+      const analysisOnly = analysisMetadata.test(path) || repeatedRecordState
         || /(?:^|\.)label$/.test(path) && typeof value === 'string' && MEASUREMENT_LABEL.test(value)
       facts.push({ id: source.id, serviceId: variable.serviceId, icon, factId: `${source.id}:${path}`, example, attention, entities,
         // A measurement says more than a boolean flag when scores tie.
@@ -347,18 +365,21 @@ export function homeFactVariables(readings, now = Date.now()) {
       return facts
     }
     const weather = icon === 'weather' && refFor('temperatureC')
-    const sessions = icon === 'sessions' && (refFor('total') || refFor('count'))
+    const sessions = icon === 'sessions' && (refFor('total') || refFor('count') || refFor('sessions'))
     if (weather || sessions || icon === 'portfolio' && refFor('todayChangePercent')) {
       const portfolioAttention = icon === 'portfolio' && typeof source.value?.todayChangePercent === 'number'
         ? homeAttention('todayChangePercent', source.value.todayChangePercent, source.value, now) : 0
       const weatherAttention = weather && typeof source.value?.temperatureC === 'number'
         ? homeAttention('temperatureC', source.value.temperatureC, source.value, now) : 0
-      add('@summary', variable.example, Math.max(portfolioAttention, weatherAttention, ...Object.entries(source.value?.counts || {}).map(([key, value]) => homeAttention(`counts.${key}`, value))))
+      const sessionAttention = sessions && !refFor('total') && !refFor('count') && Array.isArray(source.value?.sessions)
+        ? 35 + Math.min(9, source.value.sessions.length) : 0
+      add('@summary', variable.example, Math.max(portfolioAttention, weatherAttention, sessionAttention,
+        ...Object.entries(source.value?.counts || {}).map(([key, value]) => homeAttention(`counts.${key}`, value))))
     }
     for (const reference of variable.references.slice(3)) {
       const match = [...reference.matchAll(REFERENCE)][0]
       const path = match[2]
-      if (match[3] === 'soilStatus' || match[3] === 'soilAvailability' || match[3] === 'piSessionState') continue
+      if (match[3] === 'soilStatus' || match[3] === 'soilAvailability' || match[3] === 'piSessionState' || match[3] === 'count') continue
       if (metadata.test(path) || weather && ['temperatureC', 'condition', 'place'].includes(path)
         || sessions && (['total', 'count'].includes(path) || path.startsWith('counts.'))
         || icon === 'portfolio' && path === 'todayChangePercent') continue
@@ -427,6 +448,10 @@ const MODEL_STATES = new Set(['live', 'stale', 'unavailable', 'unconfigured', 'e
 const MODEL_ICONS = new Set(['sessions', 'plants', 'weather', 'mail', 'calendar', 'tasks', 'reading', 'portfolio', 'quota', 'apps', 'status'])
 
 function modelValue(value, format, path) {
+  if (format === 'count') {
+    if (!Array.isArray(value)) throw Error('Invalid home count variable')
+    return String(value.length)
+  }
   if (format === 'soilAvailability') return 'unavailable'
   if (format === 'soilStatus' || format === 'piSessionState') return formatValue(value, format)
   if (typeof value === 'boolean') return value ? 'true' : 'false'
@@ -503,6 +528,7 @@ export async function generateHomeSelection(readings, { choose, previous = [], n
       if (path !== '@label') parts.push(`${MODEL_FIELDS.get(path.split('.').at(-1)) ?? 'value'}: ${modelValue(value, format, path)}`)
       return formatted
     })
+    for (const word of fact.example.match(/\b(?:running|working|settled|idle|waiting|failed|finished|completed|blocked)\b/g) ?? []) parts.push(`state: ${word}`)
     const icon = MODEL_ICONS.has(fact.icon) ? fact.icon : 'status'
     descriptions.set(fact, { id: sourceIds.get(fact.id), serviceId: serviceIds.get(fact.serviceId), factId: `fact-${index}`, icon,
       text: `${icon}: ${parts.join(', ')}`, incomplete: text.length > 8192 || Boolean(source.value?.incomplete || source.value?.truncated),
@@ -594,7 +620,11 @@ export async function generateHomeSelection(readings, { choose, previous = [], n
           raw = fitGlance(batch, ranked, readings, now)
         }
         return { batch, raw }
-      })) } catch (error) { controller.abort(error); throw error }
+      })) } catch (error) {
+        controller.abort(error)
+        signal?.throwIfAborted()
+        return fallbackHomeSelection(readings, now)
+      }
       for (const { batch, raw } of selected) {
         if (batches.length === 1) return keepCurrentFacts(compileHomeSelection(raw, batch))
         for (const item of raw.items) for (const selector of item.sources) finalists.push(batch[selector])

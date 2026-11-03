@@ -186,7 +186,7 @@ test('several judgment batches can complete within the shared deadline', async (
   assert.ok(maxActive > 1 && maxActive <= 4)
 })
 
-test('a failed generation batch aborts sibling selections', async () => {
+test('a failed generation batch falls back to local facts', async () => {
   const readings = Array.from({ length: 300 }, (_, index) => source(`source-${index}`, 'mail', { subject: `Fixture ${index}` }))
   let entered, release, calls = 0, siblingAborted = false
   const siblingStarted = new Promise(resolve => { entered = resolve })
@@ -198,8 +198,9 @@ test('a failed generation batch aborts sibling selections', async () => {
   } })
   await siblingStarted
   release()
-  await assert.rejects(pending, /synthetic selector failure/)
-  assert.equal(siblingAborted, true)
+  const result = await pending
+  assert.equal(result.items.length > 0, true, 'a failing selector still yields local facts')
+  assert.equal(siblingAborted, true, 'sibling selection is cancelled')
 })
 
 test('a busy service cannot crowd other services out of scored selection', async () => {
@@ -384,4 +385,24 @@ test('equal scores keep facts in numeric order, not string order', async () => {
     choose: async () => { throw Error('not needed') },
   })
   assert.deepEqual(result.items.flatMap(item => item.readingIds), ['s0', 's1', 's2'])
+})
+
+test('a successful judgment does not call the generation selector', async () => {
+  const readings = [source('weather', 'weather', { temperatureC: 24 })]
+  let calls = 0
+  const result = await generateHomeSelection(readings, {
+    judge: async facts => facts.map(fact => ({ ...fact, attention: 80 })),
+    choose: async () => { calls++; throw Error('selector must not run after judgment') },
+  })
+  assert.equal(calls, 0)
+  assert.equal(result.items[0].readingIds[0], 'weather')
+})
+
+test('a failing generation selector falls back to current local facts', async () => {
+  const readings = [source('weather', 'weather', { temperatureC: 24 })]
+  const result = await generateHomeSelection(readings, {
+    choose: async () => { throw Error('synthetic generation outage') },
+  })
+  const { resolveHomeTemplate } = await import('../src/home-template.mjs')
+  assert.match(resolveHomeTemplate(result, readings).items[0].text, /24°C/)
 })

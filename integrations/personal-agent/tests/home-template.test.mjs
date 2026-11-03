@@ -54,7 +54,7 @@ test('nested verification status and execution flags stay analysis-only', async 
   assert.equal(facts.length, 2)
   assert.ok(facts.every(fact => fact.displayable === false))
   assert.deepEqual(fallbackHomeSelection(readings), { items: [] })
-  await assert.rejects(generateHomeSelection(readings, { choose: async () => ({ items: [{ sources: [0] }] }) }), /analysis-only/i)
+  assert.throws(() => compileHomeSelection({ items: [{ sources: [0] }] }, facts), /analysis-only/i)
 })
 
 test('terminal local and reported states retain meaningful verification without raw absence flags', () => {
@@ -1046,4 +1046,20 @@ test('a greenhouse percentage states its unit once', () => {
   const index = facts.findIndex(fact => fact.factId.endsWith('humidityPercent'))
   const text = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [index] }] }, facts), readings).items[0].text
   assert.equal(text, 'Hydra plants humidity: 66.3%.')
+})
+
+test('Pi sessions are summarized by count and state instead of repeated per-session lines', () => {
+  const readings = [{
+    id: 'odk.app.pi-sessions', label: 'Pi sessions', kind: 'app', state: 'live',
+    value: { sessions: Array.from({ length: 5 }, (_, index) => ({ id: `s${index}`, project: `Project ${index}`, goal: `Goal ${index}`, state: 'running', activity: 'Working' })) },
+    home: { mode: 'optional', priority: 0, icon: 'sessions', fields: ['sessions'] },
+  }]
+  const facts = homeFactVariables(readings)
+  const states = facts.filter(fact => /\.state$/.test(fact.factId))
+  assert.equal(states.length, 5)
+  assert.ok(states.every(fact => fact.displayable === false), 'repeated session states are analysis only')
+  const summary = facts.find(fact => fact.factId.endsWith(':@summary'))
+  assert.ok(summary, 'one aggregate session summary exists')
+  const text = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [facts.indexOf(summary)] }] }, facts), readings).items[0].text
+  assert.equal(text, '5 Pi sessions running.')
 })
