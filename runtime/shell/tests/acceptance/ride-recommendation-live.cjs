@@ -202,33 +202,24 @@ app.whenReady().then(async () => {
   write('proposal.json', { id: proposal.id, advice: proposal.advice, nextStep: proposal.nextStep, ridePreview: proposal.ridePreview })
   await screenshot('ride-recommendation.png')
   feedbackAllowed = true
-  await until(() => evaluate(`(() => {
-    const card = [...document.querySelectorAll('.personal-agent-proposal')].find(node => node.dataset.proposalId === ${JSON.stringify(proposal.id)})
-    const details = card?.querySelector('.personal-agent-proposal-feedback-options')
-    if (!details?.checkVisibility()) return false
-    if (!details.open) details.querySelector('summary').click()
-    return [...card.querySelectorAll('button')].some(node => node.textContent === 'Useful' && !node.disabled && node.checkVisibility())
-  })()`), 'feedback_visible')
-  phase = 'feedback_click'
+  // The message exposes no rating control, so usefulness arrives as a conversational response
+  // on the same authenticated channel the owner turn uses.
+  phase = 'feedback_command'
   await evaluate(`(() => {
     const card = [...document.querySelectorAll('.personal-agent-proposal')].find(node => node.dataset.proposalId === ${JSON.stringify(proposal.id)})
-    const button = [...(card?.querySelectorAll('button') || [])].find(node => node.textContent === 'Useful' && !node.disabled && node.checkVisibility())
-    if (!button) throw Error()
-    button.scrollIntoView({ block: 'center' }); button.click(); return true
+    if (!card?.checkVisibility()) throw Error('Proposal card is not visible')
+    if ([...card.querySelectorAll('button')].some(node => ['Feedback','Useful','Not relevant','Incorrect','Done'].includes(node.textContent))) throw Error('Rating control must not render')
+    return true
   })()`)
+  assert.equal(client.proposalCommand({ type: 'proposal_respond', id: proposal.id, decision: 'useful' }), true, 'feedback_command')
   await until(() => {
     const actual = client.snapshot().proposals?.find(item => item.id === proposal.id)
-    return feedbackCommands.length === 1 && observedFeedback?.frameSequence > feedbackSequence && actual?.status === 'pending' && actual.feedback === 'useful'
+    return observedFeedback?.frameSequence > feedbackSequence && actual?.status === 'pending' && actual.feedback === 'useful'
   }, 'feedback_observed')
-  await until(() => evaluate(`(() => {
-    const card = [...document.querySelectorAll('.personal-agent-proposal')].find(node => node.dataset.proposalId === ${JSON.stringify(proposal.id)})
-    return [...(card?.querySelectorAll('.personal-agent-proposal-feedback') || [])].some(node => node.textContent === 'Marked useful' && node.checkVisibility())
-  })()`), 'feedback_result_visible')
   const feedbackResult = client.snapshot().proposals.find(item => item.id === proposal.id)
-  write('feedback.json', { id: feedbackResult.id, status: feedbackResult.status, feedback: feedbackResult.feedback, commandCount: feedbackCommands.length, submittedFrameSequence: feedbackSequence, observedFrameSequence: observedFeedback.frameSequence, observedAt: new Date().toISOString() })
+  write('feedback.json', { id: feedbackResult.id, status: feedbackResult.status, feedback: feedbackResult.feedback, submittedFrameSequence: feedbackSequence, observedFrameSequence: observedFeedback.frameSequence, observedAt: new Date().toISOString() })
   await screenshot('ride-feedback.png')
   step('feedback_observed')
-  await evaluate(`(() => { const card = [...document.querySelectorAll('.personal-agent-proposal')].find(node => node.dataset.proposalId === ${JSON.stringify(proposal.id)}); const details = card?.querySelector('.personal-agent-proposal-feedback-options'); if (details?.open) details.querySelector('summary').click(); return true })()`)
   phase = 'route_readback'
   await until(() => evaluate('(' + rideRouteVisibility.toString() + ')(' + JSON.stringify(proposal) + ')'), 'route_visible')
   await screenshot('ride-details.png')

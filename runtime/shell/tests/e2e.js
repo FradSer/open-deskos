@@ -980,7 +980,7 @@ async function main() {
   if (homeHandle.error) console.error(`FAIL  Home handle: ${homeHandle.error.message}`)
   const agentReference = runFixture('agent-home.cjs', ['--agent-reference-only'])
   if (agentReference.error) console.error(`FAIL  Agent reference: ${agentReference.error.message}`)
-  const composerRuns=['--composer-input-only','--composer-text-only'].map(flag=>runFixture('agent-home.cjs',[flag]))
+  const composerRuns=['--composer-input-only','--composer-text-only','--slash-menu-only'].map(flag=>runFixture('agent-home.cjs',[flag]))
   for(const result of composerRuns)if(result.error)console.error(`FAIL Agent input: ${result.error.message}`)
   const oneeFlow = runFixture('agent-home.cjs', ['--onee-flow-only'])
   if (oneeFlow.error) console.error(`FAIL  Agent animation flow: ${oneeFlow.error.message}`)

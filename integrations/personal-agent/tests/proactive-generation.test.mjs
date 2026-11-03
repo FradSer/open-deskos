@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ProactiveWatch, validateOwnerConfig } from '../src/proactive.mjs'
 import { generationKey, timeWindow } from '../src/proactive-lifecycle.mjs'
-import { generationInstructions, validateGeneratedBatch, generatedFormatCorrection } from '../src/proactive-generation.mjs'
+import { generationInstructions, validateGeneratedBatch, generatedFormatCorrection, modelInput } from '../src/proactive-generation.mjs'
 
 const stamp = '2026-10-02T10:00:00.000Z'
 const approved = { id: 'inspect', label: 'Inspect the pending item.', tool: 'memory_update', params: { category: 'note', value: 'Inspect pending item' } }
@@ -90,9 +90,11 @@ test('generated Jev requests independently batch grounding and current usefulnes
   } })
   const result = await judge({ candidates: [{ id: 'c0', generated: true, advice: '未被证据支持的建议', evidence: [], goal: '领取物品' }], trigger: { kind: 'heartbeat', readingIds: [] }, context: {}, recent: [] })
   assert.equal(Object.keys(body.questions).length, 3)
-  assert.equal(result.answers.c0.groundingProbability, 0.12)
+  assert.equal(result.answers.c0.supportProbability, 0.12)
+  assert.equal(result.answers.c0.groundingProbability, 0.99)
   assert.ok(!JSON.stringify(body.questions).includes('soil'))
   assert.match(JSON.parse(body.questions.c0.instructions).policy, /For a generated candidate.*nextStep.*concrete, feasible owner action/)
+  assert.doesNotMatch(JSON.stringify(body.questions), /_complementary|complement/)
   assert.match(JSON.parse(body.questions.c0_grounded.instructions).question, /advice.*nextStep/)
   assert.match(JSON.parse(body.questions.c0_unsupported.instructions).question, /advice.*nextStep/)
   assert.doesNotMatch(JSON.stringify(body.questions), /\.reason|generated reason/)
@@ -149,6 +151,14 @@ test('changed observations can notify again after an acknowledged suggestion exp
   await f.watch.close()
 })
 
+test('a generation timeout does not fan out into isolated topic retries', async () => {
+  let calls = 0
+  const f = fixture({ generate: async () => { calls++; throw Object.assign(Error('Suggestion generation timed out'), { code: 'generation_timeout' }) } })
+  await f.watch.tick()
+  assert.equal(calls, 1, 'a timed-out round must not generate four more times')
+  assert.match(f.frames.at(-1).error, /unavailable|失败|暂不可用/i)
+})
+
 test('a topic the round does not judge cannot hold an earlier judgment failure', async () => {
   const c = config()
   c.rules.push({ ...c.rules[0], id: 'other', goal: '关注另一个服务', observations: [{ readingId: 'other.source', fields: ['count'] }] })
@@ -190,11 +200,28 @@ test('judgment audit records cannot export generated key contents', async () => 
   assert.equal(JSON.stringify(audit).includes('owner-alice'), false)
 })
 
+test('a candidate carries every approved observation for its topic', async () => {
+  let input
+  const f = fixture({ judge: async value => { input = value; return { model: 'jev-fixture', answers: Object.fromEntries(value.candidates.map(c => [c.id, { probability: 0.95, groundingProbability: 0.95, threshold: 0.8 }])) } } })
+  await f.watch.tick()
+  const topic = f.requests[0].topics[0]
+  const candidate = input.candidates[0]
+  assert.equal(candidate.evidence.length, topic.evidence.length, 'subset citations must not leave claims unsupported')
+  for (const observation of topic.evidence) assert.ok(candidate.evidence.some(e => e.id === observation.id))
+})
+
 test('Jev receives host observation IDs so generated citations remain resolvable', async () => {
   let input
   const f = fixture({ judge: async value => { input = value; return { model: 'jev-fixture', answers: Object.fromEntries(value.candidates.map(c => [c.id, { probability: 0.95, groundingProbability: 0.95, threshold: 0.8 }])) } } })
   await f.watch.tick()
   for (const c of input.candidates) for (const id of c.evidenceIds) assert.ok(c.evidence.some(e => e.id === id))
+})
+
+test('a conservative all-assertions score cannot veto a claim with no fabrication', async () => {
+  const f = fixture({ judge: async ({ candidates }) => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id,
+    { probability: 0.9, groundingProbability: 0.95, supportProbability: 0.65, unsupportedProbability: 0.05, threshold: 0.8 }])) }) })
+  await f.watch.tick()
+  assert.equal(f.watch.list().filter(p => p.status === 'pending').length, 3, 'supported content publishes despite a conservative conjunction')
 })
 
 test('independent unsupported-assertion veto overrides a falsely high grounding score', async () => {
@@ -309,11 +336,80 @@ test('suggestion schema correction identifies missing advice without disclosing 
   }
 })
 
-test('generation and correction lead with concise advice while retaining stored compatibility', () => {
-  for (const instructions of [generationInstructions, generatedFormatCorrection(new SyntaxError())]) {
-    assert.match(instructions, /one short sentence/)
-    assert.match(instructions, /itemized quotes/)
-    assert.match(instructions, /cited observations/)
+test('one batch judgment is final: no solo reconsideration and no repair round', async () => {
+  const calls = { generate: 0, judge: [] }
+  const candidate = { topicId: 'deliveries', key: 'primary', advice: '领取待取物品。', actionId: 'inspect', evidenceIds: ['e0'] }
+  const f = fixture({
+    generate: async () => { calls.generate++; return { suggestions: [candidate] } },
+    judge: async ({ candidates }) => {
+      calls.judge.push(candidates.map(c => c.id))
+      return { model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id,
+        { probability: 0.9, groundingProbability: 0.9, threshold: 0.8 }])) }
+    },
+  })
+  await f.watch.tick()
+  assert.equal(calls.generate, 1, 'the host generates once, with no repair request')
+  assert.equal(calls.judge.length, 1, 'the host judges once, with no near-miss resample')
+  assert.equal(f.watch.list().filter(p => p.status === 'pending').length, 1, 'a supported batch verdict publishes')
+})
+
+test('a batch judgment with several candidates is not split into solo judgments', async () => {
+  const calls = { judge: [] }
+  const f = fixture({ judge: async ({ candidates }) => {
+    calls.judge.push(candidates.length)
+    return { model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id,
+      { probability: 0.9, groundingProbability: 0.9, threshold: 0.8 }])) }
+  } })
+  await f.watch.tick()
+  assert.deepEqual(calls.judge, [3], 'the whole batch is judged in one request')
+})
+
+test('the format correction reuses the contract instead of repeating it', () => {
+  const correction = generatedFormatCorrection(new SyntaxError('bad json'))
+  // The system prompt already carries the full contract. A retry only needs the
+  // failure, the schema skeleton and the two examples.
+  assert.ok(correction.length < 900, `correction is ${correction.length} chars; the contract must not be repeated`)
+  assert.doesNotMatch(correction, /one short, natural sentence/)
+  assert.doesNotMatch(correction, /The advice and the preview must complement each other/)
+  assert.doesNotMatch(correction, /Use proactive_judge at most once/)
+  for (const label of ['Ordinary example: ', 'Intent preview example: ']) {
+    const line = correction.split('\n').find(row => row.startsWith(label))
+    assert.ok(line, label)
+    assert.ok(JSON.parse(line.slice(label.length)).suggestions[0].advice)
+  }
+  assert.match(generationInstructions, /one short, natural sentence/)
+  assert.match(generationInstructions, /The advice and the preview must complement each other/)
+})
+
+test('model input carries each fact once and omits host bookkeeping', () => {
+  const input = { trigger: { kind: 'heartbeat' }, context: { local: {} }, recent: [], maxCandidates: 8,
+    topics: [{ id: 't1', goal: 'goal', actions: [{ id: 'a', label: 'A' }], urgent: false, delivery: 'immediate',
+      observationKey: 'obs-hash', episodeSequence: 3, cacheKey: 'cache-hash', at: '08:00',
+      evidence: [
+        { id: 'e0', readingId: 'r1', field: 'x', value: 1, state: 'live', measuredAt: stamp, ruleId: 't1' },
+        { id: 'e1', readingId: 'r1', field: 'y', value: 2, state: 'live', measuredAt: stamp, ruleId: 't1' } ] }] }
+  const projected = modelInput(input)
+  const topic = projected.topics[0]
+  for (const hostOnly of ['cacheKey', 'observationKey', 'episodeSequence', 'urgent', 'delivery', 'at'])
+    assert.equal(Object.hasOwn(topic, hostOnly), false, `${hostOnly} is host-only`)
+  assert.equal(topic.state, 'live')
+  assert.equal(topic.measuredAt, stamp)
+  assert.deepEqual(topic.evidence, [
+    { id: 'e0', readingId: 'r1', field: 'x', value: 1 },
+    { id: 'e1', readingId: 'r1', field: 'y', value: 2 } ])
+  assert.equal(JSON.stringify(projected).includes(stamp), true)
+  assert.equal((JSON.stringify(projected).match(new RegExp(stamp, 'g')) || []).length, 1, 'timestamp appears once')
+  assert.equal(JSON.stringify(projected).includes('t1'), true)
+  // The host keeps its full object: validation still resolves actions and evidence ids.
+  assert.equal(input.topics[0].cacheKey, 'cache-hash')
+  assert.equal(input.topics[0].evidence[0].ruleId, 't1')
+})
+
+test('the system contract leads with concise advice while remaining complete', () => {
+  for (const instructions of [generationInstructions]) {
+    assert.match(instructions, /one short, natural sentence/)
+    assert.match(instructions, /The advice and the preview must complement each other/)
+    assert.match(instructions, /cited observation/)
   }
   const topics = [{ id: 'deliveries', actions: [approved], evidence: [{ id: 'e0' }] }]
   const retained = suggestion('retained', '查'.repeat(400))

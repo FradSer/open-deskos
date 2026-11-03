@@ -14,6 +14,9 @@
   font-display: block;
 }
 
+/* The Pixel theme's local SVG filters own no layout box. */
+.odk-svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+
 :root {
   --odk-bg: #000000;
   --odk-surface: #171717;

@@ -670,7 +670,10 @@ The existing reviewed tool allowlist applies. The selected Agent must also suppo
 The optional runtime method `canExecuteProposal(action)` reports current capability. A missing method grants no execution capability.
 A topic without a currently supported approved action does not generate a new executable recommendation.
 An isolated in-memory Durable conversation generates zero or more candidates with the configured model.
-It has no tools, Skills, project context, owner memory, execution environment, or persisted transcript.
+It carries exactly two scoped investigation tools: a read-only reread of a reading this round already cites, and a typed judgment on its own drafts.
+The ephemeral Durable session exposes both tools to the generation model. A previous host configuration cleared model-facing tools before each prompt; the session now preserves capabilities whose callers include the model.
+Reads are bounded per round and never add citable evidence. Judgment calls are bounded and grant no action permission. The host independently re-judges every returned candidate.
+It has no Skills, project context, owner memory, execution environment, or persisted transcript.
 It loads no operator or project extensions.
 `ODK_PROACTIVE_GENERATION_TIMEOUT_MS` defaults to 90000; allowed range is 1000–180000.
 The deadline covers the entire generation lifecycle, including at most one format correction.
@@ -684,6 +687,9 @@ The host binds `nextStep` to the approved action label and retains its exact too
 Advice has at most 400 UTF-16 code units. Action labels have at most 240 UTF-16 code units.
 Trusted Intent preview topics retain their separate read-only `nextStep` format and existing endpoint selection flow.
 Next-step validation rejects control characters, including line breaks, tabs, and DEL, across generation, storage, and display hosts.
+The output contract is declared once in the generation system prompt. A format correction reports only the failure and the two examples; it does not repeat the contract.
+The model-visible input is a projection: host bookkeeping fields stay with the host, and a topic's shared observation state and measurement time appear once on the topic instead of on every row. Validation, investigation tools, and judgment keep the full input.
+A generic preview has at most three item pairs, showing only readings behind the advice. Unrelated observations, technical identifiers, and diagnostics stay in evidence.
 Generation does not request or accept a `reason` field.
 Keep hashes, technical identifiers, tool parameters, and diagnostic values in evidence, outside advice and the next step.
 Advice and next-step validation reject SHA256 labels and hexadecimal values with 32 or more characters.
@@ -692,8 +698,9 @@ The generation format version invalidates old generation caches without changing
 Each candidate receives independent usefulness, factual-support, and unsupported-assertion judgments through the shared typed judgment service.
 Judgment receipts retain the actual `jev-*` or `provider/model` identity across checkpoint reloads.
 Ordinary model probabilities are estimates, not calibrated Jev probabilities.
-Effective support is `min(factualSupport, 1 - unsupportedAssertion)`.
+Factual qualification separates two judgments. `factualSupport` asks whether every assertion is supported, which is deliberately conservative for a sentence with several clauses. `unsupportedAssertion` asks whether any fact is invented or recomputed. The publication gate uses `1 - unsupportedAssertion`; the support value is retained as a separate signal. A conservative conjunction alone cannot veto content with no fabrication, while an identifiable invented fact still does.
 Usefulness and effective support must both meet `ODK_JEV_THRESHOLD`, default 0.8.
+Each candidate is judged independently against its own goal and cited observations in one batch. The host does not resample a near miss or return a draft for repair. Complementarity between advice and preview belongs to the generation instructions, not a separate judgment gate.
 Labels/symbols cannot add attributes; uncited rankings, causes, and aggregates are forbidden.
 Owner preferences do not add facts.
 Retain supported candidates independently of the presentation limit.
@@ -1347,7 +1354,8 @@ The host accepts only successful stop reasons and retains response limits, deadl
 The chat model selector excludes classifiers.
 Disabled Jev sends no startup check. Unavailable Jev falls back to ordinary model judgment.
 
-The composer exposes `/login`, `/model`, and `/thinking` through native selection controls.
+The composer exposes `/login`, `/model`, and `/thinking` through a menu that `/` opens in the text field.
+An exact command in the text field opens the same native selection control.
 Authentication prompts belong to their requesting connection. Secrets never enter public conversation or status records.
 Model and thinking changes require idle state. They apply to Durable and persist native Pi defaults.
 Startup resolves a new Pi session from these defaults. Historical context imports do not replace the configured model.

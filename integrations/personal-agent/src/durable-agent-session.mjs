@@ -189,8 +189,12 @@ export async function createDurableAgentSession(options, { createTarget = create
         emit({ type: 'message_update', message, assistantMessageEvent: { type: 'text_delta' } })
       }
     })
+    // Non-codemode (ephemeral) sessions still expose tools whose capability declares
+    // the model as a caller. Clearing modelTools here hides customTools that
+    // openDurableRuntime already registered, so generation sessions lose their tools.
+    const modelFacing = tools.filter(tool => !tool.callers || tool.callers.includes('model'))
     const configureTools = () => runtime.conversation.configure({ tools: [...activeTools].map(name => ({ name })),
-      modelTools: codeMode ? [...activeTools].map(name => ({ name })) : [] }, context)
+      modelTools: codeMode ? [...activeTools].map(name => ({ name })) : modelFacing.filter(tool => activeTools.has(tool.name)).map(tool => ({ name: tool.name })) }, context)
     return { session: {
       get model() { return model }, runtime,
       getThinkingLevel() { return thinkingLevel },

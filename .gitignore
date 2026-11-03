@@ -608,3 +608,6 @@ runtime/android/local.properties
 
 # Local package-manager cache.
 /.pnpm-store/
+
+# Capture evidence is disposable; regenerate it with runtime/shell/scripts/capture-agent-states.cjs.
+/screenshots/

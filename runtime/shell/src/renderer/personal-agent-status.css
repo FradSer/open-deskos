@@ -11,7 +11,11 @@
   touch-action: pan-y;
   background: transparent;
   color: var(--odk-primary);
-  font-size: clamp(18px, 1.25vw, 24px);
+  /* The overlay shares the Agent text scale; its title is a relative step, not a fourth size. */
+  --agent-text-heading: clamp(20px, calc(18px + 0.65cqw), 24px);
+  --agent-text-body: 17px;
+  --agent-text-label: 14px;
+  font-size: var(--agent-text-heading);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -96,7 +100,7 @@
 
 .personal-agent-status-title,
 .personal-agent-status-transcript {
-  font-size: clamp(24px, 1.67vw, 32px);
+  font-size: 1.33em;
   font-weight: 400;
   line-height: 1.5;
 }
@@ -236,43 +240,105 @@
   to { transform: translateX(310%); }
 }
 
-.agent-suggestions { min-width: 0; max-block-size: min(38vh, 24rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-inline: var(--odk-space-2); }
-.agent-suggestions[hidden] { display: none; }
-.agent-suggestions .personal-agent-proposals { display: grid; gap: var(--odk-space-2); }
-.personal-agent-proposals-header { display: flex; align-items: center; justify-content: space-between; gap: var(--odk-space-2); }
-.personal-agent-proposals-header h2 { font-size: 1em; font-weight: 400; margin: 0; }
-.personal-agent-proposal { display: grid; gap: var(--odk-space-3); border-top: 1px solid var(--odk-stroke); padding-top: var(--odk-space-3); }
+.agent-recommendation .personal-agent-proposals { min-width: 0; }
+/* An action button is a sibling of the preview card, not a nested surface.
+   It shares the card radius so the two corners stay tangent at that level.
+   Controls outside a recommendation keep the independent control token. */
+.agent-recommendation .personal-agent-proposals button { border-radius: var(--agent-radius-card); }
+/* One 17px reading size for every visible text inside a recommendation bubble.
+   iOS-style hierarchy comes from weight and colour, not a second size. Scoped so
+   other conversation messages and the nonmodal panel retain their own scale. */
+.agent-recommendation .agent-message-bubble,
+.agent-recommendation .agent-message-body,
+.agent-recommendation .personal-agent-proposal,
+.agent-recommendation .personal-agent-proposal-advice,
+.agent-recommendation .personal-agent-proposal-state,
+.agent-recommendation .personal-agent-proposal-evidence,
+.agent-recommendation .personal-agent-proposal-capability,
+.agent-recommendation .personal-agent-proposal-note,
+.agent-recommendation .personal-agent-proposal-error,
+.agent-recommendation .personal-agent-proposal-request-status,
+.agent-recommendation .personal-agent-proposal-result,
+.agent-recommendation .personal-agent-proposal-next,
+.agent-recommendation .personal-agent-proposal-next-label,
+.agent-recommendation .personal-agent-proposal-next-step,
+.agent-recommendation .personal-agent-preview-card,
+.agent-recommendation .personal-agent-preview-summary,
+.agent-recommendation .personal-agent-preview-chip,
+.agent-recommendation .personal-agent-preview-label,
+.agent-recommendation .personal-agent-preview-value,
+.agent-recommendation .personal-agent-preview-notice,
+.agent-recommendation .personal-agent-preview-fields,
+.agent-recommendation .personal-agent-preview-fields label,
+.agent-recommendation .personal-agent-preview-fields select,
+.agent-recommendation .personal-agent-proposals button,
+.agent-recommendation .personal-agent-proposals .personal-agent-proposal-primary { font-size: var(--agent-text-body); }
+/* Advice leads by weight; the Pixel theme keeps its single weight by order and colour. */
+.agent-recommendation .personal-agent-proposal-advice { font-weight: 500; }
+/* The advice is the only leading line. A preview summary names what the items
+   show, so it sits at the supporting label colour; chips keep one reading size
+   and hold each label/value pair on one line. */
+.agent-recommendation .personal-agent-preview-summary { font-weight: 400; color: var(--odk-secondary-strong); text-wrap: pretty; }
+.agent-recommendation .personal-agent-preview-chip { padding: 8px 12px; gap: var(--agent-gap-inline); align-items: center; }
+.agent-recommendation .personal-agent-preview-value { white-space: nowrap; }
+.agent-recommendation .personal-agent-preview-label { text-wrap: pretty; }
+.personal-agent-proposal { display: grid; gap: var(--agent-gap-block); min-width: 0; white-space: normal; }
 .personal-agent-proposal p { margin: 0; }
-.personal-agent-proposal-state, .personal-agent-proposal-evidence { color: var(--odk-secondary-strong); font-size: 14px; font-variant-numeric: tabular-nums; }
-.personal-agent-proposal-actions { display: flex; flex-wrap: wrap; gap: var(--odk-space-2); }
-.personal-agent-proposals button { min-height: 44px; padding: var(--odk-space-2); border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: 14px; white-space: normal; overflow-wrap: anywhere; text-align: start; }
+.personal-agent-proposal-state, .personal-agent-proposal-evidence { color: var(--odk-secondary-strong); font-size: var(--agent-text-label); font-variant-numeric: tabular-nums; }
+.personal-agent-proposal-actions { display: flex; flex-wrap: wrap; gap: var(--agent-gap-inline); align-items: center; }
+.personal-agent-proposals button { min-height: 44px; padding: var(--odk-space-2) var(--odk-space-3); border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-control); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: var(--agent-text-label); white-space: normal; overflow-wrap: anywhere; text-align: start; cursor: pointer; }
 .personal-agent-proposals button:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 .personal-agent-proposals button:disabled { color: var(--odk-secondary-strong); }
 
-.personal-agent-ride-route { display: grid; gap: 12px; }
+/* Generic structured preview primitives for generative agent content */
+.personal-agent-preview-card,
+.personal-agent-ride-card { display: grid; gap: var(--agent-gap-block); padding: var(--agent-pad-card); background: color-mix(in srgb, var(--odk-elevated) 65%, transparent); border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-card); margin-block: 2px; }
+.personal-agent-preview-summary,
+.personal-agent-ride-route-display { margin: 0; font-size: var(--agent-text-body); font-weight: 500; line-height: var(--agent-line-body); color: var(--odk-primary); overflow-wrap: anywhere; }
+.personal-agent-preview-chips,
+.personal-agent-ride-items { display: flex; flex-wrap: wrap; gap: var(--agent-gap-inline); }
+.personal-agent-preview-chip,
+.personal-agent-ride-item { display: inline-flex; align-items: baseline; gap: var(--agent-gap-chip); padding: 6px 10px; background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-chip); font-size: var(--agent-text-label); line-height: var(--agent-line-body); }
+.personal-agent-preview-label,
+.personal-agent-ride-product { color: var(--odk-secondary-strong); }
+.personal-agent-preview-value,
+.personal-agent-ride-price { color: var(--odk-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Optional change-of-state emphasis. The label keeps the meaning when color is unavailable. */
+.personal-agent-preview-chip[data-tone='warn'] .personal-agent-preview-value,
+.personal-agent-ride-item[data-tone='warn'] .personal-agent-ride-price { color: var(--odk-accent-red); }
+.personal-agent-preview-chip[data-tone='good'] .personal-agent-preview-value,
+.personal-agent-ride-item[data-tone='good'] .personal-agent-ride-price { color: var(--odk-accent-green); }
+/* A neutral tone keeps the default value color; only warn and good carry a hue. */
+.personal-agent-preview-notes,
+.personal-agent-ride-notes { display: grid; gap: 2px; }
+.personal-agent-preview-notice,
+.personal-agent-ride-note,
+.personal-agent-ride-sandbox { margin: 0; font-size: var(--agent-text-label); line-height: var(--agent-line-body); color: var(--odk-secondary); }
+
+.personal-agent-preview-fields,
+.personal-agent-ride-route { display: grid; gap: var(--agent-gap-block); padding: var(--agent-pad-card); background: color-mix(in srgb, var(--odk-elevated) 45%, transparent); border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-inset); margin-block: 4px; }
+.personal-agent-preview-fields[hidden],
 .personal-agent-ride-route[hidden] { display: none; }
-.personal-agent-ride-route label { display: grid; gap: 8px; font-size: 14px; color: var(--odk-secondary-strong); }
-.personal-agent-ride-route select { min-height: 44px; width: 100%; min-width: 0; max-width: 100%; font: inherit; color: var(--odk-primary); background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: 8px; }
+.personal-agent-preview-fields label,
+.personal-agent-ride-route label { display: grid; gap: 4px; font-size: var(--agent-text-label); color: var(--odk-secondary-strong); }
+.personal-agent-preview-fields select,
+.personal-agent-ride-route select { min-height: 44px; width: 100%; min-width: 0; max-width: 100%; font: inherit; font-size: var(--agent-text-label); color: var(--odk-primary); background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-inset); padding: 6px 10px; }
+.personal-agent-preview-fields select:focus-visible,
 .personal-agent-ride-route select:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 
-.personal-agent-proposal-advice { min-width: 0; overflow-wrap: anywhere; font-size: clamp(20px, 1.5vw, 24px); line-height: 1.5; color: var(--odk-primary); }
+.personal-agent-proposal-advice { min-width: 0; overflow-wrap: anywhere; font-size: var(--agent-text-heading); line-height: var(--agent-line-body); color: var(--odk-primary); }
 .personal-agent-proposal-advice[data-long='true'] { max-block-size: min(12rem, 30vh); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-inline-end: var(--odk-space-2); }
 .personal-agent-proposal-advice:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 .personal-agent-ride-actions .personal-agent-proposal-primary { min-width: min(100%, 220px); justify-content: center; text-align: center; }
-.personal-agent-proposal-request-status { color: var(--odk-secondary-strong); font-size: 14px; line-height: 1.5; }
+.personal-agent-proposal-request-status { color: var(--odk-secondary-strong); font-size: var(--agent-text-label); line-height: var(--agent-line-body); margin: 0; }
 .personal-agent-proposal-request-status:empty { display: none; }
-.personal-agent-proposal-next { display: grid; gap: var(--odk-space-1); }
-.personal-agent-proposal-next-label { font-size: 12px; color: var(--odk-secondary-strong); }
-.personal-agent-proposal-next-step { font-size: 16px; line-height: 1.5; color: var(--odk-primary); }
-.personal-agent-proposals .personal-agent-proposal-primary { min-height: 48px; padding-inline: var(--odk-space-3); font-size: 16px; background: var(--odk-button); border-color: var(--odk-stroke-focus); }
+.personal-agent-proposal-next { display: grid; gap: var(--agent-gap-chip); padding: var(--agent-pad-card); background: color-mix(in srgb, var(--odk-elevated) 40%, transparent); border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-card); }
+.personal-agent-proposal-next-label { font-size: var(--agent-text-label); line-height: var(--agent-line-body); color: var(--odk-secondary-strong); margin: 0; }
+.personal-agent-proposal-next-step { font-size: var(--agent-text-body); line-height: var(--agent-line-body); color: var(--odk-primary); margin: 0; }
+.personal-agent-proposals .personal-agent-proposal-primary { min-height: 48px; padding-inline: var(--odk-space-3); font-size: var(--agent-text-heading); background: var(--odk-button); border-color: var(--odk-stroke-focus); }
 .personal-agent-proposals .personal-agent-proposal-secondary { background: transparent; border-color: transparent; color: var(--odk-secondary-strong); }
-.personal-agent-proposal-feedback, .personal-agent-proposal-capability { color: var(--odk-secondary-strong); font-size: 14px; }
-.personal-agent-proposals details { min-width: 0; }
-.personal-agent-proposals summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--odk-secondary-strong); font-size: 14px; text-decoration: underline; text-underline-offset: 0.2em; }
-.personal-agent-proposals summary:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
-.personal-agent-proposals details[open] > summary { margin-block-end: var(--odk-space-2); }
-.personal-agent-proposal-history > .personal-agent-proposal { margin-block-start: var(--odk-space-3); }
-
-.agent-composer .personal-agent-proposals button { width: auto; height: auto; min-width: 44px; padding: var(--odk-space-2) var(--odk-space-3); }
-.agent-composer .personal-agent-proposal-advice { font-size: 18px; }
-.agent-suggestions .personal-agent-proposal { border-top: 0; padding-block: var(--odk-space-2); }
+.personal-agent-proposal-capability { color: var(--odk-secondary-strong); font-size: var(--agent-text-label); margin: 0; }
+.personal-agent-proposal-result { margin: 0; font-size: var(--agent-text-body); line-height: var(--agent-line-body); color: var(--odk-primary); padding: var(--agent-pad-card); background: color-mix(in srgb, var(--odk-elevated) 50%, transparent); border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-card); }
+.personal-agent-proposal-note { margin: 0; font-size: var(--agent-text-label); line-height: var(--agent-line-body); color: var(--odk-secondary-strong); }
+.personal-agent-proposal-error { margin: 0; font-size: var(--agent-text-label); line-height: var(--agent-line-body); color: var(--odk-accent-red); }
+.agent-recommendation .personal-agent-proposals button { width: auto; height: auto; min-width: 44px; padding: var(--odk-space-2) var(--odk-space-3); }

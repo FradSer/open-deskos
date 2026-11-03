@@ -861,7 +861,7 @@ app.whenReady().then(async () => {
   if(process.argv.includes('--pi-config-only')) {
     await evaluate(`document.querySelector('.agent-keys').click()`)
     for(const mode of ['login','model','thinking']) {
-      await evaluate(`(()=>{const select=document.querySelector('.agent-pi-command');select.value='${mode}';select.dispatchEvent(new Event('change'))})()`)
+      await evaluate(`(()=>{const input=document.querySelector('.agent-composer textarea');input.value='/';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.agent-command-option[data-command="${mode}"]').click()})()`)
       await evaluate('new Promise(r=>setTimeout(r,80))')
       assert.equal(await evaluate(`document.querySelector('.agent-pi-form').hidden`),false)
       assert.equal(await evaluate(`document.querySelector('.agent-pi-choice').getAttribute('aria-label')`),mode==='login'?'Provider':mode==='model'?'Model':'Thinking level')
@@ -882,7 +882,7 @@ app.whenReady().then(async () => {
       await evaluate(`document.documentElement.dataset.theme='${theme}'`)
       for(const [w,h] of [[1920,1280],[480,854],[320,480]]) {
         await resize(w,h);await evaluate('document.fonts.ready')
-        await evaluate(`(()=>{const select=document.querySelector('.agent-pi-command');select.value='model';select.dispatchEvent(new Event('change'))})()`)
+        await evaluate(`(()=>{const input=document.querySelector('.agent-composer textarea');input.value='/';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.agent-command-option[data-command="model"]').click()})()`)
         await evaluate('new Promise(r=>setTimeout(r,80))')
         const bounds=await evaluate(`(()=>{const r=document.querySelector('.agent-pi-form').getBoundingClientRect(),s=document.querySelector('.agent-pi-choice').getBoundingClientRect();return {width:r.width,left:r.left,right:r.right,choice:s.height,viewport:innerWidth}})()`)
         assert(bounds.left>=0 && bounds.right<=bounds.viewport+1 && bounds.width>0,JSON.stringify(bounds));assert(bounds.choice>=44)
@@ -890,10 +890,52 @@ app.whenReady().then(async () => {
       }
     }
     await resize(480,854)
-    await evaluate(`(()=>{const select=document.querySelector('.agent-pi-command');select.value='model';select.dispatchEvent(new Event('change'))})()`)
+    await evaluate(`(()=>{const input=document.querySelector('.agent-composer textarea');input.value='/';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.agent-command-option[data-command="model"]').click()})()`)
     await evaluate('new Promise(r=>setTimeout(r,100))')
     fs.writeFileSync(path.join(os.tmpdir(),'odk-pi-config.png'),await capturePaintedFrame())
     console.log('PI_CONFIG_UI_PASS');finish(0);return
+  }
+  if (process.argv.includes('--slash-menu-only')) {
+    await evaluate(`document.querySelector('.agent-keys').click()`)
+    const type = value => evaluate(`(()=>{const input=document.querySelector('.agent-composer textarea');input.value=${JSON.stringify(value)};input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
+    const shown = `document.querySelectorAll('.agent-command-option:not([hidden])').length`
+    assert.equal(await evaluate(`document.querySelector('.agent-command-toggle')`), null, 'no command button remains in the composer')
+    await type('Draft: check the desk state')
+    assert.equal(await evaluate(`document.querySelector('.agent-command-popup').hidden`), true, 'ordinary text never opens the menu')
+    await type('/')
+    assert.equal(await evaluate(`document.querySelector('.agent-command-popup').hidden`),false)
+    assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').getAttribute('aria-expanded')`),'true')
+    assert.equal(await evaluate(shown),3)
+    await type('/mo')
+    assert.equal(await evaluate(`document.querySelector('.agent-command-option[data-command="model"]').hidden`),false)
+    assert.equal(await evaluate(shown),1)
+    for(const theme of ['instrument','pixel','border-beam','liquid-glass']) {
+      await evaluate(`document.documentElement.dataset.theme='${theme}'`)
+      for(const [w,h] of [[1920,1280],[480,854],[320,480]]) {
+        await resize(w,h);await evaluate('document.fonts.ready')
+        const bounds=await evaluate(`(()=>{const p=document.querySelector('.agent-command-popup').getBoundingClientRect(),c=document.querySelector('.agent-composer').getBoundingClientRect(),o=document.querySelector('.agent-command-option:not([hidden])').getBoundingClientRect();return {left:p.left,right:p.right,top:p.top,bottom:p.bottom,above:p.bottom<=c.top+1,touch:o.height,viewport:innerWidth}})()`)
+        assert(bounds.left>=0&&bounds.right<=bounds.viewport+1&&bounds.top>=0&&bounds.above&&bounds.touch>=44,theme+' '+w+': '+JSON.stringify(bounds))
+      }
+    }
+    await evaluate(`document.documentElement.dataset.theme='instrument'`)
+    await type('/zz')
+    assert.equal(await evaluate(`document.querySelector('.agent-command-empty').hidden`),false)
+    assert.equal(await evaluate(shown),0)
+    await type('/')
+    await evaluate(`(()=>{const input=document.querySelector('.agent-composer textarea');input.focus();input.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))})()`)
+    assert.equal(await evaluate(`document.querySelector('.agent-command-popup').hidden`),true)
+    assert.equal(await evaluate(`document.activeElement===document.querySelector('.agent-composer textarea')`),true)
+    await type('/')
+    assert.equal(await evaluate(shown),3, 'only a typed slash opens the menu')
+    await evaluate(`document.querySelector('.agent-command-option[data-command="thinking"]').click()`)
+    assert.equal(await evaluate(`document.querySelector('.agent-pi-form').hidden`),false)
+    const choice=await evaluate(`(()=>{const n=document.querySelector('.agent-pi-choice'),s=getComputedStyle(n);return {label:n.getAttribute('aria-label'),appearance:s.appearance,height:n.getBoundingClientRect().height,options:[...n.options].map(o=>o.textContent)}})()`)
+    assert.equal(choice.label,'Thinking level')
+    assert.equal(choice.appearance,'none','the choice field carries no browser dropdown arrow')
+    assert(choice.height>=44,JSON.stringify(choice))
+    assert.deepEqual(choice.options,['Off','Low'],JSON.stringify(choice))
+    assert.equal(await evaluate(`document.querySelector('.agent-command-popup').hidden`),true)
+    console.log('SLASH_MENU_PASS');finish(0);return
   }
   if (process.argv.includes('--short-history-only')) {
     await resize(1920,5000)
@@ -1056,7 +1098,7 @@ app.whenReady().then(async () => {
     publishStatus(final);publishStatus(final);await evaluate('new Promise(r=>setTimeout(r,30))')
     assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user').length`),3,'durable replies share the central owner identity')
     assert.equal(await evaluate(`document.querySelectorAll('[data-reply-id="${third}"]').length`),1)
-    assert.match(await evaluate(`document.querySelector('[data-reply-id="${third}"]').textContent`),/Delivery not confirmed/)
+    assert.match(await evaluate(`document.querySelector('[data-reply-id="${third}"]').textContent`),/Delivery is unconfirmed/)
     assert.equal(await evaluate(`document.querySelector('textarea').value`),'Unsent local draft')
     const interrupted='44444444-4444-4444-8444-444444444444'
     publishStatus({state:'thinking',ownerTurnId:interrupted,transcript:'Synthetic interrupted live turn',message:'Synthetic unfinished draft',conversation:final.conversation});await evaluate('new Promise(r=>setTimeout(r,20))')
@@ -1133,7 +1175,7 @@ app.whenReady().then(async () => {
     assert.equal(rows.owners,1,'AI-selected durable reply must not duplicate the original owner bubble')
     assert.equal(rows.answerThread,source.threadId,'AI-selected answer belongs to the durable session thread')
     assert.equal(await evaluate(`document.querySelector('[data-reply-id="${queued.id}"]')===unboundOwner && [...document.querySelectorAll('.agent-message-assistant')].find(n=>n.querySelector('.agent-message-body')?.textContent===${JSON.stringify(answer)})===unboundAnswer`),true,'binding reuses both original nodes')
-    assert.match(await evaluate(`document.querySelector('[data-reply-id="${queued.id}"] .agent-reply-status').textContent`),/Delivery not confirmed/,'an answer does not upgrade unknown transport delivery')
+    assert.match(await evaluate(`document.querySelector('[data-reply-id="${queued.id}"] .agent-reply-status').textContent`),/Delivery is unconfirmed/,'an answer does not upgrade unknown transport delivery')
     const secondId='22222222-2222-4222-8222-222222222222',second={...queued,id:secondId,at:3000,status:'answered',answer:'Synthetic second answer'}
     publishStatus({...initial,ownerTurnId:secondId,remote:{...remote,replies:[{...queued,status:'unknown',answer}]}});await evaluate('new Promise(r=>setTimeout(r,20))')
     const final={...initial,state:'idle',ownerTurnId:secondId,replyTo:second.replyTo,threadId:source.threadId,message:second.answer,remote:{...remote,replies:[second,{...queued,status:'unknown',answer}]}}
@@ -1166,11 +1208,13 @@ app.whenReady().then(async () => {
       const gutter=await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),r=c.getBoundingClientRect();return{x:Math.floor(r.right-6),y:Math.ceil(r.top),width:6,height:Math.floor(r.height)-1}})()`)
       const activeThumb=(await capturePaintedPage(win, gutter)).toBitmap()
       if(evidence&&[1920,320].includes(width))fs.writeFileSync(path.join(evidence,`scroll-overlay-${theme}-${width}-scrolling.png`),(await capturePaintedPage(win)).toPNG(),{mode:0o600})
-      await evaluate(`(async()=>{const c=document.querySelector('.agent-conversation'),end=performance.now()+1200;while(c.dataset.scrolling==='true'){if(performance.now()>end)throw Error('Scrollbar idle did not settle');await new Promise(r=>setTimeout(r,20))}await new Promise(r=>setTimeout(r,60))})()`)
-      const fading=await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`)
-      assert.notEqual(fading,'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)','the scrollbar fades instead of disappearing immediately')
-      await evaluate(`new Promise(r=>setTimeout(r,160))`)
-      assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`),'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)','idle scrollbar fades to transparent')
+      // A fade is a transition, not a jump cut. Sampling a mid-transition frame is timing
+      // dependent, so assert the declared transition and the settled end state instead.
+      const fadeSpec=await evaluate(`(()=>{const s=getComputedStyle(document.querySelector('.agent-conversation'));return{property:s.transitionProperty,duration:s.transitionDuration}})()`)
+      assert.match(fadeSpec.property,/scrollbar-color/,'the scrollbar fades instead of disappearing immediately')
+      assert.ok(parseFloat(fadeSpec.duration)>0,'the scrollbar fade has a non-zero duration')
+      await evaluate(`(async()=>{const c=document.querySelector('.agent-conversation'),end=performance.now()+2000;while(c.dataset.scrolling==='true'){if(performance.now()>end)throw Error('Scrollbar idle did not settle');await new Promise(r=>setTimeout(r,20))}while(getComputedStyle(c).scrollbarColor!=='rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)'){if(performance.now()>end)throw Error('Scrollbar did not settle to transparent: '+getComputedStyle(c).scrollbarColor);await new Promise(r=>setTimeout(r,20))}})()`)
+      assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`),'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)','idle scrollbar settles to transparent')
       const idleThumb=(await capturePaintedPage(win, gutter)).toBitmap()
       let changed=0;for(let p=0;p<activeThumb.length;p+=4)if(activeThumb[p]!==idleThumb[p]||activeThumb[p+1]!==idleThumb[p+1]||activeThumb[p+2]!==idleThumb[p+2])changed++
       assert.ok(changed>=8,'the actual painted native thumb changes between scrolling and idle: '+JSON.stringify({theme,width,changed}))
@@ -1326,11 +1370,11 @@ app.whenReady().then(async () => {
         await resize(width,height)
         await evaluate(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));await document.fonts.ready;await new Promise(r=>setTimeout(r,100))})()`)
         const layout=await evaluate(`(()=>{
-          const inputRow=document.querySelector('.agent-input-row').getBoundingClientRect(),piCommand=document.querySelector('.agent-pi-command').getBoundingClientRect(),avatar=document.querySelector('.agent-avatar').getBoundingClientRect(),identity=document.querySelector('.agent-identity'),pill=identity.querySelector('.agent-capsule').getBoundingClientRect(),panel=document.querySelector('.agent-panel').getBoundingClientRect(),conversation=document.querySelector('.agent-conversation').getBoundingClientRect(),composer=document.querySelector('.agent-composer').getBoundingClientRect();
+          const inputRow=document.querySelector('.agent-input-row').getBoundingClientRect(),noToggle=!document.querySelector('.agent-command-toggle'),avatar=document.querySelector('.agent-avatar').getBoundingClientRect(),identity=document.querySelector('.agent-identity'),pill=identity.querySelector('.agent-capsule').getBoundingClientRect(),panel=document.querySelector('.agent-panel').getBoundingClientRect(),conversation=document.querySelector('.agent-conversation').getBoundingClientRect(),composer=document.querySelector('.agent-composer').getBoundingClientRect();
           const head=document.querySelector('.agent-head'),headStyle=getComputedStyle(head),headBounds=head.getBoundingClientRect();
           const onee=document.querySelector('.agent-avatar .bs-avatar svg'),pillStyle=getComputedStyle(identity.querySelector('.agent-capsule'));
           const bounds=onee.getBBox(),matrix=onee.getScreenCTM(),artTop=new DOMPoint(bounds.x,bounds.y).matrixTransform(matrix).y,artBottom=new DOMPoint(bounds.x,bounds.y+bounds.height).matrixTransform(matrix).y;
-          return {visibleTop:Math.abs(artTop-conversation.top)<=6,artSize:Math.abs(onee.getBoundingClientRect().height-avatar.width)<1,unclipped:getComputedStyle(document.querySelector('.agent-avatar')).overflow==='visible',visibleOverlap:artBottom>pill.top&&artBottom-pill.top<avatar.height*0.25,onee:!!onee&&onee.getAttribute('viewBox')==='-150 -150 300 300'&&onee.querySelectorAll('path[d]').length>=4,sharedCapsule:(pillStyle.backgroundColor!=='rgba(0, 0, 0, 0)'||pillStyle.backgroundImage!=='none')&&pillStyle.borderTopWidth==='1px'&&identity.querySelector('.agent-capsule').contains(document.querySelector('.agent-state')), centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,topAligned:Math.abs(avatar.top-conversation.top)<1,overlap:avatar.bottom-pill.top>=avatar.height*0.12&&avatar.bottom-pill.top<=avatar.height*0.2,transparent:headStyle.backgroundColor==='rgba(0, 0, 0, 0)'&&headStyle.backgroundImage==='none'&&headStyle.backdropFilter==='none',underlay:conversation.top<=headBounds.top&&conversation.bottom>headBounds.bottom,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&inputRow.width>=panel.width-45&&composer.left>=piCommand.right&&composer.width>=120&&piCommand.height>=44&&piCommand.width>=44,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
+          return {visibleTop:Math.abs(artTop-conversation.top)<=6,artSize:Math.abs(onee.getBoundingClientRect().height-avatar.width)<1,unclipped:getComputedStyle(document.querySelector('.agent-avatar')).overflow==='visible',visibleOverlap:artBottom>pill.top&&artBottom-pill.top<avatar.height*0.25,onee:!!onee&&onee.getAttribute('viewBox')==='-150 -150 300 300'&&onee.querySelectorAll('path[d]').length>=4,sharedCapsule:(pillStyle.backgroundColor!=='rgba(0, 0, 0, 0)'||pillStyle.backgroundImage!=='none')&&pillStyle.borderTopWidth==='1px'&&identity.querySelector('.agent-capsule').contains(document.querySelector('.agent-state')), centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,topAligned:Math.abs(avatar.top-conversation.top)<1,overlap:avatar.bottom-pill.top>=avatar.height*0.12&&avatar.bottom-pill.top<=avatar.height*0.2,transparent:headStyle.backgroundColor==='rgba(0, 0, 0, 0)'&&headStyle.backgroundImage==='none'&&headStyle.backdropFilter==='none',underlay:conversation.top<=headBounds.top&&conversation.bottom>headBounds.bottom,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&inputRow.width>=panel.width-45&&composer.width>=panel.width-45&&noToggle,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
         })()`)
         for(const [name,ok] of Object.entries(layout))if(!ok)failures.push(theme+' '+width+': '+name)
       }
@@ -1384,7 +1428,7 @@ app.whenReady().then(async () => {
     }
     await resize(1280,800)
     await evaluate(personalAgentIdentityScript('Personal Agent'))
-    const errorDetail='Suggestions unavailable: private proposal state could not be saved. No proposal action will run.'
+    const errorDetail='Updates unavailable: private proposal state could not be saved. No proposal action will run.'
     publishStatus({state:'idle',proposalError:errorDetail})
     await evaluate('new Promise(r=>setTimeout(r,40))')
     const statusLayout=await evaluate(`(()=>{const summary=document.querySelector('.agent-identity .agent-capsule');return {height:summary.getBoundingClientRect().height,label:summary.getAttribute('aria-label'),name:document.querySelector('.agent-name').textContent,status:document.querySelector('.agent-state').textContent,detail:document.querySelector('.agent-status-detail')?.textContent}})()`)

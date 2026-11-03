@@ -13,6 +13,7 @@ const TOKEN_BYTES = 32
 // A handshake is one short line. The cap is what stops a peer that never sends
 // a newline from holding a connection open forever.
 const MAX_HANDSHAKE_BYTES = 512
+const MAX_FRAME_BYTES = 64 * 1024
 const HANDSHAKE_TIMEOUT_MS = 1000
 const PROBE_TIMEOUT_MS = 1000
 
@@ -285,12 +286,15 @@ async function listenChannel({
 
     const onData = (chunk) => {
       buffer = Buffer.concat([buffer, chunk])
+      if (!tokenRequired && buffer.length > MAX_FRAME_BYTES * 4) {
+        return reject('frame-too-large')
+      }
       const newline = buffer.indexOf(0x0a)
       if (newline === -1) {
         // The cap bounds a peer that never completes a line. A Unix channel may
         // still receive a multi-kilobyte protocol frame because ownership already
         // authenticates it; token-required channels cap a complete auth line below.
-        if (buffer.length > MAX_HANDSHAKE_BYTES) return reject('handshake-too-large')
+        if (tokenRequired && buffer.length > MAX_HANDSHAKE_BYTES) return reject('handshake-too-large')
         return
       }
       // The remainder belongs to the protocol, so only the authentication line

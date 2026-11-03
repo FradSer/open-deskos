@@ -4,6 +4,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
 const path = require('node:path')
+const { normalizeAntigravityQuota, normalizeCodexQuota } = require('../src/opencode-go')
 const source = fs.readFileSync(path.join(__dirname, '../src/renderer/plugins/quota-page.js'), 'utf8')
 
 function mount(status, refresh = () => Promise.resolve()) {
@@ -50,8 +51,8 @@ test('Widget cycles account identity together with its quota every six seconds',
   assert.equal(tile.text('.quota-tile-account'), 'fradser@gmail.com')
 })
 
-test('Codex Pro hides 5h while Plus and Antigravity retain both windows', async () => {
-  for (const [provider, plan, shortVisible] of [['codex', 'Pro', false], ['codex', 'Plus', true], ['antigravity', 'Pro', true]]) {
+test('Codex Pro hides 5h while Plus, Team, and Antigravity retain both windows', async () => {
+  for (const [provider, plan, shortVisible] of [['codex', 'Pro', false], ['codex', 'Plus', true], ['codex', 'Team', true], ['antigravity', 'Pro', true]]) {
     const item = { ...account(58), provider, plan, account: 'fradser@gmail.com' }
     item.groups[0].quotas.push({ label: '5 hour limit', horizon: 'short', remainingPct: 86 })
     const status = { state: 'available', snapshot: { accounts: [item] } }
@@ -62,6 +63,36 @@ test('Codex Pro hides 5h while Plus and Antigravity retain both windows', async 
     const tile = mountTile(status)
     assert.equal(tile.text('.quota-tile-secondary').includes('5h'), shortVisible)
   }
+})
+
+test('Antigravity model groups display the 5h and weekly windows the provider reports', async () => {
+  const antigravity = normalizeAntigravityQuota({ name: 'antigravity.json', email: 'me@example.test' }, {
+    subscription: { plan: 'Google AI Pro' },
+    groups: [{ displayName: 'Gemini models', buckets: [
+      { displayName: 'Five Hour Limit Remaining', window: '5h', remainingFraction: 0.85 },
+      { displayName: 'Weekly Limit Remaining', window: 'weekly', remainingFraction: 0.6 },
+    ] }],
+  })
+  const status = { state: 'available', snapshot: { accounts: [antigravity] } }
+  const page = mount(status); await page.settle()
+  const html = page.nodes.get('#quota-metrics').innerHTML
+  assert.match(html, /Five Hour Limit Remaining/)
+  assert.match(html, /Weekly Limit Remaining/)
+  assert.equal((html.match(/class="provider-quota-row"/g) || []).length, 2)
+  assert.doesNotMatch(html, /provider-quota-value is-unknown/)
+  const tile = mountTile(status)
+  assert.equal(tile.text('.quota-tile-secondary'), '5h · 85% remaining')
+})
+
+test('a Codex Pro response keeps its weekly allowance in the App', async () => {
+  const pro = normalizeCodexQuota({ name: 'pro.json', email: 'me@example.test' }, {
+    plan_type: 'pro',
+    rate_limit: { primary_window: { used_percent: 30 } },
+  })
+  const page = mount({ state: 'available', snapshot: { accounts: [pro] } }); await page.settle()
+  const html = page.nodes.get('#quota-metrics').innerHTML
+  assert.match(html, /Weekly limit/)
+  assert.doesNotMatch(html, /No quota windows were returned|5 hour limit/)
 })
 
 test('subscription count includes failed accounts and does not invent zero before retrieval', async () => {
@@ -87,6 +118,33 @@ test('account state follows plan-filtered and explicitly missing visible windows
 test('Widget secondary readings preserve a supplied non-five-hour duration', () => {
   const tile = mountTile(statedWindows([['Weekly limit', 80, 'long'], ['2 hour limit', 36, 'short']]))
   assert.equal(tile.text('.quota-tile-secondary'), '2h · 36% remaining')
+  assert.equal(tile.nodes.get('.quota-tile-short-meter').getAttribute('aria-label'), '2h window')
+  assert.equal(tile.nodes.get('.quota-tile-short-meter').getAttribute('aria-valuenow'), '36')
+  assert.equal(tile.nodes.get('.quota-tile-short-fill').style.width, '36%')
+})
+
+test('the Home Widget draws a second meter for each reported 5h window', () => {
+  for (const [provider, plan, shortLabel] of [['codex', 'Plus', '5h'], ['codex', 'Team', '5h'], ['antigravity', 'Google AI Pro', '5h'], ['codex', 'Pro', null]]) {
+    const status = statedWindows(shortLabel ? [['Weekly limit', 58, 'long'], ['5 hour limit', 12, 'short']] : [['Weekly limit', 58, 'long']])
+    status.snapshot.accounts[0].provider = provider
+    status.snapshot.accounts[0].plan = plan
+    const tile = mountTile(status)
+    const short = tile.nodes.get('.quota-tile-short-meter')
+    assert.equal(short.hidden, !shortLabel, `${plan} short meter visibility`)
+    assert.equal(short.getAttribute('aria-valuenow'), shortLabel ? '12' : null, `${plan} short meter reading`)
+    assert.equal(short.getAttribute('aria-label'), shortLabel ? `${shortLabel} window` : null, `${plan} short meter name`)
+    assert.equal(tile.nodes.get('.quota-tile-short-fill').style.width, shortLabel ? '12%' : '0%', `${plan} short meter width`)
+  }
+})
+
+test('an unavailable short window leaves the second meter empty and inaccessible', () => {
+  const status = statedWindows([['Weekly limit', 58, 'long'], ['5 hour limit', null, 'short']])
+  status.snapshot.accounts[0].plan = 'Plus'
+  const tile = mountTile(status)
+  const short = tile.nodes.get('.quota-tile-short-meter')
+  assert.equal(short.hidden, true)
+  assert.equal(short.getAttribute('aria-valuenow'), null)
+  assert.equal(tile.text('.quota-tile-secondary'), '5h · Unavailable')
 })
 
 test('provider hierarchy and remaining semantics preserve account provenance', async () => {

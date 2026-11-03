@@ -1,27 +1,123 @@
 Feature: Independent resident Personal Agent
-  # The Personal Agent page owns suggestions inside its existing composer.
-  # Resident proposal state owns identity, freshness, feedback, and action authority.
-  # Four Shell themes retain readable advice, 44px controls, and input drafts.
-  Scenario: Recommendations stay inside the Personal Agent composer
+  # The resident owns recommendation identity, freshness, feedback, and action authority.
+  # The conversation owns recommendation messages and their controls.
+  # The composer retains its voice and keyboard input behavior.
+  Scenario: Recommendations appear as Personal Agent messages
     Given a pending recommendation arrives while the owner types a draft
     When the Personal Agent receives the current proposal snapshot
-    Then the recommendation and executable action appear inside the input composer
+    Then the recommendation and its controls appear in one Personal Agent message
+    And the message belongs to the conversation scroll view
+    And no recommendation control appears in the composer
     And no recommendation popup opens or takes focus
     And the draft, input mode, and selection remain unchanged
     And Sources and details, technical receipts, and Why are absent
-    And Feedback remains available for executable and read-only recommendations
 
-  Scenario: Feedback starts asynchronous memory refinement
-    Given a current recommendation has an available Feedback control
-    When the owner marks the recommendation useful, irrelevant, or incorrect
+  Scenario: Recommendation messages preserve conversation position
+    Given the owner reads earlier conversation messages above the latest message
+    When a new recommendation arrives or its status changes
+    Then the current conversation position and focus remain unchanged
+    And Jump to latest remains available
+    When the owner returns to the latest messages
+    Then the recommendation is visible and the capsule names any outcome that needs the owner's attention
+
+  Scenario: Recommendation messages retain identity and outcomes
+    Given a recommendation is visible in the conversation
+    When its presentation receipt, feedback, or execution state changes
+    Then the same message retains its position among the conversation messages
+    And its feedback, execution state, and result stay inside that message
+    And an unknown execution outcome cannot be repeated
+
+  Scenario: The latest overlay never covers recommendation controls
+    Given a recommendation message shows actions near the end of the conversation
+    When the owner scrolls earlier messages and the latest overlay appears
+    Then the overlay keeps its position and stays out of the conversation flow
+    And the message padding keeps the last controls clear of the overlay
+    When the owner returns to the latest message
+    Then the overlay disappears and the padding returns to the base inset
+
+  Scenario: Agent surfaces are geometrically concentric
+    Given a recommendation message renders inside the conversation
+    When the owner inspects the message bubble, its nested card, and the inset panel
+    Then each inner radius equals its container radius minus the padding between them
+    And a chip inside the card matches the inset radius
+    And a field control matches its inset panel
+    And an action button shares the card radius with the card it sits beside
+    And no Agent surface falls back to an unrelated fixed or pill radius
+    And the Pixel theme collapses every level of that scale to zero
+
+  Scenario: Every nested surface is concentric and shares one spacing rhythm
+    Given a recommendation message shows a preview card, chips and controls
+    When the owner inspects the bubble, card, chips and nearby buttons across themes and compact sizes
+    Then the card padding equals the card radius token on all four sides
+    And sibling surfaces at the same nesting level share one radius
+    And chips and inset panels share the inset radius
+    And block gaps, inline gaps and chip gaps come from one named spacing scale
+    And text line height is uniform across the advice, card summary and chips
+    And no surface overflows the bubble or clips its text
+
+  Scenario: Card text keeps a readable hierarchy and intact pairs
+    Given a recommendation message shows advice, a preview summary and attribute chips
+    When the owner reads the card across themes and compact widths
+    Then the advice leads by weight and the preview summary stays a supporting label
+    And a chip keeps its label and value on one line with a readable gap
+    And no chip label or value wraps, clips or overflows its card
+    And the card text uses one reading size from the shared scale
+
+  Scenario: One message bubble uses one reading size for its text and card
+    Given a recommendation message shows advice above a generic preview card
+    When the owner reads the message and its card
+    Then every visible text in the bubble uses the 17-pixel reading size
+    And no element falls back to a smaller caption size inside the bubble
+    And the advice keeps visual priority through weight where the theme permits synthetic weight
+    And the Pixel theme keeps its single weight hierarchy through order and colour instead
+    And no text or chip overflows the bubble or the card
+    And the same reading size holds across Instrument, Pixel, Border Beam and Liquid Glass themes
+
+  Scenario: A recommendation message omits state and metadata text
+    Given a recommendation has a preview and an executable action
+    When the message renders in any proposal state
+    Then the bubble shows only the advice, readings, next step and action controls
+    And no status label, capability note, safety notice or result caption appears in the bubble
+    When the recommendation reaches an authoritative, uncertain, read-only or expired outcome
+    Then the capsule state names that outcome and carries its safety assertion
+    And the capsule keeps its accessible name and bounded one-line geometry
+
+  Scenario: Changed readings carry an optional state tone
+    Given a preview reading reports a change away from its expected state
+    When the recommendation message renders that reading
+    Then the reading keeps its label and value as text
+    And the value may carry the warn or good state tone
+    And a reading without a tone keeps the neutral value color
+
+  Scenario: Queued recommendations do not appear before their offer
+    Given a pending recommendation has not been offered by the resident
+    When the Personal Agent receives its proposal snapshot
+    Then the recommendation does not appear in the conversation
+    When the resident offers it
+    Then its message appears without taking focus
+    And only its visible advice can receive a presentation acknowledgement
+
+  Scenario: Recommendation messages offer no rating controls
+    Given a current recommendation message is visible in the conversation
+    When the owner inspects its controls
+    Then it offers only its authorized action and Later
+    And no Useful, Not relevant, Incorrect, Ignore, Never suggest, or Done control appears
+    And a read-only recommendation offers only Later
+    And a completed recommendation offers no control
+    And no feedback label or learning status text appears in the message
+
+  Scenario: Conversational feedback still refines recommendation memory
+    Given the owner states an opinion about a displayed recommendation in a normal turn
+    When the resident records that response from the conversation
     Then the resident saves the feedback without waiting for Pi inference
     And a tool-free Pi job refines only related recommendation preference memory
     And future recommendations consume the saved preference memory
     And saved personal facts and action authority remain unchanged
+    And no rating control is required to produce that feedback
 
   Scenario: Technical historical advice stays private
     Given an earlier suggestion contains a technical hash
-    When its unavailable placeholder enters the composer viewport
+    When its unavailable placeholder enters the conversation viewport
     Then no Sources or Details disclosure appears
     And the hidden original advice remains unacknowledged
 
@@ -327,23 +423,21 @@ Feature: Independent resident Personal Agent
     And a restored connection or recovered resident failure permits another visibility acknowledgement
     And local focus and Shell navigation remain available
 
-  Scenario: Feedback describes the outcome of one suggestion
+  Scenario: An earlier actionless suggestion offers no rating control
     Given an earlier actionless suggestion contains concise advice and stored next-step text
-    When the owner opens Feedback and selects Done, Later, Useful, Not relevant, or Incorrect
-    Then the response identifies only that suggestion and decision
-    And Done does not execute the suggested action
-    And the main content states that no executable action is available
+    When its message renders
+    Then the main content states that no executable action is available
     And the resident retains the earlier next-step text
     And no reason or Why now explanation appears
-    And previous suggestions use a keyboard-accessible disclosure
-    And controls retain 44-pixel touch targets across themes and compact sizes
+    And no Done, Useful, Not relevant, or Incorrect control appears
+    And Later retains a 44-pixel touch target across themes and compact sizes
 
   Scenario: Android reads suggestions without acquiring response authority
     Given the desk publishes suggestions through the authenticated Personal Agent link
     When the Android host projects the status
     Then advice, the next step, source evidence, and suggestion state remain readable
     And the desk projection preserves bounded next-step text and excludes the retired reason
-    And a current next step is labelled as a read-only preview instead of an earlier suggestion
+    And the capsule names the read-only preview instead of adding a label to the message
     And the frame explicitly declares read-only suggestion capabilities
     And the renderer shows no response, execution, or ride quote control
     And no suggestion acknowledgement or response crosses the read-only link
@@ -410,27 +504,26 @@ Feature: Independent resident Personal Agent
   Scenario: Recommendation cards emphasize the next action
     Given a suggestion contains concise advice and an authorized plugin action
     And its source evidence contains complete SHA256 values
-    When the recommendation appears inside the input composer
+    When the recommendation appears in the conversation
     Then advice has visual priority over metadata
-    And the concrete execution button precedes the Feedback control
+    And the concrete execution button precedes the Later control
     And a current executable card does not repeat its button label as a separate next step
     And read-only and historical cards retain readable next-step context
     And execution and exact confirmation retain the primary action style
     And confirmation receives focus and Cancel returns focus to the execution button
     And secondary actions remain quieter without losing their touch targets
-    And Feedback is closed by default
     And no Why now explanation appears
     And source values remain private in resident state
 
   Scenario: Technical recommendation content remains in resident state
     Given an earlier stored suggestion contains a SHA256 value in its advice
-    When the Personal Agent renders its input recommendations
+    When the Personal Agent renders recommendations
     Then it requests an updated suggestion without exposing the hash
     And no source inspection control appears
     And the resident retains the original private record
 
   Scenario: Native acceptance requires actual visible recommendation text
-    Given a recommendation is below the composer viewport
+    Given a recommendation is below the conversation viewport
     When another recommendation becomes visible
     Then only the visible recommendation receives a presentation acknowledgement
     And a technical placeholder cannot acknowledge its original private text
@@ -467,8 +560,8 @@ Feature: Independent resident Personal Agent
 
   Scenario: Execution receipts remain private
     Given an accepted operation has a structured execution receipt
-    When the recommendation appears inside the composer
-    Then its authoritative state remains visible
+    When the recommendation appears in the conversation
+    Then the capsule names that authoritative state without a status label in the bubble
     And no technical receipt, source disclosure, or execution parameter appears
     And receipt presence does not assert completion
 
@@ -481,10 +574,10 @@ Feature: Independent resident Personal Agent
     Then the execution reservation and warning remain
     And no automatic response replay occurs
 
-  Scenario: Technical tool results stay outside the input recommendation
+  Scenario: Technical tool results stay outside the recommendation message
     Given an earlier plugin returns a technical result or a bounded JSON receipt
     When the Personal Agent renders the recommendation
-    Then the input area shows its recorded operation status
+    Then the message shows its recorded operation status
     And the original result stays in resident state
     And natural-language results remain readable
     And the result never replaces the authoritative proposal state
@@ -518,7 +611,7 @@ Feature: Independent resident Personal Agent
 
   Scenario: A real ride recommendation records usefulness feedback before its next step
     Given the owner can read a naturally generated ride recommendation
-    When the owner opens Feedback and activates Useful
+    When the owner states in a normal turn that the recommendation is useful
     Then the authenticated channel records useful feedback for that same recommendation
     And the recommendation stays pending for its read-only next step
     And the persisted checkpoint retains the feedback after a fresh quote
@@ -540,9 +633,9 @@ Feature: Independent resident Personal Agent
     And duplicate clicks, wrong routes, and missing or disabled actions cannot send another request
     And Useful feedback and independent MCP receipt checks remain separate gates
 
-  Scenario: Completed recommendations retain quality feedback in the input area
-    Given a completed recommendation is in the composer history
-    When the owner opens its Feedback control
-    Then Useful, Not relevant, and Incorrect are available
-    And execution, confirmation, postponement, and category controls are absent
-    And submitting feedback preserves the draft and the completed result
+  Scenario: Completed recommendations keep their result without rating controls
+    Given a completed recommendation is in the conversation
+    When its message renders
+    Then the recorded result stays visible
+    And execution, confirmation, postponement, rating, and category controls are absent
+    And the draft and the completed result remain unchanged

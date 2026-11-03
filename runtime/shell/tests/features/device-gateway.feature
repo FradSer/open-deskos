@@ -33,6 +33,13 @@ Feature: Shared Bridge device access
     Then the Devices App opens through the App platform
     And closing the App restores the desktop
 
+  Scenario: The peripheral button keeps a distinct Remote Control identity
+    Given no gamepad is connected
+    When the peripheral State Bar button renders
+    Then Remote Control uses a service glyph
+    And no device glyph identifies Remote Control
+    And no gamepad glyph appears in the State Bar
+
   Scenario: Devices fixture retains the Personal Agent bridge
     Given the Devices native fixture uses the current Shell preload
     When the renderer requests Agent status and consumer readiness

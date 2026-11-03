@@ -62,7 +62,7 @@ html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summar
 }
 
 html[data-theme='liquid-glass'] #personal-agent :is(button, input, select, summary):not(.agent-session-open) {
-  border-radius: var(--odk-radius-pill);
+  border-radius: var(--agent-radius-control, var(--odk-radius-pill));
 }
 
 
@@ -113,9 +113,30 @@ html[data-theme='liquid-glass'] input:is([type='checkbox'], [type='radio'], [typ
   accent-color: var(--odk-primary);
 }
 
+/* Composer controls keep their own shapes instead of the control radius. */
+html[data-theme='liquid-glass'] #personal-agent .agent-composer > button {
+  border-radius: 50%;
+}
+html[data-theme='liquid-glass'] #personal-agent .agent-composer[data-mode='voice'] .agent-mic {
+  border-radius: var(--odk-radius-pill);
+}
+
+/* A field control stays inside the concentric chain: it matches its inset panel instead of
+   taking the control radius, so no inner element is rounder than its container. */
+html[data-theme='liquid-glass'] #personal-agent .personal-agent-preview-fields select,
+html[data-theme='liquid-glass'] #personal-agent .personal-agent-ride-route select {
+  border-radius: var(--agent-radius-inset);
+}
+
+/* An action button is a sibling of the preview card. Keep the theme's blanket control
+   rule from pulling it down to the inset radius. */
+html[data-theme='liquid-glass'] #personal-agent .agent-recommendation .personal-agent-proposals button {
+  border-radius: var(--agent-radius-card);
+}
+
 html[data-theme='liquid-glass'] #personal-agent .agent-composer.lg-surface {
   visibility: inherit;
-  border-radius: var(--odk-radius-pill) !important;
+  border-radius: var(--agent-radius-surface, var(--odk-radius-pill)) !important;
 }
 
 html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #personal-agent .agent-composer.lg-surface {

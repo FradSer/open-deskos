@@ -137,7 +137,7 @@ async function createProactiveReconnectFixture(options = {}) {
       const id = proposal.id
       assert.equal(received.filter(command => command.type === 'proposal_presented').length, 0)
       await reconnect()
-      await until(() => evaluate(`(() => { const surface = document.querySelector('.agent-suggestions'); const advice = document.querySelector('.personal-agent-proposal-advice'); return !!surface && !surface.hidden && !!surface.closest('.agent-composer') && document.getElementById('personal-agent-status').hidden && !document.querySelector('.personal-agent-proposal-sources, .personal-agent-ride-details') && !!advice?.checkVisibility() && advice.textContent === ${JSON.stringify(proposal.advice)} && advice.closest('[data-proposal-id]')?.dataset.proposalId === ${JSON.stringify(id)} })()`),
+      await until(() => evaluate(`(() => { const advice = document.querySelector('.personal-agent-proposal-advice'); return !!advice?.closest('.agent-conversation .agent-message-assistant .agent-message-bubble') && !advice.closest('.agent-composer') && document.getElementById('personal-agent-status').hidden && !document.querySelector('.personal-agent-proposal-sources, .personal-agent-ride-details') && advice.checkVisibility() && advice.textContent === ${JSON.stringify(proposal.advice)} && advice.closest('[data-proposal-id]')?.dataset.proposalId === ${JSON.stringify(id)} })()`),
         'Reconnected unread advice must become naturally visible without an explicit list request')
       assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').value`), 'Keep reconnect draft.')
       assert.equal(await evaluate(`document.activeElement === document.querySelector('.agent-composer textarea')`), true, 'Reconnect cannot steal the existing draft focus')
@@ -145,11 +145,17 @@ async function createProactiveReconnectFixture(options = {}) {
       assert.ok(received.some(command => command.type === 'proposal_presented' && command.ids.includes(id)))
       assert.equal(checkpoint.load().proposals[0].presented, true)
       const click = async label => {
-        await evaluate(`(() => { const details = document.querySelector('.personal-agent-proposal-feedback-options'); if (details) details.open = true; const button = [...document.querySelectorAll('.personal-agent-proposals button')].find(node => node.textContent === ${JSON.stringify(label)}); if (!button) throw Error('Missing feedback control'); button.scrollIntoView({block:'center'}); button.click() })()`)
+        await evaluate(`(() => { const button = [...document.querySelectorAll('.personal-agent-proposals button')].find(node => node.textContent === ${JSON.stringify(label)}); if (!button) throw Error('Missing control: ' + ${JSON.stringify(label)}); button.scrollIntoView({block:'center'}); button.click() })()`)
+      }
+      // The message offers no rating control. Conversational feedback arrives on the same
+      // authenticated channel the owner turn uses, so this leg drives that channel directly.
+      const sayFeedback = async decision => {
+        assert.equal(await evaluate(`[...document.querySelectorAll('.personal-agent-proposals button')].some(node => ['Feedback','Done','Useful','Not relevant','Incorrect','Ignore','Never suggest this category'].includes(node.textContent))`), false, 'the message exposes no rating control')
+        assert.equal(client.proposalCommand({ type: 'proposal_respond', id, decision }), true, 'conversational feedback uses the authenticated proposal channel')
       }
       if (!options.createWatch) {
-        await click('Useful')
-        await until(() => completedFeedback.some(command => command.id === id && command.decision === 'useful'), 'Useful must complete through the actual resident socket before learning resolves')
+        await sayFeedback('useful')
+        await until(() => completedFeedback.some(command => command.id === id && command.decision === 'useful'), 'Conversational useful feedback must reach the resident before learning resolves')
         await until(() => learningCalls === 1, 'Committed feedback must start its asynchronous learning port')
         assert.equal(learningReleased, false, 'The learner remains gated after the durable feedback receipt')
         assert.equal(executions, 0, 'Useful must never execute the recommendation action')
@@ -159,7 +165,7 @@ async function createProactiveReconnectFixture(options = {}) {
         assert.equal(running.feedbackMemory.jobs[0].proposalId, id)
         assert.equal(running.feedbackMemory.jobs[0].status, 'running')
         assert.deepEqual(running.feedbackMemory.entries, [])
-        await until(() => evaluate(`document.querySelector('.personal-agent-proposal-memory')?.textContent === 'Feedback saved. Updating related memory…'`), 'The renderer must show saved feedback while related memory is pending')
+        assert.equal(await evaluate(`!!document.querySelector('.personal-agent-proposal-memory, .personal-agent-proposal-feedback')`), false, 'learning status never becomes a rating control')
         assert.equal(await evaluate(`(() => { const input = document.querySelector('.agent-composer textarea'); input.focus(); input.setSelectionRange(input.value.length, input.value.length); return input.checkVisibility() && !input.disabled })()`), true)
         win.webContents.sendInputEvent({ type: 'char', keyCode: 'x' })
         await until(() => evaluate(`document.querySelector('.agent-composer textarea').value === 'Keep reconnect draft.x'`), 'The ordinary composer must accept actual keyboard input while learning is pending')
@@ -172,11 +178,11 @@ async function createProactiveReconnectFixture(options = {}) {
         assert.equal(applied.feedbackMemory.entries[0].ruleId, proposal.ruleId)
         assert.deepEqual(applied.feedbackMemory.entries[0].signals.map(({ decision, dimension, subject }) => ({ decision, dimension, subject })), [{ decision: 'useful', dimension: 'utility', subject: 'recovered suggestion' }])
         if (!options.checkpoint) assert.deepEqual(JSON.parse(fs.readFileSync(path.join(directory, 'checkpoint', 'proposals.json'), 'utf8')).feedbackMemory, applied.feedbackMemory)
-        await until(() => evaluate(`document.querySelector('.personal-agent-proposal-memory')?.textContent === 'Feedback saved. Related memory updated.'`), 'Applied derived memory must be visible on the original inline card')
+        assert.equal(applied.proposals[0].feedback, 'useful')
         assert.equal(learningCalls, 1)
       } else if (!proposal.action) {
-        await click('Useful')
-        await until(() => checkpoint.load().proposals[0].feedback === 'useful', 'Useful must reach the original durable proposal')
+        await sayFeedback('useful')
+        await until(() => checkpoint.load().proposals[0].feedback === 'useful', 'Conversational useful feedback must reach the original durable proposal')
       }
       await click('Later')
       await until(() => checkpoint.load().proposals[0].feedback === 'snooze', 'Later must persist on the same proposal')
@@ -200,17 +206,17 @@ async function createProactiveReconnectFixture(options = {}) {
         }
         await until(() => evaluate(`![...document.querySelectorAll('.personal-agent-proposals button')].some(node => [${JSON.stringify(proposal.nextStep)}, ${JSON.stringify(proposal.confirmation)}].includes(node.textContent))`), 'Authoritative completion removes execution controls')
       } else {
-        await click('Done')
-        await until(() => checkpoint.load().proposals[0].status === 'completed', 'Done must persist historical feedback without executing any action')
+        await sayFeedback('done')
+        await until(() => checkpoint.load().proposals[0].status === 'completed', 'Conversational completion must persist without executing any action')
         assert.equal(checkpoint.load().proposals[0].feedback, 'done')
       }
       assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').value`), 'Keep reconnect draft.')
-      assert.equal(await evaluate(`document.getElementById('personal-agent-status').hidden`), true, 'Reminder and execution remain inside the composer')
+      assert.equal(await evaluate(`document.getElementById('personal-agent-status').hidden`), true, 'Reminder and execution remain in the conversation')
       assert.equal(checkpoint.load().proposals[0].id, id)
       assert.equal(generations, 1); assert.equal(judgments, 1)
       assert.equal(received.some(command => command.type === 'proposal_list'), false, 'The test must not mask recovery with an explicit list request')
-      assert.deepEqual(received.filter(command => command.type === 'proposal_respond').map(command => [command.id, command.decision]), proposal.action ? [...(!options.createWatch ? [[id, 'useful']] : []), [id, 'snooze'], [id, 'accept']] : [[id, 'useful'], [id, 'snooze'], [id, 'done']])
-      console.log(`PROACTIVE_RECONNECT_E2E_PASS: real renderer/client/socket/service/Watch, offline generation, natural visible receipt, same UUID ${proposal.action ? 'Later/exact confirmation/plugin execution/readback' : 'legacy Useful/Later/Done'}; ${options.createWatch ? 'injected inference adapter' : 'synthetic inference and deterministic gated feedback-memory port, zero models'}`)
+      assert.deepEqual(received.filter(command => command.type === 'proposal_respond').map(command => [command.id, command.decision]), proposal.action ? [[id, 'snooze'], [id, 'accept']] : [[id, 'snooze']], 'the renderer submits only the controls it offers')
+      console.log(`PROACTIVE_RECONNECT_E2E_PASS: real renderer/client/socket/service/Watch, offline generation, natural visible receipt, same UUID ${proposal.action ? 'Later/exact confirmation/plugin execution/readback' : 'Later + conversational done'}; ${options.createWatch ? 'injected inference adapter' : 'synthetic inference and deterministic gated feedback-memory port, zero models'}`)
     },
     async close() {
       releaseLearning()

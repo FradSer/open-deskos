@@ -7,31 +7,119 @@
     compass: '<svg data-tabler="compass" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M8 16l2 -6l6 -2l-2 6l-6 2" /><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 3l0 2" /><path d="M12 19l0 2" /><path d="M3 12l2 0" /><path d="M19 12l2 0" /></svg>',
     spark: '<svg data-tabler="sparkles" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6" /></svg>',
   }
+  const COMMANDS = [
+    { id: 'login', label: '/login', detail: 'Sign in to Pi' },
+    { id: 'model', label: '/model', detail: 'Choose a model' },
+    { id: 'thinking', label: '/thinking', detail: 'Set thinking level' },
+  ]
   root.odkPlugins.register({
     id: 'odk.page.personal-agent', manifest: { schemaVersion: 1 }, kind: 'page', surface: 'app',
     mount(el, ctx) {
+      const commandMarkup = COMMANDS.map(command => `<button class="agent-command-option" type="button" role="option" id="agent-command-${command.id}" data-command="${command.id}" aria-selected="false" tabindex="-1"><span class="agent-command-name">${command.label}</span><span class="agent-command-detail">${command.detail}</span></button>`).join('')
       el.innerHTML = `<div class="agent-panel">
         <header class="agent-head"><span class="agent-avatar" data-avatar="onee" aria-hidden="true"><img class="agent-avatar-fallback" src="avatars/onee.svg" alt="" /></span>
           <div class="agent-identity"><div class="agent-capsule" role="group" aria-label="Personal Agent"><h1 class="agent-name"></h1><span class="agent-state" role="status">Checking Personal Agent…</span></div></div></header>
         <nav class="agent-thread-nav" aria-label="Session thread" hidden><button class="agent-thread-all" type="button">All messages</button><span></span></nav>
-        <div class="agent-history"><div class="agent-conversation" tabindex="0" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"><p class="agent-empty">Ask about your desk or continue a task.</p></div>
+        <div class="agent-history"><div class="agent-conversation" tabindex="0" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"><p class="agent-empty">Ask about your desk.</p></div>
         <button class="agent-latest" type="button" hidden>Jump to latest <svg data-tabler="arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 13l-6 6" /><path d="M6 13l6 6" /></svg></button>
         </div>
         <aside class="agent-reply-context" aria-label="Reply reference" hidden><div><span class="agent-reply-session"></span><span class="agent-reply-preview"></span></div><button class="agent-reply-cancel" type="button">Cancel reply</button></aside>
         <p class="agent-input-notice" role="status" hidden></p>
-        <div class="agent-input-row"><section class="agent-pi-config" aria-label="Pi configuration">
-          <label class="agent-pi-command-label"><span class="sr-only">Pi commands</span><select class="agent-pi-command" aria-label="Pi commands"><option value="">Pi</option><option value="login">/login</option><option value="model">/model</option><option value="thinking">/thinking</option></select></label>
-          <form class="agent-pi-form" hidden><label class="agent-pi-choice-label"><span></span><select class="agent-pi-choice"></select></label><label class="agent-pi-secret-label" hidden><span></span><input class="agent-pi-value" autocomplete="off" maxlength="3000" /></label><p class="agent-pi-status" role="status"></p><a class="agent-pi-auth-link" target="_blank" rel="noreferrer" hidden>Open Pi sign-in</a><div class="agent-pi-actions"><button type="submit">Apply</button><button type="button" class="agent-pi-close">Close</button></div></form>
-        </section>
-        <form class="agent-composer" data-mode="voice"><div class="agent-suggestions" hidden></div><div class="agent-composer-controls"><button class="agent-keys" type="button" aria-label="Switch to keyboard input"><svg data-tabler="keyboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8" /><path d="M6 10l0 .01" /><path d="M10 10l0 .01" /><path d="M14 10l0 .01" /><path d="M18 10l0 .01" /><path d="M6 14l0 .01" /><path d="M18 14l0 .01" /><path d="M10 14l4 .01" /></svg></button><button class="agent-mic" type="button" aria-label="Start voice request"><svg data-tabler="microphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 5a3 3 0 0 1 3 -3a3 3 0 0 1 3 3v5a3 3 0 0 1 -3 3a3 3 0 0 1 -3 -3l0 -5" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M8 21l8 0" /><path d="M12 17l0 4" /></svg><span class="agent-mic-label">Tap to talk</span></button><button class="agent-cancel" type="button" aria-label="Cancel recording" title="Cancel recording · Escape" hidden><svg data-tabler="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button><div class="agent-recording-feedback" hidden><div class="agent-input-level" role="meter" aria-label="Microphone input level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div></div><textarea rows="1" maxlength="3000" aria-label="Message Personal Agent"></textarea><button class="agent-send" type="submit" aria-label="Send message"><svg data-tabler="arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 11l-6 -6" /><path d="M6 11l6 -6" /></svg></button></div></form></div>
+        <div class="agent-input-row"><form class="agent-pi-form" hidden><label class="agent-pi-choice-label"><span></span><select class="agent-pi-choice"></select></label><label class="agent-pi-secret-label" hidden><span></span><input class="agent-pi-value" autocomplete="off" maxlength="3000" /></label><p class="agent-pi-status" role="status"></p><a class="agent-pi-auth-link" target="_blank" rel="noreferrer" hidden>Open Pi sign-in</a><div class="agent-pi-actions"><button type="submit">Apply</button><button type="button" class="agent-pi-close">Close</button></div></form>
+        <form class="agent-composer" data-mode="voice"><button class="agent-keys" type="button" aria-label="Switch to keyboard input"><svg data-tabler="keyboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8" /><path d="M6 10l0 .01" /><path d="M10 10l0 .01" /><path d="M14 10l0 .01" /><path d="M18 10l0 .01" /><path d="M6 14l0 .01" /><path d="M18 14l0 .01" /><path d="M10 14l4 .01" /></svg></button><button class="agent-mic" type="button" aria-label="Start voice request"><svg data-tabler="microphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 5a3 3 0 0 1 3 -3a3 3 0 0 1 3 3v5a3 3 0 0 1 -3 3a3 3 0 0 1 -3 -3l0 -5" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M8 21l8 0" /><path d="M12 17l0 4" /></svg><span class="agent-mic-label">Tap to talk</span></button><button class="agent-cancel" type="button" aria-label="Cancel recording" title="Cancel recording · Escape" hidden><svg data-tabler="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button><div class="agent-recording-feedback" hidden><div class="agent-input-level" role="meter" aria-label="Microphone input level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div></div><textarea rows="1" maxlength="3000" aria-label="Message Personal Agent" aria-haspopup="listbox" aria-expanded="false" aria-controls="agent-command-menu" aria-autocomplete="list"></textarea><button class="agent-send" type="submit" aria-label="Send message"><svg data-tabler="arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 11l-6 -6" /><path d="M6 11l6 -6" /></svg></button></form><div class="agent-command-popup" hidden><div class="agent-command-menu" id="agent-command-menu" role="listbox" aria-label="Commands">${commandMarkup}</div><p class="agent-command-empty" role="status" hidden>No matching commands</p></div></div>
       </div>`
       const $ = selector => el.querySelector(selector)
       const conversation = $('.agent-conversation')
       const input = $('textarea')
       const composer = $('.agent-composer')
+      const inputRow = $('.agent-input-row')
+      const commandPopup = $('.agent-command-popup')
+      const commandEmpty = $('.agent-command-empty')
+      const commandOptions = new Map(COMMANDS.map(command => [command.id, $(`.agent-command-option[data-command="${command.id}"]`)]))
       let closePiConfig = () => {}
-      const composerControls = $('.agent-composer-controls')
-      const suggestions = root.odkPersonalAgentSuggestions?.mount($('.agent-suggestions'), { focusInput: () => fieldControl().focus({ preventScroll: true }) })
+      let commandOpen = false
+      let commandVisible = []
+      let commandActive = -1
+      function setCommandActive(index) {
+        if (!commandVisible.length) {
+          commandActive = -1
+          input.removeAttribute('aria-activedescendant')
+          return
+        }
+        commandActive = Math.max(0, Math.min(index, commandVisible.length - 1))
+        for (const [position, id] of commandVisible.entries()) {
+          const option = commandOptions.get(id)
+          option.setAttribute('aria-selected', position === commandActive ? 'true' : 'false')
+          option.classList.toggle('is-active', position === commandActive)
+        }
+        input.setAttribute('aria-activedescendant', `agent-command-${commandVisible[commandActive]}`)
+      }
+      function renderCommands() {
+        const query = input.value.slice(1).toLowerCase()
+        commandVisible = COMMANDS.filter(command => command.label.slice(1).startsWith(query)).map(command => command.id)
+        for (const command of COMMANDS) commandOptions.get(command.id).hidden = !commandVisible.includes(command.id)
+        commandEmpty.hidden = commandVisible.length > 0
+        setCommandActive(0)
+      }
+      function openCommands() {
+        if (released || !piForm.hidden) return
+        commandOpen = true
+        commandPopup.hidden = false
+        input.setAttribute('aria-expanded', 'true')
+        renderCommands()
+      }
+      function closeCommands(restoreFocus = false) {
+        if (!commandOpen) return
+        commandOpen = false
+        commandVisible = []
+        setCommandActive(-1)
+        commandPopup.hidden = true
+        input.setAttribute('aria-expanded', 'false')
+        for (const option of commandOptions.values()) option.setAttribute('aria-selected', 'false')
+        if (restoreFocus) fieldControl().focus({ preventScroll: true })
+      }
+      function slashQuery() {
+        if (composerMode !== 'keyboard' || input.hidden) return null
+        return /^\/[^\s/]*$/.test(input.value) ? input.value.slice(1).toLowerCase() : null
+      }
+      function selectCommand(id) {
+        const clearQuery = /^\/[^\s/]*$/.test(input.value)
+        closeCommands()
+        if (clearQuery) { input.value = ''; inputRevision++; renderVoiceControl() }
+        return openPiConfig(id)
+      }
+      function commandEscape(event) {
+        if (event.key !== 'Escape' || !commandOpen) return
+        event.preventDefault();event.stopPropagation();closeCommands(true)
+      }
+      function outsideCommandPointer(event) {
+        if (commandOpen && !inputRow.contains(event.target)) closeCommands()
+      }
+      root.document.addEventListener('pointerdown', outsideCommandPointer, true)
+      let proposalState = { caption: '', detail: '' }
+      let capsuleContext = { state: 'idle', busy: false }
+      const reportProposalState = value => {
+        proposalState = value && typeof value === 'object' ? value : { caption: '', detail: '' }
+        // A proposal error is a connection-level fact; the main render already names it.
+        if (capsuleContext.proposalError) return
+        // Asynchronous reports (a failed command, a quote request) must be visible at once
+        // unless a voice or thinking turn owns the capsule.
+        if (capsuleContext.state === 'idle' && !capsuleContext.busy && !activeSubmission) setState(proposalState.caption, proposalState.detail)
+      }
+      const suggestions = root.odkPersonalAgentSuggestions?.mount(conversation, {
+        onState: reportProposalState,
+        focusInput: () => fieldControl().focus({ preventScroll: true }),
+        createMessage: proposal => {
+          const body = message('assistant', '')
+          body.classList.add('personal-agent-proposals')
+          const article = body.closest('article')
+          article.classList.add('agent-recommendation')
+          const createdAt = Date.parse(proposal.createdAt)
+          timelineEntry(article, Number.isFinite(createdAt) ? createdAt : Date.now(), [])
+          return { article, body }
+        },
+        removeMessage,
+      })
       ctx.trackCleanup?.(() => suggestions?.destroy())
       const micControl = $('.agent-mic')
       const keysControl = $('.agent-keys')
@@ -129,6 +217,7 @@
         const level = recording && Number.isFinite(lastSnapshot?.level) ? Math.round(Math.max(0, Math.min(1, lastSnapshot.level)) * 100) : 0
         inputLevel.setAttribute('aria-valuenow', String(level))
         inputLevel.style.setProperty('--agent-input-level', level + '%')
+        if (recording) closeCommands()
         resizeInput()
         if (recording && voiceFocusRequested && root.document.getElementById('app-view')?.hidden !== false) {
           voiceFocusRequested = false
@@ -168,16 +257,18 @@
       let lastStatus = 'unknown'
       let pending = false
       setComposerMode(voiceAvailable() ? 'voice' : 'keyboard')
-      function setState(caption) {
+      let stateDetail = ''
+      function setState(caption, detail = caption) {
+        stateDetail = detail || caption
         const changed = state.textContent !== caption
         if (changed) state.textContent = caption
         state.hidden = !caption
         if (changed) animateCapsule()
-        capsule.setAttribute('aria-label', `${identity.name}${caption ? ', ' + caption : ''}`)
+        capsule.setAttribute('aria-label', `${identity.name}${caption ? ', ' + stateDetail : ''}`)
       }
       function applyIdentity() {
         $('.agent-name').textContent = identity.name
-        capsule.setAttribute('aria-label', `${identity.name}${state.textContent ? ', ' + state.textContent : ''}`)
+        capsule.setAttribute('aria-label', `${identity.name}${state.textContent ? ', ' + (stateDetail || state.textContent) : ''}`)
         for (const node of el.querySelectorAll('.agent-message-assistant')) node.setAttribute('aria-label', identity.name)
         root.odkIcons?.apply?.(el)
         input.placeholder = 'Message…'
@@ -451,7 +542,7 @@
             if (reply.sessionId) row.details.append(sessionLabel({ ...replySource(reply), sessionId: reply.sessionId, threadId }, {}))
             row.threadId = threadId;row.taskName = taskName(replySource(reply) || {})
           }
-          row.status.textContent = ({ queued: 'Queued for this session', dispatching: 'Sending to this session', delivered: 'Sent to this session', unknown: 'Delivery not confirmed. Check the session before retrying.', answered: 'Personal Agent replied', failed: 'Reply failed. Check connection details before retrying.' })[reply.status] || 'Status unavailable'
+          row.status.textContent = ({ queued: 'Queued for this session', dispatching: 'Sending to this session', delivered: 'Sent to this session', unknown: 'Delivery unconfirmed. Check the session before retrying.', answered: 'Personal Agent replied', failed: 'Reply failed. Check connection details before retrying.' })[reply.status] || 'Status unavailable'
           row.status.hidden = !['queued', 'dispatching', 'unknown', 'failed'].includes(reply.status)
           row.article.append(row.status)
           if (reply.answer) {
@@ -540,8 +631,9 @@
       }
       function render(status, authoritative = true) {
         if (released || ctx.signal?.aborted || !status?.state) return
+        const bottom = conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop < 40
         suggestions?.update(status)
-        const restoreVoiceFocus = lastStatus === 'recording' && status.state !== 'recording' && composerControls.contains(root.document.activeElement)
+        const restoreVoiceFocus = lastStatus === 'recording' && status.state !== 'recording' && composer.contains(root.document.activeElement)
         if (['error','unavailable'].includes(status.state)) voiceFocusRequested = false
         if (authoritative) avatar.update(status)
         if (activeSubmission) {
@@ -557,7 +649,6 @@
         if (status.state !== 'recording') voiceSubmissionPending = false
         const restoreRecordingFocus = cancelRequested && ['idle', 'error'].includes(status.state)
         if (restoreRecordingFocus) cancelRequested = false
-        const bottom = conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop < 40
         lastSnapshot = status
         prepareHistory(status)
         if (authoritative) revision++
@@ -599,13 +690,16 @@
           turn.response.setAttribute('aria-busy', String(status.state === 'thinking'))
           if (['idle', 'error'].includes(status.state)) turn.completed = true
         }
+        capsuleContext = { state: status.state, busy, proposalError: Boolean(status.proposalError) }
+        const passive = readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '') || captionFor(status)
         const caption = activeSubmission && !activeSubmission.uncertain ? 'Thinking...'
-          : status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '') || captionFor(status)) : captionFor(status)
-        setState(status.proposalError ? 'Suggestions unavailable' : caption)
+          : status.state === 'idle' ? (proposalState.caption || passive) : captionFor(status)
+        const finalCaption = status.proposalError ? 'Updates unavailable' : caption
+        setState(finalCaption, status.proposalError ? finalCaption : (proposalState.caption ? proposalState.detail : finalCaption))
         lastStatus = status.state
         if (activeSubmission?.uncertain) {
           setState('')
-          showNotice('Delivery not confirmed. Check before sending again.', 'Check status', checkStatus)
+          showNotice('Delivery is unconfirmed. Check before resending.', 'Check status', checkStatus)
         } else if (status.state === 'unavailable') {
           showNotice('Connection unavailable. Your draft is kept.', 'Check status', checkStatus)
         } else if (status.state === 'error') {
@@ -614,14 +708,16 @@
           showNotice(detail, retry ? 'Record again' : 'Check status', retry ? startVoice : checkStatus)
         } else showNotice()
         if (!voiceAvailable() && !busy && composerMode === 'voice') setComposerMode('keyboard')
+        orderTimeline(); showThread(selectedThread)
         renderVoiceControl()
         if ((restoreRecordingFocus || restoreVoiceFocus) && !cancelling && root.document.getElementById('app-view')?.hidden !== false) fieldControl().focus({ preventScroll: true })
-        if (bottom) latest()
-        else $('.agent-latest').hidden = false
+        const shouldFollow = bottom && (newTurn || activeSubmission || ['thinking', 'transcribing'].includes(status.state) || (Array.isArray(status.notifications) && status.notifications.length > 0))
+        if (shouldFollow) latest()
+        else if (conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop >= 40) $('.agent-latest').hidden = false
       }
       const unsub = root.odkPersonalAgent?.subscribe(render)
       ctx.trackCleanup?.(() => {
-        released = true;closePiConfig();avatar.destroy();inputObserver?.disconnect();root.removeEventListener('keydown', cancelKey, true);composer.removeEventListener('focusin', engageAvatar);composer.removeEventListener('focusout', disengageAvatar);clearTimeout(scrollIdle);delete conversation.dataset.scrolling;unsub?.()
+        released = true;closePiConfig();closeCommands();avatar.destroy();inputObserver?.disconnect();root.removeEventListener('keydown', cancelKey, true);root.removeEventListener('keydown', commandEscape, true);root.document.removeEventListener('pointerdown', outsideCommandPointer, true);composer.removeEventListener('focusin', engageAvatar);composer.removeEventListener('focusout', disengageAvatar);clearTimeout(scrollIdle);delete conversation.dataset.scrolling;unsub?.()
         conversation.removeEventListener('scroll', handleScroll)
         conversation.removeEventListener('wheel', handleHistoryWheel)
         conversation.removeEventListener('keydown', handleHistoryKey)
@@ -635,7 +731,8 @@
         const text = input.value.trim()
         if (new TextEncoder().encode(text).length > 3000) { showNotice('Message is too long. Shorten it before sending.');input.focus({preventScroll:true});return }
         if (!text || composerMode !== 'keyboard' || pending || activeSubmission || busyStates.includes(lastStatus) || lastStatus === 'unavailable' || lastSnapshot?.voiceFailure === 'cleanup') return
-        if(/^\/(login|model|thinking)$/.test(text)){input.value='';openPiConfig(text.slice(1));return}
+        const exactCommand = COMMANDS.find(command => command.label === text)
+        if(exactCommand){closeCommands();input.value='';inputRevision++;renderVoiceControl();void openPiConfig(exactCommand.id);return}
         pending = true
         const avatarIntent = avatar.intent('sending')
         const request = { text, inputRevision, previousOwner: lastSnapshot?.ownerTurnId, previousTurns: new Set((lastSnapshot?.conversation?.turns || []).map(item=>item.id)), previousReplies: new Set((lastSnapshot?.remote?.replies || []).map(item=>item.id)), reference: selectedReply?.reference, observed: false, uncertain: false }
@@ -656,7 +753,7 @@
         } catch {
           if (!released && activeSubmission === request) {
             if (refused) { activeSubmission = null;setState('');showNotice('Message was not sent. You can edit and send again.') }
-            else { request.uncertain = true;setState('');showNotice('Delivery not confirmed. Check before sending again.', 'Check status', checkStatus) }
+            else { request.uncertain = true;setState('');showNotice('Delivery is unconfirmed. Check before resending.', 'Check status', checkStatus) }
             if (revision === submittedRevision) avatar.fail(avatarIntent)
           }
         } finally {
@@ -666,9 +763,20 @@
           }
         }
       })
-      input.addEventListener('input', () => { inputRevision++;renderVoiceControl() })
+      input.addEventListener('input', () => {
+        inputRevision++;renderVoiceControl()
+        if (slashQuery() === null) { closeCommands();return }
+        if (!commandOpen) openCommands()
+        else renderCommands()
+      })
       input.addEventListener('keydown', event => {
-        if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) { event.preventDefault();composer.requestSubmit() }
+        const enter = event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229
+        if (commandOpen) {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault();setCommandActive(commandActive + (event.key === 'ArrowDown' ? 1 : -1));return }
+          if (event.key === 'Tab' && !event.shiftKey && commandVisible.length) { event.preventDefault();selectCommand(commandVisible[Math.max(0, commandActive)]);return }
+          if (enter && commandVisible.length) { event.preventDefault();selectCommand(commandVisible[Math.max(0, commandActive)]);return }
+        }
+        if (enter) { event.preventDefault();composer.requestSubmit() }
       })
       const inputObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(resizeInput) : null
       inputObserver?.observe(composer)
@@ -723,9 +831,11 @@
         event.preventDefault();event.stopImmediatePropagation();void cancelRecording()
       }
       root.addEventListener('keydown', cancelKey, true)
+      // Register after the recording handler, so recording Escape keeps its own action.
+      root.addEventListener('keydown', commandEscape, true)
       micControl.addEventListener('click', startVoice)
       cancelControl.addEventListener('click', cancelRecording)
-      const piCommand=$('.agent-pi-command'),piForm=$('.agent-pi-form'),piChoice=$('.agent-pi-choice')
+      const piForm=$('.agent-pi-form'),piChoice=$('.agent-pi-choice')
       const piValue=$('.agent-pi-value'),piStatus=$('.agent-pi-status'),piLink=$('.agent-pi-auth-link')
       let piSnapshot,piMode='',piPoll,piRevision=0,piPending=null
       function setPiOptions(items,label) {
@@ -760,7 +870,7 @@
           if(!snapshot.models.length)piStatus.textContent='No authenticated models. Use /login first.'
           submit.disabled=!snapshot.models.length || snapshot.busy
         } else {
-          setPiOptions((snapshot.thinkingLevels || []).map(level=>({value:level,label:level})),'Thinking level')
+          setPiOptions((snapshot.thinkingLevels || []).map(level=>({value:level,label:level.charAt(0).toUpperCase()+level.slice(1)})),'Thinking level')
           piChoice.value=snapshot.thinkingLevel || 'off'
           submit.disabled=!(snapshot.thinkingLevels || []).length || snapshot.busy
           if(submit.disabled)piStatus.textContent='Select an available model first.'
@@ -769,7 +879,7 @@
       async function runPi(command) {
         const revision=piRevision
         if(piPending?.revision===revision)return
-        const pending={revision};piPending=pending;piCommand.disabled=true
+        const pending={revision};piPending=pending
         piForm.querySelector('[type="submit"]').disabled=true
         try {
           if(!root.odkPersonalAgent?.configure)throw Error('Pi configuration is unavailable on this display.')
@@ -779,21 +889,21 @@
         } catch(error) {
           if(!released && revision===piRevision){piStatus.textContent=error.message || 'Pi configuration failed. Retry.';piForm.querySelector('[type="submit"]').disabled=false}
         } finally {
-          if(piPending===pending){piPending=null;if(!released)piCommand.disabled=false}
+          if(piPending===pending)piPending=null
         }
       }
       async function openPiConfig(mode) {
-        if(!['login','model','thinking'].includes(mode))return
+        if(!COMMANDS.some(command => command.id === mode))return
         if(piMode==='login' && piSnapshot?.login && !['done','error'].includes(piSnapshot.login.state))return
-        piRevision++;clearTimeout(piPoll);piMode=mode;piCommand.value=mode;piForm.hidden=false
+        closeCommands();piRevision++;clearTimeout(piPoll);piMode=mode;piForm.hidden=false
         piValue.value='';piStatus.textContent='Loading Pi configuration…'
         await runPi({action:'list'})
         if(!released && !piForm.hidden)piChoice.focus()
       }
       closePiConfig=()=>{
-        piRevision++;clearTimeout(piPoll);piPending=null;piCommand.disabled=false
+        piRevision++;clearTimeout(piPoll);piPending=null
         if(piMode==='login')void root.odkPersonalAgent?.configure?.({action:'cancel'}).catch(()=>{})
-        piValue.value='';piForm.hidden=true;piCommand.value='';piMode=''
+        piValue.value='';piForm.hidden=true;piMode=''
         if(!released){setComposerMode('keyboard');input.focus()}
       }
       piLink.addEventListener('click',event=>{
@@ -809,7 +919,6 @@
           }
         })()
       })
-      piCommand.addEventListener('change',()=>openPiConfig(piCommand.value))
       piForm.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closePiConfig()}})
       $('.agent-pi-close').addEventListener('click',closePiConfig)
       piForm.addEventListener('submit',event=>{
@@ -822,12 +931,22 @@
         else command={action:'thinking',level:piChoice.value}
         void runPi(command)
       })
-      input.addEventListener('input',()=>{if(/^\/(login|model|thinking)$/.test(input.value.trim()))piCommand.value=input.value.trim().slice(1)})
       function engageAvatar() { avatar.engage(composerMode === 'keyboard') }
       function disengageAvatar() { avatar.engage(false) }
       composer.addEventListener('focusin', engageAvatar)
       composer.addEventListener('focusout', disengageAvatar)
       keysControl.addEventListener('click', () => setComposerMode('keyboard', true))
+      for (const command of COMMANDS) {
+        const option = commandOptions.get(command.id)
+        option.addEventListener('click', () => selectCommand(command.id))
+        option.addEventListener('keydown', event => {
+          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+          event.preventDefault()
+          const next = Math.max(0, Math.min(commandActive + (event.key === 'ArrowDown' ? 1 : -1), commandVisible.length - 1))
+          setCommandActive(next)
+          if (commandVisible[next]) commandOptions.get(commandVisible[next]).focus({ preventScroll: true })
+        })
+      }
       $('.agent-latest').addEventListener('click', latest)
       function handleScroll() {
         if(released)return

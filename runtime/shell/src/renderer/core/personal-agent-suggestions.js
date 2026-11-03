@@ -5,28 +5,48 @@
   const executionAttempts = new Map()
   const rideRequests = new Map()
 
-  // Mounted by the selected Personal Agent page; this helper owns no popup.
+  // The conversation owns placement; the resident owns proposal state and authority.
   root.odkPersonalAgentSuggestions = {
-    mount(surface, { api = root.odkPersonalAgent ?? {}, focusInput = () => {} } = {}) {
+    mount(surface, { api = root.odkPersonalAgent ?? {}, focusInput = () => {}, createMessage, removeMessage, onState = () => {} } = {}) {
       const elements = { content: surface }
+      const messages = new Map()
+      const create = createMessage ?? (() => {
+        const article = document.createElement('article')
+        article.className = 'agent-message agent-message-assistant'
+        const bubble = document.createElement('div')
+        bubble.className = 'agent-message-bubble'
+        const body = document.createElement('div')
+        body.className = 'agent-message-body personal-agent-proposals'
+        bubble.append(body); article.append(bubble); surface.append(article)
+        return { article, body }
+      })
+      const remove = removeMessage ?? (article => article.remove())
       const rideQuotePrefix = '\u67e5\u770b\u62a5\u4ef7'
       const rideRefreshPrefix = '\u5237\u65b0\u884c\u7a0b'
       let closed = false
       let consumerUnavailable = false
       let consumerId
-      let proposals
-      let proposalSnapshot = ''
       let proposalError = ''
       let proposalCommandError = ''
+      let errorProposalId = ''
       // Keep dispatched operations reserved until this ID has an authoritative terminal state.
       const actionConfirmations = new Map()
       const rideStatusNodes = new Map()
-      function releaseRideViews() {
-        for (const { requests, node } of rideStatusNodes.values()) if (requests?.view === node) delete requests.view
-        rideStatusNodes.clear()
+      function releaseRideView(id) {
+        const { requests, node } = rideStatusNodes.get(id) ?? {}
+        if (requests && requests.view === node) delete requests.view
+        rideStatusNodes.delete(id)
+      }
+      function removeEntry(id) {
+        const entry = messages.get(id)
+        if (!entry) return
+        if (entry.advice) { visibility?.unobserve(entry.advice); observedAdvice.delete(entry.advice); visibleAdvice.delete(entry.advice) }
+        releaseRideView(id)
+        remove(entry.article)
+        messages.delete(id)
       }
       const renderedProposalIds = new Set()
-      const uncertainActionWarning = 'Suggestion response was not delivered. Check the personal agent service; do not repeat an uncertain action.'
+      const uncertainActionWarning = 'Response was not delivered. Check the personal agent service; do not repeat an uncertain action.'
       let feedbackFocus
       let proposalEpoch = 0
       let suggestionCapabilities = { read: true, respond: true, acknowledge: true }
@@ -80,19 +100,50 @@
           if (epoch !== proposalEpoch && (!executionAttempt || !renderedProposalIds.has(value.id))) return
           if (value.type === 'proposal_presented') return
           proposalCommandError = uncertainActionWarning
-          showProposalError()
+          errorProposalId = value.id ?? ''
+          reportState()
         }
       }
-      function showProposalError() {
-        let error = proposals.querySelector('.personal-agent-proposal-error')
-        if (!error) {
-          error = document.createElement('p')
-          error.className = 'personal-agent-proposal-error'
-          error.setAttribute('role', 'status')
-          proposals.appendChild(error)
+      // State belongs to the identity capsule, never to a message bubble.
+      // `detail` carries the full safety assertion for the capsule's accessible name.
+      let stateSnapshot = null
+      function summarizeState(status, visible) {
+        const notes = []
+        if (proposalError) notes.push({ rank: 0, caption: 'Updates unavailable', detail: String(proposalError) })
+        if (proposalCommandError) notes.push({ rank: 1, caption: 'Delivery not confirmed', detail: proposalCommandError })
+        const labels = { ignored: 'Dismissed', expired: 'Expired', executing: 'In progress', completed: 'Completed', unknown: 'Outcome not confirmed' }
+        for (const p of visible) {
+          if (!p) continue
+          const preview = p.preview || p.ridePreview
+          if (executionAttempts.get(p.id)?.uncertain) notes.push({ rank: 2, caption: 'Outcome not confirmed', detail: uncertainActionWarning })
+          else if (p.status === 'pending' && executionAttempts.has(p.id)) notes.push({ rank: 3, caption: 'Waiting for result', detail: 'Submitted. Waiting for the result, so do not resend.' })
+          if (labels[p.status]) notes.push({ rank: p.status === 'unknown' ? 4 : 5, caption: labels[p.status], detail: labels[p.status] })
+          if (p.status === 'pending' && !suggestionCapabilities.respond && typeof p.nextStep === 'string')
+            notes.push({ rank: 6, caption: 'Read-only preview', detail: 'Read-only preview; respond from the desk.' })
+          if (p.status === 'pending' && !p.action && !p.ridePreview)
+            notes.push({ rank: 7, caption: 'No executable action', detail: 'No executable action is available.' })
+          if (preview?.sandbox === true) notes.push({ rank: 8, caption: 'Sandbox preview', detail: 'Sandbox preview, so no real trip.' })
+          if (Number.isFinite(preview?.expiresAt) && preview.expiresAt <= Date.now())
+            notes.push({ rank: 9, caption: 'Estimate expired', detail: 'Estimate expired.' })
+          if (p.result) {
+            const raw = String(p.result)
+            // Technical receipts stay private; a structured or hashed result becomes
+            // a neutral caption. Human-readable results stay readable in the capsule.
+            let structured = false
+            if (raw.length <= 8192) {
+              try { const parsed = JSON.parse(raw); structured = parsed !== null && typeof parsed === 'object' } catch { /* Not JSON. */ }
+            }
+            const technical = /sha[-_\s]?256|\b[a-f0-9]{32,}\b/i.test(raw) || structured || raw.length > 8192
+            notes.push({ rank: 10, caption: 'Result recorded', detail: technical ? 'Result recorded.' : raw })
+          }
         }
-        error.textContent = proposalCommandError || proposalError
+        notes.sort((a, b) => a.rank - b.rank)
+        // The capsule shows one short caption; its accessible name carries every
+        // state and safety assertion so none is lost when several apply.
+        const ordered = notes.filter((note, index) => notes.findIndex(other => other.detail === note.detail) === index)
+        return { caption: ordered[0]?.caption ?? '', detail: ordered.map(note => note.detail).join('. ') }
       }
+      function reportState() { if (stateSnapshot) onState(summarizeState(stateSnapshot.status, stateSnapshot.visible)) }
       function button(label, callback) {
         const node = document.createElement('button')
         node.type = 'button'
@@ -100,50 +151,77 @@
         node.addEventListener('click', callback)
         return node
       }
-      function rideRoute(article, proposal, canRespond = true) {
-        const preview = proposal.ridePreview
+      function structuredPreview(article, proposal, canRespond = true) {
+        const preview = proposal.preview || proposal.ridePreview
         if (!preview || typeof preview !== 'object') return
         let requests = rideRequests.get(proposal.id)
-        if (requests?.handle !== preview.handle) {
+        if (preview.handle && requests?.handle !== preview.handle) {
           requests = { handle: preview.handle, quote: false, refresh: false }
           rideRequests.set(proposal.id, requests)
         }
-        const panel = document.createElement('section')
-        panel.className = 'personal-agent-ride-route'
-        panel.id = `ride-route-${proposal.id}`
-        panel.setAttribute('aria-label', 'Ride route')
-        panel.hidden = true
-        const note = document.createElement('p')
-        const current = () => proposal.status === 'pending' && Number.isFinite(preview.expiresAt) && preview.expiresAt > Date.now()
-        note.textContent = current() ? 'Planned pickup; current location is not verified. No order placed.' : 'Estimate expired. Refresh to check the route again. No order placed.'
-        article.append(note)
-        if (preview.sandbox === true) { const sandbox = document.createElement('p'); sandbox.textContent = 'Sandbox preview; no real vehicle or trip.'; article.append(sandbox) }
-        for (const item of Array.isArray(preview.items) ? preview.items.slice(0, 16) : []) {
-          const line = document.createElement('p')
-          line.textContent = `${String(item.productName ?? '').slice(0, 256)}: ${String(item.priceText ?? '').slice(0, 256)}`
-          article.append(line)
+        const hasExpiry = Number.isFinite(preview.expiresAt)
+        const expired = hasExpiry && preview.expiresAt <= Date.now()
+        const current = () => proposal.status === 'pending' && (!hasExpiry || !expired)
+        const card = document.createElement('div')
+        card.className = 'personal-agent-preview-card personal-agent-ride-card'
+
+        const summaryText = preview.summary || (preview.from && preview.to ? [preview.from, preview.to].map(places => Array.isArray(places) && places.length === 1 ? String(places[0].name ?? '').slice(0, 256) : 'Choose a place').join(' → ') : '')
+        if (summaryText) {
+          const summary = document.createElement('p')
+          summary.className = 'personal-agent-preview-summary personal-agent-ride-route-display'
+          summary.textContent = summaryText
+          card.append(summary)
         }
-        const selectors = []
-        const route = document.createElement('p')
-        route.textContent = [preview.from, preview.to].map(places => Array.isArray(places) && places.length === 1 ? String(places[0].name ?? '').slice(0, 256) : 'Choose a place').join(' → ')
-        article.append(route)
-        for (const [key, caption] of [['from', 'Pickup'], ['to', 'Destination']]) {
-          const label = document.createElement('label')
-          label.textContent = caption
-          const select = document.createElement('select')
-          select.setAttribute('aria-label', caption)
-          const choices = Array.isArray(preview[key]) ? preview[key].slice(0, 8) : []
-          const blank = document.createElement('option')
-          blank.value = ''; blank.textContent = `Choose ${caption.toLowerCase()}`
-          select.append(blank)
-          for (const place of choices) {
-            const option = document.createElement('option')
-            option.value = typeof place.handle === 'string' ? place.handle : ''
-            option.textContent = `${String(place.name ?? '').slice(0, 256)} — ${String(place.city ?? '').slice(0, 80)} ${String(place.address ?? '').slice(0, 256)}`
-            select.append(option)
+
+        const items = document.createElement('div')
+        items.className = 'personal-agent-preview-chips personal-agent-ride-items'
+        for (const item of Array.isArray(preview.items) ? preview.items.slice(0, 16) : []) {
+          const line = document.createElement('span')
+          line.className = 'personal-agent-preview-chip personal-agent-ride-item'
+          if (item.tone === 'warn' || item.tone === 'good') line.dataset.tone = item.tone
+          const name = document.createElement('span')
+          name.className = 'personal-agent-preview-label personal-agent-ride-product'
+          name.textContent = String(item.productName || item.label || '').slice(0, 256)
+          const price = document.createElement('span')
+          price.className = 'personal-agent-preview-value personal-agent-ride-price'
+          price.textContent = `${String(item.priceText || item.value || '').slice(0, 256)}`
+          line.append(name, price)
+          items.append(line)
+        }
+        if (items.children.length) card.append(items)
+
+        const note = document.createElement('p')
+        note.className = 'personal-agent-preview-notice personal-agent-ride-note'
+        if (preview.sandbox === true) note.textContent = 'Sandbox preview, so no real trip.'
+        else if (hasExpiry && expired) note.textContent = 'Estimate expired.'
+        if (card.children.length) article.append(card)
+
+        const hasSelectors = Boolean(preview.from && preview.to)
+        let panel, selectors = []
+        if (hasSelectors) {
+          panel = document.createElement('section')
+          panel.className = 'personal-agent-preview-fields personal-agent-ride-route'
+          panel.id = `ride-route-${proposal.id}`
+          panel.setAttribute('aria-label', 'Ride route')
+          panel.hidden = true
+          for (const [key, caption] of [['from', 'Pickup'], ['to', 'Destination']]) {
+            const label = document.createElement('label')
+            label.textContent = caption
+            const select = document.createElement('select')
+            select.setAttribute('aria-label', caption)
+            const choices = Array.isArray(preview[key]) ? preview[key].slice(0, 8) : []
+            const blank = document.createElement('option')
+            blank.value = ''; blank.textContent = `Choose ${caption.toLowerCase()}`
+            select.append(blank)
+            for (const place of choices) {
+              const option = document.createElement('option')
+              option.value = typeof place.handle === 'string' ? place.handle : ''
+              option.textContent = `${String(place.name ?? '').slice(0, 256)} — ${String(place.city ?? '').slice(0, 80)} ${String(place.address ?? '').slice(0, 256)}`
+              select.append(option)
+            }
+            select.value = choices.length === 1 ? choices[0].handle : ''
+            label.append(select); panel.append(label); selectors.push(select)
           }
-          select.value = choices.length === 1 ? choices[0].handle : ''
-          label.append(select); panel.append(label); selectors.push(select)
         }
         const actions = document.createElement('div')
         actions.className = 'personal-agent-proposal-actions personal-agent-ride-actions'
@@ -154,18 +232,19 @@
         rideStatusNodes.set(proposal.id, { requests, node: requestStatus })
         if (requests) requests.view = requestStatus
         const showRequestStatus = text => {
-          requests.message = text
-          if (requests.view) requests.view.textContent = text
+          if (requests) requests.message = text
+          if (requests?.view) requests.view.textContent = text
         }
         let quoteButton
         const validPreviewHandle = typeof preview.handle === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(preview.handle)
-        if (canRespond && validPreviewHandle && current()) {
+        if (canRespond && validPreviewHandle && current() && !proposal.action) {
           quoteButton = button('Get current quote', async function () {
-            if (closed || !surface.contains(quoteButton) || quoteButton.disabled || requests.quote) return
+            if (closed || !surface.contains(quoteButton) || quoteButton.disabled || requests?.quote) return
             const handles = [preview.handle, ...selectors.map(select => select.value)]
-            if (!current() || !handles.every(value => typeof value === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(value)) || !selectors.every((select, index) => preview[index === 0 ? 'from' : 'to'].some(p => p.handle === select.value))) {
-              note.textContent = 'Choose both actual places. If the preview expired, ask the Agent to search again.'
-              panel.hidden = false
+            if (!current() || !handles.every(value => typeof value === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(value)) || (selectors.length && !selectors.every((select, index) => preview[index === 0 ? 'from' : 'to'].some(p => p.handle === select.value)))) {
+              note.textContent = 'Choose both places.'
+              if (!note.parentElement) card.append(note)
+              if (panel) panel.hidden = false
               const missing = selectors.find(select => !select.value)
               if (missing) missing.focus()
               return
@@ -176,65 +255,49 @@
             try {
               const receipt = await api.sendText(`${rideQuotePrefix} ${handles.join(' ')}`)
               if (!receipt?.accepted) throw Error('Unavailable')
-              showRequestStatus('Quote request sent. Follow its result in the Agent conversation.')
+              showRequestStatus('Quote requested.')
             } catch {
-              showRequestStatus('Quote request delivery is uncertain. Check the Agent conversation before trying again. No order confirmation was sent.')
+              showRequestStatus('Delivery is unconfirmed, so check before retrying. No order confirmation was sent.')
             }
           })
           quoteButton.className = 'personal-agent-proposal-primary'
-          quoteButton.disabled = requests.quote
+          quoteButton.disabled = requests?.quote === true
           quoteButton.dataset.proposalId = proposal.id
           quoteButton.dataset.proposalAction = 'ride-quote'
           actions.append(quoteButton)
         }
-        if (canRespond && validPreviewHandle && ['pending', 'expired'].includes(proposal.status)) {
+        if (canRespond && validPreviewHandle && ['pending', 'expired'].includes(proposal.status) && !proposal.action) {
           const refresh = button('Refresh preview', async () => {
-            if (closed || !surface.contains(refresh) || refresh.disabled || requests.refresh) return
+            if (closed || !surface.contains(refresh) || refresh.disabled || requests?.refresh) return
             requests.refresh = true
             refresh.disabled = true
             showRequestStatus('Sending preview refresh…')
             try {
               const receipt = await api.sendText(`${rideRefreshPrefix} ${preview.handle}`)
               if (!receipt?.accepted) throw Error('Unavailable')
-              showRequestStatus('Preview refresh sent. Follow its result in the Agent conversation.')
-            } catch { showRequestStatus('Preview refresh delivery is uncertain. Check the Agent conversation before trying again.') }
+              showRequestStatus('Refresh requested.')
+            } catch { showRequestStatus('Delivery is unconfirmed, so check before retrying.') }
           })
           refresh.dataset.proposalId = proposal.id
-          refresh.disabled = requests.refresh
+          refresh.disabled = requests?.refresh === true
           refresh.dataset.proposalAction = 'ride-refresh'
           if (!quoteButton) refresh.className = 'personal-agent-proposal-primary'
-          else panel.append(refresh)
+          else if (panel) panel.append(refresh)
           if (!quoteButton) actions.append(refresh)
         }
-        article.append(actions, requestStatus, panel)
+        article.append(actions, requestStatus)
+        if (panel) article.append(panel)
         return actions.children.length > 0
-      }
-      const expandedDisclosures = new Set()
-      function disclosure(label, className, id = '') {
-        const details = document.createElement('details')
-        details.className = className
-        details.open = expandedDisclosures.has(id)
-        details.addEventListener('toggle', () => {
-          if (!id) return
-          if (details.open) expandedDisclosures.add(id); else expandedDisclosures.delete(id)
-          if (expandedDisclosures.size > 256) expandedDisclosures.delete(expandedDisclosures.values().next().value)
-        })
-        const summary = document.createElement('summary')
-        summary.textContent = label
-        if (id) { summary.dataset.proposalId = id; summary.dataset.proposalAction = 'disclosure' }
-        details.append(summary)
-        return details
       }
       function renderProposals(status) {
         if (status.state === 'unavailable' || status.proposalCapabilities?.read === false) {
           proposalEpoch++
           renderedProposalIds.clear()
-          visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear(); proposalSnapshot = ''
+          visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear()
           suggestionCapabilities = { read: false, respond: false, acknowledge: false }
-          proposalError = ''; proposalCommandError = ''; visibilityFailure = false; feedbackFocus = undefined
-          expandedDisclosures.clear()
+          proposalError = ''; proposalCommandError = ''; errorProposalId = ''; visibilityFailure = false; feedbackFocus = undefined
           actionConfirmations.clear()
-          if (proposals) { proposals.replaceChildren(); proposals.hidden = true }
+          for (const id of messages.keys()) removeEntry(id)
           return
         }
         if (!Array.isArray(status.proposals)) return
@@ -255,58 +318,34 @@
           const p = status.proposals.find(proposal => proposal?.id === id)
           if (!suggestionCapabilities.respond || !p?.action || p.status !== 'pending' || p.snoozedUntil > Date.now() || executionAttempts.has(id) || actionSignature(p) !== confirmation.signature) actionConfirmations.delete(id)
         }
-        if (!proposals) {
-          if (!status.proposals.length) return
-          proposals = document.createElement('section')
-          proposals.className = 'personal-agent-proposals'
-          proposals.setAttribute('aria-label', 'Suggestions')
-          elements.content.appendChild(proposals)
-        }
-        proposals.hidden = !status.proposals.length || !suggestionCapabilities.read
-        const snapshot = JSON.stringify([status.proposals, status.proposalHiddenCount, suggestionCapabilities])
-        if (snapshot !== proposalSnapshot) {
-          proposalSnapshot = snapshot
-          const focused = document.activeElement
-          const retainedFocus = focused === document.body ? feedbackFocus : undefined
-          const focusId = focused?.dataset?.proposalId || retainedFocus?.id, focusAction = focused?.dataset?.proposalAction || retainedFocus?.action
-          feedbackFocus = undefined
-          const previousScroll = elements.content.scrollTop
-          visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear()
-          releaseRideViews()
-          proposals.replaceChildren()
-          proposalCommandError = uncertainExecution ? uncertainActionWarning : ''
-          if (!status.proposals.length || !suggestionCapabilities.read) { proposalError = status.proposalError || ''; return }
-          const header = document.createElement('div')
-          header.className = 'personal-agent-proposals-header'
-          const heading = document.createElement('h2')
-          heading.textContent = 'Suggestions'
-          header.append(heading)
-          proposals.append(header)
-          if (!suggestionCapabilities.respond) {
-            const note = document.createElement('p')
-            note.className = 'personal-agent-proposal-capability'
-            note.textContent = 'Suggestions are read-only on this device. Respond from the desk.'
-            proposals.append(note)
-          }
-          if (status.proposalHiddenCount > 0) {
-            const remaining = document.createElement('p')
-            remaining.textContent = `${status.proposalHiddenCount} more suggestions in the agent store. Ask for suggestions to inspect them.`
-            proposals.append(remaining)
-          }
-          const history = disclosure('Previous suggestions', 'personal-agent-proposal-history', 'history')
-          const statusLabels = { pending: 'Suggested', ignored: 'Dismissed', expired: 'Expired', executing: 'In progress', completed: 'Completed', unknown: 'Outcome not confirmed' }
-          const feedbackLabels = { done: 'Marked done', snooze: 'Saved for later', useful: 'Marked useful', irrelevant: 'Marked not relevant', incorrect: 'Marked incorrect' }
-          let historical = 0
-          for (const p of status.proposals) {
-            if (!p || typeof p.advice !== 'string') continue
-            const snoozed = p.status === 'pending' && p.snoozedUntil > Date.now()
-            const current = p.status === 'pending' && !snoozed
-            const article = document.createElement('article')
+        const focused = document.activeElement
+        const retainedFocus = focused === document.body ? feedbackFocus : undefined
+        const focusId = focused?.dataset?.proposalId || retainedFocus?.id, focusAction = focused?.dataset?.proposalAction || retainedFocus?.action
+        feedbackFocus = undefined
+        const previousScroll = elements.content.scrollTop
+        const visible = status.proposals.filter(p => p && typeof p.id === 'string' && typeof p.advice === 'string' &&
+          (p.status !== 'pending' || (p.offered === true && !(p.snoozedUntil > Date.now()))))
+        const visibleIds = new Set(visible.map(p => p.id))
+        for (const id of messages.keys()) if (!visibleIds.has(id)) removeEntry(id)
+        proposalCommandError = uncertainExecution ? uncertainActionWarning : ''
+        for (const p of visible) {
+            const current = p.status === 'pending'
+            let entry = messages.get(p.id)
+            if (!entry) {
+              const created = create(p)
+              entry = { ...created, snapshot: '' }
+              messages.set(p.id, entry)
+            }
+            const snapshot = JSON.stringify([p, suggestionCapabilities])
+            if (entry.snapshot === snapshot) continue
+            entry.snapshot = snapshot
+            if (entry.advice) { visibility?.unobserve(entry.advice); observedAdvice.delete(entry.advice); visibleAdvice.delete(entry.advice); entry.advice = undefined }
+            releaseRideView(p.id)
+            const proposals = entry.body
+            proposals.replaceChildren()
+            const article = document.createElement('section')
             article.className = 'personal-agent-proposal'
             article.dataset.proposalId = p.id
-            const state = document.createElement('p')
-            state.className = 'personal-agent-proposal-state'
-            state.textContent = snoozed ? 'Saved for later' : statusLabels[p.status] || 'Suggestion state unavailable'
             const advice = document.createElement('p')
             advice.className = 'personal-agent-proposal-advice'
             const technicalText = /sha[-_\s]?256|\b[a-f0-9]{32,}\b/i
@@ -315,14 +354,12 @@
             const executableAction = Boolean(p.action && typeof p.confirmation === 'string' && p.confirmation.trim())
             const nextStep = typeof p.nextStep === 'string' && p.nextStep.length <= 240 && !/[\x00-\x1f\x7f]/.test(p.nextStep) && !technicalNext ? p.nextStep.trim() : ''
             const readOnlyStep = !suggestionCapabilities.respond && Boolean(nextStep)
-            if (!executableAction) state.textContent += p.ridePreview || readOnlyStep ? ' · Read-only preview' : ' · Earlier suggestion · No executable action'
-            else if (!nextStep || technicalAdvice) state.textContent += ' · Earlier suggestion'
-            advice.textContent = technicalAdvice ? 'Earlier recommendation unavailable. Ask the Agent for an updated suggestion.' : p.advice
+            advice.textContent = technicalAdvice ? 'This message is no longer available. Ask again.' : p.advice
             if (!technicalAdvice && p.advice.length > 180) {
               advice.dataset.long = 'true'
               advice.setAttribute('tabindex', '0')
               advice.setAttribute('role', 'region')
-              advice.setAttribute('aria-label', 'Full recommendation; scroll to read')
+              advice.setAttribute('aria-label', 'Full message; scroll to read')
               advice.addEventListener('keydown', event => {
                 if (event.target !== advice || !['Home', 'End', 'PageUp', 'PageDown', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
                 // Keep the focused region's scroll keys out of the Shell pager.
@@ -334,66 +371,18 @@
                 }
               })
             }
-            article.append(state, advice)
+            article.append(advice)
             if ((readOnlyStep || (executableAction && !current)) && nextStep && !technicalAdvice) {
               const next = document.createElement('div')
               next.className = 'personal-agent-proposal-next'
-              const caption = document.createElement('p')
-              caption.className = 'personal-agent-proposal-next-label'
-              caption.textContent = 'Next step'
               const step = document.createElement('p')
               step.className = 'personal-agent-proposal-next-step'
               step.textContent = nextStep
-              next.append(caption, step)
+              next.append(step)
               article.append(next)
             }
-            if (current && executionAttempts.has(p.id)) {
-              const pending = document.createElement('p')
-              pending.className = 'personal-agent-proposal-feedback'
-              pending.setAttribute('role', 'status')
-              pending.textContent = 'Operation submitted; waiting for its confirmed outcome. Do not repeat this action.'
-              article.append(pending)
-            }
-            if (p.feedback && feedbackLabels[p.feedback]) {
-              const feedback = document.createElement('p')
-              feedback.className = 'personal-agent-proposal-feedback'
-              feedback.setAttribute('role', 'status')
-              feedback.textContent = feedbackLabels[p.feedback]
-              article.append(feedback)
-            }
-            const memoryStates = {
-              queued: 'Feedback saved. Updating related memory…',
-              running: 'Feedback saved. Updating related memory…',
-              applied: 'Feedback saved. Related memory updated.',
-              failed: 'Feedback saved. Memory update unavailable.',
-              unavailable: 'Feedback saved. Memory update unavailable.',
-              stale: 'Feedback saved. Memory update was skipped.',
-            }
-            if (p.feedbackLearning && Object.hasOwn(memoryStates, p.feedbackLearning.status)) {
-              const memory = document.createElement('p')
-              memory.className = 'personal-agent-proposal-memory personal-agent-proposal-feedback'
-              memory.setAttribute('role', 'status')
-              memory.textContent = memoryStates[p.feedbackLearning.status]
-              article.append(memory)
-            }
-            if (p.ridePreview) rideRoute(article, p, suggestionCapabilities.respond && typeof api.sendText === 'function')
-            if (p.result) {
-              let structuredResult = false
-              if (typeof p.result === 'string' && p.result.length <= 8192) {
-                try {
-                  const parsed = JSON.parse(p.result)
-                  structuredResult = parsed !== null && typeof parsed === 'object'
-                } catch { /* Human-readable operation results are not JSON receipts. */ }
-              }
-              const result = document.createElement('p')
-              result.textContent = p.result
-              result.setAttribute('role', 'status')
-              if (technicalText.test(p.result) || structuredResult) {
-                result.textContent = 'Operation result recorded. Check its status in the Agent conversation.'
-                article.append(result)
-              } else article.append(result)
-            }
-            if ((current || p.status === 'completed') && suggestionCapabilities.respond) {
+            if (p.preview || p.ridePreview) structuredPreview(article, p, suggestionCapabilities.respond && typeof api.sendText === 'function')
+            if (current && suggestionCapabilities.respond) {
               const actions = document.createElement('div')
               actions.className = 'personal-agent-proposal-actions'
               const response = (label, decision) => {
@@ -406,7 +395,7 @@
                 control.dataset.proposalId = p.id; control.dataset.proposalAction = decision
                 return control
               }
-              if (current && executableAction) {
+              if (executableAction) {
                 const showConfirmation = (confirmation, focus = false) => {
                   const isCurrent = () => !closed && surface.contains(actions) && proposals.contains(actions) && suggestionCapabilities.respond && actionConfirmations.get(p.id) === confirmation && !executionAttempts.has(p.id)
                   const confirm = button(p.confirmation, async () => {
@@ -414,6 +403,7 @@
                     actionConfirmations.delete(p.id)
                     executionAttempts.set(p.id, { uncertain: false })
                     for (const control of actions.children) control.disabled = true
+                    entry.snapshot = ''; renderProposals(status)
                     await command({ type: 'proposal_respond', id: p.id, decision: 'accept', confirmation: p.confirmation })
                   })
                   confirm.className = 'personal-agent-proposal-primary'
@@ -421,8 +411,8 @@
                   const cancel = button('Cancel', () => {
                     if (!isCurrent()) return
                     actionConfirmations.delete(p.id)
-                    proposalSnapshot = ''; renderProposals(status)
-                    for (const card of proposals.children) if (card.dataset.proposalId === p.id) card.querySelector('[data-proposal-action="execute"]')?.focus({ preventScroll: true })
+                    entry.snapshot = ''; renderProposals(status)
+                    entry.body.querySelector('[data-proposal-action="execute"]')?.focus({ preventScroll: true })
                   })
                   cancel.className = 'personal-agent-proposal-secondary'
                   cancel.dataset.proposalId = p.id; cancel.dataset.proposalAction = 'cancel'
@@ -446,40 +436,29 @@
                   later.disabled = accept.disabled
                   actions.append(accept, later)
                 }
+              } else {
+                const later = response('Later', 'snooze')
+                later.className = 'personal-agent-proposal-secondary'
+                later.disabled = executionAttempts.has(p.id)
+                actions.append(later)
               }
-              const feedback = disclosure('Feedback', 'personal-agent-proposal-feedback-options', `${p.id}:feedback`)
-              const choices = document.createElement('div')
-              choices.className = 'personal-agent-proposal-actions'
-              if (current && !p.action) choices.append(response('Done', 'done'), response('Later', 'snooze'))
-              choices.append(response('Useful', 'useful'), response('Not relevant', 'irrelevant'), response('Incorrect', 'incorrect'))
-              if (current) choices.append(response('Ignore', 'ignore'), response('Never suggest this category', 'mute'))
-              feedback.append(choices)
-              if (current) article.append(actions)
-              article.append(feedback)
+              article.append(actions)
             }
-            if (current) {
-              proposals.append(article)
-              if (!technicalAdvice) { observedAdvice.set(advice, p); visibility?.observe(advice) }
-            } else { history.append(article); historical++ }
-          }
-          if (historical) {
-            history.children[0].textContent = `Previous suggestions (${historical})`
-            proposals.append(history)
-          }
-          if (focusId && focusAction) {
-            let restored = false
-            for (const node of proposals.querySelectorAll?.('button, summary') || []) if (node.dataset.proposalId === focusId && node.dataset.proposalAction === focusAction) {
-              const owner = node.closest('details'); if (owner && node.tagName !== 'SUMMARY') owner.open = true
-              node.focus({ preventScroll: true }); restored = true; break
-            }
-            if (!restored) focusInput()
-          }
-          elements.content.scrollTop = previousScroll
+            proposals.append(article)
+            if (current && !technicalAdvice) { entry.advice = advice; observedAdvice.set(advice, p); visibility?.observe(advice) }
         }
+        if (focusId && focusAction) {
+          let restored = false
+          for (const node of messages.get(focusId)?.body.querySelectorAll?.('button') || []) if (node.dataset.proposalId === focusId && node.dataset.proposalAction === focusAction) {
+            node.focus({ preventScroll: true }); restored = true; break
+          }
+          if (!restored) focusInput()
+        }
+        elements.content.scrollTop = previousScroll
         for (const [node, p] of observedAdvice) acknowledgeVisible(node, p)
         proposalError = status.proposalError || ''
-        if (proposalError || proposalCommandError) showProposalError()
-        else proposals.querySelector('.personal-agent-proposal-error')?.remove()
+        stateSnapshot = { status, visible }
+        reportState()
       }
 
       function consumerReady() {
@@ -508,7 +487,6 @@
           const restored = consumerUnavailable && !unavailable
           consumerUnavailable = unavailable
           renderProposals(status)
-          surface.hidden = !proposals || proposals.hidden || !proposals.children.length
           if (restored) consumerReady()
         },
         async destroy() {
@@ -517,12 +495,11 @@
           proposalEpoch++
           actionConfirmations.clear()
           renderedProposalIds.clear()
-          releaseRideViews()
           visibility?.disconnect()
+          for (const id of messages.keys()) removeEntry(id)
           observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear()
           document.removeEventListener('visibilitychange', recheckVisibility)
           document.removeEventListener('visibilitychange', consumerVisibilityChanged)
-          surface.replaceChildren(); surface.hidden = true
           await announceConsumer(null)
         },
       }

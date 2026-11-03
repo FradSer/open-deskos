@@ -39,6 +39,7 @@ A candidate release needs `release.json`, a host test receipt for its content di
 
 - Use 2-space JavaScript. Main/preload/tests use CommonJS; renderer uses ES modules.
 - Regenerate `src/renderer/uno.css` with `pnpm styles`. Do not edit it manually.
+- Keep all Personal Agent generated content generic. Do not build domain-specific cards such as custom ride cards. Compose generated interfaces from shared UI primitives: text, status badges, attribute chips, option selectors, and standard buttons.
 - A Widget adapts to its Cell. Keep explicit type floors. Re-compose before dropping complete items, state omitted counts and never scroll a glanceable Widget. See @docs/ARCHITECTURE.md#adr-0028.
 - Use @../../DESIGN.md semantic `--odk-*` tokens. The scoped `--pi-*` exception applies only to quoted Pi content.
 - Keep `contextIsolation:true`, `nodeIntegration:false` and local assets. Never fabricate personal data or availability.

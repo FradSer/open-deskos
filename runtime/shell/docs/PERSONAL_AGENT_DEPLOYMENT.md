@@ -81,7 +81,7 @@ does not create or overwrite either file. Set actual absolute paths on the CM5:
   The script escapes the space as UTF-8 U+00A0, so Usage shows the whole name.
   Set `MAGPIE_API_KEY` in `runtime.env` with mode `0600`; `models.json` stores only `$MAGPIE_API_KEY`.
   Jev uses a separate System One endpoint. Keep `ODK_JEV_PROVIDER=disabled` until the gateway serves `/systemone`.
-  The Shell Pi dropdown provides `/login`, `/model`, and `/thinking`.
+  The composer provides `/login`, `/model`, and `/thinking`. Type `/` as the first character to open and filter the command menu.
   The STT credential does not authenticate the conversation model.
 - `ODK_TASK_TARGETS_FILE`: the Personal Agent coordinator's own Hosted Pi target list
   (see @../../../integrations/personal-agent/docs/CONTRACT.md#hosted-pi). Declare it in the

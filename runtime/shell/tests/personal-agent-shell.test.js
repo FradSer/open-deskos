@@ -252,13 +252,16 @@ test('refused MIC receipts preserve service failures and report refusals without
 // This DOM surface only mounts the real plugin and dispatches public events.
 // Production code owns the requests, revision checks and cleanup behavior.
 function nativeConfigPageHarness(configure, openAuthUrl = async () => true) {
-  const elements = new Map(), cleanups = []
-  const document = { hidden: false, activeElement: null, addEventListener() {}, removeEventListener() {}, getElementById() { return null } }
+  const elements = new Map(), cleanups = [], shellListeners = new Map(), sent = []
+  const record = (name, handler) => { if (!shellListeners.has(name)) shellListeners.set(name, []); shellListeners.get(name).push(handler) }
+  const forget = (name, handler) => { const list = shellListeners.get(name) || []; const index = list.indexOf(handler); if (index >= 0) list.splice(index, 1) }
+  const document = { hidden: false, activeElement: null, addEventListener: record, removeEventListener: forget, getElementById() { return null } }
+  const initiallyHidden = new Set(['.agent-pi-form', '.agent-command-popup', '.agent-command-empty'])
   function element(key = '') {
     if (elements.has(key)) return elements.get(key)
     const handlers = new Map()
     const node = {
-      value: '', textContent: '', hidden: key === '.agent-pi-form', disabled: false,
+      value: '', textContent: '', hidden: initiallyHidden.has(key), disabled: false,
       dataset: {}, childNodes: [], children: [], scrollHeight: 46, scrollTop: 0,
       style: { setProperty() {} }, classList: { add() {}, remove() {}, toggle() {} },
       setAttribute(name, value) { this[name] = value }, removeAttribute(name) { delete this[name] },
@@ -269,7 +272,13 @@ function nativeConfigPageHarness(configure, openAuthUrl = async () => true) {
       replaceChildren(...children) { this.children = this.childNodes = children; this.value = children[0]?.value || '' },
       append(...children) { this.children.push(...children) }, prepend(child) { this.children.unshift(child) },
       remove() {}, scrollTo() {}, getBoundingClientRect() { return { top: 0, bottom: 46, width: 320, height: 46 } },
-      fire(type) { return handlers.get(type)?.({ target: this, key: '', preventDefault() {}, stopPropagation() {} }) },
+      requestSubmit() { return this.fire('submit') },
+      fire(type, extra = {}) {
+        const event = { target: this, key: '', preventDefault() { this.defaultPrevented = true },
+          stopPropagation() { this.propagationStopped = true }, stopImmediatePropagation() { this.immediatePropagationStopped = true }, ...extra }
+        const result = handlers.get(type)?.(event)
+        return result === undefined ? event : result
+      },
     }
     elements.set(key, node)
     return node
@@ -277,10 +286,11 @@ function nativeConfigPageHarness(configure, openAuthUrl = async () => true) {
   document.createElement = tag => element(`created-${tag}-${elements.size}`)
   let plugin
   const window = {
-    document, addEventListener() {}, removeEventListener() {},
+    document, addEventListener: record, removeEventListener: forget,
     odkPlugins: { register(value) { plugin = value } },
-    odkPersonalAgentAvatar: { mount: () => ({ engage() {}, destroy() {}, update() {} }), phaseFor: () => 'idle' },
+    odkPersonalAgentAvatar: { mount: () => ({ engage() {}, destroy() {}, update() {}, intent: () => 'fixture-intent', fail() {} }), phaseFor: () => 'idle' },
     odkPersonalAgent: { supportsVoiceInput: false, configure, openAuthUrl,
+      sendText: async text => { sent.push(text); return { accepted: true } },
       subscribe: () => () => {}, getStatus: () => new Promise(() => {}) },
   }
   vm.runInNewContext(fs.readFileSync('src/renderer/plugins/personal-agent.js', 'utf8'), {
@@ -291,8 +301,16 @@ function nativeConfigPageHarness(configure, openAuthUrl = async () => true) {
   page.querySelector = selector => element(selector)
   plugin.mount(page, { trackCleanup: fn => cleanups.push(fn) })
   return {
-    element,
-    open(mode) { const select = element('.agent-pi-command'); select.value = mode; return select.fire('change') },
+    element, sent,
+    type(value) { const input = element('textarea'); input.value = value; return input.fire('input') },
+    press(key, extra = {}) {
+      const event = { key, target: document.activeElement || element('textarea'), preventDefault() { this.defaultPrevented = true },
+        stopPropagation() { this.propagationStopped = true }, stopImmediatePropagation() { this.immediatePropagationStopped = true }, ...extra }
+      for (const handler of [...(shellListeners.get('keydown') || [])]) handler(event)
+      return event
+    },
+    focused() { return document.activeElement },
+    open(mode) { return element(`.agent-command-option[data-command="${mode}"]`).fire('click') },
     close() { return element('.agent-pi-close').fire('click') },
     release() { for (const fn of [...cleanups].reverse()) fn() },
   }
@@ -314,8 +332,7 @@ test('native configuration reloads a reopened mode after an older list settles',
     resolveOld(configSnapshot('obsolete-model'))
     await old; await flushConfigPage()
     assert.equal(lists, 2, 'reopened mode must receive its own current list')
-    assert.equal(f.element('.agent-pi-command').disabled, true, 'old finally cannot release a newer pending request')
-    assert.equal(f.element('.agent-pi-form [type="submit"]').disabled, true)
+    assert.equal(f.element('.agent-pi-form [type="submit"]').disabled, true, 'old finally cannot release a newer pending request')
     resolveNew(configSnapshot('current-model'))
     await reopened; await flushConfigPage()
     assert.equal(f.element('.agent-pi-form').hidden, false)
@@ -347,4 +364,101 @@ test('native authentication navigation cannot publish stale results after a mode
       assert.ok(!status.textContent.includes(oldUrl), 'old login URL stays out of the current status')
     } finally { if (!released) f.release() }
   })
+})
+
+test('typing / opens and filters the command menu', async () => {
+  const f = nativeConfigPageHarness(async () => configSnapshot('current-model'))
+  try {
+    const popup = f.element('.agent-command-popup'), input = f.element('textarea')
+    assert.equal(popup.hidden, true, 'the menu starts closed')
+    f.type('/')
+    assert.equal(popup.hidden, false)
+    assert.equal(input['aria-expanded'], 'true')
+    assert.equal(input['aria-activedescendant'], 'agent-command-login')
+    assert.equal(input.value, '/', 'the slash query stays in the draft')
+    for (const mode of ['login', 'model', 'thinking']) assert.equal(f.element(`.agent-command-option[data-command="${mode}"]`).hidden, false)
+    f.type('/mo')
+    assert.equal(f.element('.agent-command-option[data-command="model"]').hidden, false)
+    assert.equal(f.element('.agent-command-option[data-command="login"]').hidden, true)
+    assert.equal(f.element('.agent-command-option[data-command="thinking"]').hidden, true)
+    assert.equal(input['aria-activedescendant'], 'agent-command-model')
+    f.type('/zz')
+    assert.equal(f.element('.agent-command-empty').hidden, false, 'an unmatched query states that no command matches')
+    assert.equal(f.element('.agent-command-option[data-command="model"]').hidden, true)
+    const escape = f.press('Escape')
+    assert.equal(escape.defaultPrevented, true)
+    assert.equal(popup.hidden, true)
+    assert.equal(input['aria-expanded'], 'false')
+    assert.equal(input.value, '/zz', 'Escape retains the draft')
+    assert.equal(f.focused(), input, 'Escape returns focus to the field')
+  } finally { f.release() }
+})
+
+test('keyboard selection from a slash query opens the matching Pi control', async () => {
+  const commands = []
+  const f = nativeConfigPageHarness(async command => { commands.push(command); return configSnapshot('current-model') })
+  try {
+    f.type('/')
+    const down = f.element('textarea').fire('keydown', { key: 'ArrowDown' })
+    assert.equal(down.defaultPrevented, true)
+    assert.equal(f.element('textarea')['aria-activedescendant'], 'agent-command-model')
+    const enter = f.element('textarea').fire('keydown', { key: 'Enter' })
+    assert.equal(enter.defaultPrevented, true, 'Enter selects the highlighted command instead of sending text')
+    assert.equal(f.element('.agent-command-popup').hidden, true)
+    assert.equal(f.element('.agent-pi-form').hidden, false)
+    assert.equal(f.element('textarea').value, '', 'the slash query leaves the draft')
+    await flushConfigPage()
+    assert.deepEqual(commands.map(command => command.action), ['list'])
+    assert.deepEqual(f.sent, [], 'a selected command does not become an owner message')
+  } finally { f.release() }
+})
+
+test('an ordinary draft never opens the command menu and no command button remains', async () => {
+  const f = nativeConfigPageHarness(async () => configSnapshot('current-model'))
+  try {
+    const input = f.element('textarea')
+    f.type('Keep this draft')
+    assert.equal(f.element('.agent-command-popup').hidden, true)
+    f.element('.agent-command-toggle').fire('click')
+    assert.equal(f.element('.agent-command-popup').hidden, true, 'no button can open the menu')
+    assert.equal(input.value, 'Keep this draft')
+    f.type('/')
+    assert.equal(f.element('.agent-command-popup').hidden, false, 'only a typed slash opens the menu')
+    for (const mode of ['login', 'model', 'thinking']) assert.equal(f.element(`.agent-command-option[data-command="${mode}"]`).hidden, false)
+    f.element('.agent-command-option[data-command="thinking"]').fire('click')
+    assert.equal(f.element('.agent-pi-form').hidden, false)
+    assert.equal(f.element('.agent-command-popup').hidden, true)
+    await flushConfigPage()
+    assert.deepEqual(f.sent, [])
+  } finally { f.release() }
+})
+
+test('ordinary text with a slash never opens the command menu', async () => {
+  const f = nativeConfigPageHarness(async () => configSnapshot('current-model'))
+  try {
+    for (const value of ['path/to/file', '/model ', ' /login', 'ask /model', '/model/extra']) {
+      f.type(value)
+      assert.equal(f.element('.agent-command-popup').hidden, true, `${value} stays ordinary text`)
+    }
+    assert.equal(f.element('textarea').value, '/model/extra')
+    assert.equal(f.element('.agent-send').disabled, false, 'ordinary slash text stays sendable')
+    const enter = f.element('textarea').fire('keydown', { key: 'Enter' })
+    assert.equal(enter.defaultPrevented, true, 'Enter still submits ordinary text')
+    await flushConfigPage()
+    assert.deepEqual(f.sent, ['/model/extra'])
+  } finally { f.release() }
+})
+
+test('a submitted exact slash command still opens its Pi control', async () => {
+  const f = nativeConfigPageHarness(async () => configSnapshot('current-model'))
+  try {
+    f.type('/login')
+    assert.equal(f.element('.agent-command-popup').hidden, false)
+    await f.element('.agent-composer').fire('submit')
+    assert.equal(f.element('.agent-pi-form').hidden, false)
+    assert.equal(f.element('textarea').value, '')
+    assert.equal(f.element('.agent-command-popup').hidden, true)
+    await flushConfigPage()
+    assert.deepEqual(f.sent, [])
+  } finally { f.release() }
 })

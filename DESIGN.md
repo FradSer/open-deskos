@@ -71,6 +71,8 @@ Pixel uses the unchanged local Zpix v3.2.0 WOFF2. It supplies Latin, Chinese, di
 The optional `border-beam` theme uses [Libraries.dev](https://github.com/Jakubantalik/Libraries.dev/tree/main/packages/border-beam)'s rotating conic-gradient edge. It uses existing neutral tokens. Home Widgets, Usage, and the Pi outer surface receive thin edges without changing geometry/content or adding React. This theme permits a six-second edge cycle. It does not add outward bloom or intercept input.
 Use static edges for reduced motion. Pause animation when the document is hidden.
 
+Pixel samples Onee into square cells with a local SVG filter. The live animation, expressions, and static poses stay unchanged. Compact Onee uses half the cell size. The static fallback uses the same filter.
+
 New installations use Pixel; explicit local selection survives restart. There is no State Bar theme selector.
 
 ## Interaction
@@ -78,6 +80,7 @@ New installations use Pixel; explicit local selection survives restart. There is
 - Widgets display readings. Apps own interactive views. Swipe up from the bottom handle to return from a Widget App. This restores its source page and focus. A focused handle accepts ArrowUp, Enter, or Space. Gamepad B returns from the foreground App. A Personal Agent overlay receives Back first. Escape remains available for other App entry points. Touch and keyboard work without Remote Link or camera services.
 - Attribute the Console driving a Hosted Pi in the overview header for as long as it drives. Local input retains authority.
 - Show unavailable/synchronizing peripheral states honestly and keep hardware acceptance separate.
+- State Bar status icons omit corner badges.
 - Pointer paging has a short spatial transition; keyboard/Remote changes are immediate. Respect reduced motion. Page marks crossfade opacity without scaling targets or animating layout width.
 - Home shows one neutral horizontal handle with a 44-pixel target. Swipe the handle sideways to change pages. A focused handle accepts ArrowLeft, ArrowRight, Home, or End. Its accessible name identifies the current page. Theme changes preserve its location and target.
 - App cards use the same border width, border color, and theme radius as Widgets. Controls retain their focus outlines. App contents have no additional outer frame. The Shell App title is available to assistive technology without a visible title bar. Widget Apps have no empty header.
@@ -85,7 +88,7 @@ New installations use Pixel; explicit local selection survives restart. There is
 - Put session status/goals before PID/command disclosures. Refresh preserves expansion, focus, and scroll. Usage refresh actions stay beside provider state before optional metric details.
 - A not-started focus dial is neutral; Today has no decorative active dot.
 
-The resident Agent centers Onee above an overlapping capsule that contains its name and status. The transparent header floats above scrolling messages. The capsule only displays the Agent name and status. It has no arrow, edit action, or keyboard stop. Its animation follows input, service work, replies, completion, and failures. Reduced motion uses static poses. Hidden and released pages stop animation work. Messages use rounded bubbles. One conversation region scrolls above the fixed composer. Show actual messages and service states. Do not copy sample questions from design references.
+The resident Agent centers Onee above an overlapping capsule that contains its name and status. A small header top inset keeps Onee close to the State Bar. The transparent header floats above scrolling messages. The capsule only displays the Agent name and status. It has no arrow, edit action, or keyboard stop. Its animation follows input, service work, replies, completion, and failures. Reduced motion uses static poses. Hidden and released pages stop animation work. Messages use rounded bubbles. One conversation region scrolls above the fixed composer. Show actual messages and service states. Do not copy sample questions from design references.
 
 Each related task uses one two-column Grid row for its label and Reply button. The row owns alignment and spacing. Single-task and multiple-task messages use the same structure. Long labels wrap inside the available column.
 Task references use a small icon and gray text without a frame or fill. They retain readable contrast, keyboard focus, and 44-pixel targets.

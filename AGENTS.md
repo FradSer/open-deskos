@@ -9,6 +9,13 @@
 - Read @PRODUCT.md for scope. Read @runtime/shell/CONTEXT.md for terms. Read @runtime/shell/docs/ARCHITECTURE.md for an applicable architecture decision.
 - The root provides UnoCSS; it is not a package workspace. Install runtime dependencies with pnpm in `runtime/shell/`.
 
+## Universal Generative UI
+
+- Keep all Personal Agent and assistant generated content generic and composable.
+- Do not create domain-specific or bespoke cards such as custom ride widgets.
+- Build generated UI from shared primitives: structured text, status badges, attribute chips, option selectors, and standard buttons.
+- Keep domain logic in backend services, never in renderer presentation cards.
+
 ## Verification and operations
 
 - Define Given/When/Then scenarios in the applicable `.feature` file before behavior changes. Reproduce a bug with a failing regression test before implementation.

@@ -116,7 +116,7 @@ app.whenReady().then(async () => {
   client.subscribe(status => win.webContents.send('odk-personal-agent-status', status))
   client.start()
   await until(() => client.snapshot().state === 'idle', 'authenticated client')
-  const snapshot = () => run(`(() => { const panel=document.getElementById('personal-agent-status'); return {hidden:panel.hidden,proactive:panel.dataset.proactive,modal:panel.getAttribute('aria-modal'),focus:document.activeElement?.id,overflow:document.documentElement.scrollWidth>innerWidth,rows:[...panel.querySelectorAll('.personal-agent-proposal')].map(n=>({state:n.querySelector('.personal-agent-proposal-state').textContent,evidence:[...n.querySelectorAll('.personal-agent-proposal-evidence')].map(e=>e.textContent),advice:n.textContent,buttons:[...n.querySelectorAll('button')].map(b=>({text:b.textContent,height:b.getBoundingClientRect().height}))}))} })()`)
+  const snapshot = () => run(`(() => { const panel=document.getElementById('personal-agent-status'); return {hidden:panel.hidden,proactive:panel.dataset.proactive,modal:panel.getAttribute('aria-modal'),focus:document.activeElement?.id,overflow:document.documentElement.scrollWidth>innerWidth,rows:[...panel.querySelectorAll('.personal-agent-proposal')].map(n=>({state:n.querySelector('.personal-agent-proposal-state')?.textContent ?? '',evidence:[...n.querySelectorAll('.personal-agent-proposal-evidence')].map(e=>e.textContent),advice:n.textContent,buttons:[...n.querySelectorAll('button')].map(b=>({text:b.textContent,height:b.getBoundingClientRect().height}))}))} })()`)
   if(actual) {
  const {readProactiveFile}=await load('proactive-private.mjs')
  const {odkDataRequest}=await load('odk-data.mjs')

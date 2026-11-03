@@ -63,7 +63,11 @@ Keep the Pi extension directory at `pi-packages/packages/open-deskos`.
 
 **Personal Agent**: The CM5 resident component that transcribes, coordinates, and responds. Windows displays its state and relays input. Configured typed routing precedes capabilities. Jev is optional. Low confidence asks; inference failure stops dispatch. Hosted Pi implements source changes.
 
-**Pi Configuration**: Native Pi `settings.json`, `auth.json`, and `models.json` own model selection and authentication. The service uses `PI_CODING_AGENT_DIR`. The composer provides `/login`, `/model`, and `/thinking`. Jev resolves classifier authentication through Pi. Service settings use the exact filename `perosnal-agent.env`.
+**Pi Configuration**: Native Pi `settings.json`, `auth.json`, and `models.json` own model selection and authentication. The service uses `PI_CODING_AGENT_DIR`. The composer provides `/login`, `/model`, and `/thinking` through the Command Menu. Jev resolves classifier authentication through Pi. Service settings use the exact filename `perosnal-agent.env`.
+
+**Command Menu**: The Personal Agent command list. It opens when `/` is the first draft character. It filters as the owner types.
+
+**Slash Command**: A Pi command that the owner selects from the Command Menu or enters as text beginning with `/`. The Shell opens the matching native Pi control instead of sending the command as an owner message.
 
 **Spoken Turn**: A voice recording submitted by MIC or silence detected after speech. Waiting without speech is not a turn; it is neither a fixed-duration clip nor a wake-word session.
 

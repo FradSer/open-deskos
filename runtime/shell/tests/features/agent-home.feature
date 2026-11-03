@@ -523,8 +523,9 @@ Feature: Personal Agent home briefing
   Scenario: State Bar distinguishes missing evidence
     Given a peripheral source has not reported its state
     When the State Bar renders
-    Then it shows Unknown rather than Disconnected
-    And unavailable and disconnected sources have distinct text
+    Then its accessible state says Unknown rather than Disconnected
+    And unavailable and disconnected sources have distinct accessible text
+    And status icons show no corner badges
     And network reachability does not claim a confirmed Wi-Fi connection
 
   Scenario: A streaming turn survives transport recovery
@@ -932,3 +933,21 @@ Scenario: Hidden previews capture the current native viewport
     When Overview builds the glance
     Then the place names the clause and the other values follow with and
     And no field label repeats for each value
+
+  Scenario: Onee matches the Pixel theme without losing its live animation
+    Given the resident Agent shows the local Onee avatar
+    When the Shell renders in Instrument, Pixel, Border Beam, and Liquid Glass
+    Then only Pixel paints Onee as flat color blocks on a square grid
+    And the other three themes keep the original smooth vector artwork
+    And every theme retains the live Onee geometry, phases, and reduced-motion poses
+    And the compact Pixel avatar keeps a comparable pixel grid
+    And the static fallback receives the same Pixel treatment
+    And the treatment adds no script, network request, or CSP exception
+
+  Scenario: Onee sits close to the State Bar
+    Given the resident Agent occupies the left pane
+    When the Shell renders in a supported theme at reference and compact sizes
+    Then the visible Onee artwork starts no more than 12 pixels below the State Bar
+    And the avatar, name capsule, and conversation keep their shared top alignment
+    And messages remain below the capsule and the composer stays reachable
+

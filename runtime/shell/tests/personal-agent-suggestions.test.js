@@ -17,13 +17,13 @@ function mount({ explicit } = {}) {
   return { canonical, retired, supplied, controller, surface }
 }
 
-test('inline suggestions default to the canonical Personal Agent bridge and withdraw readiness on release', async () => {
+test('conversation suggestions default to the canonical Personal Agent bridge and withdraw readiness on release', async () => {
   const f = mount()
   assert.deepEqual(f.canonical, ['11111111-1111-4111-8111-111111111111'])
   assert.deepEqual(f.retired, [])
   await f.controller.destroy()
   assert.deepEqual(f.canonical, ['11111111-1111-4111-8111-111111111111', null])
-  assert.equal(f.surface.hidden, true)
+  assert.equal(f.surface.hidden, false, 'releasing suggestions does not hide the conversation')
 })
 
 test('an explicitly selected suggestion bridge retains ownership', async () => {

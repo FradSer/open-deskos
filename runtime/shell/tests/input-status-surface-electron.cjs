@@ -109,6 +109,12 @@ app.whenReady().then(async () => {
   const js=code=>win.webContents.executeJavaScript(code)
   await js('window.odkShellReady')
   assert.deepEqual(await js('[navigator.onLine,navigator.getGamepads().length,inputConnections.size,inputPads.size]'),[true,0,1,1])
+  const visiblePadGlyphs = `[...document.querySelectorAll('#status-bar svg[data-tabler="device-gamepad-2"]')].filter(svg=>!svg.closest('[hidden]')&&svg.getClientRects().length).length`
+  assert.equal(await js(visiblePadGlyphs),0,'An absent gamepad must leave no gamepad glyph in the State Bar')
+  await js(`(()=>{inputGamepads=[{connected:true,mapping:'standard',index:0,id:'Presence fixture pad',buttons:[],axes:[]}];window.dispatchEvent(new Event('gamepadconnected'));return true})()`)
+  assert.equal(await js(visiblePadGlyphs),1,'One connected gamepad must show one gamepad glyph in the State Bar')
+  await js(`(()=>{inputGamepads=[];window.dispatchEvent(new Event('gamepaddisconnected'));return true})()`)
+  assert.equal(await js(visiblePadGlyphs),0,'A removed gamepad must leave no gamepad glyph in the State Bar')
   await js(`(()=>{
     window.inputDocument=document;window.inputConsumers=[];
     window.inputPeer=document.querySelector('[data-widget="odk.tile.year"]');
