@@ -184,7 +184,7 @@ app.whenReady().then(async () => {
           return { contained: r.x >= 0 && r.y >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
             overflow: node.scrollWidth > node.clientWidth + 1,
             controls: controls.every(b => b.getBoundingClientRect().height >= 44),
-            font: parseFloat(getComputedStyle(document.querySelector('.personal-agent-proposal-state')).fontSize),
+            font: parseFloat(getComputedStyle(document.querySelector('.personal-agent-proposal-advice')).fontSize),
             accept: controls.some(b => b.textContent === '保存检查盆土备忘') }
         })()`)
         assert.equal(geometry.contained, true); assert.equal(geometry.overflow, false); assert.equal(geometry.controls, true); assert.ok(geometry.font >= 14)
@@ -201,7 +201,8 @@ app.whenReady().then(async () => {
       await showComposer()
       const layout = await run(`(() => {
         const card = document.querySelector('.personal-agent-proposal'), advice = card.querySelector('.personal-agent-proposal-advice'), primary = card.querySelector('.personal-agent-proposal-primary'), actions = card.querySelector('.personal-agent-proposal-actions'), state = card.querySelector('.personal-agent-proposal-state');
-        return { advice: advice.textContent, action: primary.textContent, duplicateNext: !!card.querySelector('.personal-agent-proposal-next-step'), secondary: actions.querySelector('.personal-agent-proposal-secondary')?.textContent, reason: !!card.querySelector('.personal-agent-proposal-reason') || card.textContent.includes('Legacy reason must not render.'), sourcesAbsent: !card.querySelector('.personal-agent-proposal-sources'), hashAbsent: !card.textContent.includes('a'.repeat(64)), ordered: advice.getBoundingClientRect().bottom <= actions.getBoundingClientRect().top, adviceSize: parseFloat(getComputedStyle(advice).fontSize), stateSize: parseFloat(getComputedStyle(state).fontSize), actionSize: parseFloat(getComputedStyle(primary).fontSize), primaryHeight: primary.getBoundingClientRect().height, inline: !!card.closest('.agent-conversation .agent-message-assistant .agent-message-bubble') && !card.closest('.agent-composer'), popupHidden: document.getElementById('personal-agent-status').hidden, overflow: card.scrollWidth > card.clientWidth + 1, controls: [...actions.querySelectorAll('button')].every(b => b.getBoundingClientRect().height >= 44),
+        const authoritative = !!state && !!state.textContent;
+        return { advice: advice.textContent, action: primary.textContent, duplicateNext: !!card.querySelector('.personal-agent-proposal-next-step'), secondary: actions.querySelector('.personal-agent-proposal-secondary')?.textContent, reason: !!card.querySelector('.personal-agent-proposal-reason') || card.textContent.includes('Legacy reason must not render.'), sourcesAbsent: !card.querySelector('.personal-agent-proposal-sources'), hashAbsent: !card.textContent.includes('a'.repeat(64)), ordered: advice.getBoundingClientRect().bottom <= actions.getBoundingClientRect().top, adviceSize: parseFloat(getComputedStyle(advice).fontSize), stateSize: state ? parseFloat(getComputedStyle(state).fontSize) : null, pendingLabel: /suggest(ed|ion)/i.test(card.textContent), authoritative, actionSize: parseFloat(getComputedStyle(primary).fontSize), primaryHeight: primary.getBoundingClientRect().height, inline: !!card.closest('.agent-conversation .agent-message-assistant .agent-message-bubble') && !card.closest('.agent-composer'), popupHidden: document.getElementById('personal-agent-status').hidden, overflow: card.scrollWidth > card.clientWidth + 1, controls: [...actions.querySelectorAll('button')].every(b => b.getBoundingClientRect().height >= 44),
           ratingControls: [...card.querySelectorAll('button')].filter(b => ['Feedback','Done','Useful','Not relevant','Incorrect','Ignore','Never suggest this category'].includes(b.textContent)).length, disclosure: !!card.querySelector('details') }
       })()`)
       assert.equal(layout.advice, actionCard.advice); assert.equal(layout.action, actionCard.nextStep)
@@ -209,9 +210,11 @@ app.whenReady().then(async () => {
       assert.equal(layout.ratingControls, 0, 'no rating control renders'); assert.equal(layout.disclosure, false, 'no rating disclosure renders')
       for (const key of ['sourcesAbsent', 'hashAbsent', 'ordered', 'controls', 'inline', 'popupHidden']) assert.equal(layout[key], true, JSON.stringify({ theme, width, height, key, ...layout }))
       assert.equal(layout.reason, false); assert.equal(layout.overflow, false)
-      // One reading size inside the recommendation bubble: advice, card and controls agree.
-      assert.ok(layout.adviceSize >= 16); assert.equal(layout.adviceSize, layout.actionSize, 'advice and primary action share one reading size')
-      assert.ok(layout.adviceSize > layout.stateSize, 'state stays a smaller caption')
+      // iOS-style 17px reading size for every text in the bubble; no Suggested label.
+      assert.equal(layout.adviceSize, 17); assert.equal(layout.adviceSize, layout.actionSize, 'advice and primary action share one reading size')
+      if (layout.stateSize !== null) assert.equal(layout.stateSize, 17, 'any visible state shares the reading size')
+      assert.equal(layout.pendingLabel, false, 'no internal suggestion wording appears')
+      assert.equal(layout.authoritative, false, 'a pending actionable card carries no state label')
       assert.ok(layout.actionSize >= 16); assert.ok(layout.primaryHeight >= 48)
       await run(`document.querySelector('.personal-agent-proposal-primary').focus()`)
       win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
@@ -233,7 +236,7 @@ app.whenReady().then(async () => {
   await send({ state: 'idle', proposals: [technical], proposalPopup: true })
   await run(`document.querySelector('.personal-agent-proposal-advice').scrollIntoView({block:'center'}); document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
   await delay()
-  assert.equal(await run(`document.querySelector('.personal-agent-proposal-advice').textContent`), 'This suggestion is no longer available. Ask for a new one.')
+  assert.equal(await run(`document.querySelector('.personal-agent-proposal-advice').textContent`), 'This message is no longer available. Ask again.')
   assert.equal(await run(`!!document.querySelector('.personal-agent-proposal-sources, .personal-agent-proposal-original-advice, button[data-proposal-action="view-sources"]')`), false)
   assert.equal(await run(`document.querySelector('.agent-conversation').textContent.includes('a'.repeat(64))`), false)
   assert.equal(commands.some(c => c.type === 'proposal_presented' && c.ids.includes(technical.id)), false)

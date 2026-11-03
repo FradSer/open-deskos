@@ -788,7 +788,7 @@ test('long recommendation remains complete in a keyboard-readable scroll region'
   assert.equal(text.textContent, advice)
   assert.equal(text.dataset.long, 'true')
   assert.equal(text.attributes.tabindex, '0')
-  assert.equal(text.attributes['aria-label'], 'Full recommendation; scroll to read')
+  assert.equal(text.attributes['aria-label'], 'Full message; scroll to read')
 })
 
 test('quote delivery failure is visible outside collapsed details without claiming success', async () => {

@@ -612,7 +612,7 @@
         }
         const caption = activeSubmission && !activeSubmission.uncertain ? 'Thinking...'
           : status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '') || captionFor(status)) : captionFor(status)
-        setState(status.proposalError ? 'Suggestions unavailable' : caption)
+        setState(status.proposalError ? 'Updates unavailable' : caption)
         lastStatus = status.state
         if (activeSubmission?.uncertain) {
           setState('')

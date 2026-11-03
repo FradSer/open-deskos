@@ -18,7 +18,7 @@ Feature: Independent resident Personal Agent
     Then the current conversation position and focus remain unchanged
     And Jump to latest remains available
     When the owner returns to the latest messages
-    Then the recommendation and its current state are visible in the conversation
+    Then the recommendation and any authoritative state are visible in the conversation
 
   Scenario: Recommendation messages retain identity and outcomes
     Given a recommendation is visible in the conversation
@@ -48,12 +48,21 @@ Feature: Independent resident Personal Agent
   Scenario: One message bubble uses one reading size for its text and card
     Given a recommendation message shows advice above a generic preview card
     When the owner reads the message and its card
-    Then the advice, card summary, chip labels, chip values, next step, buttons and message body share one reading size
-    And only non-data captions such as state, capability and notices use the smaller label size
+    Then every visible text in the bubble uses the 17-pixel reading size
+    And no element falls back to a smaller caption size inside the bubble
     And the advice keeps visual priority through weight where the theme permits synthetic weight
     And the Pixel theme keeps its single weight hierarchy through order and colour instead
     And no text or chip overflows the bubble or the card
     And the same reading size holds across Instrument, Pixel, Border Beam and Liquid Glass themes
+
+  Scenario: A recommendation message omits the Suggested label
+    Given a pending recommendation has an executable action and a generic preview
+    When the message renders in the conversation
+    Then no Suggested label or internal suggestion wording appears
+    And the advice, readings and action remain readable as content
+    When the recommendation reaches an authoritative or uncertain outcome
+    Then its state and every safety assertion remain visible
+    And a read-only surface still names the read-only preview
 
   Scenario: Changed readings carry an optional state tone
     Given a preview reading reports a change away from its expected state

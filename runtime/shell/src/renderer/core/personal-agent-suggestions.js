@@ -46,7 +46,7 @@
         messages.delete(id)
       }
       const renderedProposalIds = new Set()
-      const uncertainActionWarning = 'Suggestion response was not delivered. Check the personal agent service; do not repeat an uncertain action.'
+      const uncertainActionWarning = 'Response was not delivered. Check the personal agent service; do not repeat an uncertain action.'
       let feedbackFocus
       let proposalEpoch = 0
       let suggestionCapabilities = { read: true, respond: true, acknowledge: true }
@@ -312,7 +312,7 @@
         const visibleIds = new Set(visible.map(p => p.id))
         for (const id of messages.keys()) if (!visibleIds.has(id)) removeEntry(id)
         proposalCommandError = uncertainExecution ? uncertainActionWarning : ''
-        const statusLabels = { pending: 'Suggested', ignored: 'Dismissed', expired: 'Expired', executing: 'In progress', completed: 'Completed', unknown: 'Outcome not confirmed' }
+        const statusLabels = { ignored: 'Dismissed', expired: 'Expired', executing: 'In progress', completed: 'Completed', unknown: 'Outcome not confirmed' }
         for (const p of visible) {
             const current = p.status === 'pending'
             let entry = messages.get(p.id)
@@ -339,7 +339,7 @@
             }
             const state = document.createElement('p')
             state.className = 'personal-agent-proposal-state'
-            state.textContent = statusLabels[p.status] || 'Suggestion state unavailable'
+            state.textContent = statusLabels[p.status] || 'State unavailable'
             const advice = document.createElement('p')
             advice.className = 'personal-agent-proposal-advice'
             const technicalText = /sha[-_\s]?256|\b[a-f0-9]{32,}\b/i
@@ -349,15 +349,16 @@
             const nextStep = typeof p.nextStep === 'string' && p.nextStep.length <= 240 && !/[\x00-\x1f\x7f]/.test(p.nextStep) && !technicalNext ? p.nextStep.trim() : ''
             const readOnlyStep = !suggestionCapabilities.respond && Boolean(nextStep)
             if (p.status === 'pending') {
-              if (readOnlyStep) state.textContent += ' · Read-only preview'
-              else if (!executableAction && !p.ridePreview) state.textContent += ' · No executable action'
+              if (readOnlyStep) state.textContent = 'Read-only preview'
+              else if (!executableAction && !p.ridePreview) state.textContent = 'No executable action'
+              else state.textContent = ''
             }
-            advice.textContent = technicalAdvice ? 'This suggestion is no longer available. Ask for a new one.' : p.advice
+            advice.textContent = technicalAdvice ? 'This message is no longer available. Ask again.' : p.advice
             if (!technicalAdvice && p.advice.length > 180) {
               advice.dataset.long = 'true'
               advice.setAttribute('tabindex', '0')
               advice.setAttribute('role', 'region')
-              advice.setAttribute('aria-label', 'Full recommendation; scroll to read')
+              advice.setAttribute('aria-label', 'Full message; scroll to read')
               advice.addEventListener('keydown', event => {
                 if (event.target !== advice || !['Home', 'End', 'PageUp', 'PageDown', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
                 // Keep the focused region's scroll keys out of the Shell pager.
@@ -369,7 +370,8 @@
                 }
               })
             }
-            article.append(state, advice)
+            if (state.textContent) article.append(state)
+            article.append(advice)
             if ((readOnlyStep || (executableAction && !current)) && nextStep && !technicalAdvice) {
               const next = document.createElement('div')
               next.className = 'personal-agent-proposal-next'

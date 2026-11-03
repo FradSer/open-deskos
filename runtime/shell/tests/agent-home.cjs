@@ -1319,7 +1319,7 @@ app.whenReady().then(async () => {
     }
     await resize(1280,800)
     await evaluate(personalAgentIdentityScript('Personal Agent'))
-    const errorDetail='Suggestions unavailable: private proposal state could not be saved. No proposal action will run.'
+    const errorDetail='Updates unavailable: private proposal state could not be saved. No proposal action will run.'
     publishStatus({state:'idle',proposalError:errorDetail})
     await evaluate('new Promise(r=>setTimeout(r,40))')
     const statusLayout=await evaluate(`(()=>{const summary=document.querySelector('.agent-identity .agent-capsule');return {height:summary.getBoundingClientRect().height,label:summary.getAttribute('aria-label'),name:document.querySelector('.agent-name').textContent,status:document.querySelector('.agent-state').textContent,detail:document.querySelector('.agent-status-detail')?.textContent}})()`)

@@ -1,6 +1,6 @@
-// One reading size inside a recommendation message bubble, across themes and sizes.
-// The advice, card summary, chip labels/values, next step, buttons and body share one size.
-// Only non-data captions (state, capability, notices) use the smaller label size.
+// One 17px reading size for every visible text inside a recommendation message bubble.
+// iOS-style hierarchy comes from weight and colour, not a second size.
+// The pending "Suggested" label is gone; authoritative states and safety text remain.
 const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('node:path')
 const assert = require('node:assert/strict')
@@ -71,6 +71,7 @@ app.whenReady().then(async () => {
         return {
           reading: ${JSON.stringify(READING)}.map(sel => [sel, size(sel)]),
           caption: ${JSON.stringify(CAPTION)}.map(sel => [sel, size(sel)]),
+          textNodes: (() => { const w = document.createTreeWalker(bubble, NodeFilter.SHOW_TEXT); const out = []; while (w.nextNode()) { const t = w.currentNode.textContent.trim(); if (t) out.push({ text: t, size: parseFloat(getComputedStyle(w.currentNode.parentElement).fontSize) }) } return out })(),
           adviceWeight: weight('.personal-agent-proposal-advice'),
           chipWeight: weight('.personal-agent-preview-chip'),
           summaryWeight: weight('.personal-agent-preview-summary'),
@@ -83,11 +84,12 @@ app.whenReady().then(async () => {
       })()`)
       assert.ok(!measured.error, `${theme}/${width}: ${measured.error}`)
       const reading = measured.reading.filter(([, value]) => value !== null)
-      const sizes = [...new Set(reading.map(([, value]) => value))]
-      assert.equal(sizes.length, 1, `${theme}/${width}: reading sizes must be one value, got ${JSON.stringify(Object.fromEntries(measured.reading))}`)
-      assert.equal(sizes[0], measured.token, `${theme}/${width}: reading size must be the body token ${measured.token}`)
       const captions = measured.caption.filter(([, value]) => value !== null)
-      for (const [sel, value] of captions) assert.ok(value < sizes[0], `${theme}/${width}: ${sel} must stay a smaller caption`)
+      const sizes = [...new Set([...reading, ...captions, ...measured.textNodes.map(n => [null, n.size])].map(([, value]) => value))]
+      assert.equal(sizes.length, 1, `${theme}/${width}: every visible text must be one size, got ${JSON.stringify({ reading: measured.reading, caption: measured.caption, textNodes: measured.textNodes })}`)
+      assert.equal(sizes[0], 17, `${theme}/${width}: the reading size must be 17px like iOS body text`)
+      assert.equal(sizes[0], measured.token, `${theme}/${width}: reading size must equal the body token ${measured.token}`)
+      assert.ok(!measured.textNodes.some(n => /suggest(ed|ion)/i.test(n.text)), `${theme}/${width}: internal suggestion wording must not appear: ${JSON.stringify(measured.textNodes.map(n => n.text))}`)
       assert.equal(measured.bubbleOverflow, false, `${theme}/${width}: bubble overflows`)
       assert.equal(measured.cardOverflow, false, `${theme}/${width}: card overflows`)
       assert.equal(measured.chipOverflow, false, `${theme}/${width}: chip escapes card`)
