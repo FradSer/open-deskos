@@ -918,3 +918,10 @@ Scenario: Hidden previews capture the current native viewport
     When the host assembles the sentence
     Then every displayed value binds to a current local source template
     And no model-supplied text appears
+
+
+  Scenario: Overview icons keep their inline reading size
+    Given Overview shows facts from several services
+    When the narrative renders in every theme and viewport
+    Then each leading icon measures one narrative em
+    And no later rule shrinks the icon or resets its optical alignment

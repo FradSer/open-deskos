@@ -1580,6 +1580,9 @@ app.whenReady().then(async () => {
         const dash = document.querySelector('.dash')
         const paragraph = document.querySelector('#dash-narrative')
         return { text: paragraph.textContent, icons: paragraph.querySelectorAll('svg').length,
+          fontSize: parseFloat(getComputedStyle(paragraph).fontSize),
+          iconSizes: [...paragraph.querySelectorAll('.dash-icon svg')].map(n => n.getBoundingClientRect().width),
+          iconAlign: [...paragraph.querySelectorAll('.dash-icon svg')].map(n => getComputedStyle(n).verticalAlign),
           overflow: dash.scrollWidth > dash.clientWidth + 1,
           fits: dash.scrollHeight <= dash.clientHeight + 1,
           attached: [...paragraph.querySelectorAll('.dash-token')].every(token => token.getClientRects().length === 1),
@@ -1596,6 +1599,9 @@ app.whenReady().then(async () => {
       })()`)
       assert.equal(sentence.text, compact.items[0].text)
       assert.equal(sentence.icons, 3)
+      assert.ok(sentence.iconSizes.length === 3 && sentence.iconSizes.every(size => size >= sentence.fontSize * 0.95 && size <= sentence.fontSize * 1.3),
+        theme + ' ' + width + ' icons stay at one narrative em: ' + JSON.stringify(sentence.iconSizes) + ' / ' + sentence.fontSize)
+      assert.ok(new Set(sentence.iconAlign).size === 1, theme + ' ' + width + ' icons share one optical alignment')
       assert.ok(sentence.warmColors.every(Boolean), 'weather and Pi use warm accents without blue')
       assert.equal(new Set(sentence.iconColors).size, 3, 'weather, sessions and plants have distinct restrained colors')
       assert.equal(sentence.attached, true, 'icons stay with their text')

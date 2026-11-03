@@ -586,7 +586,10 @@ body.kiosk {
 .dash-state[data-level="warning"] { color: var(--odk-status-warning); }
 .dash-state[data-level="healthy"] { color: var(--odk-status-healthy); }
 .dash-token { display: inline-block; white-space: nowrap; }
-.dash-icon svg {
+/* One authoritative icon size. The generic narrative rule below must not
+   override it: a narrower selector with equal specificity later in this file
+   used to shrink these icons to 0.78em and reset their optical alignment. */
+.dash-narrative .dash-icon svg {
   display: inline-block;
   width: 1em;
   height: 1em;
@@ -601,11 +604,7 @@ body.kiosk {
 
 .dash-narrative svg {
   display: inline-block;
-  width: 0.78em;
-  height: 0.78em;
-  margin: 0 0.22em -0.07em 0;
   color: inherit;
-  vertical-align: baseline;
 }
 
 .card {
