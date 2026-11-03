@@ -348,7 +348,7 @@ test('source changes invalidate an in-flight answer and regenerate fresh data', 
   home.invalidate()
   release()
   await first
-  assert.equal(frames.some(f => f.state === 'live'), false)
+  assert.ok(!frames.some(f => f.state === 'live' && f.items.some(item => item.text.includes('Two sessions'))))
   now += 15 * 60000
   await home.refresh()
   assert.equal(frames.at(-1).items[0].sources[0].state, 'live')
@@ -385,7 +385,7 @@ test('a source push during confirmation cannot publish captured old data as live
     return captured
   }, generate: async () => { home.invalidate(); return output }, publish: f => frames.push(f) })
   await home.refresh()
-  assert.equal(frames.some(f => f.state === 'live'), false)
+  assert.ok(!frames.some(f => f.state === 'live' && f.items.some(item => item.text.includes('Two sessions'))))
   now += 15 * 60000
   await home.refresh()
   assert.equal(frames.at(-1).state, 'live')
@@ -609,7 +609,7 @@ test('an excluded plugin becoming required invalidates pending coverage', async 
     return { items: [{ text: 'Source0 and Source3 are live.', readingIds: ['source-0', 'source-3'], segments: [{ text: 'Source0 and Source3 are live.', icon: 'status' }] }] }
   }, publish: frame => frames.push(frame) })
   await home.refresh()
-  assert.equal(frames.some(frame => frame.state === 'live'), false)
+  assert.ok(!frames.some(frame => frame.state === 'live' && frame.items.some(item => /Source0 (?:is|and)/.test(item.text))))
   now += 15 * 60000
   await home.refresh()
   assert.equal(home.frame.state, 'live')

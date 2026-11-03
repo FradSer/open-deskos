@@ -331,7 +331,18 @@ export class HomeBriefing {
           if (!current()) return
           if (confirmationRevision !== this.revision || !this.requireBindings && (contentFingerprint(latest.readings) !== fingerprint || latest.omittedSources !== omittedSources)) {
             this.fingerprint = ''
-            this.emit(this.frame.items.length ? 'stale' : 'loading')
+            // A push during confirmation does not make the current facts old.
+            // Bind the latest readings locally and publish without a model
+            // success timestamp; stale would only report an inconclusive model.
+            const fresh = await snapshot()
+            if (!current()) return
+            try {
+              const items = boundSourceFacts(fresh.readings, this.now())
+              this.sourceOnly = true
+              this.emit('live', { items, generatedAt: 0, omittedSources: fresh.omittedSources })
+            } catch {
+              this.emit('loading')
+            }
             this.schedule()
             return
           }
