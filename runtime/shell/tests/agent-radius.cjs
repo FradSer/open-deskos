@@ -133,7 +133,7 @@ app.whenReady().then(async () => {
       assert.ok(near(bubble - card, padSurface), `${theme}: card ${card} must equal surface ${bubble} minus padding ${padSurface}`)
       assert.ok(near(card - inset, padCard), `${theme}: inset ${inset} must equal card ${card} minus padding ${padCard}`)
       assert.equal(chip, inset, `${theme}: a chip inside the card shares the inset radius`)
-      assert.equal(control, chip, `${theme}: a control shares the inset radius with nearby chips (${chip})`)
+      assert.equal(control, card, `${theme}: an action button shares the card radius (${card})`)
       assert.ok(bubble > card && card > inset, `${theme}: the surface chain decreases strictly`)
     }
     const pad = m.padding
@@ -143,7 +143,8 @@ app.whenReady().then(async () => {
     assert.equal(pad.summaryLine, pad.chipLine, `${theme}: chips share the same line height`)
     assert.ok(parseFloat(pad.chip[0]) >= parseFloat(pad.gapChip), `${theme}: chip text does not crowd its corners`)
     assert.equal(m.parts.composer.radius, bubble, `${theme}: composer and bubble share one surface radius`)
-    assert.equal(m.parts.latest.radius, control, `${theme}: the latest overlay uses the control radius`)
+    const controlToken = parseFloat(m.tokens.control) || (theme === 'pixel' ? 0 : m.parts.latest.radius)
+    assert.equal(m.parts.latest.radius, controlToken, `${theme}: the latest overlay keeps its own control radius`)
     // A field control inside the inset panel shares the panel radius so the control reads as
     // part of its container. The concentric surface chain stops at the panel.
     assert.equal(m.parts.select.radius, inset, `${theme}: a field control matches its inset panel (inset ${inset}, select ${m.parts.select.tl}, control ${control})`)

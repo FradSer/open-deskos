@@ -17,11 +17,11 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 const proposal = {
   id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'commute-anomaly', status: 'pending', offered: true, presented: true,
-  advice: '通勤比平时多28分钟，且傍晚有降雨风险，建议现在就打开计划调整出发时间。',
-  preview: { summary: '通勤时长与常态对比', items: [
-    { label: '当前通勤（分钟）', value: '52', tone: 'warn' },
-    { label: '平时通勤（分钟）', value: '24' },
-    { label: '延误（分钟）', value: '28', tone: 'warn' } ] },
+  advice: '通勤比平时多了28分钟。',
+  preview: { summary: '路上的时间', items: [
+    { label: '今天', value: '52 分钟', tone: 'warn' },
+    { label: '平时', value: '24 分钟' },
+    { label: '多出', value: '28 分钟', tone: 'warn' } ] },
   action: { tool: 'memory_update', params: { category: 'note', value: 'opened' } },
   confirmation: '记住 note：opened', nextStep: '打开计划',
   createdAt: new Date().toISOString(),
@@ -80,6 +80,25 @@ app.whenReady().then(async () => {
           cardOverflow: card.scrollWidth > card.clientWidth + 1,
           chipOverflow: chips.some(n => rect(n).right > rect(card).right - 1),
           controls: [...bubble.querySelectorAll('button')].every(n => rect(n).height >= 44),
+          cardText: (() => {
+            const chip = bubble.querySelector('.personal-agent-preview-chip')
+            const label = chip?.querySelector('.personal-agent-preview-label')
+            const value = chip?.querySelector('.personal-agent-preview-value')
+            const summary = bubble.querySelector('.personal-agent-preview-summary')
+            const cs = n => n ? getComputedStyle(n) : null
+            const r = n => n?.getBoundingClientRect()
+            return {
+              sameRow: label && value ? Math.abs(r(label).top - r(value).top) < 2 : null,
+              valueNowrap: cs(value)?.whiteSpace === 'nowrap',
+              pairGap: label && value ? r(value).left - r(label).right : null,
+              summaryColor: cs(summary)?.color,
+              labelColor: cs(label)?.color,
+              chipPadTop: parseFloat(cs(chip)?.paddingTop),
+              chipGap: parseFloat(cs(chip)?.columnGap),
+              chipRadius: parseFloat(cs(chip)?.borderTopLeftRadius),
+              chipClipped: [...bubble.querySelectorAll('.personal-agent-preview-chip')].some(n => n.scrollWidth > n.clientWidth + 1)
+            }
+          })(),
           token: parseFloat(getComputedStyle(bubble).getPropertyValue('--agent-text-body')) || parseFloat(getComputedStyle(document.querySelector('.agent-panel')).getPropertyValue('--agent-text-body'))
         }
       })()`)
@@ -97,6 +116,13 @@ app.whenReady().then(async () => {
       assert.equal(measured.cardOverflow, false, `${theme}/${width}: card overflows`)
       assert.equal(measured.chipOverflow, false, `${theme}/${width}: chip escapes card`)
       assert.equal(measured.controls, true, `${theme}/${width}: a control lost its touch target`)
+      const t = measured.cardText
+      assert.equal(t.sameRow, true, `${theme}/${width}: a chip split its label from its value`)
+      assert.equal(t.valueNowrap, true, `${theme}/${width}: a measured value can wrap away from its unit`)
+      assert.ok(t.pairGap >= 8, `${theme}/${width}: the label and value crowd each other (${t.pairGap}px)`)
+      assert.equal(t.chipClipped, false, `${theme}/${width}: chip text is clipped`)
+      assert.ok(t.chipPadTop >= t.chipGap, `${theme}/${width}: chip padding must clear its internal gap (${t.chipPadTop} < ${t.chipGap})`)
+      assert.equal(t.summaryColor, t.labelColor, `${theme}/${width}: the summary must sit at the supporting label colour, not compete with advice`)
       if (theme !== 'pixel') {
         assert.ok(measured.adviceWeight > measured.chipWeight, `${theme}/${width}: advice needs weight priority`)
         assert.ok(measured.adviceWeight > measured.summaryWeight, `${theme}/${width}: advice leads the card summary`)

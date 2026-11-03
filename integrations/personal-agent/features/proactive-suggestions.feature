@@ -159,6 +159,13 @@ Feature: Owner controlled proactive Personal Agent proposals
     And the advice does not add a second clause that restates the first
     And a plain factual sentence remains valid
 
+  Scenario: Preview summary adds meaning instead of a report heading
+    Given a candidate has measurements the owner should see
+    When the generator writes the preview
+    Then preview.summary is omitted when the item labels already explain the readings
+    And any summary is one short plain phrase, not a report heading or a restatement of advice
+    And each item label is a short plain noun phrase without redundant qualifiers
+
   Scenario: Advice reads as one natural sentence without repeating the action
     Given a topic supplies an approved action with a visible label
     When the generator writes advice for that topic

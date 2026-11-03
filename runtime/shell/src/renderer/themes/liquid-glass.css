@@ -128,6 +128,12 @@ html[data-theme='liquid-glass'] #personal-agent .personal-agent-ride-route selec
   border-radius: var(--agent-radius-inset);
 }
 
+/* An action button is a sibling of the preview card. Keep the theme's blanket control
+   rule from pulling it down to the inset radius. */
+html[data-theme='liquid-glass'] #personal-agent .agent-recommendation .personal-agent-proposals button {
+  border-radius: var(--agent-radius-card);
+}
+
 html[data-theme='liquid-glass'] #personal-agent .agent-composer.lg-surface {
   visibility: inherit;
   border-radius: var(--agent-radius-surface, var(--odk-radius-pill)) !important;

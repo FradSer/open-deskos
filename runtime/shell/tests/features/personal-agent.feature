@@ -41,7 +41,7 @@ Feature: Independent resident Personal Agent
     Then each inner radius equals its container radius minus the padding between them
     And a chip inside the card matches the inset radius
     And a field control matches its inset panel
-    And a control shares the inset radius with nearby chips and inset panels
+    And an action button shares the card radius with the card it sits beside
     And no Agent surface falls back to an unrelated fixed or pill radius
     And the Pixel theme collapses every level of that scale to zero
 
@@ -54,6 +54,14 @@ Feature: Independent resident Personal Agent
     And block gaps, inline gaps and chip gaps come from one named spacing scale
     And text line height is uniform across the advice, card summary and chips
     And no surface overflows the bubble or clips its text
+
+  Scenario: Card text keeps a readable hierarchy and intact pairs
+    Given a recommendation message shows advice, a preview summary and attribute chips
+    When the owner reads the card across themes and compact widths
+    Then the advice leads by weight and the preview summary stays a supporting label
+    And a chip keeps its label and value on one line with a readable gap
+    And no chip label or value wraps, clips or overflows its card
+    And the card text uses one reading size from the shared scale
 
   Scenario: One message bubble uses one reading size for its text and card
     Given a recommendation message shows advice above a generic preview card

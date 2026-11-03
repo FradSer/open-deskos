@@ -125,6 +125,19 @@
   stroke-linejoin: miter !important;
 }
 
+/* Onee stays the live upstream SVG. Pixel samples that scene into square cells
+   instead of replacing it, so every animation and static pose still reads.
+   The compact avatar uses half the cell size to keep the same pixel grid. */
+[data-theme='pixel'] .agent-avatar[data-avatar="onee"] :is(.bs-avatar, .agent-avatar-fallback) {
+  filter: url(#odk-avatar-pixelate);
+}
+
+@media (max-width: 639px) {
+  [data-theme='pixel'] .agent-avatar[data-avatar="onee"] :is(.bs-avatar, .agent-avatar-fallback) {
+    filter: url(#odk-avatar-pixelate-compact);
+  }
+}
+
 /* Pixel buttons with retro 3D bevel / hard shadow */
 [data-theme='pixel'] .button-pill {
   box-shadow: 2px 2px 0px var(--odk-button), -1px -1px 0px var(--odk-stroke) !important;
