@@ -68,7 +68,8 @@ function testFiles(root) {
 
 function main(args = process.argv.slice(2), { root = path.resolve(__dirname, '..'), env = process.env, stdout = process.stdout, stderr = process.stderr,
   run = () => spawnSync(process.execPath, ['--test', '--test-concurrency=2', ...testFiles(root).map(name => `tests/${name}`)],
-    { cwd: root, stdio: 'inherit', env }) } = {}) {
+    { cwd: root, stdio: "inherit", env }),
+  } = {}) {
   const mode = args.find(argument => argument.startsWith('--')) ?? '--status'
   if (!['--status', '--require', '--run'].includes(mode) || args.length > 1) {
     stderr.write('usage: release-host-preflight.mjs [--status|--require|--run]\n')

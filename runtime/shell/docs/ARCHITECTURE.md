@@ -384,7 +384,7 @@ Those bindings do not verify the source or guarantee correct ranking.
 
 Overview waits at most three seconds for the complete judgment.
 If judgment fails or times out, the host selects local source facts and reports an error state.
-Local fallback uses the same three-service and twelve-point bound.
+Local fallback shows at most three services without a score band; local attention is coarse.
 An explicit cancellation stops the request instead of publishing a fallback.
 Other Agent requests have their own data and fallback contracts.
 
