@@ -950,4 +950,3 @@ Scenario: Hidden previews capture the current native viewport
     Then the visible Onee artwork starts no more than 12 pixels below the State Bar
     And the avatar, name capsule, and conversation keep their shared top alignment
     And messages remain below the capsule and the composer stays reachable
-
