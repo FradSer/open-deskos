@@ -198,7 +198,10 @@ export class HomeBriefing {
     // make those current facts stale, and only a model generation earns a
     // success timestamp.
     const freshTemplate = retained && !this.generationFailures && this.now() - this.templateCreatedAt < MAX_AGE_MS
-    const state = this.generationFailures ? 'error' : retained ? 'live' : 'stale'
+    // Current facts from live sources are a live Overview; a displayed
+    // unavailable source keeps its stale marker.
+    const allLive = items.length > 0 && items.every(item => item.sources?.every(source => source.state === 'live'))
+    const state = this.generationFailures ? 'error' : allLive ? 'live' : 'stale'
     this.emit(state, {
       items, generatedAt: freshTemplate ? this.templateCreatedAt : 0, omittedSources,
     })
