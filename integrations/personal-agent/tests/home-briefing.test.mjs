@@ -777,3 +777,22 @@ for (const change of ['hidden', 'unavailable', 'removed']) test(`pending selecte
   assert.equal(home.frame.generatedAt, 0)
   if (change !== 'unavailable') assert.ok(home.frame.items.every(item => item.sources.every(source => source.id !== 'selected')))
 })
+
+test('the published Home frame carries the current Hydra projection for display hosts', async () => {
+  const hydra = { id: 'odk.tile.hydra', label: 'Hydra plants', kind: 'tile', state: 'live', value: {
+    asOf: '2026-11-03T12:00:00.000Z', gatewayOnline: true,
+    greenhouse: { temperatureC: 27.1, humidityPercent: 74, pressureHpa: 1015, lightLux: 0, stale: false },
+    plants: [{ id: 1, soilPercent: 49, watering: false, online: true, stale: false, soilStale: false }],
+  }, home: { mode: 'optional', priority: 0, icon: 'plants', fields: ['greenhouse', 'plants'] } }
+  const frames = []
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [hydra], read: async () => hydra,
+    generate: async () => ({ items: [] }), publish: frame => frames.push(frame) })
+  await home.refresh()
+  assert.equal(frames.at(-1).hydra.env.humidity, 74)
+  assert.equal(frames.at(-1).hydra.nodes[0].soilPercent, 49)
+  hydra.value.plants[0].soilPercent = 8
+  home.invalidate()
+  await home.refresh()
+  assert.equal(frames.at(-1).hydra.nodes[0].soilPercent, 8)
+  home.close()
+})

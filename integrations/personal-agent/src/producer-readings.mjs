@@ -44,6 +44,40 @@ const timestamp = value => {
 /**
  * @param {{ read?: (id: string, signal?: any) => Promise<any>, now?: () => number }} [options]
  */
+/** Map one desk Hydra reading to the Widget's bounded snapshot shape. */
+export function projectHydraSnapshot(value, now = Date.now(), state = 'live') {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !['live', 'stale'].includes(state)) return null
+  const greenhouse = value.greenhouse && typeof value.greenhouse === 'object' ? value.greenhouse : null
+  if (greenhouse) {
+    for (const [key, min, max] of [['temperatureC', -50, 100], ['humidityPercent', 0, 100], ['pressureHpa', 800, 1200], ['lightLux', 0, 1000000]]) {
+      if (greenhouse[key] !== undefined && bounded(greenhouse[key], min, max) === undefined) return null
+    }
+  }
+  const env = greenhouse ? {
+    tempC: bounded(greenhouse.temperatureC, -50, 100),
+    humidity: bounded(greenhouse.humidityPercent, 0, 100),
+    pressureHpa: bounded(greenhouse.pressureHpa, 800, 1200),
+    lux: bounded(greenhouse.lightLux, 0, 1000000),
+    stale: state === 'stale' || greenhouse.stale !== false,
+    updatedAt: timestamp(greenhouse.measuredAt),
+  } : null
+  const nodes = (Array.isArray(value.plants) ? value.plants : []).slice(0, 8).map(plant => ({
+    id: Number.isInteger(plant?.id) ? plant.id : undefined,
+    soilPercent: bounded(plant?.soilPercent, 0, 100),
+    pump: plant?.watering === true,
+    online: plant?.online !== false,
+    stale: plant?.stale === true,
+    soilStale: plant?.soilStale !== false,
+    soilUpdatedAt: timestamp(plant?.measuredAt),
+  }))
+  if (!env && !nodes.length) return null
+  return { configured: true, connected: true, mainOnline: value.gatewayOnline !== false,
+    env, nodes, updatedAt: timestamp(value.asOf) ?? now, projection: true }
+}
+
+/**
+ * @param {{ read?: (id: string, signal?: any) => Promise<any>, now?: () => number }} [options]
+ */
 export function createHydraReadings({ read, now = Date.now } = {}) {
   const declaration = { id: HYDRA_PROJECTION_ID, label: 'Hydra plants', kind: 'service',
     home: { mode: 'optional', priority: 0, icon: 'plants', fields: ['snapshot'] } }
@@ -54,33 +88,8 @@ export function createHydraReadings({ read, now = Date.now } = {}) {
       let reading
       try { reading = await read(DESK_HYDRA_ID) } catch { return unavailable(id) }
       if (!reading || reading.state !== 'live' || !reading.value || typeof reading.value !== 'object') return unavailable(id)
-      const value = reading.value
-      const greenhouse = value.greenhouse && typeof value.greenhouse === 'object' ? value.greenhouse : null
-      if (greenhouse) {
-        for (const [key, min, max] of [['temperatureC', -50, 100], ['humidityPercent', 0, 100], ['pressureHpa', 800, 1200], ['lightLux', 0, 1000000]]) {
-          if (greenhouse[key] !== undefined && !bounded(greenhouse[key], min, max)) return unavailable(id)
-        }
-      }
-      const env = greenhouse ? {
-        tempC: bounded(greenhouse.temperatureC, -50, 100),
-        humidity: bounded(greenhouse.humidityPercent, 0, 100),
-        pressureHpa: bounded(greenhouse.pressureHpa, 800, 1200),
-        lux: bounded(greenhouse.lightLux, 0, 1000000),
-        stale: greenhouse.stale !== false,
-        updatedAt: timestamp(greenhouse.measuredAt),
-      } : null
-      const nodes = (Array.isArray(value.plants) ? value.plants : []).slice(0, 8).map(plant => ({
-        id: Number.isInteger(plant?.id) ? plant.id : undefined,
-        soilPercent: bounded(plant?.soilPercent, 0, 100),
-        pump: plant?.watering === true,
-        online: plant?.online !== false,
-        stale: plant?.stale === true,
-        soilStale: plant?.soilStale !== false,
-        soilUpdatedAt: timestamp(plant?.measuredAt),
-      }))
-      if (!env && !nodes.length) return unavailable(id)
-      const snapshot = { configured: true, connected: true, mainOnline: value.gatewayOnline !== false,
-        env, nodes, updatedAt: timestamp(value.asOf) ?? timestamp(reading.updatedAt) ?? now(), projection: true }
+      const snapshot = projectHydraSnapshot(reading.value, timestamp(reading.updatedAt) ?? now(), reading.state)
+      if (!snapshot) return unavailable(id)
       return { id, state: 'live', value: { snapshot }, updatedAt: snapshot.updatedAt }
     },
   }

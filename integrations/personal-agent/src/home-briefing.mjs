@@ -1,4 +1,5 @@
 import { DEFAULT_OVERVIEW_PREFERENCES } from './overview-preferences.mjs'
+import { projectHydraSnapshot } from './producer-readings.mjs'
 import { resolveHomeTemplate, homeTemplateVariables, homeFactVariables, compileHomeSelection, homeSelectionInstructions, homeAttention, fallbackHomeSelection, rebindHomeSelection } from './home-template.mjs'
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const STATES = new Set(['live', 'stale', 'unavailable', 'unconfigured', 'unauthorized', 'error'])
@@ -141,7 +142,7 @@ export class HomeBriefing {
     this.now = now
     this.readTimeoutMs = readTimeoutMs
     this.preferences = preferences
-    this.preferences = preferences
+    this.hydra = null
     this.coverage = undefined
     this.frame = { state: 'unavailable', items: [], generatedAt: 0, omittedSources: 0 }
     this.revision = 0
@@ -157,7 +158,8 @@ export class HomeBriefing {
   emit(state, extra = {}) {
     if (this.closed) return
     const coverage = Object.hasOwn(extra, 'items') ? this.coverage : this.frame.coverage ?? this.coverage
-    this.frame = { ...this.frame, state, ...extra }
+    const { hydra: previousHydra, ...base } = this.frame
+    this.frame = { ...base, state, ...extra, ...(this.hydra ? { hydra: this.hydra } : {}) }
     if (coverage) this.frame.coverage = { ...coverage, selectedSources: new Set(this.frame.items.flatMap(item => item.sources.map(source => source.id))).size }
     this.publish(this.frame)
   }
@@ -181,7 +183,13 @@ export class HomeBriefing {
     this.timer = setTimeout(() => { void this.refresh() }, 1000)
   }
 
+  recordHydra(readings) {
+    const source = readings.find(reading => reading.id === 'odk.tile.hydra')
+    this.hydra = source ? projectHydraSnapshot(source.value, this.now(), source.state) : null
+  }
+
   publishDeferred(readings, omittedSources) {
+    this.recordHydra(readings)
     if (this.template && this.templateReadings) this.template = retainVisibleSelection(this.template, this.templateReadings, readings, this.templateReadingsAt, this.preferences)
     if (!this.requireBindings) {
       this.emit(this.frame.items.length ? 'stale' : 'error')
@@ -284,6 +292,7 @@ export class HomeBriefing {
           return { readings, omittedSources }
         }
         let { readings, omittedSources } = await snapshot()
+        this.recordHydra(readings)
         if (this.requireBindings && this.template && this.templateReadings) this.template = retainVisibleSelection(this.template, this.templateReadings, readings, this.templateReadingsAt, this.preferences)
         if (!readings.length) {
           this.fingerprint = ''
@@ -387,6 +396,7 @@ export class HomeBriefing {
             }
             readings = latest.readings
             omittedSources = latest.omittedSources
+            this.recordHydra(readings)
             fingerprint = contentFingerprint(readings)
           }
         }
