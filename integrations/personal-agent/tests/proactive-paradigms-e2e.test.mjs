@@ -151,6 +151,7 @@ test('the generator instructions teach the preview shape', () => {
   assert.match(generationInstructions, /The advice and the preview must complement each other/)
   assert.match(generationInstructions, /equal values for genuinely different facts are valid/)
   assert.match(generationInstructions, /proactive_judge returns typed judgments/)
+  assert.doesNotMatch(generationInstructions, /complementarityProbability/)
   assert.match(generationInstructions, /The host independently re-judges every returned candidate/)
   assert.match(generationInstructions, /"warn"/)
   assert.match(generationInstructions, /"good"/)
@@ -196,32 +197,29 @@ test('equal values for distinct facts remain valid when each part adds informati
     preview: { items: [{ label: '等待时长', value: '5 分钟' }] } }] }, topics, 8))
 })
 
-test('a candidate whose text and visuals repeat each other cannot publish', async () => {
-  let asked
-  const judge = createJevJudge({ request: async ({ questions }) => {
-    asked = questions
-    return { model: 'jev-fixture', answers: Object.fromEntries(Object.keys(questions).map(id => [id, { type: 'noul', noul: id.endsWith('_unsupported') ? 0.05 : id.endsWith('_complementary') ? 0.2 : 0.95 }])) }
+test('a preview candidate is judged by usefulness and support without a style gate', async () => {
+  let questions
+  const judge = createJevJudge({ request: async ({ questions: asked }) => {
+    questions = asked
+    return { model: 'jev-fixture', answers: Object.fromEntries(Object.keys(asked).map(id => [id, { type: 'noul', noul: id.endsWith('_unsupported') ? 0.05 : 0.95 }])) }
   } })
-  const frames = []
   const watch = new ProactiveWatch({
     config: { ...config(), rules: [structuredClone(rules[0])] },
     now: () => Date.parse(stamp),
     canExecute: () => true,
     read: async id => ({ id, state: 'live', value: readings[id] }),
-    generate: async () => ({ suggestions: [{ topicId: 'commute-anomaly', key: 'primary', advice: '通勤耗时 52 分钟，基准 24 分钟。', actionId: action.id,
+    generate: async () => ({ suggestions: [{ topicId: 'commute-anomaly', key: 'primary', advice: '通勤明显慢于常态。', actionId: action.id,
       preview: { items: [{ label: '预计耗时', value: '52 分钟', tone: 'warn' }, { label: '基准耗时', value: '24 分钟' }] }, evidenceIds: ['e0'] }] }),
-    judge, publish: frame => frames.push(frame),
+    judge, publish: () => {},
     save: async () => {}, saveState: () => {}, execute: async () => 'done', phrase: async ({ advice }) => advice,
   })
   await watch.tick()
-  // The judgment asks whether text and visuals complement for a preview candidate.
-  assert.ok(asked.c0_complementary, 'a preview candidate receives a complementarity question')
-  assert.match(asked.c0_complementary.instructions.question, /complement/)
-  assert.equal(watch.list().length, 0, 'a draft whose text and visuals repeat cannot publish')
+  assert.deepEqual(Object.keys(questions).sort(), ['c0', 'c0_grounded', 'c0_unsupported'], 'exactly three typed questions')
+  assert.equal(watch.list().filter(p => p.status === 'pending').length, 1, 'a supported candidate publishes on its batch verdict')
   await watch.close()
 })
 
-test('a complementary candidate with equal values publishes', async () => {
+test('equal values for distinct facts publish on the two host gates', async () => {
   const frames = []
   const watch = new ProactiveWatch({
     config: { ...config(), rules: [structuredClone(rules[0])] },

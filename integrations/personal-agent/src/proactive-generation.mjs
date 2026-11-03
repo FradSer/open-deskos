@@ -13,7 +13,7 @@ const intentExample = JSON.stringify({ suggestions: [{ topicId: 'topic-id', key:
 const advicePresentation = 'Write advice as one short sentence stating the meaning and the action, at most 80 UTF-16 code units. Prefer a difference that the observations already measure, such as a delay, a shortfall or a price gap, so the advice says what changed without restating a reading. When no difference is measured, describe the situation without asserting a comparison the observations do not contain.'
 const previewPresentation = 'Attach a preview object whenever the advice rests on readings the owner should see. The advice and the preview must complement each other: the advice states what changed and what to do, the preview shows the raw measurements or options behind it, and each part carries information the other does not. Merely repeating the same information in both places is a defect; equal values for genuinely different facts are valid. preview.summary is an optional label naming what the items compare, at most 120 code units. preview.items is 1-6 {label,value,tone} pairs, each label and value at most 40 code units. Every value is copied from a cited observation; never compute, round, or invent one. Copy the value exactly as observed, without added units or formatting, and put units in the item label. Set tone to \"warn\" only when the value departs from its normal or requested range, to \"good\" only when it confirms one, and to \"neutral\" (or omit it) when the value is unchanged. Omit preview entirely when no reading supports the advice.'
 const generationExamples = `Ordinary example: ${ordinaryExample}\nIntent preview example: ${intentExample}`
-const investigationPresentation = 'This generation session provides two tools. proactive_read rereads a reading this round already cites; use it when the cited fields alone do not explain what the numbers mean. It adds context but never citable evidence: only the supplied observation ids of approved fields can be cited. proactive_judge returns typed judgments on your drafts: probability for attention now, groundingProbability for factual support, and complementarityProbability for whether advice and preview each add information. Check your drafts before returning. When complementarityProbability is low for a draft, restate fewer readings in the advice or drop the preview when it adds nothing; drop weak drafts outright. The host independently re-judges every returned candidate, so your in-process check qualifies nothing.'
+const investigationPresentation = 'This generation session provides two tools. proactive_read rereads a reading this round already cites; use it when the cited fields alone do not explain what the numbers mean. It adds context but never citable evidence: only the supplied observation ids of approved fields can be cited. proactive_judge returns typed judgments on your drafts: probability for attention now and groundingProbability for factual support. Check your drafts before returning and revise or drop weak ones. The host independently re-judges every returned candidate, so your in-process check qualifies nothing.'
 class MissingAdviceError extends Error {
   constructor() { super('Invalid generated suggestion: advice is required'); this.code = 'advice_required' }
 }
@@ -180,8 +180,7 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
       if (!current()) return
       const judgment = result.answers[candidate.id]
       const existing = watch.proposals.findLast(p => sameOccurrence(p, candidate))
-      const supported = judgment.probability >= judgment.threshold && judgment.groundingProbability >= judgment.threshold
-        && (!candidate.preview || judgment.complementarityProbability >= judgment.threshold) && watch.fresh(candidate)
+      const supported = judgment.probability >= judgment.threshold && judgment.groundingProbability >= judgment.threshold && watch.fresh(candidate)
       if (!supported) { if (existing?.status === 'pending') existing.status = 'expired'; continue }
       // Handled and uncertain occurrences are host-owned receipts, never model-overridable advice.
       if (watch.handledOccurrences[candidate.occurrenceKey] || (existing && ['ignored', 'completed', 'executing', 'unknown'].includes(existing.status))) continue
@@ -226,7 +225,6 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
   const validAnswer = (result, c) => {
     const a = result?.answers?.[c.id]
     return isJudgmentModel(result?.model) && [a?.probability, a?.groundingProbability, a?.threshold].every(n => Number.isFinite(n) && n >= 0 && n <= 1) && a.threshold > 0.5
-      && (!c.preview || (Number.isFinite(a?.complementarityProbability) && a.complementarityProbability >= 0 && a.complementarityProbability <= 1))
   }
   const evaluate = async selected => {
     if (!current() || attempts >= budget) return
@@ -270,69 +268,6 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
       if (usable.length) {
         try { watch.onJudgment({ trigger: trigger.kind, model: result.model, at: new Date(watch.now()).toISOString(), decisions: usable.map(c => ({ ruleId: c.ruleId, candidateId: c.id,
           probability: result.answers[c.id].probability, groundingProbability: result.answers[c.id].groundingProbability, threshold: result.answers[c.id].threshold })) }) } catch { /* Diagnostics cannot affect selection. */ }
-      }
-      // A batch judgment dilutes each candidate against its siblings. Reconsider only the
-      // near misses on their own, so a good candidate is not lost to a crowded batch.
-      const threshold = c => result.answers[c.id]
-      const nearMiss = usable.length > 1
-        ? usable.filter(c => {
-            const a = threshold(c)
-            const cleared = a.probability >= a.threshold && a.groundingProbability >= a.threshold
-              && (!c.preview || a.complementarityProbability >= a.threshold)
-            return !cleared && a.probability >= 0.6 && a.groundingProbability >= 0.6 && (!c.preview || a.complementarityProbability >= 0.6)
-          }).slice(0, 4)
-        : []
-      for (const candidate of nearMiss) {
-        if (!current()) break
-        try {
-          judgmentCalls++
-          const solo = await watch.judge({ candidates: [candidate], trigger, context, recent: recentFor([candidate.ruleId]), signal: watch.controller.signal })
-          if (validAnswer(solo, candidate)) result.answers[candidate.id] = solo.answers[candidate.id]
-        } catch { /* A solo retry cannot lower an existing verdict. */ }
-      }
-      if (nearMiss.length) auditGeneration({ phase: 'solo-reconsider', candidates: nearMiss.length, topics: nearMiss.map(c => c.ruleId), cachedTopics, budget })
-      // A supported draft whose only failing gate is complementarity is repairable
-      // redundancy: return it once for revision instead of discarding the need.
-      const repairable = usable.filter(c => {
-        const a = result.answers[c.id]
-        return c.preview && a && Number.isFinite(a.probability) && Number.isFinite(a.groundingProbability)
-          && Number.isFinite(a.complementarityProbability)
-          && a.probability >= a.threshold && a.groundingProbability >= a.threshold
-          && a.complementarityProbability < a.threshold
-      }).slice(0, 2)
-      for (const candidate of repairable) {
-        if (!current() || attempts >= budget) break
-        attempts++
-        try {
-          const scores = result.answers[candidate.id]
-          generationCalls++
-          const raw = await watch.generate({
-            trigger, context, topics: selected.map(({ sourceSnapshot, ...topic }) => topic), recent: recentFor(selected),
-            maxCandidates: watch.config.maxCandidates ?? 8, signal: watch.controller.signal,
-            repair: { topicId: candidate.ruleId, key: candidate.key, advice: candidate.advice, ...(candidate.preview ? { preview: candidate.preview } : {}),
-              judgment: { probability: scores.probability, groundingProbability: scores.groundingProbability, complementarityProbability: scores.complementarityProbability },
-              instruction: 'The advice and the preview repeat each other. Return the same suggestion with advice restated so it carries only what the preview does not show. Keep the same topicId, key, actionId and evidenceIds. Copy preview values exactly as observed with units in the item labels.' },
-          })
-          if (!current()) return
-          const matched = validateGeneratedBatch(raw, selected, watch.config.maxCandidates ?? 8).filter(s => s.topicId === candidate.ruleId)
-          if (matched.length !== 1) continue
-          const revised = matched[0]
-          revised.key = candidate.key
-          const next = identifyCandidate(watch, revised, selected.find(t => t.id === revised.topicId))
-          // A revision paraphrasing a sibling adds nothing; keep the original rejection.
-          const equivalent = usable.some(c => c !== candidate && c.ruleId === next.ruleId
-            && c.advice.normalize('NFKC').replace(/[\p{P}\p{Z}\s]/gu, '').toLowerCase() === next.advice.normalize('NFKC').replace(/[\p{P}\p{Z}\s]/gu, '').toLowerCase())
-          if (equivalent) continue
-          next.id = candidate.id
-          candidates[candidates.indexOf(candidate)] = next
-          usable[usable.indexOf(candidate)] = next
-          judgmentCalls++
-          const retry = await watch.judge({ candidates: [next], trigger, context, recent: recentFor(selected), signal: watch.controller.signal })
-          if (!current()) return
-          if (!validAnswer(retry, next)) continue
-          result.answers[next.id] = retry.answers[next.id]
-          auditGeneration({ phase: 'repaired', candidates: 1, topics: [candidate.ruleId], cachedTopics, budget })
-        } catch { /* A failed repair keeps the original rejection. */ }
       }
       await complete(healthy, usable, result)
     } catch {

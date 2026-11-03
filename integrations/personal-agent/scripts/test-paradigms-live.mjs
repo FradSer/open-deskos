@@ -111,16 +111,14 @@ for (let run = 1; run <= repeat; run++) {
   if (!result) continue
   for (const candidate of judged) {
     const answer = result.answers[candidate.id]
-    // The host gate: usefulness, grounding, and — for a preview candidate — complementarity.
-    const complementarity = answer.complementarityProbability ?? null
+    // The host gate: usefulness and factual support.
     rows.push({
       run, topic: candidate.topicId, advice: candidate.advice,
       preview: candidate.preview ?? null, nextStep: candidate.nextStep ?? null,
       items: candidate.preview?.items?.length ?? 0,
       probability: answer.probability, grounding: answer.groundingProbability,
-      complementarity, threshold: answer.threshold,
+      threshold: answer.threshold,
       pass: answer.probability >= answer.threshold && answer.groundingProbability >= answer.threshold
-        && (complementarity === null || complementarity >= answer.threshold)
     })
   }
 }

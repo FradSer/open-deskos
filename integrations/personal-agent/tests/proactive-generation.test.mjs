@@ -93,14 +93,7 @@ test('generated Jev requests independently batch grounding and current usefulnes
   assert.equal(result.answers.c0.groundingProbability, 0.12)
   assert.ok(!JSON.stringify(body.questions).includes('soil'))
   assert.match(JSON.parse(body.questions.c0.instructions).policy, /For a generated candidate.*nextStep.*concrete, feasible owner action/)
-  // A preview candidate also asks whether text and visuals complement.
-  const withPreview = { id: 'p0', generated: true, advice: '通勤延误 28 分钟。', nextStep: 'Open the plan', evidence: [{ id: 'e0', field: 'minutes', value: 52 }], preview: { items: [{ label: '预计耗时', value: '52 分钟' }] } }
-  const previewJudge = createJevJudge({ env: { TYPESAFE_API_KEY: 'fixture-not-a-real-key' }, fetchImpl: async (_url, options) => {
-    const previewBody = JSON.parse(options.body)
-    return new Response(JSON.stringify({ model: 'jev-fixture', answers: Object.fromEntries(Object.keys(previewBody.questions).map(id => [id, { type: 'noul', noul: id.endsWith('_complementary') ? 0.9 : 0.95 }])) }))
-  } })
-  const previewBody = await previewJudge({ candidates: [withPreview], trigger: { kind: 'heartbeat', readingIds: [] }, context: {}, recent: [] })
-  assert.equal(previewBody.answers.p0.complementarityProbability, 0.9)
+  assert.doesNotMatch(JSON.stringify(body.questions), /_complementary|complement/)
   assert.match(JSON.parse(body.questions.c0_grounded.instructions).question, /advice.*nextStep/)
   assert.match(JSON.parse(body.questions.c0_unsupported.instructions).question, /advice.*nextStep/)
   assert.doesNotMatch(JSON.stringify(body.questions), /\.reason|generated reason/)
@@ -317,36 +310,32 @@ test('suggestion schema correction identifies missing advice without disclosing 
   }
 })
 
-test('a redundant but supported draft is repaired once and can publish', async t => {
-  const calls = { generate: [], judge: [] }
-  const redundant = { topicId: 'deliveries', key: 'primary', advice: '领取待取物品 2 件。', actionId: 'inspect', evidenceIds: ['e0'],
-    preview: { summary: '待取物品', items: [{ label: '待取', value: '2', tone: 'warn' }] } }
-  const revised = { ...redundant, advice: '有包裹可以领取了。' }
+test('one batch judgment is final: no solo reconsideration and no repair round', async () => {
+  const calls = { generate: 0, judge: [] }
+  const candidate = { topicId: 'deliveries', key: 'primary', advice: '领取待取物品。', actionId: 'inspect', evidenceIds: ['e0'] }
   const f = fixture({
-    generate: async input => { calls.generate.push(input); return { suggestions: [input.repair ? revised : redundant] } },
-    judge: async ({ candidates }) => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id,
-      // The first batch judges the redundant wording; the repair re-judge scores the revision.
-      { probability: 0.9, groundingProbability: 0.9, complementarityProbability: calls.judge.push(1) && calls.judge.length > 1 ? 0.95 : 0.3, threshold: 0.8 }])) }),
+    generate: async () => { calls.generate++; return { suggestions: [candidate] } },
+    judge: async ({ candidates }) => {
+      calls.judge.push(candidates.map(c => c.id))
+      return { model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id,
+        { probability: 0.9, groundingProbability: 0.9, threshold: 0.8 }])) }
+    },
   })
   await f.watch.tick()
-  assert.equal(calls.generate.length, 2, 'the host returned the draft once for repair')
-  assert.ok(calls.generate[1].repair, 'the repair request carries the draft and its scores')
-  const pending = f.watch.list().filter(p => p.status === 'pending')
-  assert.deepEqual(pending.map(p => p.advice), ['有包裹可以领取了。'], 'only the repaired wording publishes')
+  assert.equal(calls.generate, 1, 'the host generates once, with no repair request')
+  assert.equal(calls.judge.length, 1, 'the host judges once, with no near-miss resample')
+  assert.equal(f.watch.list().filter(p => p.status === 'pending').length, 1, 'a supported batch verdict publishes')
 })
 
-test('a repair that still repeats cannot publish', async t => {
-  const calls = { generate: 0 }
-  const redundant = { topicId: 'deliveries', key: 'primary', advice: '领取待取物品 2 件。', actionId: 'inspect', evidenceIds: ['e0'],
-    preview: { summary: '待取物品', items: [{ label: '待取', value: '2', tone: 'warn' }] } }
-  const f = fixture({
-    generate: async input => { calls.generate++; return { suggestions: [{ ...redundant, advice: input.repair ? '待取物品仍是 2 件。' : redundant.advice }] } },
-    judge: async ({ candidates }) => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id,
-      { probability: 0.9, groundingProbability: 0.9, complementarityProbability: 0.3, threshold: 0.8 }])) }),
-  })
+test('a batch judgment with several candidates is not split into solo judgments', async () => {
+  const calls = { judge: [] }
+  const f = fixture({ judge: async ({ candidates }) => {
+    calls.judge.push(candidates.length)
+    return { model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id,
+      { probability: 0.9, groundingProbability: 0.9, threshold: 0.8 }])) }
+  } })
   await f.watch.tick()
-  assert.equal(calls.generate, 2, 'exactly one repair round runs')
-  assert.equal(f.watch.list().filter(p => p.status === 'pending').length, 0, 'a still-repeating revision stays unpublished')
+  assert.deepEqual(calls.judge, [3], 'the whole batch is judged in one request')
 })
 
 test('generation and correction lead with concise advice while retaining stored compatibility', () => {

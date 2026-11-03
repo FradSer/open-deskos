@@ -98,7 +98,7 @@ async function runRound(index) {
         const out = await createJevJudge({ env: process.env })(args)
         for (const c of args.candidates) {
           const a = out.answers[c.id]
-          note(`  judge ${c.topicId} p=${Number(a.probability).toFixed(2)} g=${Number(a.groundingProbability).toFixed(2)} compl=${a.complementarityProbability === undefined ? 'n/a' : Number(a.complementarityProbability).toFixed(2)}`)
+          note(`  judge ${c.topicId} p=${Number(a.probability).toFixed(2)} g=${Number(a.groundingProbability).toFixed(2)}`)
         }
         return out
       } catch (error) {
@@ -108,7 +108,6 @@ async function runRound(index) {
     },
     onGeneration: record => note(`  phase=${record.phase} candidates=${record.candidates} topics=${(record.topics ?? []).join(',')}${record.budgetUsed !== undefined ? ` budgetUsed=${record.budgetUsed}` : ''}`),
     onJudgment: record => {
-      // The runtime receipt carries usefulness, support and threshold; complementarity stays in the answer map.
       for (const d of record.decisions) note(`  judged ${d.ruleId} p=${Number(d.probability).toFixed(2)} g=${Number(d.groundingProbability).toFixed(2)} thr=${d.threshold}`)
     },
     publish: () => {},
@@ -119,7 +118,7 @@ async function runRound(index) {
     const published = watch.list().filter(p => p.status === 'pending').map(p => ({
       ruleId: p.ruleId, advice: p.advice, preview: p.preview ?? null, nextStep: p.nextStep,
       probability: p.judgment.probability, grounding: p.judgment.groundingProbability,
-      complementarity: p.judgment.complementarityProbability ?? null, threshold: p.judgment.threshold,
+      threshold: p.judgment.threshold,
     }))
     note(`round ${index}: ${published.length} published; judgmentError=${JSON.stringify(watch.judgmentError ?? '')} failed=${JSON.stringify([...(watch.failedJudgments ?? [])])}`)
     return published

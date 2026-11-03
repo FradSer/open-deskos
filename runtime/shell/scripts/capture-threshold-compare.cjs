@@ -81,8 +81,7 @@ app.whenReady().then(async () => {
   for (const threshold of [0.8, 0.7]) {
     for (const round of rounds) {
       const candidates = corpus.filter(row => row.run === round)
-      const passing = candidates.filter(row => row.pass === true || (row.probability >= threshold && row.grounding >= threshold
-        && (row.preview ? (row.complementarity ?? 0) >= threshold : true)))
+      const passing = candidates.filter(row => row.pass === true || (row.probability >= threshold && row.grounding >= threshold))
       await send({ state: 'idle', proposals: [], proposalCapabilities: { read: true, respond: true, acknowledge: true } })
       await send({ state: 'idle', proposals: passing.map(proposalFor), proposalCapabilities: { read: true, respond: true, acknowledge: true } })
       const name = `threshold-${String(threshold).replace('.', '')}-run-${round}.png`
@@ -100,8 +99,7 @@ app.whenReady().then(async () => {
   const best07 = gap(0.7)
 
   const url = png => 'data:image/png;base64,' + png.toString('base64')
-  const totals = threshold => ({ pass: corpus.filter(r => r.probability >= threshold && r.grounding >= threshold
-    && (r.preview ? (r.complementarity ?? 0) >= threshold : true)).length })
+  const totals = threshold => ({ pass: corpus.filter(r => r.probability >= threshold && r.grounding >= threshold).length })
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;width:1080px;height:2090px;padding:22px;display:flex;flex-direction:column;gap:14px}
@@ -133,7 +131,7 @@ app.whenReady().then(async () => {
   fs.writeFileSync(path.join(outDir, 'threshold-compare.png'), (await capturePaintedPage(grid)).toPNG())
   console.log('CAPTURED threshold-compare.png')
 
-  console.log(`\nSUMMARY threshold pass/${corpus.length} (host gate: probability + grounding + preview complementarity)`)
+  console.log(`\nSUMMARY threshold pass/${corpus.length} (host gate: probability + grounding)`)
   for (const t of [0.8, 0.7, 0.6]) console.log(`  ${t} → ${totals(t).pass}`)
   console.log('OUT_DIR', outDir)
   win.destroy(); grid.destroy(); app.exit(0)

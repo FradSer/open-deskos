@@ -49,7 +49,7 @@ test('reads stay within the bounded budget', async () => {
 
 test('a draft judgment maps the exact draft with its topic evidence and goal', async () => {
   const { investigation, calls } = fixture({ judge: async ({ candidates }) => ({ model: 'jev-fixture',
-    answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.9, groundingProbability: 0.85, complementarityProbability: 0.9, threshold: 0.8 }])) }) })
+    answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.9, groundingProbability: 0.85, threshold: 0.8 }])) }) })
   const outcome = await investigation.tools[1].execute('t0', { suggestions: [draft] })
   const judged = calls.judge[0]
   assert.equal(judged.candidates.length, 1)
@@ -64,7 +64,6 @@ test('a draft judgment maps the exact draft with its topic evidence and goal', a
   assert.deepEqual(candidate.preview.items, draft.preview.items)
   assert.equal(outcome.structuredContent.answers.d0.probability, 0.9)
   assert.equal(outcome.structuredContent.answers.d0.groundingProbability, 0.85)
-  assert.equal(outcome.structuredContent.answers.d0.complementarityProbability, 0.9)
 })
 
 test('a draft with unresolvable evidence is refused with model-usable feedback', async () => {

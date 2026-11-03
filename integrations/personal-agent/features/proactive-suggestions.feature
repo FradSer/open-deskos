@@ -140,31 +140,28 @@ Feature: Owner controlled proactive Personal Agent proposals
     Given the model composes a draft suggestion during generation
     When it requests a typed judgment through the scoped judgment tool
     Then it receives usefulness and factual-support probabilities for that exact draft
-    And a preview draft also learns whether text and visuals complement
     And judgment calls stay within a bounded budget
     And the in-process judgment grants no action permission
 
-  Scenario: Text and visuals must complement, judged semantically
+  Scenario: Text and visuals complement through composition, not a separate gate
     Given a generated candidate carries advice and a generic preview
-    When the judgment service evaluates it
-    Then it judges whether the preview adds information beyond the advice
-    And a candidate whose text and visuals merely repeat each other cannot publish
+    When the generation instructions shape the message
+    Then the advice states meaning and the preview carries distinct readings
     And equal values for distinct facts remain valid when each part adds information
+    And the host applies usefulness and factual support, not a style score
+
+  Scenario: Batch judgments do not dilute one another
+    Given one round supplies several distinct candidates
+    When the judgment service evaluates the batch
+    Then each candidate is judged against its own goal and cited observations
+    And the host does not resample a near miss on its own
+    And a supported candidate can publish on its batch verdict
 
   Scenario: Host qualification stays independent of the Agent's self-checks
     Given the generation Agent judged its own draft inside its process
     When the round finishes
     Then the host still qualifies every returned candidate through its own judgment
     And only host-qualified candidates publish
-
-  Scenario: A redundant but supported draft gets one bounded repair
-    Given a generated draft whose usefulness and factual support pass their thresholds
-    When its advice and preview merely repeat each other
-    Then the host returns that draft for one bounded revision before rejecting it
-    And a revised draft that complements its preview can publish
-    And a revision that still repeats cannot publish
-    And repairs stay bounded within the round budget
-    And the owner sees no draft whose revision failed
 
   Scenario: Generic generation preserves source and lifecycle boundaries
     Given a generated batch is in flight
