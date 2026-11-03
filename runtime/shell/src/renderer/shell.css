@@ -582,6 +582,9 @@ body.kiosk {
 .dash-soil-value:is([data-status="ok"], [data-status="good"], [data-status="wet"]) { color: var(--odk-status-healthy); }
 .dash-humidity[data-level="low"] { color: var(--odk-status-critical); }
 .dash-humidity:is([data-level="ok"], [data-level="high"]) { color: var(--odk-status-healthy); }
+.dash-state[data-level="critical"] { color: var(--odk-status-critical); }
+.dash-state[data-level="warning"] { color: var(--odk-status-warning); }
+.dash-state[data-level="healthy"] { color: var(--odk-status-healthy); }
 .dash-token { display: inline-block; white-space: nowrap; }
 .dash-icon svg {
   display: inline-block;

@@ -61,6 +61,19 @@
     stale: 'Previous briefing. Personal Agent could not confirm current desk state.',
   }
 
+  // Generic state words use the same shared status tokens as numeric values.
+  // This is a vocabulary-to-tier mapping, never a per-source colour rule.
+  const STATE_TONES = {
+    critical: new Set(['failed', 'blocked', 'interrupted', 'needs_review', 'needs_input']),
+    warning: new Set(['waiting', 'cancelling', 'starting', 'syncing']),
+    healthy: new Set(['running', 'working', 'settled', 'finished', 'completed', 'idle', 'exited']),
+  }
+  const STATE_CAPTURE = /\b(failed|blocked|interrupted|needs[ _]review|needs[ _]input|waiting|cancelling|starting|syncing|running|working|settled|finished|completed|idle|exited)\b/gi
+  const stateLevel = word => {
+    const key = word.toLowerCase().replace(/ /g, '_')
+    return Object.keys(STATE_TONES).find(level => STATE_TONES[level].has(key))
+  }
+
   // Severity words and percentages take the established widget colours so the
   // briefing reads at a glance; a healthy remaining value stays uncoloured.
   function appendTokens(el, text, live = false, kind = undefined) {
@@ -119,22 +132,31 @@
         const value = Number(part.slice(0, -1))
         if (live && value !== 0 && /^[+-]/.test(part)) change.dataset.direction = value > 0 ? 'up' : 'down'
         el.append(change)
-      } else el.append(el.ownerDocument.createTextNode(part))
+      } else {
+        for (const piece of part.split(STATE_CAPTURE)) {
+          if (!piece) continue
+          const level = stateLevel(piece)
+          if (!level) { el.append(el.ownerDocument.createTextNode(piece)); continue }
+          const state = el.ownerDocument.createElement('span')
+          state.className = 'dash-state'
+          state.dataset.level = level
+          state.textContent = piece
+          el.append(state)
+        }
+      }
     }
   }
 
-  // Joiners carry the subdued Tone Tier. Facts keep the primary tier and
-  // values keep their state tokens. All three stay visible in one sentence.
+  // Only a trailing host joiner carries the subdued Tone Tier. An "and"
+  // inside a bound value or a proper name is data, not a connector.
   function appendText(el, text, live = false, kind = undefined) {
-    for (const part of text.split(/(\s+and\s+|,\s+)/)) {
-      if (!part) continue
-      if (/^\s+and\s+$|^\s*,\s+$/.test(part)) {
-        const connector = el.ownerDocument.createElement('span')
-        connector.className = 'dash-context'
-        connector.textContent = part
-        el.append(connector)
-      } else appendTokens(el, part, live, kind)
-    }
+    const joiner = text.match(/(\s+and\s+|,\s+)$/)
+    if (!joiner) { appendTokens(el, text, live, kind); return }
+    appendTokens(el, text.slice(0, -joiner[0].length), live, kind)
+    const connector = el.ownerDocument.createElement('span')
+    connector.className = 'dash-context'
+    connector.textContent = joiner[0]
+    el.append(connector)
   }
 
   function appendMarkdown(el, text, live, kind) {

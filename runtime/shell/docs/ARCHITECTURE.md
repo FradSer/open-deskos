@@ -664,6 +664,7 @@ These targets authorize no native code execution, downloads, live capture, or pr
 ADR-0004's Face Agent withdrawal still applies.
 
 
+<a id="adr-0040"></a>
 ### ADR-0040: Source-independent Overview wording
 
 The host assembles one Overview Sentence from a Selection of Facts. The host joins Facts with `and`. It derives each Fact's wording from the field meaning and format. It uses three Syntactic Roles: count, measurement, and state. The model returns finite selectors only. The model never writes display text. Displayed values stay bound to current local source templates.

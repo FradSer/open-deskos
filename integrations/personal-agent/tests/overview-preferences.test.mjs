@@ -35,7 +35,7 @@ test('Pi sessions never disclose their goals, projects or activity', () => {
   const text = resolveHomeTemplate(fallbackHomeSelection(readings, Date.now(), DEFAULT_OVERVIEW_PREFERENCES), readings)
     .items.map(item => item.text).join(' ')
   assert.doesNotMatch(text, /Private goal|Project 1|Private goal 3/)
-  assert.match(text, /5 .*running|5 .*sessions/)
+  assert.match(text, /Sessions is 5/)
 })
 
 test('a required Futu holding stays visible through the local fallback', () => {
@@ -43,7 +43,7 @@ test('a required Futu holding stays visible through the local fallback', () => {
   const preferences = prefs(['odk.service.futu-main'], ['odk.app.pi-sessions'])
   const text = resolveHomeTemplate(fallbackHomeSelection(readings, Date.now(), preferences), readings)
     .items.map(item => item.text).join(' ')
-  assert.match(text, /\+6\.40%/)
+  assert.match(text, /Today change is \+6\.40%/)
 })
 
 test('a selector cannot drop a required Futu holding', async () => {
@@ -51,14 +51,14 @@ test('a selector cannot drop a required Futu holding', async () => {
   const preferences = prefs(['odk.service.futu-main'], ['odk.app.pi-sessions'])
   const raw = await generateHomeSelection(readings, { preferences, choose: async () => ({ items: [] }) })
   const text = resolveHomeTemplate(raw, readings).items.map(item => item.text).join(' ')
-  assert.match(text, /\+6\.40%/)
+  assert.match(text, /Today change is \+6\.40%/)
 })
 
 test('the displayed value stays bound to the current local reading', () => {
   const readings = [futu()]
   const preferences = prefs(['odk.service.futu-main'], ['odk.app.pi-sessions'])
   const first = resolveHomeTemplate(fallbackHomeSelection(readings, Date.now(), preferences), readings)
-  assert.match(first.items.map(item => item.text).join(' '), /\+6\.40%/)
+  assert.match(first.items.map(item => item.text).join(' '), /Today change is \+6\.40%/)
   readings[0].value.todayChangePercent = -1.25
   const second = resolveHomeTemplate(fallbackHomeSelection(readings, Date.now(), preferences), readings)
   assert.match(second.items.map(item => item.text).join(' '), /-1\.25%/)

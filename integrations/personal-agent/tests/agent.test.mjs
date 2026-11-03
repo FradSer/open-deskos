@@ -393,8 +393,8 @@ test('selected Agent preserves Home binding, cached updates, and runtime restart
           })])
         } finally { signal.removeEventListener('abort', cancel) }
       }
-      return { items: [{ text: 'You have {{pi|count|integer}} active sessions.',
-        segments: [{ text: 'You have {{pi|count|integer}} active sessions.', icon: 'sessions' }], readingIds: ['pi'] }] }
+      return { items: [{ text: 'Count is {{pi|count|integer}}.',
+        segments: [{ text: 'Count is {{pi|count|integer}}.', icon: 'sessions' }], readingIds: ['pi'] }] }
     }, abort() {}, close() {}
     } }
     return runtime
@@ -445,11 +445,11 @@ test('selected Agent preserves Home binding, cached updates, and runtime restart
       const channel = resident.port(BOT_PORTS.channel)
       await home.refresh()
       assert.equal(service.status.briefing.state, 'live')
-      assert.equal(service.status.briefing.items[0].text, 'You have 2 active sessions.')
+      assert.equal(service.status.briefing.items[0].text, 'Count is 2.')
       const first = structuredClone(service.status.briefing)
       count = 5
       await home.refresh()
-      assert.equal(service.status.briefing.items[0].text, 'You have 5 active sessions.')
+      assert.equal(service.status.briefing.items[0].text, 'Count is 5.')
       assert.equal(external ? agent.calls : generations, 1)
       const updated = structuredClone(service.status.briefing)
       const runtime = resident.port(BOT_PORTS.runtime)
@@ -481,7 +481,7 @@ test('selected Agent preserves Home binding, cached updates, and runtime restart
       assert.equal(resident.port(BOT_PORTS.service), service)
       assert.equal(resident.port(BOT_PORTS.channel), channel)
       await fresh.refresh()
-      assert.equal(service.status.briefing.items[0].text, 'You have 7 active sessions.')
+      assert.equal(service.status.briefing.items[0].text, 'Count is 7.')
       const resumed = structuredClone(service.status.briefing)
       runtime.release()
       await runtime.finished

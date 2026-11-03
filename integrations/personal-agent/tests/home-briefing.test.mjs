@@ -646,7 +646,7 @@ test('first startup synthesis failure keeps exact declared source facts visible 
   const source={id:'synthetic.sessions',label:'Synthetic sessions',kind:'app',state:'live',value:{total:2},home:{mode:'required',priority:100,icon:'sessions',fields:['total']}}
   const home=new HomeBriefing({requireBindings:true,list:async()=>[source],read:async()=>source,generate:async()=>{throw Error('synthetic classification failure')},publish:()=>{}})
   await home.refresh()
-  assert.equal(home.frame.state,'error');assert.equal(home.frame.items.length,1);assert.match(home.frame.items[0].text,/You have 2 active sessions/)
+  assert.equal(home.frame.state,'error');assert.equal(home.frame.items.length,1);assert.match(home.frame.items[0].text,/Total is 2/)
   assert.deepEqual(home.frame.items[0].sources.map(s=>s.id),[source.id]);assert.equal(home.template,null);home.close()
 })
 
@@ -660,7 +660,7 @@ test('source-only fallback rereads current facts after failed synthesis', async 
   let total=2
   const source=()=>({id:'synthetic.sessions',label:'Synthetic sessions',kind:'app',state:'live',value:{total},home:{mode:'required',priority:100,icon:'sessions',fields:['total']}})
   const home=new HomeBriefing({requireBindings:true,list:async()=>[source()],read:async()=>source(),generate:async()=>{total=3;throw Error('synthetic failure')},publish:()=>{}})
-  await home.refresh();assert.match(home.frame.items[0].text,/You have 3 active sessions/);assert.doesNotMatch(home.frame.items[0].text,/2 Synthetic/);home.close()
+  await home.refresh();assert.match(home.frame.items[0].text,/Total is 3/);assert.doesNotMatch(home.frame.items[0].text,/2 Synthetic/);home.close()
 })
 
 test('a source-only confirmation invalidated during pending reads is scheduled again after the first timer coalesces', {timeout:6000}, async t => {
@@ -688,7 +688,7 @@ test('first startup publishes exact bound facts while generation is pending with
   t.after(()=>home.close())
   const pending=home.refresh();await started
   assert.equal(home.frame.state,'loading');assert.equal(home.frame.items.length,1)
-  assert.match(home.frame.items[0].text,/You have 2 active sessions/)
+  assert.match(home.frame.items[0].text,/Total is 2/)
   assert.deepEqual(home.frame.items[0].sources.map(s=>s.id),[source().id])
   assert.equal(home.frame.generatedAt,0);assert.equal(home.template,null)
   total=3;home.invalidate()
@@ -721,7 +721,7 @@ test('a retained template cannot clear failure cooldown without another successf
   now += 15 * 60000; fail = false; await home.refresh()
   assert.equal(home.frame.state, 'live'); assert.deepEqual(home.frame.items, modelItems); assert.equal(calls, 3)
   sources = [source(true)]; now += 15 * 60000; fail = true; await home.refresh()
-  assert.equal(home.frame.state, 'error'); assert.match(home.frame.items[0].text, /Running is 1|You have \d+ active sessions/)
+  assert.equal(home.frame.state, 'error'); assert.equal(home.frame.items[0].text, 'Running is 1.')
 })
 
 test('busy Pi activity publishes current bound facts and reselects with new completion qualifiers', async t => {

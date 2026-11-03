@@ -211,3 +211,32 @@ test('Overview connectors use the subdued tier while facts and values keep their
   assert.ok(all.some(n => n.className === 'dash-fact'), 'fact text keeps the primary tier')
   assert.ok(all.some(n => n.className === 'dash-change'), 'the value keeps its state token')
 })
+
+test('generic state words use a shared status tier', async t => {
+  const f = await fixture(t)
+  const segments = [{ text: 'Task is failed.', icon: 'status' }]
+  const item = { text: 'Task is failed.', segments, sources: [{ id: 'task', label: 'Task', state: 'live' }] }
+  f.briefings[0]({ ...f.frame('live'), items: [item] })
+  const collect = (n, out = []) => { out.push(n); for (const c of n.children || []) collect(c, out); return out }
+  const all = collect(f.nodes.get('#dash-narrative'))
+  const state = all.find(n => n.className === 'dash-state')
+  assert.ok(state, 'a generic state word carries a status tier')
+  assert.equal(state.textContent, 'failed')
+  assert.equal(state.dataset.level, 'critical')
+  assert.equal(f.nodes.get('#dash-narrative').textContent, item.text)
+})
+
+test('an and inside a bound value is data, not a connector', async t => {
+  const f = await fixture(t)
+  const segments = [{ text: 'Claude and GPT models Remaining percentage is 100% and ', icon: 'quota' },
+    { text: 'Task is failed.', icon: 'status' }]
+  const item = { text: segments.map(segment => segment.text).join(''), segments,
+    sources: [{ id: 'quota', label: 'Quota', state: 'live' }, { id: 'task', label: 'Task', state: 'live' }] }
+  f.briefings[0]({ ...f.frame('live'), items: [item] })
+  const collect = (n, out = []) => { out.push(n); for (const c of n.children || []) collect(c, out); return out }
+  const all = collect(f.nodes.get('#dash-narrative'))
+  const connectors = all.filter(n => n.className === 'dash-context')
+  assert.equal(connectors.length, 1, 'only the trailing host joiner is subdued')
+  assert.match(connectors[0].textContent, /\band\b/)
+  assert.equal(f.nodes.get('#dash-narrative').textContent, item.text)
+})

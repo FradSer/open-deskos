@@ -6,7 +6,6 @@ export const stripHomeJoiner = text => text.replace(/(?:\s+and\s+|\s*,\s*|\s*\.\
 // Connectors are separate segments, so only these words need the literal allowlist.
 const CONNECTORS = new Set('you your have has is are and or but in at with of for the a an its today now show shows include includes contains'.split(' '))
 const ICON_NOUNS = { sessions: ['session', 'sessions'], portfolio: ['holding', 'holdings'], plants: ['plant', 'plants'], tasks: ['task', 'tasks'], calendar: ['event', 'events'], mail: ['message', 'messages'], reading: ['reading', 'readings'], quota: ['account', 'accounts'], apps: ['app', 'apps'], weather: ['report', 'reports'], status: ['item', 'items'] }
-const countNoun = icon => (ICON_NOUNS[icon] || []).at(-1) || 'items'
 
 /** A source-independent Syntactic Role, derived from field meaning and format. */
 function syntacticRole(field, format, path) {
@@ -29,7 +28,7 @@ const FIELD_LABELS = new Map(Object.entries({
   activity: 'Activity', goal: 'Goal', report: 'Report', total: 'Total', count: 'Count',
 }))
 const subjectLabel = field => FIELD_LABELS.get(field)
-  || fieldLabel(field).replace(/\s*(?:percent|c|hpa|lux)$/i, '').trim().replace(/^./, c => c.toUpperCase())
+  || fieldLabel(field).replace(/\s+\b(?:percent|c|hpa|lux)$/i, '').trim().replace(/^./, c => c.toUpperCase())
 const UNSAFE_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
 const STATE_WORDS = new Set(['running', 'working', 'settled', 'idle', 'waiting', 'failed', 'finished', 'completed', 'blocked', 'needs_input'])
 // A sibling state may qualify a goal only when it is a known state word.
@@ -307,7 +306,10 @@ export function homeTemplateVariables(readings, now = Date.now()) {
         return (order.includes(a) ? order.indexOf(a) : 99) - (order.includes(b) ? order.indexOf(b) : 99)
       }).filter(key => reference(`counts.${key}`)).map(key => `${reference(`counts.${key}`)} ${key.replaceAll('_', ' ')}`)
       const tail = counts.length > 1 ? `${counts.slice(0, -1).join(', ')} and ${counts.at(-1)}` : counts.join('')
-      example = `You have ${countReference} active ${countNoun(source.home?.icon)}${tail ? ` with ${tail}` : ''}`
+      // A count states its own number. It must not claim an unmeasured state
+      // such as "active", and it must not depend on singular/plural grammar.
+      const countField = [...countReference.matchAll(REFERENCE)][0]?.[2].split('.').at(-1)
+      example = `${subjectLabel(countField)} is ${countReference}${tail ? ` with ${tail}` : ''}`
     } else {
       // Join the source's first scalar values into one clause. This keeps
       // condition and place beside a temperature without a weather-specific rule.
@@ -478,7 +480,7 @@ export function homeFactVariables(readings, now = Date.now(), preferences = DEFA
       })() : undefined
       // One source-independent rule: count, state, or measurement. The reference
       // copy is an instance of this rule, not a template keyed by a source id.
-      const statement = role === 'count' ? `You have ${reference} active ${countNoun(icon)}`
+      const statement = role === 'count' ? `${labelText} is ${reference}`
         : field === 'report' ? `${label} reported: ${reference}`
           : soilStatus ? `${context}${labelText} is ${soilStatus} at ${reference}`
             : role === 'state' ? `${context || `${label} `}is ${piState || reference}${evidence}`
