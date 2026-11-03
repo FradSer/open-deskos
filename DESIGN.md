@@ -79,6 +79,7 @@ New installations use Pixel; explicit local selection survives restart. There is
 - Widgets display readings. Apps own interactive views. Swipe up from the bottom handle to return from a Widget App. This restores its source page and focus. A focused handle accepts ArrowUp, Enter, or Space. Gamepad B returns from the foreground App. A Personal Agent overlay receives Back first. Escape remains available for other App entry points. Touch and keyboard work without Remote Link or camera services.
 - Attribute the Console driving a Hosted Pi in the overview header for as long as it drives. Local input retains authority.
 - Show unavailable/synchronizing peripheral states honestly and keep hardware acceptance separate.
+- State Bar status icons omit corner badges.
 - Pointer paging has a short spatial transition; keyboard/Remote changes are immediate. Respect reduced motion. Page marks crossfade opacity without scaling targets or animating layout width.
 - Home shows one neutral horizontal handle with a 44-pixel target. Swipe the handle sideways to change pages. A focused handle accepts ArrowLeft, ArrowRight, Home, or End. Its accessible name identifies the current page. Theme changes preserve its location and target.
 - App cards use the same border width, border color, and theme radius as Widgets. Controls retain their focus outlines. App contents have no additional outer frame. The Shell App title is available to assistive technology without a visible title bar. Widget Apps have no empty header.

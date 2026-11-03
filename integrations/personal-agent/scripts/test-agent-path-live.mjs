@@ -20,17 +20,17 @@ const rounds = Number(roundIndex > -1 ? process.argv[roundIndex + 1] : 2)
 const total = Number.isInteger(rounds) && rounds >= 1 && rounds <= 4 ? rounds : 2
 const casesMode = process.argv.includes('--cases')
 const stamp = new Date().toISOString()
-const action = { id: 'open', label: '打开计划', tool: 'memory_update', params: { category: 'note', value: 'opened' } }
+const actionFor = label => ({ id: 'open', label, tool: 'memory_update', params: { category: 'note', value: 'opened' } })
 
 const rules = [
   { id: 'commute-anomaly', goal: 'Tell me when the commute departs from its normal duration.', delivery: 'immediate', urgent: false,
-    observations: [{ readingId: 'commute.traffic', fields: ['minutes', 'baselineMinutes', 'delayMinutes', 'rainAt', 'rainChance'] }], actions: [action] },
+    observations: [{ readingId: 'commute.traffic', fields: ['minutes', 'baselineMinutes', 'delayMinutes', 'rainAt', 'rainChance'] }], actions: [actionFor('查看通勤安排')] },
   { id: 'commitment-guard', goal: 'Warn me before a calendar commitment becomes unreachable.', delivery: 'immediate', urgent: true,
-    observations: [{ readingId: 'calendar.next', fields: ['startsAt', 'title', 'bufferMinutes', 'travelMinutes', 'shortfallMinutes'] }], actions: [action] },
+    observations: [{ readingId: 'calendar.next', fields: ['startsAt', 'title', 'bufferMinutes', 'travelMinutes', 'shortfallMinutes'] }], actions: [actionFor('查看日程')] },
   { id: 'commute-tradeoff', goal: 'Show the time and price trade-off before I choose a ride.', delivery: 'immediate', urgent: false,
-    observations: [{ readingId: 'commute.options', fields: ['nowPrice', 'nowDelay', 'laterPrice', 'laterDelay', 'waitMinutes', 'priceDelta', 'delayDelta'] }], actions: [action] },
+    observations: [{ readingId: 'commute.options', fields: ['nowPrice', 'nowDelay', 'laterPrice', 'laterDelay', 'waitMinutes', 'priceDelta', 'delayDelta'] }], actions: [actionFor('比较两个方案')] },
   { id: 'release-pipeline', goal: 'Tell me when the main branch is verified and ready to deploy.', delivery: 'silent', urgent: false,
-    observations: [{ readingId: 'ci.main', fields: ['commit', 'passed', 'failed', 'target', 'deployPending', 'deployedRevision'] }], actions: [action] }
+    observations: [{ readingId: 'ci.main', fields: ['commit', 'passed', 'failed', 'target', 'deployPending', 'deployedRevision'] }], actions: [actionFor('查看发布状态')] }
 ]
 const readings = {
   'commute.traffic': { minutes: 52, baselineMinutes: 24, delayMinutes: 28, rainAt: '18:15', rainChance: 80, measured_at: stamp },

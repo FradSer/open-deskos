@@ -221,9 +221,13 @@ function codexHorizon(window, fallback) {
   return fallback
 }
 
-function codexLimitsGroup(rateLimit, now) {
+function codexLimitsGroup(rateLimit, now, hasShortWindow = true) {
+  // A Pro subscription has no five-hour rolling limit. When the provider omits
+  // the window length, a single window is the weekly allowance, not a burst.
+  const primaryIsWeekly = !hasShortWindow && !rateLimit?.secondary_window
   const quotas = [
-    codexWindow('5 hour limit', rateLimit?.primary_window, now, codexHorizon(rateLimit?.primary_window, 'short')),
+    codexWindow(primaryIsWeekly ? 'Weekly limit' : '5 hour limit', rateLimit?.primary_window, now,
+      codexHorizon(rateLimit?.primary_window, primaryIsWeekly ? 'long' : 'short')),
     codexWindow('Weekly limit', rateLimit?.secondary_window, now, codexHorizon(rateLimit?.secondary_window, 'long')),
   ].filter(Boolean)
   return quotas.length ? { title: 'Codex limits', description: null, quotas } : null
@@ -243,7 +247,8 @@ function codexAdditionalGroups(limits, now) {
 function normalizeCodexQuota(auth, usage, resetCredits = {}, now = new Date()) {
   const card = baseCard(auth, 'codex')
   card.plan = titleCase(usage?.plan_type || auth.account_type || 'Codex')
-  card.groups = [codexLimitsGroup(usage?.rate_limit, now), ...codexAdditionalGroups(usage?.additional_rate_limits, now)].filter(Boolean)
+  const hasShortWindow = !/\bpro\b/i.test(card.plan)
+  card.groups = [codexLimitsGroup(usage?.rate_limit, now, hasShortWindow), ...codexAdditionalGroups(usage?.additional_rate_limits, now)].filter(Boolean)
   const availableCredits = Array.isArray(resetCredits.credits)
     ? resetCredits.credits.filter((credit) => credit.status === 'available')
     : []
@@ -255,6 +260,15 @@ function normalizeCodexQuota(auth, usage, resetCredits = {}, now = new Date()) {
   return card
 }
 
+// Antigravity names each bucket's window (`5h`, `weekly`) separately from its
+// display name. Keep that short or long horizon instead of guessing from prose.
+function antigravityHorizon(value) {
+  const text = String(value ?? '').toLowerCase()
+  if (/week|\b\d+\s*d(?:ays?)?\b|month/.test(text)) return 'long'
+  if (/\b(?:5|five)\s*h|\bfive\s*hour|\b\d+(?:\.\d+)?\s*hours?\b|short|session|burst/.test(text)) return 'short'
+  return null
+}
+
 function normalizedQuotaBucket(bucket) {
   const fraction = Number(bucket?.remainingFraction ?? bucket?.remaining_fraction)
   return {
@@ -262,6 +276,7 @@ function normalizedQuotaBucket(bucket) {
     remainingPct: Number.isFinite(fraction) ? boundedPercent(fraction * 100) : null,
     resetAt: bucket?.resetTime || bucket?.reset_time || null,
     description: bucket?.description || null,
+    horizon: antigravityHorizon(bucket?.window) || antigravityHorizon(bucket?.displayName || bucket?.display_name),
   }
 }
 

@@ -695,7 +695,7 @@ The generation format version invalidates old generation caches without changing
 Each candidate receives independent usefulness, factual-support, and unsupported-assertion judgments through the shared typed judgment service.
 Judgment receipts retain the actual `jev-*` or `provider/model` identity across checkpoint reloads.
 Ordinary model probabilities are estimates, not calibrated Jev probabilities.
-Effective support is `min(factualSupport, 1 - unsupportedAssertion)`.
+Factual qualification separates two judgments. `factualSupport` asks whether every assertion is supported, which is deliberately conservative for a sentence with several clauses. `unsupportedAssertion` asks whether any fact is invented or recomputed. The publication gate uses `1 - unsupportedAssertion`; the support value is retained as a separate signal. A conservative conjunction alone cannot veto content with no fabrication, while an identifiable invented fact still does.
 Usefulness and effective support must both meet `ODK_JEV_THRESHOLD`, default 0.8.
 Each candidate is judged independently against its own goal and cited observations in one batch. The host does not resample a near miss or return a draft for repair. Complementarity between advice and preview belongs to the generation instructions, not a separate judgment gate.
 Labels/symbols cannot add attributes; uncited rankings, causes, and aggregates are forbidden.

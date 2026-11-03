@@ -74,6 +74,18 @@ app.whenReady().then(async () => {
         surface: token('--agent-radius-surface'), card: token('--agent-radius-card'),
         inset: token('--agent-radius-inset'), control: token('--agent-radius-control'), chip: token('--agent-radius-chip')
       },
+      padding: (() => {
+        const q = s => { const n = document.querySelector(s); if (!n) return null; const c = getComputedStyle(n); return [c.paddingTop, c.paddingRight, c.paddingBottom, c.paddingLeft] }
+        const card = q('.personal-agent-preview-card'), chip = q('.personal-agent-preview-chip')
+        const proposal = q('.personal-agent-proposal'), panel = getComputedStyle(document.querySelector('.agent-panel'))
+        return { card, chip, cardPad: panel.getPropertyValue('--agent-pad-card').trim(),
+          gapBlock: panel.getPropertyValue('--agent-gap-block').trim(), gapInline: panel.getPropertyValue('--agent-gap-inline').trim(),
+          gapChip: panel.getPropertyValue('--agent-gap-chip').trim(), line: panel.getPropertyValue('--agent-line-body').trim(),
+          proposalGap: getComputedStyle(document.querySelector('.personal-agent-proposal')).rowGap,
+          adviceLine: getComputedStyle(document.querySelector('.personal-agent-proposal-advice')).lineHeight,
+          summaryLine: getComputedStyle(document.querySelector('.personal-agent-preview-summary')).lineHeight,
+          chipLine: getComputedStyle(document.querySelector('.personal-agent-preview-chip')).lineHeight }
+      })(),
       parts: {
         capsule: px('.agent-identity .agent-capsule'),
         bubble: px('.agent-message-bubble'),
@@ -121,9 +133,15 @@ app.whenReady().then(async () => {
       assert.ok(near(bubble - card, padSurface), `${theme}: card ${card} must equal surface ${bubble} minus padding ${padSurface}`)
       assert.ok(near(card - inset, padCard), `${theme}: inset ${inset} must equal card ${card} minus padding ${padCard}`)
       assert.equal(chip, inset, `${theme}: a chip inside the card shares the inset radius`)
-      assert.ok(control < card && control > chip, `${theme}: control ${control} sits strictly between chip ${chip} and card ${card}`)
+      assert.equal(control, chip, `${theme}: a control shares the inset radius with nearby chips (${chip})`)
       assert.ok(bubble > card && card > inset, `${theme}: the surface chain decreases strictly`)
     }
+    const pad = m.padding
+    assert.deepEqual(pad.card, [pad.cardPad, pad.cardPad, pad.cardPad, pad.cardPad], `${theme}: card padding matches the concentric token on all four sides`)
+    assert.equal(pad.proposalGap, pad.gapBlock, `${theme}: block gap comes from the named scale`)
+    assert.equal(pad.adviceLine, pad.summaryLine, `${theme}: advice and card summary share one line height`)
+    assert.equal(pad.summaryLine, pad.chipLine, `${theme}: chips share the same line height`)
+    assert.ok(parseFloat(pad.chip[0]) >= parseFloat(pad.gapChip), `${theme}: chip text does not crowd its corners`)
     assert.equal(m.parts.composer.radius, bubble, `${theme}: composer and bubble share one surface radius`)
     assert.equal(m.parts.latest.radius, control, `${theme}: the latest overlay uses the control radius`)
     // A field control inside the inset panel shares the panel radius so the control reads as

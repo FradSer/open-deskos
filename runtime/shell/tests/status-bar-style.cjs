@@ -44,6 +44,8 @@ app.whenReady().then(async () => {
   const js = expression => win.webContents.executeJavaScript(expression)
   await win.loadFile(path.join(__dirname, '../src/renderer/index.html'))
   await js('window.odkShellReady')
+  await js(`window.dispatchEvent(new CustomEvent('odk-gamepad-state', { detail: { connected: true, readable: true, id: 'State Bar fixture pad' } }))`)
+  const visiblePadGlyphs = `[...document.querySelectorAll('#status-bar svg[data-tabler="device-gamepad-2"]')].filter(svg=>!svg.closest('[hidden]')&&svg.getClientRects().length).length`
   win.webContents.debugger.attach('1.3')
   await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true })
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
@@ -79,8 +81,13 @@ app.whenReady().then(async () => {
         const widget=document.querySelector('.widget');
         const devices = bar.querySelector('button[aria-label="Open Devices"]');
         const devicesRect = devices.getBoundingClientRect();
+        const remoteGlyph = devices.querySelector('.sb-remote svg[data-tabler]')?.dataset.tabler || null;
+        const remoteDeviceGlyphs = [...devices.querySelectorAll('svg[data-tabler^="device-"]')].length;
+        const gamepadGlyphs = [...bar.querySelectorAll('svg[data-tabler="device-gamepad-2"]')].filter(svg=>!svg.closest('[hidden]')&&svg.getClientRects().length).length;
+        const cornerMarkers = [...bar.querySelectorAll('#sb-net, .sb-peripheral, #sb-pad')].flatMap(node=>['::before','::after'].flatMap(pseudo=>{const content=getComputedStyle(node,pseudo).content;return ['none','normal'].includes(content)?[]:[{target:node.id||node.className,pseudo,content}]}));
+        const labels = {remote:bar.querySelector('.sb-remote')?.getAttribute('aria-label'),camera:bar.querySelector('.sb-camera')?.getAttribute('aria-label'),network:bar.querySelector('#sb-net')?.getAttribute('aria-label')};
         const controls = [...bar.querySelectorAll('#sb-pad, .sb-devices, #sb-pi-status, #sb-net, .sb-time')].filter(node=>node.getClientRects().length);
-        return { viewport:[innerWidth,innerHeight,devicePixelRatio], theme:document.documentElement.dataset.theme, barBottom:rect.bottom,
+        return { viewport:[innerWidth,innerHeight,devicePixelRatio], theme:document.documentElement.dataset.theme, barBottom:rect.bottom, remoteGlyph, remoteDeviceGlyphs, gamepadGlyphs, cornerMarkers, labels,
           material: {
             borders:[material.borderTopWidth,material.borderRightWidth,material.borderBottomWidth,material.borderLeftWidth],
             radius:material.borderTopLeftRadius,background:material.backgroundImage,shadow:material.boxShadow,
@@ -104,6 +111,12 @@ app.whenReady().then(async () => {
       assert.deepEqual(state.viewport, [width,height,1])
       assert.equal(state.theme, theme)
       assert.equal(state.devicesTarget, true, 'Devices retains a reachable touch target')
+      assert.equal(state.remoteGlyph, 'server', 'Remote Control must use the service glyph')
+      assert.equal(state.remoteDeviceGlyphs, 0, 'Remote Control must not use a device glyph')
+      assert.equal(state.gamepadGlyphs, 1, 'A connected gamepad must show one gamepad glyph')
+      assert.deepEqual(state.cornerMarkers, [], 'Status icons must not draw numeric, dash, or symbolic corner badges')
+      assert.ok(state.labels.remote && state.labels.camera && state.labels.network, 'Status icons retain accessible state text')
+      assert.notEqual(state.labels.remote, state.labels.camera, 'Remote and Camera retain distinct accessible states')
       assert.equal(state.panesCorrect,true,'Backdrop must not displace the Agent or desk pane')
       assert.equal(state.frost.content, '""')
       assert.deepEqual(state.frost.insets, ['0px','0px','0px','0px'], 'The frost covers the full bar without an inset card')
@@ -163,6 +176,8 @@ app.whenReady().then(async () => {
     assert.equal(fallback.fill, 'none')
     assert.equal(fallback.shadow, 'none')
   }
+  await js(`window.dispatchEvent(new CustomEvent('odk-gamepad-state', { detail: { connected: false, readable: false, id: null } }))`)
+  assert.equal(await js(visiblePadGlyphs), 0, 'No gamepad must leave no gamepad glyph')
   console.log('STATUS_BAR_EVIDENCE ' + evidence)
   finish(0)
 }).catch(error => finish(1, error))

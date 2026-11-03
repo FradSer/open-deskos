@@ -2,18 +2,12 @@
 #status-bar { gap: 12px; }
 #status-bar [data-slot] { display: contents; }
 #sb-net { position: absolute; right: calc(var(--gutter) + var(--bar-icon) * 3.5); }
-#sb-net::after { content: '?'; position: absolute; right: -5px; top: -5px; font-size: 12px; line-height: 1; background: var(--odk-bg); }
 .sb-network-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .sb-devices { appearance: none; display: inline-flex; align-items: center; gap: 12px; min-width: 44px; min-height: 44px; padding: 0 4px; border: 0; border-radius: var(--odk-radius-pill); background: transparent; color: var(--odk-primary); cursor: pointer; }
 .sb-devices:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 0; }
-.sb-peripheral { display: inline-flex; align-items: center; position: relative; flex: none; color: var(--odk-secondary-strong); }
+.sb-peripheral { display: inline-flex; align-items: center; flex: none; color: var(--odk-secondary-strong); }
 .sb-peripheral svg { width: var(--bar-icon); height: var(--bar-icon); }
-.sb-peripheral::after { content: '?'; position: absolute; right: -5px; top: -5px; font-size: 12px; line-height: 1; background: var(--odk-bg); }
-.sb-peripheral[data-state="unavailable"]::after { content: '–'; }
-.sb-peripheral[data-state="disconnected"]::after { content: '×'; }
 .sb-peripheral:is([data-state="usb"], [data-state="wireless"], [data-state="live"]) { color: var(--odk-primary); }
-.sb-peripheral:is([data-state="usb"], [data-state="wireless"], [data-state="live"])::after { content: none; }
-.sb-peripheral[data-state="syncing"]::after { content: '…'; }
 #home-desk { position: absolute; inset: var(--status-h) 0 0; display: grid; grid-template-columns: minmax(320px, 1fr) minmax(0, var(--desk-pane-w, 67%)); }
 #personal-agent { container-type: inline-size; min-width: 0; min-height: 0; border-right: 1px solid var(--odk-stroke); }
 #personal-agent > .page { padding: 0; width: 100%; height: 100%; }
@@ -55,7 +49,13 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   --agent-radius-card: max(0px, calc(var(--agent-radius-surface) - var(--agent-pad-surface)));
   --agent-radius-inset: max(0px, calc(var(--agent-radius-card) - var(--agent-pad-card)));
   --agent-radius-chip: var(--agent-radius-inset);
-  --agent-radius-control: max(0px, calc(var(--agent-radius-card) - 8px));
+  --agent-radius-control: var(--agent-radius-inset);
+  /* One spacing rhythm for nested content. Blocks, inline chips and chip internals
+     step down together, so text never crowds a rounded corner. */
+  --agent-gap-block: 10px;
+  --agent-gap-inline: 8px;
+  --agent-gap-chip: 6px;
+  --agent-line-body: 1.5;
   /* Three text sizes only, named like --odk-text-*: reading, in-card, label. */
   --agent-text-heading: clamp(20px, calc(18px + 0.65cqw), 24px);
   --agent-text-body: 17px;

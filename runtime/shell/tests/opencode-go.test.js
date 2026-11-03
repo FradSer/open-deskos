@@ -73,6 +73,29 @@ test('names the Codex window horizon when the provider omits its length', () => 
   assert.deepEqual(card.groups[0].quotas.map(quota => quota.horizon), ['short', 'long'])
 })
 
+test('Codex Pro reports its weekly allowance while Team and Plus keep both windows', () => {
+  // A Pro subscription has no five-hour rolling limit. Its single window is the
+  // weekly allowance, even when the provider omits the window length.
+  const pro = normalizeCodexQuota({ name: 'pro.json' }, {
+    plan_type: 'pro',
+    rate_limit: { primary_window: { used_percent: 30, reset_at: 1_800_000_000 } },
+  }, {}, new Date('2026-01-01T00:00:00Z'))
+  assert.equal(pro.plan, 'Pro')
+  assert.equal(pro.groups[0].quotas[0].remainingPct, 70)
+  assert.deepEqual(pro.groups[0].quotas.map(quota => [quota.label, quota.horizon]), [['Weekly limit', 'long']])
+
+  for (const [planType, plan] of [['team', 'Team'], ['plus', 'Plus']]) {
+    const card = normalizeCodexQuota({ name: `${planType}.json` }, {
+      plan_type: planType,
+      rate_limit: { primary_window: { used_percent: 20 }, secondary_window: { used_percent: 60 } },
+    })
+    assert.equal(card.plan, plan)
+    assert.deepEqual(card.groups[0].quotas.map(quota => [quota.label, quota.horizon]), [
+      ['5 hour limit', 'short'], ['Weekly limit', 'long'],
+    ])
+  }
+})
+
 test('Codex labels follow supplied durations instead of primary and secondary slots', () => {
   const card = normalizeCodexQuota({ name: 'codex.json' }, {
     rate_limit: {
@@ -88,22 +111,23 @@ test('Codex labels follow supplied durations instead of primary and secondary sl
   assert.deepEqual(card.groups[1].quotas.map(q => [q.label, q.horizon]), [['Extra model · 1 day', 'long'], ['Extra model · 1 hour', 'short']])
 })
 
-test('normalizes Antigravity grouped quota responses', () => {
+test('keeps the 5h and weekly windows each Antigravity model group reports', () => {
   const card = normalizeAntigravityQuota({ name: 'antigravity-user.json', email: 'user@example.com' }, {
     subscription: { plan: 'Pro' },
     groups: [{
       displayName: 'Gemini models',
       description: 'Models within this group: Gemini Flash, Gemini Pro',
-      buckets: [{ displayName: 'Five Hour Limit Remaining', window: '5h', remainingFraction: 0.8, resetTime: '2027-01-01T00:00:00Z' }],
+      buckets: [
+        { displayName: 'Five Hour Limit Remaining', window: '5h', remainingFraction: 0.8, resetTime: '2027-01-01T00:00:00Z' },
+        { displayName: 'Weekly Limit Remaining', window: 'weekly', remainingFraction: 0.45, resetTime: '2027-01-08T00:00:00Z' },
+      ],
     }],
   })
   assert.equal(card.plan, 'Pro')
-  assert.deepEqual(card.groups[0].quotas[0], {
-    label: 'Five Hour Limit Remaining',
-    remainingPct: 80,
-    resetAt: '2027-01-01T00:00:00Z',
-    description: null,
-  })
+  assert.deepEqual(card.groups[0].quotas, [
+    { label: 'Five Hour Limit Remaining', remainingPct: 80, resetAt: '2027-01-01T00:00:00Z', description: null, horizon: 'short' },
+    { label: 'Weekly Limit Remaining', remainingPct: 45, resetAt: '2027-01-08T00:00:00Z', description: null, horizon: 'long' },
+  ])
 })
 
 test('rejects empty or null provider quota payloads instead of fabricating quota', () => {

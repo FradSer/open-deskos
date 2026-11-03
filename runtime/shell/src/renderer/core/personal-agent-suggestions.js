@@ -181,7 +181,7 @@
           if (item.tone === 'warn' || item.tone === 'good') line.dataset.tone = item.tone
           const name = document.createElement('span')
           name.className = 'personal-agent-preview-label personal-agent-ride-product'
-          name.textContent = `${String(item.productName || item.label || '').slice(0, 256)}: `
+          name.textContent = String(item.productName || item.label || '').slice(0, 256)
           const price = document.createElement('span')
           price.className = 'personal-agent-preview-value personal-agent-ride-price'
           price.textContent = `${String(item.priceText || item.value || '').slice(0, 256)}`

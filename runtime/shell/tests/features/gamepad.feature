@@ -45,8 +45,12 @@ Feature: The owner navigates the desk with a gamepad
   Scenario: The desk states a connected gamepad, and stays quiet without one
     Given no gamepad
     Then the desk states no gamepad
+    And the State Bar shows no gamepad glyph
     When a gamepad with a standard mapping connects
     Then the desk states the connected gamepad
+    And the State Bar shows one gamepad glyph
+    When the gamepad disconnects
+    Then the State Bar shows no gamepad glyph
 
   Scenario: A pad the desk cannot read is stated but drives nothing
     Given a gamepad whose mapping is not standard

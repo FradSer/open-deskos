@@ -305,6 +305,28 @@ html[data-theme="pixel"] .quota-card :is(.provider-quota-card, .provider-quota-m
   line-height: 1.3;
 }
 .quota-tile-secondary:empty { display: none; }
+
+/* A reported short window draws its own meter below the supporting reading.
+   Plans without a short window keep the meter hidden. */
+.quota-tile-short-meter {
+  flex-shrink: 0;
+  width: 100%;
+  height: 6px;
+  background: var(--odk-stroke);
+  border-radius: var(--odk-radius-pill);
+  overflow: hidden;
+  margin-top: 2px;
+}
+.quota-tile-short-meter[hidden] { display: none; }
+.quota-tile-short-fill {
+  display: block;
+  height: 100%;
+  background: var(--odk-primary);
+  border-radius: inherit;
+  transition: width 200ms ease;
+}
+.quota-tile-short-fill.is-low { background: var(--odk-accent-red); }
+
 .quota-tile-account {
   color: var(--odk-secondary-strong);
   font-size: clamp(14px, 6cqi, 18px);
@@ -322,6 +344,9 @@ html[data-theme="pixel"] .quota-card :is(.provider-quota-card, .provider-quota-m
 
 @container (width < 240px) {
   html[data-theme] .widget.w-quota .quota-tile-value { font-size: 40px; }
+  /* Two 6px meters share the compact Cell, so reclaim row and track gaps. */
+  .widget.w-quota .quota-tile-body { gap: 2px; }
+  .widget.w-quota :is(.quota-tile-meter, .quota-tile-context, .quota-tile-short-meter) { margin-top: 0; }
 }
 
 .quota-app-host {
