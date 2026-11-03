@@ -174,6 +174,12 @@ test('advice reads as natural content and never repeats the action label', () =>
   assert.match(generationInstructions, /without bracketed units/)
 })
 
+test('preview instructions drop report headings and redundant labels', () => {
+  assert.match(generationInstructions, /Omit preview\.summary when the item labels already say what the readings are/i)
+  assert.match(generationInstructions, /no report heading, no restatement of advice/i)
+  assert.match(generationInstructions, /without redundant qualifiers/i)
+})
+
 test('generation instructions forbid consequences the observations do not state', () => {
   assert.match(generationInstructions, /Do not add a consequence, risk, likelihood, outcome/i)
   assert.match(generationInstructions, /State only the observed change/i)
