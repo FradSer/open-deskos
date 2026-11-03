@@ -7,6 +7,8 @@ import { randomUUID } from 'node:crypto'
 const DEFAULTS = {
   gatewayUrl: 'http://10.10.0.195:3425/v1',
   modelId: 'hunyuan-eval/hy4-dev',
+  providerId: 'magpie',
+  providerName: 'magpie',
   clientName: 'Open deskOS',
   keyEnv: 'MAGPIE_API_KEY',
 }
@@ -14,23 +16,26 @@ const DEFAULTS = {
 function options(argv = process.argv.slice(2)) {
   const { values } = parseArgs({ args: argv, strict: true, options: {
     'models-path': { type: 'string' }, 'gateway-url': { type: 'string' },
-    'model-id': { type: 'string' }, 'client-name': { type: 'string' }, 'key-env': { type: 'string' },
+    'model-id': { type: 'string' }, 'provider-id': { type: 'string' }, 'provider-name': { type: 'string' },
+    'client-name': { type: 'string' }, 'key-env': { type: 'string' },
   } })
   const modelsPath = values['models-path']
   if (!modelsPath || !modelsPath.startsWith('/')) throw Error('absolute --models-path is required')
   return { modelsPath,
     gatewayUrl: (values['gateway-url'] ?? DEFAULTS.gatewayUrl).replace(/\/+$/, ''),
     modelId: values['model-id'] ?? DEFAULTS.modelId,
+    providerId: values['provider-id'] ?? DEFAULTS.providerId,
+    providerName: values['provider-name'] ?? DEFAULTS.providerName,
     clientName: values['client-name'] ?? DEFAULTS.clientName,
     keyEnv: values['key-env'] ?? DEFAULTS.keyEnv }
 }
 
 /** The key stays in the environment; models.json only names the variable. */
-function gatewayConfig({ gatewayUrl, modelId, clientName, keyEnv }) {
+function gatewayConfig({ gatewayUrl, modelId, providerId, providerName, clientName, keyEnv }) {
   return {
     providers: {
-      'open-deskos': {
-        name: clientName,
+      [providerId]: {
+        name: providerName,
         baseUrl: gatewayUrl,
         api: 'openai-completions',
         apiKey: `$${keyEnv}`,
@@ -39,7 +44,7 @@ function gatewayConfig({ gatewayUrl, modelId, clientName, keyEnv }) {
         compat: { supportsStore: false, maxTokensField: 'max_tokens', supportsDeveloperRole: false },
         models: [{
           id: modelId,
-          name: `${modelId} (${clientName})`,
+          name: `${modelId} (${providerName})`,
           api: 'openai-completions',
           input: ['text'],
           reasoning: false,
@@ -68,15 +73,15 @@ async function replacePrivateJson(path, value, stamp) {
   return backup
 }
 
-async function gatewaySettings(path, { modelId }) {
+async function gatewaySettings(path, { modelId, providerId }) {
   let settings = {}
   try { settings = JSON.parse(await readFile(path, 'utf8')) } catch (error) {
     if (error.code !== 'ENOENT') throw error
   }
   return { ...settings,
-    defaultProvider: 'open-deskos',
+    defaultProvider: providerId,
     defaultModel: modelId,
-    enabledModels: [`open-deskos/${modelId}`] }
+    enabledModels: [`${providerId}/${modelId}`] }
 }
 
 export async function configureModelGateway(argv = process.argv.slice(2)) {
@@ -88,7 +93,9 @@ export async function configureModelGateway(argv = process.argv.slice(2)) {
   const backup = await replacePrivateJson(selected.modelsPath, gatewayConfig(selected), stamp)
   const settingsBackup = await replacePrivateJson(settingsPath, await gatewaySettings(settingsPath, selected), stamp)
   return { modelsPath: selected.modelsPath, settingsPath, backup, settingsBackup,
-    gatewayUrl: selected.gatewayUrl, modelId: selected.modelId, clientName: selected.clientName, keyEnv: selected.keyEnv }
+    gatewayUrl: selected.gatewayUrl, modelId: selected.modelId,
+    providerId: selected.providerId, providerName: selected.providerName,
+    clientName: selected.clientName, keyEnv: selected.keyEnv }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

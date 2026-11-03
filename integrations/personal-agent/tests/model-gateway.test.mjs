@@ -19,23 +19,24 @@ test('the Open deskOS gateway config sends one model through the shared endpoint
   assert.equal(configured.status, 0, configured.stderr)
 
   const config = JSON.parse(await readFile(modelsPath, 'utf8'))
-  assert.deepEqual(Object.keys(config.providers), ['open-deskos'])
-  assert.equal(config.providers['open-deskos'].models.length, 1)
-  assert.equal(config.providers['open-deskos'].models[0].id, 'hunyuan-eval/hy4-dev')
-  assert.equal(config.providers['open-deskos'].apiKey, '$MAGPIE_API_KEY')
-  assert.equal(config.providers['open-deskos'].headers['User-Agent'], 'Open deskOS')
-  assert.equal(config.providers['open-deskos'].headers['X-Client-Name'], 'Open deskOS')
+  assert.deepEqual(Object.keys(config.providers), ['magpie'])
+  assert.equal(config.providers.magpie.models.length, 1)
+  assert.equal(config.providers.magpie.models[0].id, 'hunyuan-eval/hy4-dev')
+  assert.equal(config.providers.magpie.apiKey, '$MAGPIE_API_KEY')
+  assert.equal(config.providers.magpie.name, 'magpie')
+  assert.equal(config.providers.magpie.headers['User-Agent'], 'Open deskOS')
+  assert.equal(config.providers.magpie.headers['X-Client-Name'], 'Open deskOS')
   assert.doesNotMatch(await readFile(modelsPath, 'utf8'), /synthetic-gateway-key/)
   const settings = JSON.parse(await readFile(join(dir, 'settings.json'), 'utf8'))
-  assert.equal(settings.defaultProvider, 'open-deskos')
+  assert.equal(settings.defaultProvider, 'magpie')
   assert.equal(settings.defaultModel, 'hunyuan-eval/hy4-dev')
-  assert.deepEqual(settings.enabledModels, ['open-deskos/hunyuan-eval/hy4-dev'])
+  assert.deepEqual(settings.enabledModels, ['magpie/hunyuan-eval/hy4-dev'])
 
   const previous = process.env.MAGPIE_API_KEY
   process.env.MAGPIE_API_KEY = 'synthetic-gateway-key'
   t.after(() => { if (previous === undefined) delete process.env.MAGPIE_API_KEY; else process.env.MAGPIE_API_KEY = previous })
   const runtime = await ModelRuntime.create({ modelsPath, allowModelNetwork: false, refreshOnCreate: false, credentials })
-  const model = runtime.getModel('open-deskos', 'hunyuan-eval/hy4-dev')
+  const model = runtime.getModel('magpie', 'hunyuan-eval/hy4-dev')
   assert.ok(model)
   let request
   const result = await runtime.completeSimple(model, { messages: [{ role: 'user', content: 'hi', timestamp: 0 }] }, {
