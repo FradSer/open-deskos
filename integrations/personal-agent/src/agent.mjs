@@ -26,7 +26,8 @@ import { createPersonalTools } from './personal-tools.mjs'
 import { createProposalTools } from './proactive-tools.mjs'
 import { createJevIntentRouter, createIntentTurn, guardIntentTools, intentToolNames, proposalConfirmations, isExtensionTool } from './intent-routing.mjs'
 import { normalizeCapabilityDeclarations, createReviewedCapabilities, childCapabilityDeclarations } from './reviewed-capabilities.mjs'
-import { generationInstructions, validateGeneratedBatch, generatedFormatCorrection, modelInput } from './proactive-generation.mjs'
+import { validateGeneratedBatch, modelInput } from './proactive-generation.mjs'
+import { generationSystemPrompt, parseSuggestionDocument, openuiFormatCorrection } from './openui-contract.mjs'
 import { createJevJudge } from './proactive-jev.mjs'
 import { createProactiveInvestigationTools } from './proactive-investigation.mjs'
 import { createAgentPluginRuntime, pluginWorkKind } from './agent-plugins/runtime.mjs'
@@ -482,13 +483,14 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         })
         return generateWithinDeadline({
         signal, timeoutMs: (config.env ?? process.env).ODK_PROACTIVE_GENERATION_TIMEOUT_MS,
-        formatCorrection: generatedFormatCorrection,
+        formatCorrection: openuiFormatCorrection,
+        parse: parseSuggestionDocument,
         serialize: request => JSON.stringify(modelInput(request)),
         validate: raw => { validateGeneratedBatch(raw, input.topics, input.maxCandidates) },
         create: async () => {
           const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,
             settingsManager: SettingsManager.inMemory({}), agentsFilesOverride: () => ({ agentsFiles: [] }),
-            appendSystemPromptOverride: () => [], systemPromptOverride: () => generationInstructions })
+            appendSystemPromptOverride: () => [], systemPromptOverride: () => generationSystemPrompt })
           await loader.reload()
           const { session: generator } = await createSession({ cwd, resourceLoader: loader, modelRuntime, model: session.model, thinkingLevel:session.getThinkingLevel?.(), tools: [], customTools: investigation.tools, ephemeral: true,
             settingsManager: SettingsManager.inMemory({ defaultTools: [], retry: { enabled: false }, compaction: { enabled: false } }), sessionManager: SessionManager.inMemory(cwd) })

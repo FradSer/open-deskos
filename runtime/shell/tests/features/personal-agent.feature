@@ -639,3 +639,11 @@ Feature: Independent resident Personal Agent
     Then the recorded result stays visible
     And execution, confirmation, postponement, rating, and category controls are absent
     And the draft and the completed result remain unchanged
+
+  Scenario: OpenUI primitives render through the shared DOM adapter
+    Given a parsed OpenUI document contains text, chips, badges and buttons
+    When the renderer mounts it in a recommendation message
+    Then every node maps to an existing shared primitive and no domain-specific card appears
+    And the concentric radius scale, one reading size and capsule state ownership are unchanged
+    And no React runtime, inline style, inline script or remote asset is required
+

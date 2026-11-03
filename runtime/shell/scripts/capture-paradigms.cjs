@@ -67,7 +67,9 @@ app.whenReady().then(async () => {
   const capabilities = { read: true, respond: true, acknowledge: true }
   const shots = []
   for (const round of rounds) {
-    const proposals = (round.proposals ?? []).map(proposalFor)
+    // Only a candidate that passed the host gates may appear as a published message.
+    // A rejected round is an honest empty state, with its scores shown in the matrix.
+    const proposals = (round.proposals ?? []).filter(p => p.pass === true).map(proposalFor)
     const topics = round.topics ?? (corpus.cases?.[round.round - 1]?.topics) ?? [...new Set((round.proposals ?? []).map(p => p.topic))]
     const label = CASE_NAMES[round.proposals?.[0]?.topic] || CASE_NAMES[topics[0]] || `Case ${round.round}`
     await win.webContents.send('odk-personal-agent-status', { state: 'idle', proposals: [], proposalCapabilities: capabilities })
@@ -81,7 +83,7 @@ app.whenReady().then(async () => {
     const file = `case-${round.round}-${(topics[0] || 'empty').replace(/[^a-z0-9-]/gi, '-')}.png`
     fs.writeFileSync(path.join(outDir, file), png)
     console.log('CAPTURED', file, `(${proposals.length} shown)`)
-    const scores = (round.proposals ?? []).map(p => `p=${Number(p.probability).toFixed(2)} g=${Number(p.grounding).toFixed(2)}`).join(' · ')
+    const scores = (round.proposals ?? []).map(p => `p=${Number(p.probability).toFixed(2)} g=${Number(p.grounding).toFixed(2)}${p.pass === true ? '' : ' · below threshold'}`).join(' · ')
     shots.push({ label, file, topics, scores, count: proposals.length, png })
   }
 

@@ -27,7 +27,11 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-selected-proactive-')))
   t.after(() => rm(root, { recursive: true, force: true }))
   await isolateAgentDirectory(t, root)
-  const generated = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }] }
+  const generated = `root = Suggestions([s1])
+s1 = Suggestion([a1, b1],"deliveries","collect",["e0"])
+a1 = Advice("领取待取物品。")
+b1 = ApprovedAction("save-collection")`
+  const generatedCandidates = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }] }
   for (const version of [1, 2]) {
     const reports = []
     for (const external of [false, true]) {
@@ -44,7 +48,7 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
           canExecuteProposal(action) { return action.tool === 'memory_update' },
           async generateProposals() {
             if (runtime.fail) throw Error('private proactive provider detail')
-            return ${JSON.stringify(generated)}
+            return ${JSON.stringify(generatedCandidates)}
           },
           async phraseProposal({ advice }) {
             if (runtime.fail) throw Error('private proactive provider detail')
@@ -81,10 +85,15 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
           const agent = await createPersonalAgent({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile }, getWatch: () => watch, env: {} }, {
             createIntentRouter: fixtureIntentRouter,
             createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel }),
-            createSession: async options => ({ session: (await offlineSession({ ...options, agentDir: join(root, 'agent') }, () => {
-              if (runtime.fail) throw Error('private proactive provider detail')
-              return assistant(version === 1 ? '[1,0]' : JSON.stringify(generated))
-            })).session }),
+            createSession: async options => {
+              // The phrasing session still expects a JSON index array; only the
+              // generation session speaks OpenUI Lang.
+              const phrasing = /Organize the owner-approved advice sentences/.test(options.resourceLoader?.getSystemPrompt?.() ?? '')
+              return { session: (await offlineSession({ ...options, agentDir: join(root, 'agent') }, () => {
+                if (runtime.fail) throw Error('private proactive provider detail')
+                return assistant(phrasing || version === 1 ? '[1,0]' : generated)
+              })).session }
+            },
           })
           return Object.assign(runtime, { agent })
         },
@@ -181,6 +190,10 @@ test('default and selected Agent disable cancel pending proactive consumers and 
   t.after(() => rm(root, { recursive: true, force: true }))
   await isolateAgentDirectory(t, root)
   const batch = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }] }
+  const batchDocument = `root = Suggestions([s1])
+s1 = Suggestion([a1, b1],"deliveries","collect",["e0"])
+a1 = Advice("领取待取物品。")
+b1 = ApprovedAction("save-collection")`
   for (const stage of ['phrasing', 'generation']) {
     const reports = []
     for (const external of [false, true]) {
@@ -227,7 +240,7 @@ test('default and selected Agent disable cancel pending proactive consumers and 
           const hold = ++instances === 1
           let enter, rejectWork, captured, disposed = 0, cancelled = false, sessions = 0
           const ready = new Promise(resolve => { enter = resolve })
-          const raw = stage === 'generation' ? JSON.stringify(batch) : '[0,1]'
+          const raw = stage === 'generation' ? batchDocument : '[0,1]'
           const event = () => ({ type: 'message_end', message: assistant(raw) })
           const agent = await createPersonalAgent({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') }, env: {} }, {
             createIntentRouter: fixtureIntentRouter,
@@ -342,13 +355,19 @@ test('real SDK generator carries only scoped investigation tools and no skills, 
   await isolateAgentDirectory(t, dir)
   const optionsSeen = [], requests = []
   await writeFile(join(dir, 'memory.json'), JSON.stringify({ private: 'MUST_NOT_ENTER_GENERATION' }))
-  const suggestions = [1, 2].map(i => ({ topicId: 'packages', key: `item-${i}`, advice: `待取物品 ${i} 件已到。`, actionId: 'inspect-package', evidenceIds: ['e0'] }))
+  const suggestionsDoc = `root = Suggestions([s1, s2])
+s1 = Suggestion([a1, b1],"packages","item-1",["e0"])
+a1 = Advice("待取物品 1 件已到。")
+b1 = ApprovedAction("inspect-package")
+s2 = Suggestion([a2, b2],"packages","item-2",["e0"])
+a2 = Advice("待取物品 2 件已到。")
+b2 = ApprovedAction("inspect-package")`
   const agent = await createPersonalAgent({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') } }, {
     createIntentRouter: fixtureIntentRouter,
     createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel }),
     createSession: async options => {
       optionsSeen.push(options)
-      return { session: (await offlineSession({ ...options, agentDir: join(dir, 'agent') }, context => { requests.push(context); return assistant(JSON.stringify({ suggestions })) })).session }
+      return { session: (await offlineSession({ ...options, agentDir: join(dir, 'agent') }, context => { requests.push(context); return assistant(suggestionsDoc) })).session }
     },
   })
   t.after(() => agent.close())

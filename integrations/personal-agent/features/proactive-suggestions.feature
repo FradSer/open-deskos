@@ -683,3 +683,32 @@ Feature: Owner controlled proactive Personal Agent proposals
     And the completed action, receipt, handled occurrence, and owner configuration stay unchanged
     And repeated feedback does not repeat learning or execute the action
     And failed learning can retry without reopening the completed action
+
+  # --- OpenUI integration -------------------------------------------------
+  Scenario: The output contract comes from the OpenUI component library
+    Given the host owns a library of generic UI primitives
+    When it builds a generation session
+    Then the system prompt is generated from that library, not written by hand
+    And the prompt lists only the registered primitives and their typed props
+    And the host authority rules stay outside the generated prompt
+
+  Scenario: The model emits OpenUI Lang and the host parses it
+    Given the generation session uses the OpenUI Lang contract
+    When the Agent returns a streamed OpenUI Lang document
+    Then the host parses it with the OpenUI parser before any judgment
+    And an unparsable document is corrected once against the same contract
+    And a parsed document maps to the generic preview primitives only
+
+  Scenario: Replacing the generation contract preserves host authority
+    Given OpenUI owns prompt generation, output syntax and parsing
+    When a candidate reaches qualification
+    Then Jev still decides usefulness and factual support
+    And the host still binds approved actions, evidence and freshness
+    And no generated UI component can grant execution permission
+
+  Scenario: A malformed OpenUI document cannot reach the renderer
+    Given the parser rejects an unknown component or a dangling reference
+    When generation returns that document
+    Then the round produces no candidate and leaves other topics usable
+    And the renderer receives no unvalidated structure
+

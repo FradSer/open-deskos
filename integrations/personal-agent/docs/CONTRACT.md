@@ -687,7 +687,10 @@ The host binds `nextStep` to the approved action label and retains its exact too
 Advice has at most 400 UTF-16 code units. Action labels have at most 240 UTF-16 code units.
 Trusted Intent preview topics retain their separate read-only `nextStep` format and existing endpoint selection flow.
 Next-step validation rejects control characters, including line breaks, tabs, and DEL, across generation, storage, and display hosts.
-The output contract is declared once in the generation system prompt. A format correction reports only the failure and the two examples; it does not repeat the contract.
+Generation uses OpenUI Lang (`@openuidev/lang-core`, MIT, framework-agnostic) inside the Node Personal Agent service. A registered library of generic primitives generates the system prompt; the model emits an OpenUI Lang document; the host parses it into the candidate shape before any judgment.
+The library declares only `Suggestions`, `Suggestion`, `Advice`, `Readings`, `Reading`, `ApprovedAction` and `OwnerStep`. Host authority rules are injected as library rules, not written as a separate essay. A format correction reports only the failure and one valid document.
+The parser rejects unknown components, unresolved or orphaned references, more than three readings, and malformed props before judgment. It restores `advice_required` when `Advice` is absent.
+The Shell stays a framework-free DOM renderer. OpenUI supplies no React runtime, inline style, inline script or remote asset; parsed nodes map to the existing shared primitives. Jev qualification, action binding, evidence provenance, freshness, lifecycle receipts and budgets remain host-owned and are unchanged by the wire format.
 The model-visible input is a projection: host bookkeeping fields stay with the host, and a topic's shared observation state and measurement time appear once on the topic instead of on every row. Validation, investigation tools, and judgment keep the full input.
 A generic preview has at most three item pairs, showing only readings behind the advice. Unrelated observations, technical identifiers, and diagnostics stay in evidence.
 Generation does not request or accept a `reason` field.
