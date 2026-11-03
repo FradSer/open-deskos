@@ -657,7 +657,7 @@ test('a selected resident Agent goal retains current task state and verification
   task.state = 'finished'; home.invalidate(); await home.refresh()
   assert.match(home.frame.items[0].text, /finished goal is Inspect release.*\(reported\)/i)
   task.verification.status = 'passed'; home.invalidate(); await home.refresh()
-  assert.match(home.frame.items[0].text, /finished.*Inspect release.*verification passed/i)
+  assert.match(home.frame.items[0].text, /finished goal is Inspect release verification passed\./i)
   assert.equal(calls, 1)
 })
 
@@ -886,11 +886,14 @@ test('compiled facts preserve the actual Shell icon and first-label token groupi
   const start = renderer.indexOf('const leading = segment.text.match(')
   const end = renderer.indexOf('token.append(glyph)', start)
   assert(start >= 0 && end > start)
-  const firstToken = new Function('segment', renderer.slice(start, end) + 'return prefix')
+  // The extracted renderer fragment now also asks whether the first word is a
+  // state word. Supply the same vocabulary predicate the renderer owns.
+  const stateWords = new Set(['failed','blocked','interrupted','needs-review','needs-input','waiting','cancelling','starting','syncing','running','working','settled','finished','completed','idle','exited'])
+  const firstToken = new Function('segment', 'stateLevel', renderer.slice(start, end) + 'return prefix')
   const readings = [source('futu', 'portfolio', { todayChangePercent: -0.82 }), source('weather', 'weather', { temperatureC: 25 })]
   const output = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [0, 1] }] }, homeTemplateVariables(readings)), readings)
   for (const segment of output.items[0].segments) {
-    const prefix = firstToken(segment)
+    const prefix = firstToken(segment, word => stateWords.has(word) ? 'healthy' : undefined)
     assert.equal(typeof prefix, 'string')
     if (prefix) assert.ok(segment.text.startsWith(prefix), `${prefix} must start ${segment.text}`)
   }
@@ -1022,7 +1025,7 @@ test('local fallback keeps several services when idle sessions score highest', a
     source('weather', 'weather', { temperatureC: 24, condition: 'clear', place: 'Shenzhen' }),
   ]
   const text = resolveHomeTemplate(fallbackHomeSelection(readings, Date.now(), OPEN_PREFERENCES), readings).items[0].text
-  assert.match(text, /\+2\.37%/)
+  assert.match(text, /Today change is \+2\.37%/)
   assert.match(text, /24°C and Condition is clear/)
 })
 

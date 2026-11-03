@@ -240,3 +240,28 @@ test('an and inside a bound value is data, not a connector', async t => {
   assert.match(connectors[0].textContent, /\band\b/)
   assert.equal(f.nodes.get('#dash-narrative').textContent, item.text)
 })
+
+test('a capitalised word inside bound data is not a state tier', async t => {
+  const f = await fixture(t)
+  const segments = [{ text: 'Working title is 100%.', icon: 'quota' }]
+  const item = { text: 'Working title is 100%.', segments, sources: [{ id: 'quota', label: 'Quota', state: 'live' }] }
+  f.briefings[0]({ ...f.frame('live'), items: [item] })
+  const collect = (n, out = []) => { out.push(n); for (const c of n.children || []) collect(c, out); return out }
+  const all = collect(f.nodes.get('#dash-narrative'))
+  assert.equal(all.filter(n => n.className === 'dash-state').length, 0, 'Working is data, not a state')
+  assert.equal(f.nodes.get('#dash-narrative').textContent, item.text)
+})
+
+test('a hyphenated project state word uses the shared status tier', async t => {
+  const f = await fixture(t)
+  const segments = [{ text: 'needs-input goal is Verify release.', icon: 'status' }]
+  const item = { text: 'needs-input goal is Verify release.', segments, sources: [{ id: 'pi', label: 'Pi', state: 'live' }] }
+  f.briefings[0]({ ...f.frame('live'), items: [item] })
+  const collect = (n, out = []) => { out.push(n); for (const c of n.children || []) collect(c, out); return out }
+  const all = collect(f.nodes.get('#dash-narrative'))
+  const state = all.find(n => n.className === 'dash-state')
+  assert.ok(state, 'hyphenated state words are not skipped')
+  assert.equal(state.textContent, 'needs-input')
+  assert.equal(state.dataset.level, 'critical')
+  assert.equal(f.nodes.get('#dash-narrative').textContent, item.text)
+})

@@ -68,9 +68,11 @@
     warning: new Set(['waiting', 'cancelling', 'starting', 'syncing']),
     healthy: new Set(['running', 'working', 'settled', 'finished', 'completed', 'idle', 'exited']),
   }
-  const STATE_CAPTURE = /\b(failed|blocked|interrupted|needs[ _]review|needs[ _]input|waiting|cancelling|starting|syncing|running|working|settled|finished|completed|idle|exited)\b/gi
+  // Host state words are lowercase. A capitalised word inside a bound value or
+  // a proper name is data, not a state. Hyphenated project states also qualify.
+  const STATE_CAPTURE = /\b(failed|blocked|interrupted|needs[ _-]review|needs[ _-]input|waiting|cancelling|starting|syncing|running|working|settled|finished|completed|idle|exited)\b/g
   const stateLevel = word => {
-    const key = word.toLowerCase().replace(/ /g, '_')
+    const key = word.replace(/[ -]/g, '_')
     return Object.keys(STATE_TONES).find(level => STATE_TONES[level].has(key))
   }
 
@@ -221,7 +223,7 @@
             token.className = 'dash-token'
             const leading = segment.text.match(/^\s*/)[0]
             const word = segment.text.slice(leading.length).match(/^\S+/)[0]
-            const prefix = leading + (word.length <= 8 || /^[+-]?\d+(?:\.\d+)?%$/.test(word) ? word : Array.from(word)[0])
+            const prefix = leading + (word.length <= 8 || /^[+-]?\d+(?:\.\d+)?%$/.test(word) || stateLevel(word) ? word : Array.from(word)[0])
             token.append(glyph)
             appendText(token, prefix, live, segment.icon)
             span.append(token)
