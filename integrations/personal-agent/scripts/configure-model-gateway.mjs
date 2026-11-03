@@ -4,6 +4,13 @@ import { mkdir, readFile, rename, writeFile, chmod } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
+// magpie counts a client by the first ASCII-space-separated token of its
+// User-Agent. An ASCII space in "Open deskOS" would be cut to "Open", so the
+// header escapes it as UTF-8 U+00A0 (two latin1 chars that undici writes as
+// bytes C2 A0). magpie reads one token and the Usage view renders a space.
+const ESCAPED_SPACE = '\u00c2\u00a0'
+const headerClientName = name => name.replace(/ /g, ESCAPED_SPACE)
+
 const DEFAULTS = {
   gatewayUrl: 'http://10.10.0.195:3425/v1',
   modelId: 'hunyuan-eval/hy4-dev',
@@ -40,7 +47,7 @@ function gatewayConfig({ gatewayUrl, modelId, providerId, providerName, clientNa
         api: 'openai-completions',
         apiKey: `$${keyEnv}`,
         authHeader: true,
-        headers: { 'User-Agent': clientName, 'X-Client-Name': clientName },
+        headers: { 'User-Agent': headerClientName(clientName), 'X-Client-Name': headerClientName(clientName) },
         compat: { supportsStore: false, maxTokensField: 'max_tokens', supportsDeveloperRole: false },
         models: [{
           id: modelId,

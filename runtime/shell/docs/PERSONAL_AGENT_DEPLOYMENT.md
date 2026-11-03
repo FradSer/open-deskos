@@ -77,6 +77,8 @@ does not create or overwrite either file. Set actual absolute paths on the CM5:
 - One gateway serves every chat model. Run `node integrations/personal-agent/scripts/configure-model-gateway.mjs --models-path ~/.pi/agent/models.json`
   to write the `magpie` provider, the default model, and the client name.
   The provider ID and provider name are both `magpie`. Request headers name the client `Open deskOS`.
+  Magpie counts a client by the first ASCII-space-separated token of its User-Agent.
+  The script escapes the space as UTF-8 U+00A0, so Usage shows the whole name.
   Set `MAGPIE_API_KEY` in `runtime.env` with mode `0600`; `models.json` stores only `$MAGPIE_API_KEY`.
   Jev uses a separate System One endpoint. Keep `ODK_JEV_PROVIDER=disabled` until the gateway serves `/systemone`.
   The Shell Pi dropdown provides `/login`, `/model`, and `/thinking`.
