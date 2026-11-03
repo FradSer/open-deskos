@@ -293,7 +293,9 @@ export function homeAttention(path, value, record = {}, now = Date.now()) {
     if (remaining >= 0 && remaining <= 30 * 60000) return 80 // Within 30 minutes
   }
   // 4. Completed work and upcoming deadlines
-  if (/^(finished|settled|completed)$/.test(state)) return 50
+  // A settled Pi session is idle background; finished work is a real result.
+  if (/^(finished|completed)$/.test(state)) return 50
+  if (state === 'settled') return 20
   // Upcoming deadline within 2 hours
   if (/(?:At|Time|deadline|due|endsAt)$/.test(path) && typeof value === 'string') {
     const remaining = Date.parse(value) - now
@@ -451,7 +453,7 @@ function fitGlance(catalog, selectors, readings, now) {
 }
 
 /** Callers pass facts already ordered by importance; this only bounds the glance. */
-function glanceRanked(ordered, attentionOf) {
+function glanceRanked(ordered, attentionOf, band = GLANCE_SCORE_BAND) {
   const kept = []
   const services = new Set()
   let top
@@ -459,7 +461,9 @@ function glanceRanked(ordered, attentionOf) {
     if (fact.displayable === false || services.has(fact.serviceId)) continue
     if (top === undefined) top = attentionOf(fact)
     if (kept.length >= MAX_GLANCE_FACTS) break
-    if (kept.length && attentionOf(fact) < top - GLANCE_SCORE_BAND) break
+    // Local attention is coarse: a band there would hide every other service
+    // behind one 50-point fact. The band applies only to model scores.
+    if (band && kept.length && attentionOf(fact) < top - band) break
     kept.push(fact)
     services.add(fact.serviceId)
   }
@@ -590,7 +594,7 @@ export async function generateHomeSelection(readings, { choose, previous = [], n
 /** Fit complete facts through the same compiler and binding checks as model selections. */
 export function fallbackHomeSelection(readings, now = Date.now()) {
   const ordered = homeFactVariables(readings, now).sort((a, b) => b.attention - a.attention || Number(identityOnly(a)) - Number(identityOnly(b)) || b.weight - a.weight || Number(/(?:[:.])(?:state|status)$/.test(b.factId)) - Number(/(?:[:.])(?:state|status)$/.test(a.factId)) || compareFactIds(a, b))
-  const facts = glanceRanked(ordered, fact => fact.attention)
+  const facts = glanceRanked(ordered, fact => fact.attention, 0)
   const selectors = facts.map((_fact, index) => index)
   return compileHomeSelection(fitGlance(facts, selectors, readings, now), facts)
 }

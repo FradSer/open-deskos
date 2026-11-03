@@ -35,7 +35,7 @@ A tie prefers a measurement over an identity-only label.
 Plant, weather, and holding text states the fact without repeating the source label.
 The leading icon identifies the service.
 When the selection model returns no items, the host keeps the most important current facts.
-Local fallback uses the same three-service and twelve-point bound.
+Local fallback shows at most three services without a score band; local attention is coarse.
 When Jev is disabled, the generation model returns finite selectors and cannot insert display text.
 The host binds the selected facts to current local source templates.
 The source remains responsible for the accuracy of each fact.

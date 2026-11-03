@@ -1004,3 +1004,15 @@ test('a report that already ends a sentence does not gain a second period', asyn
   const raw = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':report'))] }] }, facts)
   assert.equal(resolveHomeTemplate(raw, readings).items[0].text, 'odk.remote.audit reported: Release audit complete.')
 })
+
+test('local fallback keeps several services when idle sessions score highest', async () => {
+  const { fallbackHomeSelection } = await import('../src/home-template.mjs')
+  const readings = [
+    source('pi', 'sessions', { sessions: Array.from({ length: 3 }, (_, index) => ({ id: `s${index}`, project: 'Desk', state: 'settled' })) }),
+    source('futu', 'portfolio', { todayChangePercent: 2.37 }),
+    source('weather', 'weather', { temperatureC: 24, condition: 'clear', place: 'Shenzhen' }),
+  ]
+  const text = resolveHomeTemplate(fallbackHomeSelection(readings), readings).items[0].text
+  assert.match(text, /\+2\.37% today/)
+  assert.match(text, /24°C clear/)
+})
