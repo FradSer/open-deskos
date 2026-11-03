@@ -153,23 +153,30 @@ async function assertAllSourceOverview() {
       assert.match(plantRender.text, /Plant 1 OK at 54\.6%/, theme)
       assert.equal(plantRender.overflow, false, theme)
       if (theme === 'instrument') {
-        await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: [{ text: 'API quota Main 6% remaining, Spare account 88% remaining, Plant 1 dry at 8%, Plant 2 OK at 54%, +1.20% today.',
+        await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: [{ text: 'API quota Main 6% remaining, Spare account 88% remaining, Plant 1 dry at 8%, Plant 2 OK at 54%, Greenhouse humidity percent: 71%, +1.20% today.',
           segments: [
             { text: 'API quota Main 6% remaining, Spare account 88% remaining', icon: 'quota' },
             { text: 'Plant 1 dry at 8%', icon: 'plants' },
             { text: 'Plant 2 OK at 54%', icon: 'plants' },
+            { text: 'Greenhouse humidity percent: 71%', icon: 'plants' },
             { text: '+1.20% today', icon: 'portfolio' },
           ], sources: [{ id: 'quota', label: 'Quota', state: 'live' }, { id: 'hydra', label: 'Hydra', state: 'live' }, { id: 'futu', label: 'Futu', state: 'live' }] }] })
         const severity = await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');return {
           soilDry: n.querySelector('.dash-soil[data-status="dry"]')?.textContent,
+          soilDryValue: n.querySelector('.dash-soil-value[data-status="dry"]')?.textContent,
           soilOk: n.querySelector('.dash-soil[data-status="ok"]')?.textContent,
-          remaining: n.querySelector('.dash-remaining[data-level="low"]')?.textContent,
-          healthy: n.querySelector('.dash-remaining[data-level="ok"]')?.textContent,
+          soilOkValue: n.querySelector('.dash-soil-value[data-status="ok"]')?.textContent,
+          remainingLow: n.querySelector('.dash-remaining[data-level="low"]')?.textContent,
+          remainingOk: n.querySelector('.dash-remaining[data-level="ok"]')?.textContent,
+          humidityHigh: n.querySelector('.dash-humidity[data-level="high"]')?.textContent,
           change: n.querySelector('.dash-change[data-direction="up"]')?.textContent }})()`)
         assert.equal(severity.soilDry, 'dry', theme)
+        assert.equal(severity.soilDryValue, '8%', theme)
         assert.equal(severity.soilOk, 'OK', theme)
-        assert.equal(severity.remaining, '6%', theme)
-        assert.equal(severity.healthy, '88%', 'a healthy remaining value is present but uncoloured')
+        assert.equal(severity.soilOkValue, '54%', theme)
+        assert.equal(severity.remainingLow, '6%', theme)
+        assert.equal(severity.remainingOk, '88%', theme)
+        assert.equal(severity.humidityHigh, '71%', theme)
         assert.equal(severity.change, '+1.20%', theme)
         assert.equal(await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');return n.scrollWidth>n.clientWidth+1})()`), false)
       }

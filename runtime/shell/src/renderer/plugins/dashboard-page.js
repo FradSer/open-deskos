@@ -65,10 +65,11 @@
   // briefing reads at a glance; a healthy remaining value stays uncoloured.
   function appendText(el, text, live = false, kind = undefined) {
     const tokens = kind === 'plants'
-      ? text.split(/(\b(?:dry|low|ok|good|wet)\b(?=\s+at\s+[+-]?\d+(?:\.\d+)?%)|[+-]?\d+(?:\.\d+)?[°º]C|[°º]C)/i)
+      ? text.split(/(\b(?:dry|low|ok|good|wet)\b(?=\s+at\s+[+-]?\d+(?:\.\d+)?%)|[+-]?\d+(?:\.\d+)?%|[+-]?\d+(?:\.\d+)?[°º]C|[°º]C)/i)
       : kind === 'quota' || kind === 'portfolio'
         ? text.split(/([+-]?\d+(?:\.\d+)?%|[+-]?\d+(?:\.\d+)?[°º]C|[°º]C)/)
         : text.split(/([+-]?\d+(?:\.\d+)?[°º]C|[°º]C)/)
+    let soilStatus
     for (const part of tokens) {
       if (/[°º]C$/.test(part)) {
         const measurement = el.ownerDocument.createElement('span')
@@ -87,11 +88,28 @@
         soil.className = 'dash-soil'
         soil.dataset.status = part.toLowerCase()
         soil.textContent = part
+        soilStatus = part.toLowerCase()
         el.append(soil)
+      } else if (kind === 'plants' && /^\d+(?:\.\d+)?%$/.test(part)) {
+        // A percentage right after a moisture status shares that severity; any
+        // other plant percentage is greenhouse humidity and takes its own band.
+        const value = Number(part.slice(0, -1))
+        const severity = el.ownerDocument.createElement('span')
+        if (soilStatus) {
+          severity.className = 'dash-soil-value'
+          severity.dataset.status = soilStatus
+          soilStatus = undefined
+        } else {
+          severity.className = 'dash-humidity'
+          severity.dataset.level = value < 30 ? 'low' : value > 70 ? 'high' : 'ok'
+        }
+        severity.textContent = part
+        el.append(severity)
       } else if (kind === 'quota' && /^\d+(?:\.\d+)?%$/.test(part)) {
         const remaining = el.ownerDocument.createElement('span')
         remaining.className = 'dash-remaining'
-        remaining.dataset.level = Number(part.slice(0, -1)) < 25 ? 'low' : 'ok'
+        const value = Number(part.slice(0, -1))
+        remaining.dataset.level = value <= 5 ? 'critical' : value < 25 ? 'low' : 'ok'
         remaining.textContent = part
         el.append(remaining)
       } else if (kind === 'portfolio' && /^[+-]?\d+(?:\.\d+)?%$/.test(part)) {

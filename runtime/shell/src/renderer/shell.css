@@ -568,7 +568,17 @@ body.kiosk {
 .dash-soil[data-status="low"] { color: color-mix(in srgb, color-mix(in oklch, var(--odk-accent-red) 50%, var(--odk-accent-green)) 60%, var(--odk-primary)); }
 .dash-soil:is([data-status="ok"], [data-status="good"]) { color: color-mix(in srgb, var(--odk-accent-green) 60%, var(--odk-primary)); }
 .dash-soil[data-status="wet"] { color: color-mix(in srgb, var(--odk-accent-blue) 60%, var(--odk-primary)); }
-.dash-remaining[data-level="low"] { color: color-mix(in srgb, var(--odk-accent-red) 60%, var(--odk-primary)); }
+.dash-remaining[data-level="critical"] { color: color-mix(in srgb, var(--odk-accent-red) 60%, var(--odk-primary)); }
+.dash-remaining[data-level="low"] { color: color-mix(in srgb, color-mix(in oklch, var(--odk-accent-red) 50%, var(--odk-accent-green)) 60%, var(--odk-primary)); }
+.dash-remaining[data-level="ok"] { color: color-mix(in srgb, var(--odk-accent-green) 60%, var(--odk-primary)); }
+.dash-soil-value { white-space: nowrap; }
+.dash-soil-value[data-status="dry"] { color: color-mix(in srgb, var(--odk-accent-red) 60%, var(--odk-primary)); }
+.dash-soil-value[data-status="low"] { color: color-mix(in srgb, color-mix(in oklch, var(--odk-accent-red) 50%, var(--odk-accent-green)) 60%, var(--odk-primary)); }
+.dash-soil-value:is([data-status="ok"], [data-status="good"]) { color: color-mix(in srgb, var(--odk-accent-green) 60%, var(--odk-primary)); }
+.dash-soil-value[data-status="wet"] { color: color-mix(in srgb, var(--odk-accent-blue) 60%, var(--odk-primary)); }
+.dash-humidity[data-level="low"] { color: color-mix(in srgb, var(--odk-accent-red) 60%, var(--odk-primary)); }
+.dash-humidity[data-level="high"] { color: color-mix(in srgb, var(--odk-accent-blue) 60%, var(--odk-primary)); }
+.dash-humidity[data-level="ok"] { color: color-mix(in srgb, var(--odk-accent-green) 60%, var(--odk-primary)); }
 .dash-token { display: inline-block; white-space: nowrap; }
 .dash-icon svg {
   display: inline-block;

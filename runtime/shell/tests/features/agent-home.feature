@@ -100,9 +100,9 @@ Feature: Personal Agent home briefing
     And the weather reads as its temperature, condition and place
     And the holding reads as its daily change
     And the leading icon still identifies each service
-    And the moisture status word carries the firmware severity colour
-    And a low remaining percentage carries the severity colour
-    And a healthy remaining percentage stays uncoloured
+    And the moisture status word and its percentage carry the firmware severity colour
+    And every remaining percentage carries a severity colour: critical red, low amber, healthy green
+    And greenhouse humidity carries its band colour
 
   Scenario: Overview limits private data sent for model selection
     Given Overview receives private facts from visible sources
