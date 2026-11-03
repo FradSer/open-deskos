@@ -671,6 +671,7 @@ The optional runtime method `canExecuteProposal(action)` reports current capabil
 A topic without a currently supported approved action does not generate a new executable recommendation.
 An isolated in-memory Durable conversation generates zero or more candidates with the configured model.
 It carries exactly two scoped investigation tools: a read-only reread of a reading this round already cites, and a typed judgment on its own drafts.
+The ephemeral Durable session exposes both tools to the generation model. A previous host configuration cleared model-facing tools before each prompt; the session now preserves capabilities whose callers include the model.
 Reads are bounded per round and never add citable evidence. Judgment calls are bounded and grant no action permission. The host independently re-judges every returned candidate.
 It has no Skills, project context, owner memory, execution environment, or persisted transcript.
 It loads no operator or project extensions.

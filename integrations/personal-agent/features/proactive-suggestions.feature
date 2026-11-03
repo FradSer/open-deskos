@@ -130,6 +130,8 @@ Feature: Owner controlled proactive Personal Agent proposals
 
   Scenario: The generation Agent investigates through scoped tools
     Given a generation round supplies topics with cited owner-selected readings
+    When the ephemeral Durable session starts
+    Then both scoped tools are visible and callable by the generation model
     When the model needs context beyond the cited fields
     Then it can reread a cited reading through a scoped read-only tool
     And a reading outside the round's citations is refused

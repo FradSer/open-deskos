@@ -119,12 +119,15 @@ test('an existing Durable conversation takes precedence over legacy context with
   assert.equal(await bot.prompt('current request'), '继续已有 Durable 会话。')
 })
 
-test('production proactive advice and briefing use isolated zero-tool Durable conversations', async t => {
+test('production proactive advice uses scoped tools while briefing and phrasing stay isolated', async t => {
   const { config } = await fixture(t)
   const requests = []
   const modelRuntime = runtime(context => {
     requests.push(context)
-    assert.deepEqual(visibleTools(context), [])
+    const names = visibleTools(context).map(tool => tool.name).sort()
+    // Only the generation session carries the two scoped investigation tools.
+    assert.ok(names.length === 0 || JSON.stringify(names) === JSON.stringify(['proactive_judge', 'proactive_read']),
+      `unexpected model tools: ${JSON.stringify(names)}`)
     assert(!context.messages.some(message => message.role === 'user' && message.content.includes('resident private fixture')))
     if (JSON.stringify(context.messages).includes('Organize the owner-approved')) return assistant('[0,1]')
     if (JSON.stringify(context.messages).includes('Generate useful, concise proactive')) return assistant('{"suggestions":[]}')
@@ -138,6 +141,9 @@ test('production proactive advice and briefing use isolated zero-tool Durable co
   assert.deepEqual(briefing.items[0].readingIds, ['mail'])
   assert.equal(await bot.phraseProposal({ advice: '观察读数。检查来源。' }), '观察读数。检查来源。')
   assert.equal(requests.length, 3)
+  const generation = requests.find(context => JSON.stringify(context.messages).includes('Generate useful, concise proactive'))
+  assert.deepEqual(visibleTools(generation).map(tool => tool.name).sort(), ['proactive_judge', 'proactive_read'],
+    'the generation session exposes both scoped tools')
 })
 
 test('default Durable resident keeps exact-turn private memory authorization', async t => {
@@ -166,7 +172,7 @@ test('a proactive heartbeat uses production Durable generation and preserves ded
   const frames = []
   let generations = 0
   const modelRuntime = runtime(context => {
-    assert.deepEqual(visibleTools(context), [])
+    assert.deepEqual(visibleTools(context).map(tool => tool.name).sort(), ['proactive_judge', 'proactive_read'])
     const request = JSON.parse(context.messages.findLast(message => message.role === 'user').content.split('Personal Agent request:\n')[1])
     generations++
     const evidenceIds = request.topics[0].evidence.map(item => item.id)
