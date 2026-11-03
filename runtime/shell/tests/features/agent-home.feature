@@ -925,3 +925,10 @@ Scenario: Hidden previews capture the current native viewport
     When the narrative renders in every theme and viewport
     Then each leading icon measures one narrative em
     And no later rule shrinks the icon or resets its optical alignment
+
+
+  Scenario: A multi-value reading keeps one compact clause
+    Given a source declares temperature, condition and place
+    When Overview builds the glance
+    Then the place names the clause and the other values follow with and
+    And no field label repeats for each value
