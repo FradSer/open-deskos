@@ -887,3 +887,34 @@ Scenario: Hidden previews capture the current native viewport
     When the client reports the delivery result
     Then the result remains unknown rather than refused
     And the composer retains its draft and duplicate submission guard
+
+  Scenario: Overview joins any facts with and
+    Given two unrelated live sources each declare one measurement
+    When Overview builds the glance
+    Then one sentence states both values joined by and
+    And the sentence ends with one period
+
+  Scenario: Wording does not depend on a source identity
+    Given a source with a field name that no built-in source declares
+    When Overview builds the glance
+    Then the field label and the value form one complete clause
+    And no source-specific wording rule is needed
+
+  Scenario: Syntactic roles come from field meaning
+    Given one source declares a count and another declares a measurement
+    When Overview builds the glance
+    Then the count reads as an owner-facing count clause
+    And the measurement reads as a field-and-value clause
+
+  Scenario: Three tone tiers stay visible
+    Given Overview selects a measurement and a state word
+    When the narrative renders
+    Then the connector uses the subdued tier
+    And the fact text uses the primary tier
+    And the value and the state word use shared status tokens
+
+  Scenario: The model still cannot write Overview wording
+    Given the selection model returns only finite selectors
+    When the host assembles the sentence
+    Then every displayed value binds to a current local source template
+    And no model-supplied text appears

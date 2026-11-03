@@ -662,3 +662,12 @@ Additional reload and event interfaces need a concrete feature requirement befor
 Wireless behavior retains its existing hardware acceptance requirements.
 These targets authorize no native code execution, downloads, live capture, or production changes.
 ADR-0004's Face Agent withdrawal still applies.
+
+
+### ADR-0040: Source-independent Overview wording
+
+The host assembles one Overview Sentence from a Selection of Facts. The host joins Facts with `and`. It derives each Fact's wording from the field meaning and format. It uses three Syntactic Roles: count, measurement, and state. The model returns finite selectors only. The model never writes display text. Displayed values stay bound to current local source templates.
+
+**Considered Options**: Per-source sentence templates were rejected. They add a special case for each new source. Free-form model sentences were rejected. They break local value binding. A fixed three-line layout was rejected. It changes the measured Overview density.
+
+**Consequences**: A new source needs no wording change. The literal-word allowlist grows with Syntactic Roles, not with sources. Connectors use the subdued Tone Tier. Fact text uses the primary Tone Tier. Values and state words use state tokens. The 240-character limit and the three-service glance limit stay unchanged.

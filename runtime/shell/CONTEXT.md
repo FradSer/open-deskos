@@ -1,6 +1,6 @@
 # Shell terms
 
-Use [ARCHITECTURE](docs/ARCHITECTURE.md) for decisions and safety boundaries. Use [README](README.md) for development and operations. These definitions name current concepts; they do not replace interface contracts.
+Use [ARCHITECTURE](docs/ARCHITECTURE.md) for decisions and safety boundaries. Use [README](README.md) for development and operations. Use [GLOSSARY](../../GLOSSARY.md) for Overview concepts. These definitions name current concepts; they do not replace interface contracts.
 
 ## Product Boundary
 

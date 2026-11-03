@@ -1,8 +1,40 @@
 const REFERENCE = /\{\{([A-Za-z0-9][A-Za-z0-9._-]{0,127})\|(@label|@state|@availability|[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+){0,7})\|(text|number|integer|count|celsius|percent|signedPercent|soilStatus|soilAvailability|piSessionState)\}\}/g
+
+/** Remove a host joiner or final period before matching a bound fact template. */
+export const stripHomeJoiner = text => text.replace(/(?:\s+and\s+|\s*,\s*|\s*\.\s*)$/, '').trimEnd()
+// Wording is a host-owned Syntactic Role, never a per-source sentence template.
+// Connectors are separate segments, so only these words need the literal allowlist.
 const CONNECTORS = new Set('you your have has is are and or but in at with of for the a an its today now show shows include includes contains'.split(' '))
-const ICON_NOUNS = { sessions: ['session', 'sessions'], portfolio: ['daily', 'percentage'], plants: ['plant', 'plants'], tasks: ['task', 'tasks'], calendar: ['calendar'], mail: ['mail'], reading: ['reading'], quota: ['quota'], apps: ['app', 'apps'] }
+const ICON_NOUNS = { sessions: ['session', 'sessions'], portfolio: ['holding', 'holdings'], plants: ['plant', 'plants'], tasks: ['task', 'tasks'], calendar: ['event', 'events'], mail: ['message', 'messages'], reading: ['reading', 'readings'], quota: ['account', 'accounts'], apps: ['app', 'apps'], weather: ['report', 'reports'], status: ['item', 'items'] }
+const countNoun = icon => (ICON_NOUNS[icon] || []).at(-1) || 'items'
+
+/** A source-independent Syntactic Role, derived from field meaning and format. */
+function syntacticRole(field, format, path) {
+  if (format === 'count' || format === 'integer' && /^(total|count)$|(?:^|\.)counts?\b/.test(path)) return 'count'
+  if (['state', 'status', 'activity', 'verification'].includes(field) || format === 'piSessionState' || format === 'soilStatus') return 'state'
+  return 'measurement'
+}
+
+/** Join Facts into one Overview Sentence. The renderer gives these words the subdued tier. */
+function overviewJoiner(index, total) {
+  if (total === 2 || index === total - 1) return ' and '
+  return ', '
+}
+
+/** Field meaning, not source identity, names the subject of a clause. */
+const FIELD_LABELS = new Map(Object.entries({
+  soilPercent: 'Soil moisture', temperatureC: 'Temperature', humidityPercent: 'Humidity',
+  remainingPercent: 'Remaining percentage', todayChangePercent: 'Today change',
+  pressureHpa: 'Pressure', lightLux: 'Light', state: 'State', status: 'Status',
+  activity: 'Activity', goal: 'Goal', report: 'Report', total: 'Total', count: 'Count',
+}))
+const subjectLabel = field => FIELD_LABELS.get(field)
+  || fieldLabel(field).replace(/\s*(?:percent|c|hpa|lux)$/i, '').trim().replace(/^./, c => c.toUpperCase())
 const UNSAFE_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
 const STATE_WORDS = new Set(['running', 'working', 'settled', 'idle', 'waiting', 'failed', 'finished', 'completed', 'blocked', 'needs_input'])
+// A sibling state may qualify a goal only when it is a known state word.
+// This is a vocabulary, not a per-source rule.
+const OVERVIEW_STATES = new Set([...STATE_WORDS, 'exited', 'starting', 'syncing', 'cancelling', 'needs_review', 'interrupted', 'needs-input'])
 // Match the Hydra node's three-minute freshness window to its soil measurement.
 const HYDRA_SOIL_MAX_AGE_MS = 3 * 60 * 1000
 // Producer source IDs retain their service identity through the public data registry.
@@ -39,8 +71,10 @@ export function compileHomeSelection(raw, variables) {
   return { items: normalizeHomeSelection(raw, variables).items.map(item => {
     const facts = item.sources.map(selector => variables[selector])
     if (facts.some(fact => fact.displayable === false)) throw Error('Analysis-only home fact')
+    // Connectors stay inside the fact segment. A separate segment would exceed
+    // the frame's twelve-segment budget for large selections.
     const segments = facts.map((variable, index) => ({ text: variable.example + (index === facts.length - 1
-      ? /\.$/.test(variable.example) ? '' : '.' : ', '), icon: variable.icon ?? 'status' }))
+      ? /\.$/.test(variable.example) ? '' : '.' : overviewJoiner(index + 1, facts.length)), icon: variable.icon ?? 'status' }))
     return { text: segments.map(segment => segment.text).join(''), segments, readingIds: facts.map(fact => fact.id) }
   }) }
 }
@@ -116,7 +150,7 @@ export function resolveHomeTemplate(raw, readings, now = Date.now()) {
       }
       const literal = segment.text.replace(REFERENCE, '')
       const numericLiteral = literal
-      const hostFact = examples.has(segment.text.replace(/(?:\. |, |\.)$/, ''))
+      const hostFact = examples.has(stripHomeJoiner(segment.text))
       if (!hostFact && (/[^\p{L}\s.,;:!?()'’]/u.test(literal) || /[\d]/.test(numericLiteral) || literal.includes('{{') || literal.includes('}}') || (literal.match(/[\p{L}]+/gu) || []).some(word => !words.has(word.toLowerCase())))) throw Error('Literal home value')
       const resolved = segment.text.replace(REFERENCE, (_match, id, path, format) => {
         const source = sources.get(id)
@@ -165,7 +199,7 @@ export function rebindHomeSelection(raw, readings, latest, now = Date.now(), cap
     if (key !== undefined) indexes.set(key, indexes.has(key) ? undefined : index)
   }
   const items = raw.items.map(item => ({ sources: item.segments.flatMap(segment => {
-    const example = segment.text.replace(/(?:\. |, |\.)$/, '')
+    const example = stripHomeJoiner(segment.text)
     if (!previous.has(example)) throw Error('Unknown home fact template')
     const oldFact = previousFacts.find(fact => fact.example === example)
     if (oldFact?.id === 'odk.tile.hydra') {
@@ -262,24 +296,31 @@ export function homeTemplateVariables(readings, now = Date.now()) {
     }
     const reference = path => refs.find(ref => ref.startsWith(`{{${source.id}|${path}|`))
     const label = refs[0]
-    let example = `${label} ${refs[3] || reference('@availability')}`
-    // The segment icon already names these services, so the copy carries the fact.
-    if (source.home?.icon === 'portfolio' && reference('todayChangePercent')) example = `${reference('todayChangePercent')} today`
-    if (source.home?.icon === 'weather' && reference('temperatureC')) {
-      example = `${reference('temperatureC')}${reference('condition') ? ` ${reference('condition')}` : ''}${reference('place') ? ` in ${reference('place')}` : ''}`
-    }
-    if (source.home?.icon === 'sessions' && !reference('total') && reference('count')) example = `${label} ${reference('count')} sessions`
-    if (source.home?.icon === 'sessions' && !reference('total') && !reference('count') && reference('sessions')) {
-      const states = (Array.isArray(source.value?.sessions) ? source.value.sessions : []).map(record => record?.state).filter(state => typeof state === 'string')
-      const dominant = states.length ? [...states].sort((a, b) => states.filter(state => state === b).length - states.filter(state => state === a).length)[0] : 'running'
-      example = `${reference('sessions')} ${label} ${STATE_WORDS.has(dominant) ? dominant : 'running'}`
-    }
-    if (source.home?.icon === 'sessions' && reference('total')) {
+    // One source-independent rule covers every service. The reference copy is
+    // only an instance of it, never a template keyed by a source identity.
+    const countReference = reference('total') || reference('count') || reference('sessions')
+    const firstValue = refs[3] || reference('@availability')
+    let example = `${label} is ${firstValue}`
+    if (countReference) {
       const counts = Object.keys(source.value?.counts || {}).sort((a, b) => {
         const order = ['running', 'waiting', 'settled', 'exited']
         return (order.includes(a) ? order.indexOf(a) : 99) - (order.includes(b) ? order.indexOf(b) : 99)
       }).filter(key => reference(`counts.${key}`)).map(key => `${reference(`counts.${key}`)} ${key.replaceAll('_', ' ')}`)
-      example = `${reference('total')} ${label}${counts.length ? ` with ${counts.join(', ')}` : ''}`
+      const tail = counts.length > 1 ? `${counts.slice(0, -1).join(', ')} and ${counts.at(-1)}` : counts.join('')
+      example = `You have ${countReference} active ${countNoun(source.home?.icon)}${tail ? ` with ${tail}` : ''}`
+    } else {
+      // Join the source's first scalar values into one clause. This keeps
+      // condition and place beside a temperature without a weather-specific rule.
+      const valueRefs = refs.slice(3).filter(ref => {
+        const match = [...ref.matchAll(REFERENCE)][0]
+        return match && !match[2].startsWith('@') && ['text', 'number', 'integer', 'celsius', 'percent', 'signedPercent'].includes(match[3])
+      }).slice(0, 3)
+      if (valueRefs.length) {
+        example = valueRefs.map(ref => {
+          const match = [...ref.matchAll(REFERENCE)][0]
+          return `${subjectLabel(match[2].split('.').at(-1))} is ${ref}`
+        }).join(' and ')
+      } else example = `${label} is ${firstValue}`
     }
     return { id: source.id, serviceId: serviceIdentity(source), icon: source.home?.icon, references: refs, example }
   })
@@ -411,6 +452,9 @@ export function homeFactVariables(readings, now = Date.now(), preferences = DEFA
       const evidence = !piSession && parts.at(-1) !== 'report' && /^(finished|settled|completed)$/.test(String(parent?.reportedState ?? parent?.state))
         ? (['passed', 'failed', 'needs_review'].includes(verification) && refFor(verificationPath) ? ` verification ${refFor(verificationPath)}` : ' (reported)') : ''
       const field = parts.at(-1)
+      const format = [...reference.matchAll(REFERENCE)][0]?.[3]
+      const role = syntacticRole(field, format, path)
+      const labelText = subjectLabel(field)
       const soilAvailability = variable.references.find(ref => ref === `{{${source.id}|${path}|soilAvailability}}`)
       if (soilAvailability) {
         const plantIdentity = /\.name$/.test(path) ? variable.references.find(ref => ref === `{{${source.id}|${path}|text}}`) : context
@@ -419,19 +463,28 @@ export function homeFactVariables(readings, now = Date.now(), preferences = DEFA
       }
       const soilStatus = variable.references.find(ref => ref === `{{${source.id}|${path}|soilStatus}}`)
       const piState = piSession && variable.references.find(ref => ref === `{{${source.id}|${parentPath}.state|piSessionState}}`)
-      const agentState = field === 'goal' && !parentPath && /^odk\.agent\./.test(source.id)
-        && typeof source.value?.state === 'string' && source.value.state ? refFor('state') : undefined
-      const format = [...reference.matchAll(REFERENCE)][0]?.[3]
-      const displayLabel = format === 'percent' || format === 'signedPercent'
-        ? fieldLabel(field).replace(/\s*percent$/i, '') : fieldLabel(field)
-      const statement = field === 'report' ? `reported: ${reference}`
-        : field === 'remainingPercent' ? `${reference} remaining`
-        : field === 'soilPercent' ? `${soilStatus ? `${soilStatus} at ` : ''}${reference}`
-          : field === 'state' && piSession && piState ? piState
-            : ['state', 'status', 'activity'].includes(field) ? reference
-              : field === 'goal' && (piState || agentState) ? `${piState || agentState}${agentState ? evidence : ''} goal: ${reference}` : `${displayLabel}: ${reference}`
-      const prefix = context || field === 'soilPercent' && icon === 'plants' ? '' : `${label} `
-      add(path, `${prefix}${context}${statement}${agentState ? '' : evidence}`, homeAttention(path, value, parent, now), value)
+      // Any record with a sibling state field keeps that state beside its goal.
+      // This is a field relationship, not a rule keyed by a source identity.
+      // Only a short single-word state qualifies; booleans and free text do not.
+      const siblingState = field === 'goal' ? (() => {
+        const candidates = variable.references.filter(ref => {
+          const match = [...ref.matchAll(REFERENCE)][0]
+          if (!match || !['text', 'piSessionState'].includes(match[3])
+            || !(match[2] === 'state' || match[2] === `${parentPath}.state`)) return false
+          const value = atPath(source.value, match[2])
+          return typeof value === 'string' && OVERVIEW_STATES.has(value.toLowerCase())
+        })
+        return candidates.find(ref => [...ref.matchAll(REFERENCE)][0][3] === 'piSessionState') || candidates[0]
+      })() : undefined
+      // One source-independent rule: count, state, or measurement. The reference
+      // copy is an instance of this rule, not a template keyed by a source id.
+      const statement = role === 'count' ? `You have ${reference} active ${countNoun(icon)}`
+        : field === 'report' ? `${label} reported: ${reference}`
+          : soilStatus ? `${context}${labelText} is ${soilStatus} at ${reference}`
+            : role === 'state' ? `${context || `${label} `}is ${piState || reference}${evidence}`
+              : siblingState && field === 'goal' ? `${context}${siblingState} ${labelText.toLowerCase()} is ${reference}${evidence}`
+                : `${context}${labelText} is ${reference}${evidence}`
+      add(path, statement, homeAttention(path, value, parent, now), value)
     }
     if (!facts.length) add('@availability', `${label} ${refFor('@availability')}`)
     return facts

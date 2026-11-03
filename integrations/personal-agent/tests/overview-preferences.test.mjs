@@ -43,7 +43,7 @@ test('a required Futu holding stays visible through the local fallback', () => {
   const preferences = prefs(['odk.service.futu-main'], ['odk.app.pi-sessions'])
   const text = resolveHomeTemplate(fallbackHomeSelection(readings, Date.now(), preferences), readings)
     .items.map(item => item.text).join(' ')
-  assert.match(text, /\+6\.40% today/)
+  assert.match(text, /\+6\.40%/)
 })
 
 test('a selector cannot drop a required Futu holding', async () => {
@@ -51,7 +51,7 @@ test('a selector cannot drop a required Futu holding', async () => {
   const preferences = prefs(['odk.service.futu-main'], ['odk.app.pi-sessions'])
   const raw = await generateHomeSelection(readings, { preferences, choose: async () => ({ items: [] }) })
   const text = resolveHomeTemplate(raw, readings).items.map(item => item.text).join(' ')
-  assert.match(text, /\+6\.40% today/)
+  assert.match(text, /\+6\.40%/)
 })
 
 test('the displayed value stays bound to the current local reading', () => {

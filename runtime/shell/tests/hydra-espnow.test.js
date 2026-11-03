@@ -57,7 +57,7 @@ test('a fresh plant remains available to Overview when the greenhouse is stale',
   t.after(() => home.close())
   await home.refresh()
   assert.equal(home.frame.state, 'live')
-  assert.match(home.frame.items[0].text, /Plant 1 dry at 15%/)
+  assert.match(home.frame.items[0].text, /Plant 1 Soil moisture is dry at 15%/)
   assert.equal((await entry.read()).state, 'stale', 'the greenhouse remains explicitly stale')
 })
 test('foreign peers, duplicate sequences, out of order and retired boots cannot publish', async () => {

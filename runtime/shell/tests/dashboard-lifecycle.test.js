@@ -193,3 +193,21 @@ test('failed Dashboard unsubscribe fences old updates while cleanup remains owne
   assert.equal(f.activeBriefings.size, 1)
   assert.equal(f.activeTicks.size, 1)
 })
+
+test('Overview connectors use the subdued tier while facts and values keep theirs', async t => {
+  const f = await fixture(t)
+  const segments = [
+    { text: 'Today change is +0.33% and ', icon: 'portfolio' },
+    { text: 'Temperature is 24°C.', icon: 'weather' },
+  ]
+  const item = { text: segments.map(segment => segment.text).join(''), segments,
+    sources: [{ id: 'futu', label: 'Futu', state: 'live' }, { id: 'weather', label: 'Weather', state: 'live' }] }
+  f.briefings[0]({ ...f.frame('live'), items: [item] })
+  const collect = (n, out = []) => { out.push(n); for (const c of n.children || []) collect(c, out); return out }
+  const all = collect(f.nodes.get('#dash-narrative'))
+  const connectors = all.filter(n => n.className === 'dash-context' && /\band\b/.test(n.textContent))
+  assert.ok(connectors.length >= 1, 'and is a separate subdued connector span')
+  assert.equal(f.nodes.get('#dash-narrative').textContent, item.text)
+  assert.ok(all.some(n => n.className === 'dash-fact'), 'fact text keeps the primary tier')
+  assert.ok(all.some(n => n.className === 'dash-change'), 'the value keeps its state token')
+})

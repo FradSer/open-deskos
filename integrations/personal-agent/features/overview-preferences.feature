@@ -27,3 +27,10 @@ Feature: Owner-configured Overview preferences
     When the resident agent makes a chat, completion or judgment request
     Then the request identifies its client as Open deskOS
     And the header escapes the space so the Usage view shows Open deskOS
+
+  Scenario: Natural wording keeps owner preferences
+    Given the owner requires a holding and forbids Pi session details
+    When Overview builds the glance with natural wording
+    Then the holding value stays visible
+    And no Pi session goal, project or activity appears
+    And an aggregate session count remains available

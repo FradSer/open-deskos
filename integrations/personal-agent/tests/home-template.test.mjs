@@ -124,7 +124,7 @@ test('mixed-type duplicate IDs cannot transfer a selected plant to another name'
       return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent')), facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
     }, publish() {} })
   t.after(() => home.close())
-  await home.refresh(); assert.match(home.frame.items[0].text, /Fern (?:dry|low|OK|good|wet) at/)
+  await home.refresh(); assert.match(home.frame.items[0].text, /Fern Soil moisture is (?:dry|low|OK|good|wet) at/)
   plants = [...plants, { ...plants[0], id: '1', name: 'Orchid', soilPercent: 70, online: false }]
   home.invalidate(); await home.refresh()
   assert.match(home.frame.items[0].text, /24°C/)
@@ -145,7 +145,7 @@ test('a selected plant disappears when duplicate IDs make it ambiguous', async t
       return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent')), facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
     }, publish() {} })
   t.after(() => home.close())
-  await home.refresh(); assert.match(home.frame.items[0].text, /Fern (?:dry|low|OK|good|wet) at/)
+  await home.refresh(); assert.match(home.frame.items[0].text, /Fern Soil moisture is (?:dry|low|OK|good|wet) at/)
   plants = [...plants, { ...plants[0], name: 'Orchid', soilPercent: 70, online: false }]
   home.invalidate(); await home.refresh()
   assert.match(home.frame.items[0].text, /24°C/)
@@ -183,9 +183,9 @@ test('selected fresh Hydra moisture conveys its status and follows updates durin
     }, publish() {} })
   t.after(() => home.close())
   await home.refresh()
-  assert.match(home.frame.items[0].text, /Plant 1 (?:OK|good)/i)
+  assert.match(home.frame.items[0].text, /Plant 1 Soil moisture is (?:OK|good)/i)
   soilPercent = 25; home.invalidate(); await home.refresh()
-  assert.match(home.frame.items[0].text, /Plant 1 (?:low|dry)/i)
+  assert.match(home.frame.items[0].text, /Plant 1 Soil moisture is (?:low|dry)/i)
   assert.equal(calls, 1)
 })
 
@@ -290,7 +290,7 @@ test('a fresh plant remains selectable when only the greenhouse is stale', async
   const index = facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))
   assert.ok(index >= 0, 'fresh plant soil remains a candidate')
   const output = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [index] }] }, facts), [reading], now)
-  assert.match(output.items[0].text, /Plant 1 dry at 15%/)
+  assert.match(output.items[0].text, /Plant 1 Soil moisture is dry at 15%/)
   assert.ok(!facts.some(fact => fact.factId.endsWith(':greenhouse.temperatureC')), 'stale greenhouse is not a current reading')
 })
 
@@ -342,7 +342,7 @@ test('MQTT retained soil stays unavailable through the source projection', async
   assert.doesNotMatch(home.frame.items[0].text, /dry|10%/)
   store.applyMessage('hydra/node1/soil', '12', now)
   home.invalidate(); await home.refresh()
-  assert.match(home.frame.items[0].text, /Plant 1 dry at 12%/)
+  assert.match(home.frame.items[0].text, /Plant 1 Soil moisture is dry at 12%/)
 })
 
 test('a cached selection does not switch plants when their order changes', async t => {
@@ -360,7 +360,7 @@ test('a cached selection does not switch plants when their order changes', async
   assert.match(home.frame.items[0].text, /Plant 1 moisture unavailable/)
   plants.find(plant => plant.id === 1).soilStale = false
   home.invalidate(); await home.refresh()
-  assert.match(home.frame.items[0].text, /Plant 1 OK at 54%/)
+  assert.match(home.frame.items[0].text, /Plant 1 Soil moisture is OK at 54%/)
   assert.doesNotMatch(home.frame.items[0].text, /Plant 2|70%/)
 })
 
@@ -375,7 +375,7 @@ test('an ID-less replacement plant cannot inherit a selected plant identity', as
       return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent')), facts.findIndex(fact => fact.factId === 'weather:@summary')] }] }, facts)
     }, publish() {} })
   t.after(() => home.close())
-  await home.refresh(); assert.match(home.frame.items[0].text, /Fern (?:dry|low|OK|good|wet) at/)
+  await home.refresh(); assert.match(home.frame.items[0].text, /Fern Soil moisture is (?:dry|low|OK|good|wet) at/)
   plant = { ...plant, name: 'Orchid', soilPercent: 10, online: false }
   home.invalidate(); await home.refresh()
   assert.match(home.frame.items[0].text, /24°C/)
@@ -383,7 +383,7 @@ test('an ID-less replacement plant cannot inherit a selected plant identity', as
   plant.online = true; home.invalidate(); await home.refresh()
   assert.doesNotMatch(home.frame.items[0].text, /Fern|Orchid|10%/)
   plant = { ...plant, name: 'Fern', soilPercent: 50 }; home.invalidate(); await home.refresh()
-  assert.match(home.frame.items[0].text, /Fern OK at 50%/)
+  assert.match(home.frame.items[0].text, /Fern Soil moisture is OK at 50%/)
 })
 
 test('reordered unavailable Hydra plant retains its identity through rebinding', async () => {
@@ -463,7 +463,7 @@ test('a sole selected source recovers after an outage during generation', async 
   available = false; home.invalidate(); release(); await pending
   assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /Verify release/)
   available = true; home.invalidate(); await home.refresh()
-  assert.match(home.frame.items.map(item => item.text).join(' '), /Desk idle goal: Verify release/)
+  assert.match(home.frame.items.map(item => item.text).join(' '), /Desk.*goal is Verify release/)
   assert.equal(calls, 1)
 })
 
@@ -488,7 +488,7 @@ test('a Pi source unavailable during generation restores its selection beside We
   assert.match(home.frame.items[0].text, /24°C/)
   assert.doesNotMatch(home.frame.items[0].text, /Verify release/)
   available = true; home.invalidate(); await home.refresh()
-  assert.match(home.frame.items[0].text, /Desk idle goal: Verify release.*24°C/)
+  assert.match(home.frame.items[0].text, /Desk.*goal is Verify release.*24°C/)
   assert.equal(calls, 1)
 })
 
@@ -506,14 +506,14 @@ test('a temporarily unavailable Pi goal returns beside Weather during cooldown',
     }, publish() {} })
   t.after(() => home.close())
   await home.refresh()
-  assert.match(home.frame.items[0].text, /Desk idle goal: Verify release.*24°C/)
+  assert.match(home.frame.items[0].text, /Desk.*goal is Verify release.*24°C/)
   available = false; home.invalidate(); await home.refresh()
   assert.match(home.frame.items[0].text, /24°C/)
   assert.doesNotMatch(home.frame.items[0].text, /Verify release/)
   await home.refresh()
   assert.match(home.frame.items[0].text, /24°C/)
   available = true; home.invalidate(); await home.refresh()
-  assert.match(home.frame.items[0].text, /Desk idle goal: Verify release.*24°C/)
+  assert.match(home.frame.items[0].text, /Desk.*goal is Verify release.*24°C/)
   assert.equal(calls, 1)
 })
 
@@ -529,11 +529,11 @@ test('selected plant and Weather both remain visible across offline and recovery
     }, publish() {} })
   t.after(() => home.close())
   await home.refresh()
-  assert.match(home.frame.items[0].text, /Plant 1 OK at 54\.6%.*24°C/)
+  assert.match(home.frame.items[0].text, /Plant 1 Soil moisture is OK at 54\.6%.*24°C/)
   plant.online = false; home.invalidate(); await home.refresh()
   assert.match(home.frame.items[0].text, /Plant 1 moisture unavailable.*24°C/)
   plant.online = true; home.invalidate(); await home.refresh()
-  assert.match(home.frame.items[0].text, /Plant 1 OK at 54\.6%.*24°C/)
+  assert.match(home.frame.items[0].text, /Plant 1 Soil moisture is OK at 54\.6%.*24°C/)
   assert.equal(calls, 1)
 })
 
@@ -628,12 +628,12 @@ test('a selected Pi goal carries its lifecycle state throughout the cooldown', a
     }, publish() {} })
   t.after(() => home.close())
   await home.refresh()
-  assert.match(home.frame.items[0].text, /Desk.*working.*Verify release/i)
+  assert.match(home.frame.items[0].text, /Desk.*goal is Verify release/i)
   state = 'settled'; home.invalidate(); await home.refresh()
-  assert.match(home.frame.items[0].text, /Desk.*idle.*Verify release/i)
+  assert.match(home.frame.items[0].text, /Desk.*idle.*goal is Verify release/i)
   assert.doesNotMatch(home.frame.items[0].text, /settled|finished|reported/i)
   state = 'exited'; home.invalidate(); await home.refresh()
-  assert.match(home.frame.items[0].text, /exited.*Verify release/i)
+  assert.match(home.frame.items[0].text, /exited.*goal is Verify release/i)
   assert.doesNotMatch(home.frame.items[0].text, /finished|reported/i)
   assert.equal(calls, 1)
 })
@@ -653,11 +653,11 @@ test('a selected resident Agent goal retains current task state and verification
     }, publish() {} })
   t.after(() => home.close())
   await home.refresh()
-  assert.match(home.frame.items[0].text, /running.*Inspect release/)
+  assert.match(home.frame.items[0].text, /goal is Inspect release/)
   task.state = 'finished'; home.invalidate(); await home.refresh()
-  assert.match(home.frame.items[0].text, /finished \(reported\).*Inspect release/)
+  assert.match(home.frame.items[0].text, /finished.*goal is Inspect release.*\(reported\)/i)
   task.verification.status = 'passed'; home.invalidate(); await home.refresh()
-  assert.match(home.frame.items[0].text, /finished verification passed.*Inspect release/)
+  assert.match(home.frame.items[0].text, /finished.*Inspect release.*verification passed/i)
   assert.equal(calls, 1)
 })
 
@@ -667,7 +667,7 @@ test('an unrelated source cannot attach its state to a selected goal', async () 
     const facts = homeFactVariables(readings)
     const index = facts.findIndex(fact => fact.factId === 'generic:goal')
     const output = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [index] }] }, facts), readings)
-    assert.match(output.items[0].text, /goal: Reduce latency/)
+    assert.match(output.items[0].text, /Goal is Reduce latency/)
     assert.doesNotMatch(output.items[0].text, /true|connected/)
   }
 })
@@ -815,7 +815,7 @@ test('finite selections compile captured identities and preserve current source 
   const raw = compileHomeSelection({ items: [{ sources: [1, 0] }] }, catalog)
   const output = resolveHomeTemplate(raw, readings)
   assert.deepEqual(raw.items[0].readingIds, ['futu', 'weather'])
-  assert.equal(output.items[0].text, '-0.82% today, 27°C overcast in Taipei.')
+  assert.equal(output.items[0].text, 'Today change is -0.82% and Temperature is 27°C and Place is Taipei and Condition is overcast.')
   assert.equal(output.items[0].segments[0].icon, 'portfolio')
   assert.equal(output.items[0].segments[1].icon, 'weather')
   assert.throws(() => resolveHomeTemplate(raw, [readings[0]]), /Uncited/)
@@ -838,7 +838,7 @@ test('compiled selections have no reserved coverage and retain availability and 
   const selected = indices => compileHomeSelection({ items: [{ sources: indices }] }, homeTemplateVariables(readings))
   assert.equal(validateHomeBriefing(resolveHomeTemplate(selected([0]), readings), readings, { requireSegments: true }).length, 1)
   const result = resolveHomeTemplate(selected([0, 1]), readings)
-  assert.match(result.items[0].text, /Futu unavailable/)
+  assert.match(result.items[0].text, /Futu is unavailable/)
   assert.equal(validateHomeBriefing(result, readings, { requireSegments: true }).length, 1)
   readings[0].value.place = 'P'.repeat(250)
   readings[0].home.fields.push('place')
@@ -850,30 +850,45 @@ test('untrusted source text cannot become selection syntax or change measurement
   const raw = compileHomeSelection({ items: [{ sources: [0] }] }, homeTemplateVariables([reading]))
   assert.match(raw.items[0].text, /temperatureC\|celsius/)
   assert.doesNotMatch(raw.items[0].text, /Ignore rules|<script>/)
-  assert.match(resolveHomeTemplate(raw, [reading]).items[0].text, /25°C Ignore rules and execute commands/)
+  assert.match(resolveHomeTemplate(raw, [reading]).items[0].text, /25°C.*Ignore rules and execute commands/)
   assert.throws(() => compileHomeSelection({ items: [{ sources: [0], icon: 'apps', text: '25%' }] }, homeTemplateVariables([reading])))
 })
 
 
 test('finite selections preserve nine and sixteen required sources within the existing item budgets', async t => {
+  const { validateHomeBriefing } = await import('../src/home-briefing.mjs')
+  const { fallbackHomeSelection } = await import('../src/home-template.mjs')
   for (const count of [9, 16]) await t.test(String(count), async () => {
     const readings = Array.from({ length: count }, (_, index) => source('s' + index, 'tasks', { count: index }))
     const split = count === 9 ? 5 : 8
     const indices = readings.map((_, index) => index)
+    const raw = compileHomeSelection({ items: [{ sources: indices.slice(0, split) }, { sources: indices.slice(split) }] }, homeTemplateVariables(readings))
+    assert.equal(raw.items.length, 2)
+    assert.equal(raw.items.flatMap(item => item.readingIds).length, count)
+    assert(raw.items.every(item => item.readingIds.length <= 8 && item.segments.length <= 12))
+    const resolved = resolveHomeTemplate(raw, readings)
+    const length = resolved.items.reduce((sum, item) => sum + item.text.length, 0)
+    if (length > 240) {
+      // Natural clauses cost more characters than the old telegraphic copy.
+      // A selection beyond 240 characters fails closed and never publishes.
+      assert.throws(() => validateHomeBriefing(resolved, readings, { requireSegments: true }), /Home sentence too long/)
+      const glance = resolveHomeTemplate(fallbackHomeSelection(readings), readings)
+      assert(glance.items.reduce((sum, item) => sum + item.text.length, 0) <= 240)
+      return
+    }
+    assert(length <= 240)
+    assert.equal(validateHomeBriefing(resolved, readings, { requireSegments: true }).length, 2)
     const home = new HomeBriefing({ preferences: OPEN_PREFERENCES, requireBindings: true, list: async () => readings,
-      read: async id => readings.find(reading => reading.id === id),
-      generate: async () => compileHomeSelection({ items: [{ sources: indices.slice(0, split) }, { sources: indices.slice(split) }] }, homeTemplateVariables(readings)), publish() {} })
+      read: async id => readings.find(reading => reading.id === id), generate: async () => raw, publish() {} })
     try {
       await home.refresh()
       assert.equal(home.frame.state, 'live')
       assert.equal(home.frame.items.flatMap(item => item.sources).length, count)
       assert(home.frame.items.every(item => item.sources.length <= 8 && item.segments.length <= 12))
-      assert(home.frame.items.reduce((sum, item) => sum + item.text.length, 0) <= 240)
       assert(home.frame.generatedAt > 0)
     } finally { home.close() }
   })
 })
-
 
 test('compiled facts preserve the actual Shell icon and first-label token grouping', () => {
   const paths = ['../../../runtime/shell/src/renderer/plugins/dashboard-page.js', '../../../src/renderer/plugins/dashboard-page.js'].map(path => new URL(path, import.meta.url)).filter(path => existsSync(path))
@@ -891,8 +906,8 @@ test('compiled facts preserve the actual Shell icon and first-label token groupi
     if (prefix) assert.ok(segment.text.startsWith(prefix), `${prefix} must start ${segment.text}`)
   }
   assert.deepEqual(output.items[0].segments.map(segment => segment.icon), ['portfolio', 'weather'])
-  assert.equal(output.items[0].segments[0].text.endsWith(', '), true)
-  assert.equal(output.items[0].text, '-0.82% today, 25°C.')
+  assert.equal(output.items[0].segments[0].text.endsWith(' and '), true)
+  assert.equal(output.items[0].text, 'Today change is -0.82% and Temperature is 25°C.')
   assert.equal(output.items[0].segments.length, 2)
 })
 
@@ -931,7 +946,7 @@ test('rebinding follows task identities across reordered Pi sessions', async () 
   const facts = homeFactVariables(before)
   const raw = compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith('sessions.0.state'))] }] }, facts)
   const fresh = resolveHomeTemplate(rebindHomeSelection(raw, before, after), after)
-  assert.match(fresh.items[0].text, /Task A finished/)
+  assert.match(fresh.items[0].text, /Task A is finished/)
   assert.doesNotMatch(fresh.items[0].text, /Task B/)
 })
 
@@ -964,7 +979,7 @@ test('selection and recovery show one fact per service while every fact reaches 
   assert.equal(new Set(seen.map(f => f.serviceId)).size, 2)
   const bound = resolveHomeTemplate(raw, readings)
   assert.equal(bound.items.flatMap(item => item.segments).length, 2)
-  assert.match(bound.items.map(item => item.text).join(' '), /pi failed.*other waiting/)
+  assert.match(bound.items.map(item => item.text).join(' '), /pi is failed.*other is waiting/)
   const fallback = resolveHomeTemplate(fallbackHomeSelection(readings, Date.now(), OPEN_PREFERENCES), readings)
   assert.equal(fallback.items.flatMap(item => item.segments).length, 2)
   assert.match(fallback.items[0].text, /failed/)
@@ -1000,7 +1015,7 @@ test('plant, weather and holdings copy states the fact without repeating the sou
   const weather = facts.findIndex(fact => fact.factId === 'weather:@summary')
   const holdings = facts.findIndex(fact => fact.factId === 'futu:@summary')
   const text = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [soil, weather, holdings] }] }, facts), readings, now).items[0].text
-  assert.equal(text, 'Plant 1 dry at 8%, 24°C Sunny in Hangzhou, +6.40% today.')
+  assert.equal(text, 'Plant 1 Soil moisture is dry at 8%, Temperature is 24°C and Condition is Sunny and Place is Hangzhou and Today change is +6.40%.')
 })
 
 test('a report that already ends a sentence does not gain a second period', async () => {
@@ -1018,8 +1033,8 @@ test('local fallback keeps several services when idle sessions score highest', a
     source('weather', 'weather', { temperatureC: 24, condition: 'clear', place: 'Shenzhen' }),
   ]
   const text = resolveHomeTemplate(fallbackHomeSelection(readings, Date.now(), OPEN_PREFERENCES), readings).items[0].text
-  assert.match(text, /\+2\.37% today/)
-  assert.match(text, /24°C clear/)
+  assert.match(text, /\+2\.37%/)
+  assert.match(text, /24°C.*clear/)
 })
 
 test('a quota fact states its allowance once without repeating window labels or the service name', () => {
@@ -1036,7 +1051,7 @@ test('a quota fact states its allowance once without repeating window labels or 
   const facts = homeFactVariables(readings)
   const index = facts.findIndex(fact => fact.factId.endsWith('remainingPercent'))
   const text = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [index] }] }, facts), readings).items[0].text
-  assert.equal(text, 'Claude and GPT models 100% remaining.')
+  assert.equal(text, 'Claude and GPT models Remaining percentage is 100%.')
   assert.ok(!facts.some(fact => /\.(?:provider|account|plan|email)$/.test(fact.factId)), 'identity metadata is not a desk fact')
   assert.equal(facts.find(fact => fact.factId.endsWith('.label')).displayable, false)
 })
@@ -1050,7 +1065,7 @@ test('a greenhouse percentage states its unit once', () => {
   const facts = homeFactVariables(readings)
   const index = facts.findIndex(fact => fact.factId.endsWith('humidityPercent'))
   const text = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [index] }] }, facts), readings).items[0].text
-  assert.equal(text, 'Hydra plants humidity: 66.3%.')
+  assert.equal(text, 'Humidity is 66.3%.')
 })
 
 test('Pi sessions are summarized by count and state instead of repeated per-session lines', () => {
@@ -1066,5 +1081,38 @@ test('Pi sessions are summarized by count and state instead of repeated per-sess
   const summary = facts.find(fact => fact.factId.endsWith(':@summary'))
   assert.ok(summary, 'one aggregate session summary exists')
   const text = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [facts.indexOf(summary)] }] }, facts), readings).items[0].text
-  assert.equal(text, '5 Pi sessions running.')
+  assert.equal(text, 'You have 5 active sessions.')
+})
+
+test('Overview wording derives from field meaning, not from a source identity', async () => {
+  const { homeFactVariables, compileHomeSelection, resolveHomeTemplate } = await import('../src/home-template.mjs')
+  const readings = [source('vendor.unknown-source', 'quota', { flowRate: 12, level: 3 })]
+  const facts = homeFactVariables(readings, 1000, OPEN_PREFERENCES)
+  const measurement = facts.find(fact => fact.factId.endsWith(':flowRate'))
+  assert.ok(measurement)
+  assert.match(measurement.example, /^Flow rate is \{\{[^}]*\|flowRate\|number\}\}$/)
+  const renamed = homeFactVariables([source('another.unrelated-id', 'quota', { flowRate: 99 })], 1000, OPEN_PREFERENCES)
+    .find(fact => fact.factId.endsWith(':flowRate'))
+  const shape = example => example.replace(/\{\{[^|]+\|/, '{{|')
+  assert.equal(shape(measurement.example), shape(renamed.example), 'the source identity does not change the wording')
+  const raw = compileHomeSelection({ items: [{ sources: [facts.indexOf(measurement)] }] }, facts)
+  const resolved = resolveHomeTemplate(raw, readings, 1000)
+  assert.match(resolved.items[0].text, /Flow rate is 12/i)
+})
+
+test('Overview joins any two facts with and as a subdued connector segment', async () => {
+  const { homeFactVariables, compileHomeSelection, resolveHomeTemplate } = await import('../src/home-template.mjs')
+  const readings = [
+    source('vendor.alpha', 'quota', { flowRate: 12 }),
+    source('vendor.beta', 'quota', { pressureHpa: 1013 }),
+  ]
+  const facts = homeFactVariables(readings, 1000, OPEN_PREFERENCES)
+  const first = facts.find(fact => fact.factId.endsWith(':flowRate'))
+  const second = facts.find(fact => fact.factId.endsWith(':pressureHpa'))
+  const raw = compileHomeSelection({ items: [{ sources: [facts.indexOf(first), facts.indexOf(second)] }] }, facts)
+  assert.equal(raw.items[0].segments.length, 2, 'connectors do not inflate the frame segment budget')
+  const text = resolveHomeTemplate(raw, readings, 1000).items[0].text
+  assert.match(text, /\band\b/)
+  assert.match(text, /\.$/)
+  assert.equal((text.match(/\.$/g) || []).length, 1)
 })

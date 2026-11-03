@@ -63,7 +63,7 @@
 
   // Severity words and percentages take the established widget colours so the
   // briefing reads at a glance; a healthy remaining value stays uncoloured.
-  function appendText(el, text, live = false, kind = undefined) {
+  function appendTokens(el, text, live = false, kind = undefined) {
     const tokens = kind === 'plants'
       ? text.split(/(\b(?:dry|low|ok|good|wet)\b(?=\s+at\s+[+-]?\d+(?:\.\d+)?%)|[+-]?\d+(?:\.\d+)?%|[+-]?\d+(?:\.\d+)?[°º]C|[°º]C)/i)
       : kind === 'quota' || kind === 'portfolio'
@@ -120,6 +120,20 @@
         if (live && value !== 0 && /^[+-]/.test(part)) change.dataset.direction = value > 0 ? 'up' : 'down'
         el.append(change)
       } else el.append(el.ownerDocument.createTextNode(part))
+    }
+  }
+
+  // Joiners carry the subdued Tone Tier. Facts keep the primary tier and
+  // values keep their state tokens. All three stay visible in one sentence.
+  function appendText(el, text, live = false, kind = undefined) {
+    for (const part of text.split(/(\s+and\s+|,\s+)/)) {
+      if (!part) continue
+      if (/^\s+and\s+$|^\s*,\s+$/.test(part)) {
+        const connector = el.ownerDocument.createElement('span')
+        connector.className = 'dash-context'
+        connector.textContent = part
+        el.append(connector)
+      } else appendTokens(el, part, live, kind)
     }
   }
 

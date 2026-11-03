@@ -30,7 +30,7 @@ test('Pi activity bursts update selected identities without another model call i
   }
   assert.equal(calls, 1)
   assert.equal(frames.filter(frame => frame.state === 'loading').length, 1)
-  assert.match(home.frame.items[0].text, /Build finished.*\(reported\)/)
+  assert.match(home.frame.items[0].text, /Build is finished.*\(reported\)/)
   assert.doesNotMatch(home.frame.items[0].text, /running|reported_unverified/)
   now = 1000 + 15 * 60000 - 1; await home.refresh(); assert.equal(calls, 1)
   now++; await home.refresh(); assert.equal(calls, 2)
@@ -646,7 +646,7 @@ test('first startup synthesis failure keeps exact declared source facts visible 
   const source={id:'synthetic.sessions',label:'Synthetic sessions',kind:'app',state:'live',value:{total:2},home:{mode:'required',priority:100,icon:'sessions',fields:['total']}}
   const home=new HomeBriefing({requireBindings:true,list:async()=>[source],read:async()=>source,generate:async()=>{throw Error('synthetic classification failure')},publish:()=>{}})
   await home.refresh()
-  assert.equal(home.frame.state,'error');assert.equal(home.frame.items.length,1);assert.match(home.frame.items[0].text,/2 Synthetic sessions/)
+  assert.equal(home.frame.state,'error');assert.equal(home.frame.items.length,1);assert.match(home.frame.items[0].text,/You have 2 active sessions/)
   assert.deepEqual(home.frame.items[0].sources.map(s=>s.id),[source.id]);assert.equal(home.template,null);home.close()
 })
 
@@ -660,7 +660,7 @@ test('source-only fallback rereads current facts after failed synthesis', async 
   let total=2
   const source=()=>({id:'synthetic.sessions',label:'Synthetic sessions',kind:'app',state:'live',value:{total},home:{mode:'required',priority:100,icon:'sessions',fields:['total']}})
   const home=new HomeBriefing({requireBindings:true,list:async()=>[source()],read:async()=>source(),generate:async()=>{total=3;throw Error('synthetic failure')},publish:()=>{}})
-  await home.refresh();assert.match(home.frame.items[0].text,/3 Synthetic sessions/);assert.doesNotMatch(home.frame.items[0].text,/2 Synthetic/);home.close()
+  await home.refresh();assert.match(home.frame.items[0].text,/You have 3 active sessions/);assert.doesNotMatch(home.frame.items[0].text,/2 Synthetic/);home.close()
 })
 
 test('a source-only confirmation invalidated during pending reads is scheduled again after the first timer coalesces', {timeout:6000}, async t => {
@@ -688,7 +688,7 @@ test('first startup publishes exact bound facts while generation is pending with
   t.after(()=>home.close())
   const pending=home.refresh();await started
   assert.equal(home.frame.state,'loading');assert.equal(home.frame.items.length,1)
-  assert.match(home.frame.items[0].text,/2 Synthetic sessions/)
+  assert.match(home.frame.items[0].text,/You have 2 active sessions/)
   assert.deepEqual(home.frame.items[0].sources.map(s=>s.id),[source().id])
   assert.equal(home.frame.generatedAt,0);assert.equal(home.template,null)
   total=3;home.invalidate()
@@ -721,7 +721,7 @@ test('a retained template cannot clear failure cooldown without another successf
   now += 15 * 60000; fail = false; await home.refresh()
   assert.equal(home.frame.state, 'live'); assert.deepEqual(home.frame.items, modelItems); assert.equal(calls, 3)
   sources = [source(true)]; now += 15 * 60000; fail = true; await home.refresh()
-  assert.equal(home.frame.state, 'error'); assert.match(home.frame.items[0].text, /Synthetic sessions (?:running: 1|.*2)/)
+  assert.equal(home.frame.state, 'error'); assert.match(home.frame.items[0].text, /Running is 1|You have \d+ active sessions/)
 })
 
 test('busy Pi activity publishes current bound facts and reselects with new completion qualifiers', async t => {
@@ -744,7 +744,7 @@ test('busy Pi activity publishes current bound facts and reselects with new comp
   task = { ...task, state: 'finished', activity: 'Checks reported complete' }
   home.invalidate(); release(); await pending
   assert.equal(home.frame.state, 'live')
-  assert.match(home.frame.items[0].text, /Build finished/)
+  assert.match(home.frame.items[0].text, /Build is finished/)
   assert.equal(home.frame.items[0].segments.length, 1, 'One service supplies one selected fact')
   assert.match(home.frame.items[0].text, /\(reported\)/)
   assert.doesNotMatch(home.frame.items[0].text, /running|Checking/)

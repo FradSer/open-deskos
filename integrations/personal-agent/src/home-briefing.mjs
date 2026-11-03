@@ -1,6 +1,6 @@
 import { DEFAULT_OVERVIEW_PREFERENCES } from './overview-preferences.mjs'
 import { projectHydraSnapshot } from './producer-readings.mjs'
-import { resolveHomeTemplate, homeTemplateVariables, homeFactVariables, compileHomeSelection, homeSelectionInstructions, homeAttention, fallbackHomeSelection, rebindHomeSelection } from './home-template.mjs'
+import { resolveHomeTemplate, homeTemplateVariables, homeFactVariables, compileHomeSelection, homeSelectionInstructions, homeAttention, fallbackHomeSelection, rebindHomeSelection, stripHomeJoiner } from './home-template.mjs'
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const STATES = new Set(['live', 'stale', 'unavailable', 'unconfigured', 'unauthorized', 'error'])
 const ICONS = new Set(['sessions', 'plants', 'weather', 'mail', 'calendar', 'tasks', 'reading', 'portfolio', 'quota', 'apps', 'status'])
@@ -113,7 +113,7 @@ function retainVisibleSelection(raw, readings, visible, now, preferences = DEFAU
   const facts = homeFactVariables(readings, now, preferences)
   const items = raw.items.flatMap(item => {
     const sources = item.segments.flatMap(segment => {
-      const example = segment.text.replace(/(?:\. |, |\.)$/, '')
+      const example = stripHomeJoiner(segment.text)
       const index = facts.findIndex(fact => fact.example === example && ids.has(fact.id))
       return index < 0 ? [] : [index]
     })

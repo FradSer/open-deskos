@@ -150,7 +150,7 @@ async function assertAllSourceOverview() {
       const plantBound = resolveHomeTemplate(plantRaw, [plant])
       await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: plantBound.items.map(item => ({ text: item.text, segments: item.segments, sources: [{ id: plant.id, label: plant.label, state: plant.state }] })) })
       const plantRender = await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');return {text:n.textContent,overflow:n.scrollWidth>n.clientWidth+1}})()`)
-      assert.match(plantRender.text, /Plant 1 OK at 54\.6%/, theme)
+      assert.match(plantRender.text, /Plant 1 Soil moisture is OK at 54\.6%/, theme)
       assert.equal(plantRender.overflow, false, theme)
       if (theme === 'instrument') {
         await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: [{ text: 'API quota Main 6% remaining, Spare account 88% remaining, Plant 1 dry at 8%, Plant 2 OK at 54%, Plant 3 wet at 85%, Plant 4 low at 25%, Greenhouse humidity percent: 71%, Greenhouse humidity percent: 50%, +1.20% today.',
