@@ -92,6 +92,13 @@
     return null
   }
 
+  // Provider short-window labels vary: `2 hour limit`, `Five Hour Limit
+  // Remaining`. The Widget keeps only the duration in its supporting text.
+  function shortWindowLabel(quota) {
+    const hours = String(quota?.label || '').match(/^(\d+(?:\.\d+)?)\s+hours?\b/i)
+    return hours ? `${hours[1]}h` : '5h'
+  }
+
   function visibleGroups(account) {
     const pro = account.provider === 'codex' && /\bpro\b/i.test(account.plan || '')
     return (account.groups || []).map(group => {
@@ -251,6 +258,9 @@
           <div class="quota-tile-unknown" aria-hidden="true" hidden></div>
           <span class="quota-tile-context">AI usage</span>
           <span class="quota-tile-secondary"></span>
+          <div class="quota-tile-short-meter" role="meter" aria-valuemin="0" aria-valuemax="100" hidden>
+            <span class="quota-tile-short-fill"></span>
+          </div>
           <span class="quota-tile-account"></span>
         </div>`
 
@@ -263,6 +273,8 @@
       const contextNode = el.querySelector('.quota-tile-context')
 
       const secondaryNode = el.querySelector('.quota-tile-secondary')
+      const shortMeterNode = el.querySelector('.quota-tile-short-meter')
+      const shortFillNode = el.querySelector('.quota-tile-short-fill')
       const accountNode = el.querySelector('.quota-tile-account')
       const positionNode = el.querySelector('.quota-tile-position')
       let selectedKey = null
@@ -274,10 +286,37 @@
       const text = (node, value) => {
         if (node && node.textContent !== value) node.textContent = value
       }
+      // The short window owns its own meter. An unavailable one keeps no
+      // accessible reading and no filled width, like the primary meter.
+      const setShortMeter = (quota, label) => {
+        if (!shortMeterNode) return
+        const known = !!quota && isPercent(quota.remainingPct)
+        if (!known) {
+          shortMeterNode.removeAttribute('aria-valuenow')
+          shortMeterNode.removeAttribute('aria-valuetext')
+          shortMeterNode.removeAttribute('aria-label')
+          if (!shortMeterNode.hidden) shortMeterNode.hidden = true
+          if (shortFillNode && shortFillNode.style.width !== '0%') shortFillNode.style.width = '0%'
+          return
+        }
+        const reading = Math.round(quota.remainingPct)
+        const name = `${label} window`
+        if (shortMeterNode.hidden) shortMeterNode.hidden = false
+        if (shortMeterNode.getAttribute('aria-label') !== name) shortMeterNode.setAttribute('aria-label', name)
+        if (shortMeterNode.getAttribute('aria-valuenow') !== String(reading)) shortMeterNode.setAttribute('aria-valuenow', String(reading))
+        const spoken = `${reading}% remaining`
+        if (shortMeterNode.getAttribute('aria-valuetext') !== spoken) shortMeterNode.setAttribute('aria-valuetext', spoken)
+        if (shortFillNode) {
+          const width = `${reading}%`
+          if (shortFillNode.style.width !== width) shortFillNode.style.width = width
+          const low = quota.remainingPct < 25
+          if (shortFillNode.classList.contains('is-low') !== low) shortFillNode.classList.toggle('is-low', low)
+        }
+      }
       // A window that produced a finite percentage is the only thing this Widget
       // may draw as a meter. Every other reading states itself in words and hides
       // the meter, so an unavailable window is never presented as 0 or 100.
-      const showWindow = (state, window, percent, service) => {
+      const showWindow = (state, window, percent, service, shortQuota, shortLabel) => {
         text(headingNode, service)
         text(stateNode, state)
         text(valueNode, `${percent}%`)
@@ -297,6 +336,7 @@
           if (fillNode.classList.contains('is-low') !== low) fillNode.classList.toggle('is-low', low)
         }
         if (unknownNode && !unknownNode.hidden) unknownNode.hidden = true
+        setShortMeter(shortQuota, shortLabel)
       }
       const showWords = (state, value, context, service = 'AI usage') => {
         text(secondaryNode, '')
@@ -318,6 +358,7 @@
           if (fillNode.classList.contains('is-low')) fillNode.classList.toggle('is-low', false)
         }
         if (unknownNode && unknownNode.hidden) unknownNode.hidden = false
+        setShortMeter(null)
       }
 
       const render = (status = ctx.subscription.status()) => {
@@ -360,12 +401,12 @@
           const lowest = accountWindows[index]
           selectedKey = key(lowest.account)
           const percent = Math.round(lowest.remainingPct)
-          showWindow(lowest.remainingPct < 25 ? 'Low' : 'Available', lowest.label || 'Remaining quota', percent, PROVIDERS[lowest.account.provider] || 'AI usage')
           const secondary = windows.filter(quota => quota.account === lowest.account && windowKind(quota) === 'short')
             .reduce((min, quota) => !min || quota.remainingPct < min.remainingPct ? quota : min, null)
           const pro = lowest.account.provider === 'codex' && /\bpro\b/i.test(lowest.account.plan || '')
           const requiresBoth = !pro && ['codex', 'antigravity'].includes(lowest.account.provider)
-          const shortLabel = secondary?.label?.replace(/^(\d+(?:\.\d+)?)\s+hours? limit$/i, '$1h') || '5h'
+          const shortLabel = shortWindowLabel(secondary)
+          showWindow(lowest.remainingPct < 25 ? 'Low' : 'Available', lowest.label || 'Remaining quota', percent, PROVIDERS[lowest.account.provider] || 'AI usage', secondary, shortLabel)
           text(secondaryNode, requiresBoth ? `${shortLabel} · ${secondary ? formatPercent(secondary.remainingPct) + ' remaining' : 'Unavailable'}` : '')
           text(accountNode, lowest.account.account || 'Account identity unavailable')
           text(positionNode, accountWindows.length > 1 ? `${index + 1} / ${accountWindows.length}` : '')

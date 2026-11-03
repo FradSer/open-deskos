@@ -24,7 +24,7 @@ app.whenReady().then(async () => {
   await win.loadFile(fixture)
   await win.webContents.executeJavaScript(`
     window.state = { state: 'available', snapshot: { accounts: ['codex', 'antigravity', 'xai'].map((provider, index) => ({
-      provider, fileName: 'account-工作项目-' + 'long-name-'.repeat(8) + '.json', plan: 'Pro',
+      provider, fileName: 'account-工作项目-' + 'long-name-'.repeat(8) + '.json', plan: provider === 'codex' ? 'Plus' : 'Pro',
       resetCredits: { available: 2, expiresAt: ['2027-01-01T00:00:00Z'] },
       groups: Array.from({ length: index === 1 ? 4 : 1 }, (_, group) => ({ title: 'Model allowance ' + group, description: 'Shared across models', quotas: [0, 58].map((remainingPct, i) => ({ label: i ? 'Weekly limit 工作配额' : '5 hour limit', remainingPct, resetAt: '2027-01-01T00:00:00Z' })) }))
     })) } };

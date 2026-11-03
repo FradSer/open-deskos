@@ -23,6 +23,11 @@ This operation returns the configured provider response or rejects with its prov
 The response uses `state` and an optional `snapshot` containing `fetchedAt` and `accounts`.
 Each account can contain identity fields, groups, reset credits, and provider errors.
 The Quota IPC channel is `odk-opencode-go-status`.
+Normalized windows keep the provider's short or long horizon.
+Antigravity names its windows `5h` and `weekly`.
+A Codex Pro response has no 5h window.
+Codex Plus and Team responses keep their 5h and weekly windows.
+The reading projection drops horizons.
 
 The `ipc` capability supplies `handle(channel, handler)` and `removeHandler(channel)`.
 The Quota handler returns the source's `read()` result without changing provider fields.
