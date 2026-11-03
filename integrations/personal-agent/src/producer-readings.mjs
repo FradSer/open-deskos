@@ -80,7 +80,7 @@ export function projectHydraSnapshot(value, now = Date.now(), state = 'live') {
  */
 export function createHydraReadings({ read, now = Date.now } = {}) {
   const declaration = { id: HYDRA_PROJECTION_ID, label: 'Hydra plants', kind: 'service',
-    home: { mode: 'optional', priority: 0, icon: 'plants', fields: ['snapshot'] } }
+    home: { mode: 'hidden', priority: 0, icon: 'plants', fields: ['snapshot'] } }
   return {
     list: () => [structuredClone(declaration)],
     async read(id) {

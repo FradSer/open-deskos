@@ -174,6 +174,7 @@ test('Hydra projection maps the current desk reading for a display host', async 
   const declarations = provider.list()
   assert.equal(declarations.length, 1)
   assert.equal(declarations[0].id, HYDRA_PROJECTION_ID)
+  assert.equal(declarations[0].home.mode, 'hidden', 'the projection must not become a second Overview source')
   const reading = await provider.read(HYDRA_PROJECTION_ID)
   assert.equal(reading.state, 'live')
   const shown = reading.value.snapshot
