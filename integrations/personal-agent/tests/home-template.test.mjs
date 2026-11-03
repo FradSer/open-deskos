@@ -1035,3 +1035,15 @@ test('a quota fact states its allowance once without repeating window labels or 
   assert.ok(!facts.some(fact => /\.(?:provider|account|plan|email)$/.test(fact.factId)), 'identity metadata is not a desk fact')
   assert.equal(facts.find(fact => fact.factId.endsWith('.label')).displayable, false)
 })
+
+test('a greenhouse percentage states its unit once', () => {
+  const readings = [{
+    id: 'odk.tile.hydra', label: 'Hydra plants', kind: 'tile', state: 'live',
+    value: { greenhouse: { humidityPercent: 66.3 } },
+    home: { mode: 'optional', priority: 0, icon: 'plants', fields: ['greenhouse'] },
+  }]
+  const facts = homeFactVariables(readings)
+  const index = facts.findIndex(fact => fact.factId.endsWith('humidityPercent'))
+  const text = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [index] }] }, facts), readings).items[0].text
+  assert.equal(text, 'Hydra plants humidity: 66.3%.')
+})

@@ -396,12 +396,15 @@ export function homeFactVariables(readings, now = Date.now()) {
       const piState = piSession && variable.references.find(ref => ref === `{{${source.id}|${parentPath}.state|piSessionState}}`)
       const agentState = field === 'goal' && !parentPath && /^odk\.agent\./.test(source.id)
         && typeof source.value?.state === 'string' && source.value.state ? refFor('state') : undefined
+      const format = [...reference.matchAll(REFERENCE)][0]?.[3]
+      const displayLabel = format === 'percent' || format === 'signedPercent'
+        ? fieldLabel(field).replace(/\s*percent$/i, '') : fieldLabel(field)
       const statement = field === 'report' ? `reported: ${reference}`
         : field === 'remainingPercent' ? `${reference} remaining`
         : field === 'soilPercent' ? `${soilStatus ? `${soilStatus} at ` : ''}${reference}`
           : field === 'state' && piSession && piState ? piState
             : ['state', 'status', 'activity'].includes(field) ? reference
-              : field === 'goal' && (piState || agentState) ? `${piState || agentState}${agentState ? evidence : ''} goal: ${reference}` : `${fieldLabel(field)}: ${reference}`
+              : field === 'goal' && (piState || agentState) ? `${piState || agentState}${agentState ? evidence : ''} goal: ${reference}` : `${displayLabel}: ${reference}`
       const prefix = context || field === 'soilPercent' && icon === 'plants' ? '' : `${label} `
       add(path, `${prefix}${context}${statement}${agentState ? '' : evidence}`, homeAttention(path, value, parent, now), value)
     }
