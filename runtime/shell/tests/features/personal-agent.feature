@@ -41,9 +41,19 @@ Feature: Independent resident Personal Agent
     Then each inner radius equals its container radius minus the padding between them
     And a chip inside the card matches the inset radius
     And a field control matches its inset panel
-    And a control keeps one independent radius smaller than the card
+    And a control shares the inset radius with nearby chips and inset panels
     And no Agent surface falls back to an unrelated fixed or pill radius
     And the Pixel theme collapses every level of that scale to zero
+
+  Scenario: Every nested surface is concentric and shares one spacing rhythm
+    Given a recommendation message shows a preview card, chips and controls
+    When the owner inspects the bubble, card, chips and nearby buttons across themes and compact sizes
+    Then the card padding equals the card radius token on all four sides
+    And sibling surfaces at the same nesting level share one radius
+    And chips and inset panels share the inset radius
+    And block gaps, inline gaps and chip gaps come from one named spacing scale
+    And text line height is uniform across the advice, card summary and chips
+    And no surface overflows the bubble or clips its text
 
   Scenario: One message bubble uses one reading size for its text and card
     Given a recommendation message shows advice above a generic preview card

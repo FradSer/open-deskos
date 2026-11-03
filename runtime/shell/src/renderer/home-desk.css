@@ -46,7 +46,13 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   --agent-radius-card: max(0px, calc(var(--agent-radius-surface) - var(--agent-pad-surface)));
   --agent-radius-inset: max(0px, calc(var(--agent-radius-card) - var(--agent-pad-card)));
   --agent-radius-chip: var(--agent-radius-inset);
-  --agent-radius-control: max(0px, calc(var(--agent-radius-card) - 8px));
+  --agent-radius-control: var(--agent-radius-inset);
+  /* One spacing rhythm for nested content. Blocks, inline chips and chip internals
+     step down together, so text never crowds a rounded corner. */
+  --agent-gap-block: 10px;
+  --agent-gap-inline: 8px;
+  --agent-gap-chip: 6px;
+  --agent-line-body: 1.5;
   /* Three text sizes only, named like --odk-text-*: reading, in-card, label. */
   --agent-text-heading: clamp(20px, calc(18px + 0.65cqw), 24px);
   --agent-text-body: 17px;
