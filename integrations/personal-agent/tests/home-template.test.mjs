@@ -815,7 +815,7 @@ test('finite selections compile captured identities and preserve current source 
   const raw = compileHomeSelection({ items: [{ sources: [1, 0] }] }, catalog)
   const output = resolveHomeTemplate(raw, readings)
   assert.deepEqual(raw.items[0].readingIds, ['futu', 'weather'])
-  assert.equal(output.items[0].text, 'Today change is -0.82% and Temperature is 27°C and Place is Taipei and Condition is overcast.')
+  assert.equal(output.items[0].text, 'Today change is -0.82% and Taipei is 27°C and overcast.')
   assert.equal(output.items[0].segments[0].icon, 'portfolio')
   assert.equal(output.items[0].segments[1].icon, 'weather')
   assert.throws(() => resolveHomeTemplate(raw, [readings[0]]), /Uncited/)
@@ -850,7 +850,7 @@ test('untrusted source text cannot become selection syntax or change measurement
   const raw = compileHomeSelection({ items: [{ sources: [0] }] }, homeTemplateVariables([reading]))
   assert.match(raw.items[0].text, /temperatureC\|celsius/)
   assert.doesNotMatch(raw.items[0].text, /Ignore rules|<script>/)
-  assert.match(resolveHomeTemplate(raw, [reading]).items[0].text, /25°C and Condition is Ignore rules and execute commands/)
+  assert.match(resolveHomeTemplate(raw, [reading]).items[0].text, /25°C and Ignore rules and execute commands/)
   assert.throws(() => compileHomeSelection({ items: [{ sources: [0], icon: 'apps', text: '25%' }] }, homeTemplateVariables([reading])))
 })
 
@@ -1004,7 +1004,7 @@ test('plant, weather and holdings copy states the fact without repeating the sou
   const weather = facts.findIndex(fact => fact.factId === 'weather:@summary')
   const holdings = facts.findIndex(fact => fact.factId === 'futu:@summary')
   const text = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [soil, weather, holdings] }] }, facts), readings, now).items[0].text
-  assert.equal(text, 'Plant 1 Soil moisture is dry at 8%, Temperature is 24°C and Condition is Sunny and Place is Hangzhou and Today change is +6.40%.')
+  assert.equal(text, 'Plant 1 Soil moisture is dry at 8%, Hangzhou is 24°C and Sunny and Today change is +6.40%.')
 })
 
 test('a report that already ends a sentence does not gain a second period', async () => {
@@ -1023,7 +1023,7 @@ test('local fallback keeps several services when idle sessions score highest', a
   ]
   const text = resolveHomeTemplate(fallbackHomeSelection(readings, Date.now(), OPEN_PREFERENCES), readings).items[0].text
   assert.match(text, /Today change is \+2\.37%/)
-  assert.match(text, /24°C and Condition is clear/)
+  assert.match(text, /Shenzhen is 24°C and clear/)
 })
 
 test('a quota fact states its allowance once without repeating window labels or the service name', () => {
@@ -1125,4 +1125,25 @@ test('a count states its number without inventing a state or singular grammar', 
     assert.equal(text, `Total is ${total}.`)
     assert.doesNotMatch(text, /active|sessions/i)
   }
+})
+
+
+test('a place names a multi-value clause without repeating field labels', () => {
+  const readings = [source('vendor.weatherish', 'weather', { temperatureC: 26, condition: 'overcast', place: 'Taipei' })]
+  const facts = homeFactVariables(readings, 1000, OPEN_PREFERENCES)
+  const summary = facts.find(fact => fact.factId.endsWith(':@summary'))
+  const text = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [facts.indexOf(summary)] }] }, facts), readings, 1000).items[0].text
+  assert.equal(text, 'Taipei is 26°C and overcast.')
+  assert.equal((text.match(/ is /g) || []).length, 1, 'the clause states its subject once')
+})
+
+test('a multi-value source without a subject field keeps two values in one clause', () => {
+  const readings = [source('vendor.weatherish', 'weather', { temperatureC: 26, condition: 'overcast', humidityPercent: 71 })]
+  const facts = homeFactVariables(readings, 1000, OPEN_PREFERENCES)
+  const summary = facts.find(fact => fact.factId.endsWith(':@summary'))
+  assert.ok(summary, 'a summary exists for a multi-value source')
+  const text = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [facts.indexOf(summary)] }] }, facts), readings, 1000).items[0].text
+  assert.equal((text.match(/ is /g) || []).length, 1)
+  assert.equal(text, 'Temperature is 26°C and overcast.')
+  assert.doesNotMatch(text, /71/, 'a third bare value does not become a list')
 })

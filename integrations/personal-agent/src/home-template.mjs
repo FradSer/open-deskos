@@ -21,6 +21,9 @@ function overviewJoiner(index, total) {
 }
 
 /** Field meaning, not source identity, names the subject of a clause. */
+// A value that names the subject of a clause. This is field meaning, not a
+// source identity: any service declaring a place, location or name can use it.
+const SUBJECT_FIELDS = new Set(['place', 'location', 'city', 'region', 'name', 'title'])
 const FIELD_LABELS = new Map(Object.entries({
   soilPercent: 'Soil moisture', temperatureC: 'Temperature', humidityPercent: 'Humidity',
   remainingPercent: 'Remaining percentage', todayChangePercent: 'Today change',
@@ -318,10 +321,17 @@ export function homeTemplateVariables(readings, now = Date.now()) {
         return match && !match[2].startsWith('@') && ['text', 'number', 'integer', 'celsius', 'percent', 'signedPercent'].includes(match[3])
       }).slice(0, 3)
       if (valueRefs.length) {
-        example = valueRefs.map(ref => {
-          const match = [...ref.matchAll(REFERENCE)][0]
-          return `${subjectLabel(match[2].split('.').at(-1))} is ${ref}`
-        }).join(' and ')
+        const fieldOf = ref => [...ref.matchAll(REFERENCE)][0]?.[2].split('.').at(-1)
+        const subjectIndex = valueRefs.findIndex(ref => SUBJECT_FIELDS.has(fieldOf(ref)))
+        if (subjectIndex >= 0 && valueRefs.length > 1) {
+          const complements = valueRefs.filter((_ref, index) => index !== subjectIndex)
+          example = `${valueRefs[subjectIndex]} is ${complements.join(' and ')}`
+        } else {
+          // Without a subject field, keep the first two values. Three bare
+          // numbers in a row read as a list, not as a clause.
+          const kept = valueRefs.slice(0, 2)
+          example = `${subjectLabel(fieldOf(kept[0]))} is ${kept.join(' and ')}`
+        }
       } else example = `${label} is ${firstValue}`
     }
     return { id: source.id, serviceId: serviceIdentity(source), icon: source.home?.icon, references: refs, example }
