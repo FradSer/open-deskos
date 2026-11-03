@@ -24,6 +24,8 @@ Each state object is frozen and excludes other event fields.
 `snapshot()` returns the current read-only state.
 Subscription immediately supplies that state and returns cleanup.
 Only `connected: true` displays the indicator.
+The State Bar owns one gamepad glyph.
+Other status surfaces must not reuse `device-gamepad-2`.
 Only `readable: true` uses readable emphasis and the readable connected label.
 Other connected gamepads use the existing cannot-read label.
 Absent state hides the indicator and retains previous attributes.
@@ -51,6 +53,8 @@ Static markup, artwork, styles, connection wording, and the public state service
 
 The [Node checks](../tests/input-status-surface-lifecycle.test.js) use the actual registry and Host with controlled callbacks.
 The [browser checks](../tests/input-status-surface-electron.test.js) load development links and signed revisions through actual preload and the public Renderer controller.
+They assert no visible gamepad glyph without a pad and one with a connected pad.
+The [State Bar checks](../tests/status-bar-style.cjs) retain the service glyph for Remote Control across themes and sizes.
 Resource observations start before the first actual status acquisition.
 Controlled browser online events pass through the actual connection service.
 Controlled gamepad lists pass through the actual Shell gamepad poller.

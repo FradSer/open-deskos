@@ -394,8 +394,9 @@ Feature: Personal Agent home briefing
   Scenario: State Bar distinguishes missing evidence
     Given a peripheral source has not reported its state
     When the State Bar renders
-    Then it shows Unknown rather than Disconnected
-    And unavailable and disconnected sources have distinct text
+    Then its accessible state says Unknown rather than Disconnected
+    And unavailable and disconnected sources have distinct accessible text
+    And status icons show no corner badges
     And network reachability does not claim a confirmed Wi-Fi connection
 
   Scenario: A streaming turn survives transport recovery
