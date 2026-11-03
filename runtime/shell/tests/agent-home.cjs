@@ -153,12 +153,14 @@ async function assertAllSourceOverview() {
       assert.match(plantRender.text, /Plant 1 OK at 54\.6%/, theme)
       assert.equal(plantRender.overflow, false, theme)
       if (theme === 'instrument') {
-        await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: [{ text: 'API quota Main 6% remaining, Spare account 88% remaining, Plant 1 dry at 8%, Plant 2 OK at 54%, Greenhouse humidity percent: 71%, +1.20% today.',
+        await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: [{ text: 'API quota Main 6% remaining, Spare account 88% remaining, Plant 1 dry at 8%, Plant 2 OK at 54%, Plant 3 wet at 85%, Plant 4 low at 25%, Greenhouse humidity percent: 71%, Greenhouse humidity percent: 50%, +1.20% today.',
           segments: [
             { text: 'API quota Main 6% remaining, Spare account 88% remaining', icon: 'quota' },
             { text: 'Plant 1 dry at 8%', icon: 'plants' },
             { text: 'Plant 2 OK at 54%', icon: 'plants' },
-            { text: 'Greenhouse humidity percent: 71%', icon: 'plants' },
+            { text: 'Plant 3 wet at 85%', icon: 'plants' },
+            { text: 'Plant 4 low at 25%', icon: 'plants' },
+            { text: 'Greenhouse humidity percent: 71%, Greenhouse humidity percent: 50%', icon: 'plants' },
             { text: '+1.20% today', icon: 'portfolio' },
           ], sources: [{ id: 'quota', label: 'Quota', state: 'live' }, { id: 'hydra', label: 'Hydra', state: 'live' }, { id: 'futu', label: 'Futu', state: 'live' }] }] })
         const severity = await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');return {
@@ -166,18 +168,47 @@ async function assertAllSourceOverview() {
           soilDryValue: n.querySelector('.dash-soil-value[data-status="dry"]')?.textContent,
           soilOk: n.querySelector('.dash-soil[data-status="ok"]')?.textContent,
           soilOkValue: n.querySelector('.dash-soil-value[data-status="ok"]')?.textContent,
+          soilWet: n.querySelector('.dash-soil[data-status="wet"]')?.textContent,
           remainingLow: n.querySelector('.dash-remaining[data-level="low"]')?.textContent,
           remainingOk: n.querySelector('.dash-remaining[data-level="ok"]')?.textContent,
           humidityHigh: n.querySelector('.dash-humidity[data-level="high"]')?.textContent,
+          humidityOk: n.querySelector('.dash-humidity[data-level="ok"]')?.textContent,
           change: n.querySelector('.dash-change[data-direction="up"]')?.textContent }})()`)
         assert.equal(severity.soilDry, 'dry', theme)
         assert.equal(severity.soilDryValue, '8%', theme)
         assert.equal(severity.soilOk, 'OK', theme)
         assert.equal(severity.soilOkValue, '54%', theme)
+        assert.equal(severity.soilWet, 'wet', theme)
         assert.equal(severity.remainingLow, '6%', theme)
         assert.equal(severity.remainingOk, '88%', theme)
         assert.equal(severity.humidityHigh, '71%', theme)
+        assert.equal(severity.humidityOk, '50%', theme)
         assert.equal(severity.change, '+1.20%', theme)
+        const colors = await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');
+          const wet=n.querySelector('.dash-soil[data-status="wet"]'), okSoil=n.querySelector('.dash-soil[data-status="ok"]');
+          const high=n.querySelector('.dash-humidity[data-level="high"]'), okHumidity=n.querySelector('.dash-humidity[data-level="ok"]');
+          return {wet:getComputedStyle(wet).color, okSoil:getComputedStyle(okSoil).color,
+            high:getComputedStyle(high).color, okHumidity:getComputedStyle(okHumidity).color}})()`)
+        assert.equal(colors.wet, colors.okSoil, 'wet soil must not use a separate blue')
+        assert.equal(colors.high, colors.okHumidity, 'high humidity must not use a separate blue')
+        const tokens = await evaluate(`(()=>{const doc=document;
+          const probe=name=>{const s=doc.createElement('span');s.style.color='var(--odk-status-'+name+')';doc.body.append(s);const c=getComputedStyle(s).color;s.remove();return c};
+          const n=doc.querySelector('#dash-narrative');
+          return {critical:probe('critical'), warning:probe('warning'), healthy:probe('healthy'), info:probe('info'),
+            dry:getComputedStyle(n.querySelector('.dash-soil[data-status="dry"]')).color,
+            low:getComputedStyle(n.querySelector('.dash-soil[data-status="low"]')).color,
+            ok:getComputedStyle(n.querySelector('.dash-soil[data-status="ok"]')).color,
+            wet:getComputedStyle(n.querySelector('.dash-soil[data-status="wet"]')).color,
+            high:getComputedStyle(n.querySelector('.dash-humidity[data-level="high"]')).color}})()`)
+        assert.notEqual(tokens.critical, tokens.healthy, 'a critical status token must exist')
+        assert.notEqual(tokens.warning, tokens.healthy, 'a warning status token must exist')
+        assert.notEqual(tokens.info, tokens.healthy, 'an info status token must exist')
+        assert.equal(tokens.dry, tokens.critical, 'dry resolves from the critical token')
+        assert.equal(tokens.low, tokens.warning, 'low resolves from the warning token')
+        assert.equal(tokens.ok, tokens.healthy, 'OK resolves from the healthy token')
+        assert.equal(tokens.wet, tokens.healthy, 'wet stays on the healthy token')
+        assert.equal(tokens.high, tokens.healthy, 'high humidity stays on the healthy token')
+        assert.notEqual(tokens.wet, tokens.info, 'Overview does not apply the blue token')
         assert.equal(await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');return n.scrollWidth>n.clientWidth+1})()`), false)
       }
     }

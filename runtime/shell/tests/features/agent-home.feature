@@ -103,7 +103,8 @@ Feature: Personal Agent home briefing
     And the leading icon still identifies each service
     And the moisture status word and its percentage carry the firmware severity colour
     And every remaining percentage carries a severity colour: critical red, low amber, healthy green
-    And greenhouse humidity carries its band colour
+    And greenhouse humidity carries a severity colour without blue
+    And each severity colour resolves from a shared status token
 
   Scenario: Overview limits private data sent for model selection
     Given Overview receives private facts from visible sources
