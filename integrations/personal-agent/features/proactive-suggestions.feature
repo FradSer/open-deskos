@@ -152,6 +152,22 @@ Feature: Owner controlled proactive Personal Agent proposals
     And equal values for distinct facts remain valid when each part adds information
     And the host applies usefulness and factual support, not a style score
 
+  Scenario: Advice reports only what the observations state
+    Given a topic reports measured values and their difference
+    When the generator writes advice
+    Then the advice states the measured change without adding a consequence, risk, likelihood or outcome that no observation states
+    And the advice does not add a second clause that restates the first
+    And a plain factual sentence remains valid
+
+  Scenario: Advice reads as one natural sentence without repeating the action
+    Given a topic supplies an approved action with a visible label
+    When the generator writes advice for that topic
+    Then the advice states what changed in short natural language
+    And the advice does not restate the action label or tell the owner to use the control
+    And the advice uses no report-style phrasing such as a noun plus 为 plus a figure
+    And preview labels read as plain noun phrases without bracketed units
+    And a draft that restates the action label fails validation
+
   Scenario: Batch judgments do not dilute one another
     Given one round supplies several distinct candidates
     When the judgment service evaluates the batch
@@ -164,6 +180,35 @@ Feature: Owner controlled proactive Personal Agent proposals
     When the round finishes
     Then the host still qualifies every returned candidate through its own judgment
     And only host-qualified candidates publish
+
+  Scenario: Factual qualification separates support from fabrication
+    Given a candidate states one supported relationship and adds no invented fact
+    When the judgment service qualifies it
+    Then a low probability that every assertion is supported does not veto it alone
+    And an identifiable invented or recomputed fact still vetoes it
+    And the effective factual score records both judgments
+
+  Scenario: Every approved observation supports the generated claim
+    Given a topic supplies several owner-selected observation fields
+    When the generator cites only some of them
+    Then the host binds the full approved observation set to that candidate
+    And the model-selected subset cannot leave a stated claim unsupported
+    And the candidate still cites only observations belonging to its own topic
+
+  Scenario: A generation timeout does not fan out into isolated retries
+    Given one round supplies several topics
+    When the generation session exhausts its time budget
+    Then the host reports that round as unavailable without generating again
+    And a transport timeout is not treated as one malformed topic
+    And a later round can still generate for the same topics
+
+  Scenario: In-process judgments do not make the Agent drop drafts
+    Given the generation session can judge its own drafts
+    When it submits drafts through the judgment tool
+    Then one call can carry every draft in the round
+    And the tool description does not tell the Agent to drop weak drafts
+    And the instructions ask for one suggestion for each topic with a current need
+    And the host remains the only qualification gate
 
   Scenario: Generic generation preserves source and lifecycle boundaries
     Given a generated batch is in flight

@@ -150,12 +150,41 @@ test('the generator instructions teach the preview shape', () => {
   assert.match(generationInstructions, /Prefer a difference that the observations already measure/)
   assert.match(generationInstructions, /The advice and the preview must complement each other/)
   assert.match(generationInstructions, /equal values for genuinely different facts are valid/)
-  assert.match(generationInstructions, /proactive_judge returns typed judgments/)
+  assert.match(generationInstructions, /Use proactive_judge at most once/i)
   assert.doesNotMatch(generationInstructions, /complementarityProbability/)
-  assert.match(generationInstructions, /The host independently re-judges every returned candidate/)
+  assert.match(generationInstructions, /host independently judges every returned candidate/i)
   assert.match(generationInstructions, /"warn"/)
   assert.match(generationInstructions, /"good"/)
   assert.match(generationInstructions, /neutral/)
+})
+
+test('advice reads as natural content and never repeats the action label', () => {
+  const desktopAction = { id: action.id, label: '打开计划' }
+  const topics = [{ id: 'commute-anomaly', actions: [desktopAction], evidence: [{ id: 'e0', readingId: 'r', field: 'minutes', value: 52, state: 'live', measuredAt: stamp }] }]
+  const base = { topicId: 'commute-anomaly', key: 'primary', actionId: action.id, evidenceIds: ['e0'] }
+  // Natural: states what changed, leaves the action to the button.
+  assert.doesNotThrow(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤比平时慢了不少。' }] }, topics, 8))
+  // The action label is already the button text; repeating it in advice is redundant.
+  assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤变慢了，请打开计划。' }] }, topics, 8), /action label/i)
+  // The instructions must not ask the model to write the action into advice,
+  // and must ask for spoken language and plain labels instead of report copy.
+  assert.doesNotMatch(generationInstructions, /stating the meaning and the action/)
+  assert.match(generationInstructions, /do not (?:restate|repeat) the action label/i)
+  assert.match(generationInstructions, /plain spoken language/)
+  assert.match(generationInstructions, /without bracketed units/)
+})
+
+test('generation instructions forbid consequences the observations do not state', () => {
+  assert.match(generationInstructions, /Do not add a consequence, risk, likelihood, outcome/i)
+  assert.match(generationInstructions, /State only the observed change/i)
+  assert.match(generationInstructions, /second clause that restates the same fact/i)
+})
+
+test('generation instructions keep every topic and forbid in-process shortlisting', () => {
+  assert.match(generationInstructions, /return one suggestion for each topic/i)
+  assert.match(generationInstructions, /Do not pick a single best topic or drop a topic/i)
+  assert.match(generationInstructions, /Use proactive_judge at most once/i)
+  assert.doesNotMatch(generationInstructions, /revise or drop weak ones/i)
 })
 
 test('the validator accepts each paradigm preview and rejects a fabricated shape', () => {

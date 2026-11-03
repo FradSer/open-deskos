@@ -47,6 +47,14 @@ test('reads stay within the bounded budget', async () => {
   assert.equal(calls.read.length, 8)
 })
 
+test('the judgment tool asks for one batch and never invites draft dropping', () => {
+  const { investigation } = fixture()
+  const description = investigation.tools.find(tool => tool.name === 'proactive_judge').description
+  assert.match(description, /all drafts.*in one call/i)
+  assert.match(description, /never drop a topic/i)
+  assert.doesNotMatch(description, /complementarityProbability/i)
+})
+
 test('a draft judgment maps the exact draft with its topic evidence and goal', async () => {
   const { investigation, calls } = fixture({ judge: async ({ candidates }) => ({ model: 'jev-fixture',
     answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.9, groundingProbability: 0.85, threshold: 0.8 }])) }) })

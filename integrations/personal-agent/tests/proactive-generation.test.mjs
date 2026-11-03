@@ -90,7 +90,8 @@ test('generated Jev requests independently batch grounding and current usefulnes
   } })
   const result = await judge({ candidates: [{ id: 'c0', generated: true, advice: '未被证据支持的建议', evidence: [], goal: '领取物品' }], trigger: { kind: 'heartbeat', readingIds: [] }, context: {}, recent: [] })
   assert.equal(Object.keys(body.questions).length, 3)
-  assert.equal(result.answers.c0.groundingProbability, 0.12)
+  assert.equal(result.answers.c0.supportProbability, 0.12)
+  assert.equal(result.answers.c0.groundingProbability, 0.99)
   assert.ok(!JSON.stringify(body.questions).includes('soil'))
   assert.match(JSON.parse(body.questions.c0.instructions).policy, /For a generated candidate.*nextStep.*concrete, feasible owner action/)
   assert.doesNotMatch(JSON.stringify(body.questions), /_complementary|complement/)
@@ -150,6 +151,14 @@ test('changed observations can notify again after an acknowledged suggestion exp
   await f.watch.close()
 })
 
+test('a generation timeout does not fan out into isolated topic retries', async () => {
+  let calls = 0
+  const f = fixture({ generate: async () => { calls++; throw Object.assign(Error('Suggestion generation timed out'), { code: 'generation_timeout' }) } })
+  await f.watch.tick()
+  assert.equal(calls, 1, 'a timed-out round must not generate four more times')
+  assert.match(f.frames.at(-1).error, /unavailable|失败|暂不可用/i)
+})
+
 test('a topic the round does not judge cannot hold an earlier judgment failure', async () => {
   const c = config()
   c.rules.push({ ...c.rules[0], id: 'other', goal: '关注另一个服务', observations: [{ readingId: 'other.source', fields: ['count'] }] })
@@ -191,11 +200,28 @@ test('judgment audit records cannot export generated key contents', async () => 
   assert.equal(JSON.stringify(audit).includes('owner-alice'), false)
 })
 
+test('a candidate carries every approved observation for its topic', async () => {
+  let input
+  const f = fixture({ judge: async value => { input = value; return { model: 'jev-fixture', answers: Object.fromEntries(value.candidates.map(c => [c.id, { probability: 0.95, groundingProbability: 0.95, threshold: 0.8 }])) } } })
+  await f.watch.tick()
+  const topic = f.requests[0].topics[0]
+  const candidate = input.candidates[0]
+  assert.equal(candidate.evidence.length, topic.evidence.length, 'subset citations must not leave claims unsupported')
+  for (const observation of topic.evidence) assert.ok(candidate.evidence.some(e => e.id === observation.id))
+})
+
 test('Jev receives host observation IDs so generated citations remain resolvable', async () => {
   let input
   const f = fixture({ judge: async value => { input = value; return { model: 'jev-fixture', answers: Object.fromEntries(value.candidates.map(c => [c.id, { probability: 0.95, groundingProbability: 0.95, threshold: 0.8 }])) } } })
   await f.watch.tick()
   for (const c of input.candidates) for (const id of c.evidenceIds) assert.ok(c.evidence.some(e => e.id === id))
+})
+
+test('a conservative all-assertions score cannot veto a claim with no fabrication', async () => {
+  const f = fixture({ judge: async ({ candidates }) => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id,
+    { probability: 0.9, groundingProbability: 0.95, supportProbability: 0.65, unsupportedProbability: 0.05, threshold: 0.8 }])) }) })
+  await f.watch.tick()
+  assert.equal(f.watch.list().filter(p => p.status === 'pending').length, 3, 'supported content publishes despite a conservative conjunction')
 })
 
 test('independent unsupported-assertion veto overrides a falsely high grounding score', async () => {
@@ -340,7 +366,7 @@ test('a batch judgment with several candidates is not split into solo judgments'
 
 test('generation and correction lead with concise advice while retaining stored compatibility', () => {
   for (const instructions of [generationInstructions, generatedFormatCorrection(new SyntaxError())]) {
-    assert.match(instructions, /one short sentence/)
+    assert.match(instructions, /one short, natural sentence/)
     assert.match(instructions, /The advice and the preview must complement each other/)
     assert.match(instructions, /cited observation/)
   }
