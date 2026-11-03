@@ -26,7 +26,7 @@ import { createPersonalTools } from './personal-tools.mjs'
 import { createProposalTools } from './proactive-tools.mjs'
 import { createJevIntentRouter, createIntentTurn, guardIntentTools, intentToolNames, proposalConfirmations, isExtensionTool } from './intent-routing.mjs'
 import { normalizeCapabilityDeclarations, createReviewedCapabilities, childCapabilityDeclarations } from './reviewed-capabilities.mjs'
-import { generationInstructions, validateGeneratedBatch, generatedFormatCorrection } from './proactive-generation.mjs'
+import { generationInstructions, validateGeneratedBatch, generatedFormatCorrection, modelInput } from './proactive-generation.mjs'
 import { createJevJudge } from './proactive-jev.mjs'
 import { createProactiveInvestigationTools } from './proactive-investigation.mjs'
 import { createAgentPluginRuntime, pluginWorkKind } from './agent-plugins/runtime.mjs'
@@ -483,6 +483,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         return generateWithinDeadline({
         signal, timeoutMs: (config.env ?? process.env).ODK_PROACTIVE_GENERATION_TIMEOUT_MS,
         formatCorrection: generatedFormatCorrection,
+        serialize: request => JSON.stringify(modelInput(request)),
         validate: raw => { validateGeneratedBatch(raw, input.topics, input.maxCandidates) },
         create: async () => {
           const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,

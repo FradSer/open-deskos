@@ -166,6 +166,22 @@ Feature: Owner controlled proactive Personal Agent proposals
     And any summary is one short plain phrase, not a report heading or a restatement of advice
     And each item label is a short plain noun phrase without redundant qualifiers
 
+  Scenario: Generation context carries each fact once
+    Given the host prepares a generation round for several topics
+    When it builds the model prompt and input
+    Then the output contract is declared once and reused by the format correction
+    And the model input omits host-only bookkeeping fields
+    And repeated observation metadata is declared once per topic
+    And the safety boundary remains in force exactly once
+    And the generated output still validates against the same contract
+
+  Scenario: A preview carries only the readings behind the advice
+    Given a topic exposes more observations than the advice needs
+    When the generator builds the preview
+    Then preview.items contains at most three pairs that support the stated change
+    And unrelated readings, technical identifiers and diagnostics stay out of the preview
+    And a preview with a fourth pair is rejected before judgment
+
   Scenario: Advice reads as one natural sentence without repeating the action
     Given a topic supplies an approved action with a visible label
     When the generator writes advice for that topic

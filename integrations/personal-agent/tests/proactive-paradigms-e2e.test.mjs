@@ -62,8 +62,7 @@ const paradigm = {
     items: [
       { label: '预计耗时', value: '52 分钟', tone: 'warn' },
       { label: '基准耗时', value: '24 分钟' },
-      { label: '中雨到达', value: '18:15' },
-      { label: '降水概率', value: '80%' }
+      { label: '多出的时间', value: '28 分钟', tone: 'warn' }
     ]
   },
   'commitment-guard': {
@@ -80,8 +79,7 @@ const paradigm = {
     items: [
       { label: '现在出发', value: '32 元', tone: 'warn' },
       { label: '等 40 分钟', value: '58 元' },
-      { label: '现在延误', value: '28 分钟' },
-      { label: '之后延误', value: '9 分钟' }
+      { label: '现在延误', value: '28 分钟' }
     ]
   },
   'release-pipeline': {
@@ -145,7 +143,7 @@ const deterministic = () => createJevJudge({
 
 test('the generator instructions teach the preview shape', () => {
   assert.match(generationInstructions, /preview object/)
-  assert.match(generationInstructions, /preview\.items is 1-6/)
+  assert.match(generationInstructions, /preview\.items is 1-3/)
   assert.match(generationInstructions, /Every value is copied from a cited observation/)
   assert.match(generationInstructions, /Prefer a difference that the observations already measure/)
   assert.match(generationInstructions, /The advice and the preview must complement each other/)
@@ -172,6 +170,18 @@ test('advice reads as natural content and never repeats the action label', () =>
   assert.match(generationInstructions, /do not (?:restate|repeat) the action label/i)
   assert.match(generationInstructions, /plain spoken language/)
   assert.match(generationInstructions, /without bracketed units/)
+})
+
+test('the preview contract carries only the readings behind the advice', () => {
+  assert.match(generationInstructions, /at most three/i)
+  assert.match(generationInstructions, /Do not list every observation/i)
+  assert.match(generationInstructions, /1-3 \{label,value,tone\}/)
+  const topics = [{ id: 't', actions: [{ id: 'a', label: 'Open' }], evidence: [{ id: 'e0', readingId: 'r', field: 'x', value: 1 }] }]
+  const base = { topicId: 't', key: 'k', advice: '路线比平时慢。', actionId: 'a', evidenceIds: ['e0'] }
+  const four = { items: [1, 2, 3, 4].map(n => ({ label: `读数${n}`, value: String(n) })) }
+  assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, preview: four }] }, topics, 8), /preview/i)
+  const three = { items: four.items.slice(0, 3) }
+  assert.equal(validateGeneratedBatch({ suggestions: [{ ...base, preview: three }] }, topics, 8).length, 1)
 })
 
 test('preview instructions drop report headings and redundant labels', () => {
@@ -201,6 +211,7 @@ test('the validator accepts each paradigm preview and rejects a fabricated shape
   assert.deepEqual(ok[0].preview.items[0], { label: '预计耗时', value: '52 分钟', tone: 'warn' })
   for (const preview of [
     { items: [] },
+    { items: [1, 2, 3, 4].map(n => ({ label: `读数${n}`, value: String(n) })) },
     { items: Array.from({ length: 7 }, () => ({ label: 'a', value: 'b' })) },
     { items: [{ label: 'a', value: 'b', tone: 'alarm' }] },
     { items: [{ label: '', value: 'b' }] },

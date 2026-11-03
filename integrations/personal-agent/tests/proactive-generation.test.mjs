@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ProactiveWatch, validateOwnerConfig } from '../src/proactive.mjs'
 import { generationKey, timeWindow } from '../src/proactive-lifecycle.mjs'
-import { generationInstructions, validateGeneratedBatch, generatedFormatCorrection } from '../src/proactive-generation.mjs'
+import { generationInstructions, validateGeneratedBatch, generatedFormatCorrection, modelInput } from '../src/proactive-generation.mjs'
 
 const stamp = '2026-10-02T10:00:00.000Z'
 const approved = { id: 'inspect', label: 'Inspect the pending item.', tool: 'memory_update', params: { category: 'note', value: 'Inspect pending item' } }
@@ -364,8 +364,49 @@ test('a batch judgment with several candidates is not split into solo judgments'
   assert.deepEqual(calls.judge, [3], 'the whole batch is judged in one request')
 })
 
-test('generation and correction lead with concise advice while retaining stored compatibility', () => {
-  for (const instructions of [generationInstructions, generatedFormatCorrection(new SyntaxError())]) {
+test('the format correction reuses the contract instead of repeating it', () => {
+  const correction = generatedFormatCorrection(new SyntaxError('bad json'))
+  // The system prompt already carries the full contract. A retry only needs the
+  // failure, the schema skeleton and the two examples.
+  assert.ok(correction.length < 900, `correction is ${correction.length} chars; the contract must not be repeated`)
+  assert.doesNotMatch(correction, /one short, natural sentence/)
+  assert.doesNotMatch(correction, /The advice and the preview must complement each other/)
+  assert.doesNotMatch(correction, /Use proactive_judge at most once/)
+  for (const label of ['Ordinary example: ', 'Intent preview example: ']) {
+    const line = correction.split('\n').find(row => row.startsWith(label))
+    assert.ok(line, label)
+    assert.ok(JSON.parse(line.slice(label.length)).suggestions[0].advice)
+  }
+  assert.match(generationInstructions, /one short, natural sentence/)
+  assert.match(generationInstructions, /The advice and the preview must complement each other/)
+})
+
+test('model input carries each fact once and omits host bookkeeping', () => {
+  const input = { trigger: { kind: 'heartbeat' }, context: { local: {} }, recent: [], maxCandidates: 8,
+    topics: [{ id: 't1', goal: 'goal', actions: [{ id: 'a', label: 'A' }], urgent: false, delivery: 'immediate',
+      observationKey: 'obs-hash', episodeSequence: 3, cacheKey: 'cache-hash', at: '08:00',
+      evidence: [
+        { id: 'e0', readingId: 'r1', field: 'x', value: 1, state: 'live', measuredAt: stamp, ruleId: 't1' },
+        { id: 'e1', readingId: 'r1', field: 'y', value: 2, state: 'live', measuredAt: stamp, ruleId: 't1' } ] }] }
+  const projected = modelInput(input)
+  const topic = projected.topics[0]
+  for (const hostOnly of ['cacheKey', 'observationKey', 'episodeSequence', 'urgent', 'delivery', 'at'])
+    assert.equal(Object.hasOwn(topic, hostOnly), false, `${hostOnly} is host-only`)
+  assert.equal(topic.state, 'live')
+  assert.equal(topic.measuredAt, stamp)
+  assert.deepEqual(topic.evidence, [
+    { id: 'e0', readingId: 'r1', field: 'x', value: 1 },
+    { id: 'e1', readingId: 'r1', field: 'y', value: 2 } ])
+  assert.equal(JSON.stringify(projected).includes(stamp), true)
+  assert.equal((JSON.stringify(projected).match(new RegExp(stamp, 'g')) || []).length, 1, 'timestamp appears once')
+  assert.equal(JSON.stringify(projected).includes('t1'), true)
+  // The host keeps its full object: validation still resolves actions and evidence ids.
+  assert.equal(input.topics[0].cacheKey, 'cache-hash')
+  assert.equal(input.topics[0].evidence[0].ruleId, 't1')
+})
+
+test('the system contract leads with concise advice while remaining complete', () => {
+  for (const instructions of [generationInstructions]) {
     assert.match(instructions, /one short, natural sentence/)
     assert.match(instructions, /The advice and the preview must complement each other/)
     assert.match(instructions, /cited observation/)
