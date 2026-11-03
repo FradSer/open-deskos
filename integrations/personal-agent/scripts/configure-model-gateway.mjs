@@ -1,0 +1,99 @@
+/** Configure one Pi agent directory to use the shared Open deskOS model gateway. */
+import { parseArgs } from 'node:util'
+import { mkdir, readFile, rename, writeFile, chmod } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { randomUUID } from 'node:crypto'
+
+const DEFAULTS = {
+  gatewayUrl: 'http://10.10.0.195:3425/v1',
+  modelId: 'hunyuan-eval/hy4-dev',
+  clientName: 'Open deskOS',
+  keyEnv: 'MAGPIE_API_KEY',
+}
+
+function options(argv = process.argv.slice(2)) {
+  const { values } = parseArgs({ args: argv, strict: true, options: {
+    'models-path': { type: 'string' }, 'gateway-url': { type: 'string' },
+    'model-id': { type: 'string' }, 'client-name': { type: 'string' }, 'key-env': { type: 'string' },
+  } })
+  const modelsPath = values['models-path']
+  if (!modelsPath || !modelsPath.startsWith('/')) throw Error('absolute --models-path is required')
+  return { modelsPath,
+    gatewayUrl: (values['gateway-url'] ?? DEFAULTS.gatewayUrl).replace(/\/+$/, ''),
+    modelId: values['model-id'] ?? DEFAULTS.modelId,
+    clientName: values['client-name'] ?? DEFAULTS.clientName,
+    keyEnv: values['key-env'] ?? DEFAULTS.keyEnv }
+}
+
+/** The key stays in the environment; models.json only names the variable. */
+function gatewayConfig({ gatewayUrl, modelId, clientName, keyEnv }) {
+  return {
+    providers: {
+      'open-deskos': {
+        name: clientName,
+        baseUrl: gatewayUrl,
+        api: 'openai-completions',
+        apiKey: `$${keyEnv}`,
+        authHeader: true,
+        headers: { 'User-Agent': clientName, 'X-Client-Name': clientName },
+        compat: { supportsStore: false, maxTokensField: 'max_tokens', supportsDeveloperRole: false },
+        models: [{
+          id: modelId,
+          name: `${modelId} (${clientName})`,
+          api: 'openai-completions',
+          input: ['text'],
+          reasoning: false,
+          contextWindow: 128000,
+          maxTokens: 16384,
+          compat: { supportsStore: false, maxTokensField: 'max_tokens', supportsDeveloperRole: false },
+        }],
+      },
+    },
+  }
+}
+
+async function replacePrivateJson(path, value, stamp) {
+  let backup
+  try {
+    const existing = await readFile(path, 'utf8')
+    backup = `${path}.bak-${stamp}`
+    await writeFile(backup, existing, { mode: 0o600 })
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
+  const temporary = `${path}.tmp-${randomUUID()}`
+  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 })
+  await rename(temporary, path)
+  await chmod(path, 0o600)
+  return backup
+}
+
+async function gatewaySettings(path, { modelId }) {
+  let settings = {}
+  try { settings = JSON.parse(await readFile(path, 'utf8')) } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
+  return { ...settings,
+    defaultProvider: 'open-deskos',
+    defaultModel: modelId,
+    enabledModels: [`open-deskos/${modelId}`] }
+}
+
+export async function configureModelGateway(argv = process.argv.slice(2)) {
+  const selected = options(argv)
+  const directory = dirname(selected.modelsPath)
+  await mkdir(directory, { recursive: true, mode: 0o700 })
+  const settingsPath = join(directory, 'settings.json')
+  const stamp = String(Date.now())
+  const backup = await replacePrivateJson(selected.modelsPath, gatewayConfig(selected), stamp)
+  const settingsBackup = await replacePrivateJson(settingsPath, await gatewaySettings(settingsPath, selected), stamp)
+  return { modelsPath: selected.modelsPath, settingsPath, backup, settingsBackup,
+    gatewayUrl: selected.gatewayUrl, modelId: selected.modelId, clientName: selected.clientName, keyEnv: selected.keyEnv }
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  configureModelGateway().then(result => console.log(JSON.stringify(result))).catch(error => {
+    console.error(error.message)
+    process.exitCode = 1
+  })
+}
