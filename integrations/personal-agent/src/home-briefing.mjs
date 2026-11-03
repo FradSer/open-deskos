@@ -194,10 +194,13 @@ export class HomeBriefing {
     this.sourceOnly = !retained
     // Force the next refresh to reconsider every originally selected identity.
     this.templateLayout = ''
-    // Source checks remain useful, but cannot imply another successful selection.
-    const state = this.generationFailures ? 'error' : retained && this.now() - this.templateCreatedAt < MAX_AGE_MS ? 'live' : 'stale'
+    // A successful rebind uses the latest readings. The template's age cannot
+    // make those current facts stale, and only a model generation earns a
+    // success timestamp.
+    const freshTemplate = retained && !this.generationFailures && this.now() - this.templateCreatedAt < MAX_AGE_MS
+    const state = this.generationFailures ? 'error' : retained ? 'live' : 'stale'
     this.emit(state, {
-      items, generatedAt: retained && !this.generationFailures ? this.templateCreatedAt : 0, omittedSources,
+      items, generatedAt: freshTemplate ? this.templateCreatedAt : 0, omittedSources,
     })
   }
 
