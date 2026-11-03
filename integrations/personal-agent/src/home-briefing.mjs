@@ -64,14 +64,19 @@ export function validateHomeBriefing(raw, readings, { requireSegments = false } 
   if (compact && (raw.items.length > 2 || raw.items.reduce((sum, item) => sum + (item?.text?.length || 0), 0) > 240)) throw Error('Home sentence too long')
   for (const source of readings) {
     if (!raw.items.some(item => item?.readingIds?.includes(source.id)) || source.home?.icon !== 'portfolio' || source.home.fields.length !== 1 || source.home.fields[0] !== 'todayChangePercent' || source.state !== 'live' || !Number.isFinite(source.value?.todayChangePercent)) continue
-    for (const item of raw.items.filter(item => item.readingIds?.includes(source.id))) {
-      if (item.segments?.some(segment => segment.icon === 'portfolio' && !readings.some(reading => item.readingIds.includes(reading.id) && reading.home?.icon === 'portfolio' && segment.text.includes(reading.label)))) throw Error('Invalid portfolio percentage')
-    }
-    const facts = raw.items.flatMap(item => item.readingIds?.includes(source.id) ? (item.segments || []).filter(segment => segment.icon === 'portfolio' && segment.text.includes(source.label)) : [])
+    // The icon names the service; the bound percentage is the fact. Keep the
+    // value check without requiring the source label in the concise copy.
+    const cited = raw.items.filter(item => item.readingIds?.includes(source.id))
+    const segments = cited.flatMap(item => (item.segments || []).filter(segment => segment.icon === 'portfolio'))
+    // A label still distinguishes two portfolio sources in one sentence. A
+    // single concise portfolio fact is identified by its own bound value.
+    const labelled = segments.filter(segment => segment.text.includes(source.label))
+    if (segments.length > 1 && segments.some(segment => !readings.some(reading => reading.home?.icon === 'portfolio' && segment.text.includes(reading.label)))) throw Error('Invalid portfolio percentage')
+    const facts = labelled.length ? labelled : segments.length === 1 ? segments : []
     const expected = Number(source.value.todayChangePercent.toFixed(2))
     if (facts.length !== 1) throw Error('Invalid portfolio percentage')
     const matches = [...facts[0].text.matchAll(/([+-]?\d+\.\d{2})%/g)]
-    if (matches.length !== 1 || Number(matches[0][1]) !== expected || (expected !== 0 && !/^[+-]/.test(matches[0][1])) || /[\d$€£¥]/.test(facts[0].text.replace(source.label, '').replace(matches[0][0], ''))) throw Error('Invalid portfolio percentage')
+    if (matches.length !== 1 || Number(matches[0][1]) !== expected || (expected !== 0 && !/^[+-]/.test(matches[0][1])) || /[\d$€£¥]/.test(facts[0].text.replace(matches[0][0], ''))) throw Error('Invalid portfolio percentage')
   }
   return raw.items.map(item => {
     if (!item || Object.keys(item).some(k => !['text', 'readingIds', 'segments'].includes(k))
