@@ -105,6 +105,11 @@ Feature: Personal Agent home briefing
     Then Overview still shows the most important current facts
     And those facts bind to their local sources
 
+  Scenario: Concise holdings copy still generates
+    Given a holding reports a daily change
+    When Overview binds its concise fact without the source label
+    Then the fact passes local validation and appears in Overview
+
   Scenario: Concise copy carries the fact, not the source label
     Given a plant, the weather and a holding are selected
     When Overview renders their text
