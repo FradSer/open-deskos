@@ -46,4 +46,4 @@ jobs:
           sudo chmod 4755 "$helper"
       - name: Run the full rendering matrix
         working-directory: runtime/shell
-        run: xvfb-run -a pnpm test:matrix
+        run: xvfb-run -a --server-args="-screen 0 1920x1280x24" pnpm test:matrix
