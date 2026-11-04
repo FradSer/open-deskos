@@ -52,3 +52,11 @@ export async function offlineSession(options, reply, settings = {}) {
   await session.bindExtensions({})
   return { session, requests, runtime }
 }
+
+export async function until(predicate, message) {
+  const deadline = Date.now() + 10_000
+  while (!await predicate()) {
+    if (Date.now() > deadline) throw Error(message)
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
+}

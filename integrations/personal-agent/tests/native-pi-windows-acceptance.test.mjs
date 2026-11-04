@@ -6,7 +6,7 @@ import { access, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { DefaultResourceLoader, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent'
-import { assistant, offlineSession } from './helpers/pi-fixture.mjs'
+import { assistant, offlineSession, until } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
 import { observeAcceptanceFrame } from './helpers/acceptance-frame.mjs'
 
@@ -59,14 +59,6 @@ reply(result);})().catch(()=>{console.error('Isolated Windows acceptance request
   } })
   child.stdin.end(script)
   return await response
-}
-
-async function until(predicate, message) {
-  const deadline = Date.now() + 10_000
-  while (!await predicate()) {
-    if (Date.now() > deadline) throw Error(message)
-    await new Promise(resolve => setTimeout(resolve, 20))
-  }
 }
 
 test('OPTIONAL installed Windows coding tools continue an isolated original Mac Pi', {

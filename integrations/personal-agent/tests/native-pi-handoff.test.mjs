@@ -9,7 +9,7 @@ import { DefaultResourceLoader, SessionManager, SettingsManager } from '@earendi
 import { createPersonalAgent } from '../src/agent.mjs'
 
 import { taskRequest } from '../src/task-client.mjs'
-import { assistant, fixtureModel, offlineSession } from './helpers/pi-fixture.mjs'
+import { assistant, fixtureModel, offlineSession, until } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
 import { createDurableAgentSession } from '../src/durable-agent-session.mjs'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
@@ -19,14 +19,6 @@ import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 // natural model routing, TUI, device SSH or microphone acceptance.
 const repository = fileURLToPath(new URL('../../..', import.meta.url))
 const packageDir = process.env.PI_ODK_PACKAGE || join(dirname(repository), 'pi-packages/packages/open-deskos')
-
-async function until(predicate, message) {
-  const deadline = Date.now() + 10_000
-  while (!await predicate()) {
-    if (Date.now() > deadline) throw Error(message)
-    await new Promise(resolve => setTimeout(resolve, 20))
-  }
-}
 
 test('Personal Agent idle, followUp and normal Enter instructions execute in the original native Pi session', { timeout: 60_000, skip: process.platform === 'win32' ? 'Native Pi private endpoint requires a Unix target' : false }, async t => {
   await access(join(packageDir, 'index.ts'))
