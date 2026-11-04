@@ -98,6 +98,8 @@ function assertMatrixGate(scripts, io, file) {
 
 test('the package and workflow run the matrix gate', () => {
   assertMatrixGate(require('../package.json').scripts, fs, workflowFile)
+  const inventory = fs.readFileSync(path.join(root, 'docs', 'CONFIGURATION.md'), 'utf8')
+  assert.match(inventory, /`ODK_SURFACE_MATRIX_CI`/)
 })
 
 test('a sealed release keeps the matrix gate without repository-only files', () => {
