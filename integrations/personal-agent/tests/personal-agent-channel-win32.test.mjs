@@ -90,7 +90,7 @@ async function startTokenGuardedListener(t) {
   const service = fakeService()
   const server = await listen(PIPE, service, { platform: 'win32', token: 'channel-token-for-this-host', net: pipeNet })
   t.after(() => server.close())
-  return { pipeNet, service }
+  return { pipeNet, service, server }
 }
 
 /** A connected client and the status records the service has published to it. */
@@ -153,12 +153,8 @@ test('the endpoint and the token file are the ones the Shell Host itself resolve
 })
 
 test('a Windows listener accepts a peer presenting the shared channel token', async t => {
-  const dir = await temp(t)
-  const pipeNet = standInPipeNet(dir)
-  const service = fakeService()
   const token = 'channel-token-for-this-host'
-  const server = await listen(PIPE, service, { platform: 'win32', token, net: pipeNet })
-  t.after(() => server.close())
+  const { pipeNet, service, server } = await startTokenGuardedListener(t)
 
   assert.deepEqual(pipeNet.bound, [PIPE], 'the pipe name is bound unchanged; only the transport is stood in for')
   assert.equal(server.tokenRequired, true)
@@ -251,12 +247,8 @@ test('a Windows listener refuses a first line that is not the published handshak
 })
 
 test('a Windows listener refuses a token of the wrong length before the protocol runs', async t => {
-  const dir = await temp(t)
-  const pipeNet = standInPipeNet(dir)
-  const service = fakeService()
   const token = 'channel-token-for-this-host'
-  const server = await listen(PIPE, service, { platform: 'win32', token, net: pipeNet })
-  t.after(() => server.close())
+  const { pipeNet, service } = await startTokenGuardedListener(t)
 
   for (const presented of [token.slice(0, -1), `${token}x`, '']) {
     const result = await attempt(pipeNet, `${channelHandshake(presented)}{"v":1,"type":"toggle"}\n`)

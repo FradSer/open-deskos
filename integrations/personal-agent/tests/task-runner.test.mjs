@@ -1006,10 +1006,7 @@ test('atomic task records remain readable after replacement on the current host'
 })
 
 test('a remote follow-up refuses a stale Hosted Pi turn before admitting a mutation', async t => {
-  const f=await fixture(t), adapter=persistentAdapter();await f.service.close()
-  const service=await createTaskService({...f.config,idleMs:60000},adapter);t.after(()=>service.close())
-  const initial=start(f.root);await service.handle(initial)
-  while(!adapter.sessions[0]?.isStreaming)await new Promise(resolve=>setImmediate(resolve))
+  const { adapter, f, service, launched: initial } = await streamingFixture(t)
   adapter.sessions[0].release();const original=await waitState(service,initial.taskId,'settled')
   assert.equal((await service.handle(request('prompt',{taskId:initial.taskId,project:f.root,mutationId:randomUUID(),prompt:'new owner turn'}))).ok,true)
   await waitState(service,initial.taskId,'settled')
