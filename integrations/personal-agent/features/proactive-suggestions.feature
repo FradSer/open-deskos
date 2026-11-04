@@ -175,6 +175,13 @@ Feature: Owner controlled proactive Personal Agent proposals
     And the safety boundary remains in force exactly once
     And the generated output still validates against the same contract
 
+  Scenario: The host rejects unresolved template markers in a semantic key
+    Given a generated candidate names its semantic key
+    When the host validates the batch
+    Then a key containing braces or template markers is refused
+    And a missing or non-string key is refused
+    And a plain key that matches the host allowlist is accepted
+
   Scenario: A preview carries only the readings behind the advice
     Given a topic exposes more observations than the advice needs
     When the generator builds the preview

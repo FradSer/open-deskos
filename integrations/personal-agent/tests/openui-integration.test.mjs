@@ -107,3 +107,18 @@ b1 = ApprovedAction("open")`
   const { suggestions } = parseSuggestionDocument(doc)
   assert.throws(() => validateGeneratedBatch({ suggestions }, topics, 8), /action label/i)
 })
+
+test('the host refuses unresolved template markers and non-string semantic keys', () => {
+  const { suggestions } = parseSuggestionDocument(OPENUI_EXAMPLE)
+  const base = suggestions[0]
+  for (const key of ['{{SECRET_marker}}', '${placeholder}', '{%template%}', '{key}', 'a}b', '{{', '}}']) {
+    assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, key }] }, topics, 8),
+      /Invalid generated suggestion/, `brace key must be refused: ${key}`)
+  }
+  for (const key of [undefined, null, 7, {}, []]) {
+    assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, key }] }, topics, 8),
+      /Invalid generated suggestion/, `non-string key must be refused: ${String(key)}`)
+  }
+  // The allowlist still admits an ordinary semantic key.
+  assert.equal(validateGeneratedBatch({ suggestions: [{ ...base, key: 'commute-delay' }] }, topics, 8).length, 1)
+})
