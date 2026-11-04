@@ -5,6 +5,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { execFileSync } = require('node:child_process')
+const { plan, concurrencyFor } = require('../scripts/test-tiers.cjs')
 
 const root = path.resolve(__dirname, '..')
 const runner = path.join(root, 'scripts', 'test-tiers.cjs')
@@ -46,7 +47,6 @@ test('the fast tier uses more workers than the acceptance tier', () => {
 })
 
 test('a new Electron test file joins the acceptance tier', () => {
-  const { plan } = require('../scripts/test-tiers.cjs')
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-test-tier-'))
   try {
     fs.writeFileSync(path.join(dir, 'contract.test.js'), "const { test } = require('node:test')\ntest('a', () => {})\n")
@@ -66,7 +66,6 @@ test('the package exposes both tier commands and keeps the complete suite', () =
 })
 
 test('the reference host keeps a conservative fast tier', () => {
-  const { concurrencyFor } = require('../scripts/test-tiers.cjs')
   assert.deepEqual(concurrencyFor('linux', 'arm64', {}), { fast: 4, acceptance: 2 })
   for (const [platform, arch] of [['darwin', 'arm64'], ['darwin', 'x64'], ['win32', 'x64'], ['linux', 'x64']]) {
     assert.deepEqual(concurrencyFor(platform, arch, {}), { fast: 8, acceptance: 2 })
@@ -74,13 +73,11 @@ test('the reference host keeps a conservative fast tier', () => {
 })
 
 test('an explicit fast-tier concurrency override takes precedence', () => {
-  const { concurrencyFor } = require('../scripts/test-tiers.cjs')
   assert.deepEqual(concurrencyFor('linux', 'arm64', { ODK_TEST_FAST_CONCURRENCY: '6' }), { fast: 6, acceptance: 2 })
   assert.deepEqual(concurrencyFor('darwin', 'arm64', { ODK_TEST_FAST_CONCURRENCY: '3' }), { fast: 3, acceptance: 2 })
 })
 
 test('an invalid fast-tier concurrency override keeps the host default', () => {
-  const { concurrencyFor } = require('../scripts/test-tiers.cjs')
   for (const value of ['zero', '-1', '0', '']) {
     assert.deepEqual(concurrencyFor('linux', 'arm64', { ODK_TEST_FAST_CONCURRENCY: value }), { fast: 4, acceptance: 2 })
   }
