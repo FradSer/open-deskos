@@ -362,6 +362,32 @@ The [C6 Gateway contract](C6-GATEWAY.md) owns implementation stages, Remote Cont
 The [Bridge contract](../../../integrations/remote-bridge/README.md#shared-device-channel) defines gateway state and the trusted device interface.
 Package, general peer, and physical Remote acceptance remain separate gates.
 
+<a id="adr-0039"></a>
+### ADR-0039: Separate generation and judgment endpoints
+
+The Personal Agent uses the Pi model runtime for generation and Jev judgment.
+An operator can set a separate Jev base URL without changing the generation model.
+The gateway owns account selection and upstream failover.
+The configured gateway must support the System One protocol for Jev requests.
+A separate address uses the selected Pi provider credentials and headers.
+An authentication address that conflicts with an explicit Jev address causes a configuration error.
+A remote custom Jev address requires HTTPS.
+
+For Overview, the host sends anonymous source and service identifiers.
+It replaces free text with a fixed marker and sends coarse numeric ranges.
+State words, data categories, length ranges, and timing can still reveal information.
+The host ranks returned scores and binds display text to current local source templates.
+A judged glance shows at most three services near the highest score.
+An empty model selection keeps the most important current facts.
+Plant, weather, holding, and quota copy omits repeated source labels and window words; the icon names the service.
+Those bindings do not verify the source or guarantee correct ranking.
+
+Overview waits at most three seconds for the complete judgment.
+If judgment fails or times out, the host selects local source facts and reports an error state.
+Local fallback shows at most three services without a score band; local attention is coarse.
+An explicit cancellation stops the request instead of publishing a fallback.
+Other Agent requests have their own data and fallback contracts.
+
 ## Current Shell plugin composition
 
 The Electron main process, renderer surfaces, appearance plugins, and Remote Bridge use the local host from [plugin-host.js](../src/plugin-host.js).
@@ -636,3 +662,13 @@ Additional reload and event interfaces need a concrete feature requirement befor
 Wireless behavior retains its existing hardware acceptance requirements.
 These targets authorize no native code execution, downloads, live capture, or production changes.
 ADR-0004's Face Agent withdrawal still applies.
+
+
+<a id="adr-0040"></a>
+### ADR-0040: Source-independent Overview wording
+
+The host assembles one Overview Sentence from a Selection of Facts. The host joins Facts with `and`. It derives each Fact's wording from the field meaning and format. It uses three Syntactic Roles: count, measurement, and state. The model returns finite selectors only. The model never writes display text. Displayed values stay bound to current local source templates.
+
+**Considered Options**: Per-source sentence templates were rejected. They add a special case for each new source. Free-form model sentences were rejected. They break local value binding. A fixed three-line layout was rejected. It changes the measured Overview density.
+
+**Consequences**: A new source needs no wording change. The literal-word allowlist grows with Syntactic Roles, not with sources. Connectors use the subdued Tone Tier. Fact text uses the primary Tone Tier. Values and state words use state tokens. The 240-character limit and the three-service glance limit stay unchanged.

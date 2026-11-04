@@ -2,6 +2,7 @@ import { createAgentSession, createCodemodeExtension, DefaultResourceLoader, get
 import { privateDirectory, resumeSessionHeader } from './task-store.mjs'
 import { boundedText } from './task-service.mjs'
 import { createCodingCheckTool } from './candidate-checks.mjs'
+import { withOpenDeskOSClient } from './model-client-identity.mjs'
 
 const CHECK_ENTRY = 'odk-coding-check'
 
@@ -158,7 +159,7 @@ function historyPage(entries, after = 0, limit = 64) {
  * @param {{task:{project:string,sessionFile?:string},sessionDir:string,model?:string,onEvent?:(event:object)=>void,signal?:AbortSignal,resume?:boolean}} input
  * @param {{createSession?:typeof createAgentSession,createRuntime?:typeof ModelRuntime.create}} [dependencies]
  */
-export async function createHostedSession(input, { createSession = createAgentSession, createRuntime = options => ModelRuntime.create(options) } = {}) {
+export async function createHostedSession(input, { createSession = createAgentSession, createRuntime = async options => withOpenDeskOSClient(await ModelRuntime.create(options)) } = {}) {
   const { task, sessionDir, model, onEvent } = input
   const admittedOriginal = input.resume ? await resumeSessionHeader(task, sessionDir) : undefined
   if (!input.resume) await privateDirectory(sessionDir)

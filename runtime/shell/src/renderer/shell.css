@@ -32,6 +32,12 @@
   --odk-accent-blue: #025bc2;
   --odk-agent-avatar: #6d73ff;
 
+  /* Shared status colours. Each theme resolves them against its own primary. */
+  --odk-status-critical: color-mix(in srgb, var(--odk-accent-red) 60%, var(--odk-primary));
+  --odk-status-warning: color-mix(in srgb, color-mix(in oklch, var(--odk-accent-red) 50%, var(--odk-accent-green)) 60%, var(--odk-primary));
+  --odk-status-healthy: color-mix(in srgb, var(--odk-accent-green) 60%, var(--odk-primary));
+  --odk-status-info: color-mix(in srgb, var(--odk-accent-blue) 60%, var(--odk-primary));
+
   --status-h: 57px;
   --gutter: 28px;
   --cell-w: 170px;
@@ -560,13 +566,33 @@ body.kiosk {
 }
 .dash-icon[data-kind="portfolio"] { color: color-mix(in srgb, var(--odk-accent-green) 35%, var(--odk-primary)); }
 .dash-temperature { display: inline-block; white-space: nowrap; }
-.dash-unit { font-family: "Montserrat", "Noto Sans SC", sans-serif; font-weight: 700; font-size: 0.8em; letter-spacing: -0.04em; white-space: nowrap; }
-[data-theme="pixel"] .dash-unit { font-family: "Zpix", "Noto Sans SC", monospace !important; font-weight: inherit !important; display: inline-block; position: relative; padding-left: 0.36em; letter-spacing: normal; }
-[data-theme="pixel"] .dash-unit-degree { position: absolute; top: 0.12em; left: 0; width: 0.32em; height: 0.32em; border: 0.07em solid currentColor; box-sizing: border-box; text-indent: -9999px; overflow: hidden; flex: none; }
-.dash-change[data-direction="up"] { color: color-mix(in srgb, var(--odk-accent-green) 60%, var(--odk-primary)); }
-.dash-change[data-direction="down"] { color: color-mix(in srgb, var(--odk-accent-red) 60%, var(--odk-primary)); }
+.dash-unit { font-family: inherit; font-weight: 600; font-size: 1em; letter-spacing: -0.04em; white-space: nowrap; }
+.dash-unit-degree { display: inline-block; font-size: 0.85em; vertical-align: 0.22em; margin-inline-end: -0.04em; }
+[data-theme="pixel"] .dash-unit { font-family: "Zpix", "Noto Sans SC", monospace !important; font-weight: inherit !important; font-size: 1em !important; display: inline-block; position: relative; padding-left: 0.36em; letter-spacing: normal; }
+[data-theme="pixel"] .dash-unit-degree { position: absolute; top: 0.12em; left: 0; width: 0.28em; height: 0.28em; border: 0.08em solid currentColor; box-sizing: border-box; text-indent: -9999px; overflow: hidden; flex: none; font-size: inherit; vertical-align: baseline; margin-inline-end: 0; }
+.dash-change[data-direction="up"] { color: var(--odk-status-healthy); }
+.dash-change[data-direction="down"] { color: var(--odk-status-critical); }
+.dash-soil { white-space: nowrap; }
+.dash-soil[data-status="dry"] { color: var(--odk-status-critical); }
+.dash-soil[data-status="low"] { color: var(--odk-status-warning); }
+.dash-soil:is([data-status="ok"], [data-status="good"], [data-status="wet"]) { color: var(--odk-status-healthy); }
+.dash-remaining[data-level="critical"] { color: var(--odk-status-critical); }
+.dash-remaining[data-level="low"] { color: var(--odk-status-warning); }
+.dash-remaining[data-level="ok"] { color: var(--odk-status-healthy); }
+.dash-soil-value { white-space: nowrap; }
+.dash-soil-value[data-status="dry"] { color: var(--odk-status-critical); }
+.dash-soil-value[data-status="low"] { color: var(--odk-status-warning); }
+.dash-soil-value:is([data-status="ok"], [data-status="good"], [data-status="wet"]) { color: var(--odk-status-healthy); }
+.dash-humidity[data-level="low"] { color: var(--odk-status-critical); }
+.dash-humidity:is([data-level="ok"], [data-level="high"]) { color: var(--odk-status-healthy); }
+.dash-state[data-level="critical"] { color: var(--odk-status-critical); }
+.dash-state[data-level="warning"] { color: var(--odk-status-warning); }
+.dash-state[data-level="healthy"] { color: var(--odk-status-healthy); }
 .dash-token { display: inline-block; white-space: nowrap; }
-.dash-icon svg {
+/* One authoritative icon size. The generic narrative rule below must not
+   override it: a narrower selector with equal specificity later in this file
+   used to shrink these icons to 0.78em and reset their optical alignment. */
+.dash-narrative .dash-icon svg {
   display: inline-block;
   width: 1em;
   height: 1em;
@@ -581,11 +607,7 @@ body.kiosk {
 
 .dash-narrative svg {
   display: inline-block;
-  width: 0.78em;
-  height: 0.78em;
-  margin: 0 0.22em -0.07em 0;
   color: inherit;
-  vertical-align: baseline;
 }
 
 .card {
@@ -793,7 +815,7 @@ body.kiosk {
 }
 
 .provider-quota-fill.is-medium {
-  background: var(--odk-accent-blue);
+  background: var(--odk-status-info);
 }
 
 .provider-quota-fill.is-low {

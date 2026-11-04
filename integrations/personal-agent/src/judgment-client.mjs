@@ -8,9 +8,12 @@ export const isJudgmentModel = value => typeof value === 'string' && value.lengt
 /** An abandoned startup check cannot change a replacement runtime. */
 export function createOptionalJevHealthCheck({check, getAgent}) {
   return async signal => {
-    const health = await check(signal)
+    const agent = getAgent()
+    if (!agent) return { status: 'unavailable', reason: 'credential_unavailable' }
+    const health = await check(signal, agent)
     signal.throwIfAborted()
-    getAgent()?.setJevHealth?.(health)
+    if (getAgent() !== agent) throw new DOMException('Jev runtime replaced', 'AbortError')
+    agent.setJevHealth?.(health)
     return health
   }
 }
@@ -92,6 +95,22 @@ export function createJudgmentClient({env = process.env, generate, model, create
       jevUnavailable = true; backend = 'model'; lastModel = undefined
       if (health?.status === 'verified' && env.ODK_JEV_PROVIDER !== 'disabled') {
         try { requestJev = createJev({env}); jevUnavailable = false } catch { /* Keep the ordinary fallback. */ }
+      }
+    },
+    get jevEnabled() { return !jevUnavailable && Boolean(requestJev) },
+    async requestJevOnly({state, questions, signal = undefined}) {
+      signal?.throwIfAborted()
+      if (jevUnavailable || !requestJev) throw Error('Jev judgment unavailable')
+      try {
+        const result = await requestJev({state, questions, signal})
+        signal?.throwIfAborted()
+        if (!isJudgmentModel(result?.model)) throw Error('Invalid judgment model')
+        validateJudgmentAnswers({answers: result.answers}, questions)
+        if (!jevUnavailable) { backend = 'jev'; lastModel = result.model }
+        return result
+      } catch (error) {
+        signal?.throwIfAborted()
+        throw error
       }
     },
     async request({state, questions, signal, onDiagnostic}) {

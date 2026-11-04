@@ -1,8 +1,9 @@
 import {ModelRuntime, SettingsManager, getAgentDir} from '@earendil-works/pi-coding-agent'
 import {getSupportedThinkingLevels, clampThinkingLevel} from '@earendil-works/pi-ai'
+import {withOpenDeskOSClient} from './model-client-identity.mjs'
 
 /** Native Pi model/auth control. Only the requesting channel receives login prompts. */
-export function createPiConfig({createRuntime = () => ModelRuntime.create(),
+export function createPiConfig({createRuntime = async () => withOpenDeskOSClient(await ModelRuntime.create()),
   getSettings = () => SettingsManager.create(process.cwd(), getAgentDir(), {projectTrusted:false}),
   getSelection = () => undefined, isBusy = () => Boolean(false), onBusy = (_busy) => {}, onChange = async (_value) => {}} = {}) {
   let runtime, selected, thinking, login, pendingLoginOwner, changing = false, closed = false

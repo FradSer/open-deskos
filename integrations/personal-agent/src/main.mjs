@@ -17,15 +17,16 @@ import { channelTokenFile, listen, personalAgentEndpoint, personalAgentControlEn
 import { prepareHostDirectories } from './host-paths.mjs'
 import { loadPersonalConfig } from './personal-config.mjs'
 import { proposalStateStore } from './proactive-state.mjs'
-import { ProactiveWatch, loadProactiveConfig, ownerConfigWriter } from './proactive.mjs'
 import { checkJevAuthentication } from './jev-client.mjs'
+import { ProactiveWatch, loadProactiveConfig, ownerConfigWriter } from './proactive.mjs'
 import { createJevJudge } from './proactive-jev.mjs'
 import { odkDataRequest } from './odk-data.mjs'
 import { loadTargets, taskRequest } from './task-client.mjs'
 import { createRideNotifier } from './ride-notification.mjs'
 import { attachRemoteConversation } from './remote-pi-reader.mjs'
 import { HomeBriefing } from './home-briefing.mjs'
-import { createTaskReadings, createRemoteReadings } from './producer-readings.mjs'
+import { createTaskReadings, createRemoteReadings, createHydraReadings as createHydraProjectionReadings } from './producer-readings.mjs'
+import { loadOverviewPreferences } from './overview-preferences.mjs'
 
 async function initialize(env, report, onRideUpdate, platform = process.platform, getWatch = undefined, signal = undefined, onAgentUpdate = undefined, onRemoteUpdate = undefined) {
   signal?.throwIfAborted()
@@ -181,7 +182,9 @@ async function main() {
     createService() {
       service = new PersonalAgentService({
         getJudgmentStatus: () => runtime?.agent.judgmentStatus,
-        checkJev: createOptionalJevHealthCheck({check: signal => checkJevAuthentication({env, signal}), getAgent: () => runtime?.agent}),
+        checkJev: env.ODK_JEV_PROVIDER === 'disabled' ? signal => checkJevAuthentication({env, signal})
+          : createOptionalJevHealthCheck({check: (signal, agent) => typeof agent.checkJevAuthentication === 'function'
+            ? agent.checkJevAuthentication(signal) : { status: 'unavailable', reason: 'credential_unavailable' }, getAgent: () => runtime?.agent}),
         failureMessage: '请求未完成。若涉及打车，请先查询订单状态，不要重复下单。',
         record: async onLevel => {
           if (!runtime) throw Error('Configuration incomplete')
@@ -228,14 +231,22 @@ async function main() {
       runtime?.agent.setConfigurationHeld?.(piConfig.busy)
       service.attachRemoteUpdates(runtime?.remote)
       service.publishAgents(runtime ? runtime.agent.agentTasks?.activity() ?? [] : undefined)
-      if (runtime) { if (service.jev) runtime.agent.setJevHealth?.(service.jev); service.setState('idle') }
-      else if (!context.stopping) service.setState('error', 'Personal Agent runtime unavailable')
+      if (runtime) {
+        service.setState('idle')
+        if (service.jev?.reason === 'credential_unavailable' && typeof runtime.agent.checkJevAuthentication === 'function') void service.refreshJevAuthentication().then(health => {
+          if (runtime === value) runtime.agent.resetJevHealth(health)
+        }).catch(() => {})
+        else if (service.jev) runtime.agent.setJevHealth?.(service.jev)
+      } else if (!context.stopping) service.setState('error', 'Personal Agent runtime unavailable')
     },
     createTaskReadings: runtime => createTaskReadings(runtime.agent.agentTasks),
     createRemoteReadings: runtime => createRemoteReadings(runtime.remote),
-    createHome(_runtime, _service) {
+    createHydraReadings: () => createHydraProjectionReadings({ read: (id, signal) => odkDataRequest('read', { id, signal, env, platform }).then(result => result.reading) }),
+    async createHome(_runtime, _service) {
+      const preferences = await loadOverviewPreferences({ env, platform })
       home = new HomeBriefing({
         requireBindings: true,
+        preferences,
         list: async signal => (await odkDataRequest('list', { signal, env, platform })).readings,
         read: async (id, signal) => (await odkDataRequest('read', { id, signal, env, platform })).reading,
         generate: runtime.agent.generateBriefing,

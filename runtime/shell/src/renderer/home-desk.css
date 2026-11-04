@@ -342,4 +342,3 @@ html[data-theme='pixel'] #home-summary .dash {
 .agent-command-name { font-size: var(--agent-text-heading); color: var(--odk-primary); }
 .agent-command-detail { font-size: var(--agent-text-label); color: var(--odk-secondary-strong); }
 .agent-command-empty { margin: 8px 12px; color: var(--odk-secondary-strong); font-size: var(--agent-text-label); }
-

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createTaskReadings, createRemoteReadings, createProducerControl, PRODUCER_INTERFACE } from '../src/producer-readings.mjs'
+import { createTaskReadings, createRemoteReadings, createHydraReadings, HYDRA_PROJECTION_ID, createProducerControl, PRODUCER_INTERFACE } from '../src/producer-readings.mjs'
 
 const taskId = 'f0562a65-12f6-427a-a005-8ffbca46e15b'
 const current = { taskId, request: 'Finish the current task', response: 'Checks need review', identity: { name: 'Helper' }, state: 'finished', verification: { status: 'needs_review' }, learning: { status: 'skipped' }, updatedAt: '2026-10-23T00:00:00.000Z', private: 'not public' }
@@ -158,4 +158,44 @@ test('conflicting producer identities are unavailable without blocking unrelated
   assert.deepEqual(inventory.readings.map(e => e.id), ['first', 'second'])
   assert.equal((await control.dispatch({ command: 'producer_read', interface: PRODUCER_INTERFACE, readingId: 'shared' })).error, 'unknown-reading')
   assert.equal((await control.dispatch({ command: 'producer_read', interface: PRODUCER_INTERFACE, readingId: 'second' })).reading.value.state, 'current')
+})
+
+
+test('Hydra projection maps the current desk reading for a display host', async () => {
+  const desk = { id: 'odk.tile.hydra', state: 'live', value: {
+    asOf: '2026-11-03T12:00:00.000Z', gatewayOnline: true,
+    greenhouse: { temperatureC: 28.3, humidityPercent: 69, pressureHpa: 1014, lightLux: 0.83, stale: false, measuredAt: '2026-11-03T11:59:00.000Z' },
+    plants: [
+      { id: 1, name: 'Plant 1', soilPercent: 50, watering: false, online: true, stale: false, soilStale: false, measuredAt: '2026-11-03T11:58:00.000Z' },
+      { id: 2, name: 'Plant 2', soilPercent: 55, watering: false, online: true, stale: false, soilStale: false, measuredAt: '2026-11-03T11:58:00.000Z' },
+    ],
+  } }
+  const provider = createHydraReadings({ read: async () => desk })
+  const declarations = provider.list()
+  assert.equal(declarations.length, 1)
+  assert.equal(declarations[0].id, HYDRA_PROJECTION_ID)
+  assert.equal(declarations[0].home.mode, 'hidden', 'the projection must not become a second Overview source')
+  const reading = await provider.read(HYDRA_PROJECTION_ID)
+  assert.equal(reading.state, 'live')
+  const shown = reading.value.snapshot
+  assert.equal(shown.env.tempC, 28.3)
+  assert.equal(shown.nodes.length, 2)
+  assert.equal(shown.nodes[0].soilPercent, 50)
+  assert.equal(shown.projection, true)
+  desk.value.plants[0].soilPercent = 8
+  assert.equal((await provider.read(HYDRA_PROJECTION_ID)).value.snapshot.nodes[0].soilPercent, 8)
+})
+
+test('an unavailable Hydra reading cannot become a live projection', async () => {
+  for (const desk of [
+    { id: 'odk.tile.hydra', state: 'unavailable', value: null },
+    { id: 'odk.tile.hydra', state: 'live', value: { greenhouse: null, plants: [] } },
+    { id: 'odk.tile.hydra', state: 'live', value: { greenhouse: { temperatureC: 900, humidityPercent: 10 } } },
+  ]) {
+    const reading = await createHydraReadings({ read: async () => desk }).read(HYDRA_PROJECTION_ID)
+    assert.equal(reading.state, 'unavailable')
+    assert.equal(reading.value, null)
+  }
+  const failing = await createHydraReadings({ read: async () => { throw Error('desk unavailable') } }).read(HYDRA_PROJECTION_ID)
+  assert.equal(failing.state, 'unavailable')
 })

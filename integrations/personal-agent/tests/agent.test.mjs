@@ -393,8 +393,8 @@ test('selected Agent preserves Home binding, cached updates, and runtime restart
           })])
         } finally { signal.removeEventListener('abort', cancel) }
       }
-      return { items: [{ text: '{{pi|@label|text}} {{pi|count|integer}} sessions.',
-        segments: [{ text: '{{pi|@label|text}} {{pi|count|integer}} sessions.', icon: 'sessions' }], readingIds: ['pi'] }] }
+      return { items: [{ text: 'Count is {{pi|count|integer}}.',
+        segments: [{ text: 'Count is {{pi|count|integer}}.', icon: 'sessions' }], readingIds: ['pi'] }] }
     }, abort() {}, close() {}
     } }
     return runtime
@@ -419,7 +419,7 @@ test('selected Agent preserves Home binding, cached updates, and runtime restart
         const gate = new Promise(resolve => { release = resolve })
         const finished = new Promise(resolve => { finish = resolve })
         const runtime = { mode: 'normal', ready, release, finished }
-        const agent = await generationFixture(t, {}, async emit => {
+        const agent = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async emit => {
           generations++
           if (runtime.mode === 'fail') throw Error('private generation detail')
           const held = runtime.mode === 'hold'
@@ -445,20 +445,19 @@ test('selected Agent preserves Home binding, cached updates, and runtime restart
       const channel = resident.port(BOT_PORTS.channel)
       await home.refresh()
       assert.equal(service.status.briefing.state, 'live')
-      assert.equal(service.status.briefing.items[0].text, 'Pi 2 sessions.')
+      assert.equal(service.status.briefing.items[0].text, 'Count is 2.')
       const first = structuredClone(service.status.briefing)
       count = 5
       await home.refresh()
-      assert.equal(service.status.briefing.items[0].text, 'Pi 5 sessions.')
+      assert.equal(service.status.briefing.items[0].text, 'Count is 5.')
       assert.equal(external ? agent.calls : generations, 1)
       const updated = structuredClone(service.status.briefing)
       const runtime = resident.port(BOT_PORTS.runtime)
-      runtime.mode = 'fail'
+      runtime.mode = 'normal'
       now += 15 * 60 * 1000
       await home.refresh()
-      assert.equal(service.status.briefing.state, 'error')
+      assert.equal(service.status.briefing.state, 'live')
       assert.deepEqual(service.status.briefing.items, updated.items)
-      assert.doesNotMatch(JSON.stringify(service.status.briefing), /private generation detail/)
       const stale = structuredClone(service.status.briefing)
       runtime.mode = 'normal'
       now += 15 * 60 * 1000
@@ -482,7 +481,7 @@ test('selected Agent preserves Home binding, cached updates, and runtime restart
       assert.equal(resident.port(BOT_PORTS.service), service)
       assert.equal(resident.port(BOT_PORTS.channel), channel)
       await fresh.refresh()
-      assert.equal(service.status.briefing.items[0].text, 'Pi 7 sessions.')
+      assert.equal(service.status.briefing.items[0].text, 'Count is 7.')
       const resumed = structuredClone(service.status.briefing)
       runtime.release()
       await runtime.finished
@@ -496,7 +495,7 @@ test('selected Agent preserves Home binding, cached updates, and runtime restart
 test('all fact batches and their final selection use the isolated SDK generator', async t => {
   const seen = new Set()
   let calls = 0
-  const bot = await generationFixture(t, {}, async (emit, text) => {
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async (emit, text) => {
     calls++
     const request = JSON.parse(text.slice(text.indexOf('{')))
     if (request.task) {
@@ -519,7 +518,7 @@ test('all fact batches and their final selection use the isolated SDK generator'
 
 test('home generation uses an isolated zero-tool SDK session and its own schema', async t => {
   let inspected = false
-  const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only' }, async emit => {
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async emit => {
     emit?.({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
   }, options => {
     inspected = true
@@ -534,12 +533,246 @@ test('home generation uses an isolated zero-tool SDK session and its own schema'
   assert.equal(result.items[0].readingIds[0], 'mail')
 })
 
+test('Overview model requests omit private source text and identifiers while local output retains the selected fact', async t => {
+  const secretText = 'Avery Chen avery@example.test /home/avery/private-project'
+  const privateId = 'private-source-avery'
+  const captured = []
+  const runtime = {
+    getModelOfType: () => ({ api: 'typesafe-system-one', id: 'jev-latest', provider: 'typesafe' }),
+    getAuth: async () => ({ auth: { apiKey: 'synthetic' } }),
+    classify: async (_model, context) => {
+      captured.push(JSON.stringify(context))
+      return { model: 'jev-latest', stopReason: 'stop', answers: Object.fromEntries(Object.keys(context.questions).map(id => [id, { type: 'bool', probability: 0.9 }])) }
+    },
+  }
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'typesafe' }, async (emit, text) => {
+    captured.push(text)
+    emit({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
+  }, () => {}, false, runtime)
+  const readings = [{ id: privateId, label: 'Avery private mail', kind: 'service', state: 'live',
+    value: { subject: secretText }, home: { mode: 'optional', priority: 0, icon: 'mail', fields: ['subject'] } }]
+  const previous = [{ text: secretText, readingIds: [privateId] }]
+  const result = await bot.generateBriefing({ readings, previous })
+  assert.equal(captured.length, 1, 'successful classification does not require a generation request')
+  const fallback = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async (emit, text) => {
+    captured.push(text)
+    emit({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
+  })
+  await fallback.generateBriefing({ readings, previous })
+  assert.equal(captured.length, 2, 'both classifier and disabled-Jev generation requests are inspected')
+  for (const request of captured) assert.doesNotMatch(request, /Avery|avery|private-project|private-source|example\.test/)
+  const { resolveHomeTemplate } = await import('../src/home-template.mjs')
+  assert.match(resolveHomeTemplate(result, readings).items[0].text, /Avery Chen/)
+})
+
+test('private text equal to a status word stays private at both Overview endpoints', async t => {
+  const requests = []
+  const runtime = {
+    getModelOfType: () => ({ api: 'typesafe-system-one', id: 'jev-latest', provider: 'typesafe' }),
+    getAuth: async () => ({ auth: { apiKey: 'synthetic' } }),
+    classify: async (_model, context) => { requests.push(JSON.stringify(context)); return { model: 'jev-latest', stopReason: 'stop',
+      answers: Object.fromEntries(Object.keys(context.questions).map(id => [id, { type: 'bool', probability: 0.7 }])) } },
+  }
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'typesafe' }, async (emit, text) => {
+    requests.push(text)
+    emit({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
+  }, () => {}, false, runtime)
+  const readings = [{ id: 'mail', label: 'Mail', state: 'live', value: { subject: 'failed' },
+    home: { mode: 'optional', priority: 0, icon: 'mail', fields: ['subject'] } }]
+  await bot.generateBriefing({ readings })
+  const fallback = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async (emit, text) => {
+    requests.push(text)
+    emit({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
+  })
+  await fallback.generateBriefing({ readings })
+  assert.equal(requests.length, 2)
+  for (const request of requests) assert.doesNotMatch(request, /subject: failed/)
+})
+
+test('the classifier distinguishes critical and low percentages without exact values', async t => {
+  let texts
+  const runtime = {
+    getModelOfType: () => ({ api: 'typesafe-system-one', id: 'jev-latest', provider: 'typesafe' }),
+    getAuth: async () => ({ auth: { apiKey: 'synthetic' } }),
+    classify: async (_model, context) => { texts = Object.values(context.state.candidates).map(candidate => candidate.text); return { model: 'jev-latest', stopReason: 'stop',
+      answers: Object.fromEntries(Object.keys(context.questions).map(id => [id, { type: 'bool', probability: 0.7 }])) } },
+  }
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'typesafe' }, async emit => {
+    emit({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
+  }, () => {}, false, runtime)
+  const readings = [3, 9].map((value, index) => ({ id: `quota-${index}`, label: 'Quota', state: 'live', value: { remainingPercent: value },
+    home: { mode: 'optional', priority: 0, icon: 'quota', fields: ['remainingPercent'] } }))
+  await bot.generateBriefing({ readings })
+  assert.notEqual(texts[0], texts[1])
+  assert.ok(texts.every(text => !/\b[39]\b/.test(text)))
+})
+
+test('the classifier and selector see the same unavailable plant measurement', async t => {
+  let candidates, variables
+  const runtime = {
+    getModelOfType: () => ({ api: 'typesafe-system-one', id: 'jev-latest', provider: 'typesafe' }),
+    getAuth: async () => ({ auth: { apiKey: 'synthetic' } }),
+    classify: async (_model, context) => { candidates = Object.values(context.state.candidates); return { model: 'jev-latest', stopReason: 'stop',
+      answers: Object.fromEntries(Object.keys(context.questions).map(id => [id, { type: 'bool', probability: 0.7 }])) } },
+  }
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'typesafe' }, async (emit, text) => {
+    variables = JSON.parse(text.slice(text.indexOf('{'))).variables
+    emit({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
+  }, () => {}, false, runtime)
+  const reading = { id: 'odk.tile.hydra', label: 'Hydra', state: 'live', value: { plants: [{ id: 1, name: 'Plant 1', online: false }] },
+    home: { mode: 'optional', priority: 0, icon: 'plants', fields: ['plants'] } }
+  await bot.generateBriefing({ readings: [reading] })
+  const fallback = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async (emit, text) => {
+    variables = JSON.parse(text.slice(text.indexOf('{'))).variables
+    emit({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
+  })
+  await fallback.generateBriefing({ readings: [reading] })
+  assert.ok(candidates.some(candidate => candidate.text.includes('unavailable')))
+  assert.ok(variables.some(candidate => candidate.text.includes('unavailable')))
+})
+
+test('the classifier and selector see the same unavailable source status', async t => {
+  let candidate, variables
+  const runtime = {
+    getModelOfType: () => ({ api: 'typesafe-system-one', id: 'jev-latest', provider: 'typesafe' }),
+    getAuth: async () => ({ auth: { apiKey: 'synthetic' } }),
+    classify: async (_model, context) => { candidate = context.state.candidates.q0; return { model: 'jev-latest', stopReason: 'stop',
+      answers: { q0: { type: 'bool', probability: 0.7 } } } },
+  }
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'typesafe' }, async (emit, text) => {
+    variables = JSON.parse(text.slice(text.indexOf('{'))).variables
+    emit({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
+  }, () => {}, false, runtime)
+  const reading = { id: 'weather', label: 'Weather', state: 'unavailable', value: null,
+    home: { mode: 'optional', priority: 0, icon: 'weather', fields: ['temperatureC'] } }
+  const result = await bot.generateBriefing({ readings: [reading] })
+  const fallback = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async (emit, text) => {
+    variables = JSON.parse(text.slice(text.indexOf('{'))).variables
+    emit({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
+  })
+  await fallback.generateBriefing({ readings: [reading] })
+  const { resolveHomeTemplate } = await import('../src/home-template.mjs')
+  assert.match(candidate.text, /unavailable/)
+  assert.match(variables[0].text, /unavailable/)
+  assert.match(resolveHomeTemplate(result, [reading]).items[0].text, /unavailable/)
+})
+
+test('Overview generation cannot infer exact event counts from local attention hints', async t => {
+  let request
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async (emit, text) => {
+    request = JSON.parse(text.slice(text.indexOf('{')))
+    emit({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
+  })
+  await bot.generateBriefing({ readings: [{ id: 'sessions', label: 'Sessions', state: 'live', value: { counts: { waiting: 7 } },
+    home: { mode: 'optional', priority: 0, icon: 'sessions', fields: ['counts'] } }] })
+  assert.ok(request.variables.every(fact => fact.attention !== 97))
+})
+
+test('Overview generation does not disclose exact private text length', async t => {
+  let request
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async (emit, text) => {
+    request = JSON.parse(text.slice(text.indexOf('{')))
+    emit({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
+  })
+  await bot.generateBriefing({ readings: [{ id: 'mail', label: 'Mail', state: 'live', value: { subject: 'x'.repeat(41) },
+    home: { mode: 'optional', priority: 0, icon: 'mail', fields: ['subject'] } }] })
+  assert.ok(request.variables.every(fact => fact.characters % 32 === 0))
+})
+
+test('invalid optional Jev configuration does not stop dialogue or local Overview', async t => {
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'unknown' })
+  assert.equal(await bot.prompt('Hello'), 'fixture reply')
+  const reading = { id: 'weather', label: 'Weather', state: 'live', value: { temperatureC: 24 },
+    home: { mode: 'optional', priority: 0, icon: 'weather', fields: ['temperatureC'] } }
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [reading], read: async () => reading,
+    generate: bot.generateBriefing, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.equal(home.frame.state, 'error')
+  assert.match(home.frame.items[0].text, /24°C/)
+})
+
+test('Jev health uses the same runtime as Overview classification', async t => {
+  let checks = 0
+  const runtime = {
+    getModelOfType: () => ({ api: 'typesafe-system-one', id: 'jev-latest', provider: 'typesafe' }),
+    getAuth: async () => ({ auth: { apiKey: 'synthetic-runtime-only' } }),
+    classify: async (_model, { questions }) => { checks++; return { model: 'jev-latest', stopReason: 'stop',
+      answers: Object.fromEntries(Object.keys(questions).map(id => [id, { type: 'bool', probability: 0.9 }])) } },
+  }
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'typesafe' }, async () => {}, () => {}, false, runtime)
+  assert.deepEqual(await bot.checkJevAuthentication(), { status: 'verified' })
+  assert.equal(checks, 1)
+})
+
+test('Overview respects failed Jev health until verified reauthentication', async t => {
+  let classifications = 0
+  const runtime = {
+    getModelOfType: () => ({ api: 'typesafe-system-one', id: 'jev-latest', provider: 'typesafe' }),
+    getAuth: async () => ({ auth: { apiKey: 'synthetic' } }),
+    classify: async (_model, { questions }) => { classifications++; return { model: 'jev-latest', stopReason: 'stop',
+      answers: Object.fromEntries(Object.keys(questions).map(id => [id, { type: 'bool', probability: 0.9 }])) } },
+  }
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'typesafe' }, async emit => {
+    emit({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
+  }, () => {}, false, runtime)
+  const readings = [{ id: 'weather', label: 'Weather', state: 'live', value: { temperatureC: 24 },
+    home: { mode: 'optional', priority: 0, icon: 'weather', fields: ['temperatureC'] } }]
+  bot.setJevHealth({ status: 'auth_rejected' })
+  await assert.rejects(bot.generateBriefing({ readings }))
+  await assert.rejects(bot.generateBriefing({ readings }))
+  assert.equal(classifications, 0)
+  bot.resetJevHealth({ status: 'verified' })
+  await bot.generateBriefing({ readings })
+  assert.equal(classifications, 1)
+})
+
+test('an Overview-only classification failure does not disable other Jev judgments', async t => {
+  let calls = 0
+  const runtime = {
+    getModelOfType: () => ({ api: 'typesafe-system-one', id: 'jev-latest', provider: 'typesafe' }),
+    getAuth: async () => ({ auth: { apiKey: 'synthetic' } }),
+    classify: async (_model, { questions }) => {
+      if (++calls === 1) return { model: 'jev-latest', stopReason: 'error', answers: {} }
+      return { model: 'jev-latest', stopReason: 'stop', answers: Object.fromEntries(Object.keys(questions).map(id => [id, { type: 'bool', probability: 0.9 }])) }
+    },
+  }
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'typesafe' }, async () => {}, () => {}, false, runtime)
+  await assert.rejects(bot.generateBriefing({ readings: [{ id: 'weather', label: 'Weather', state: 'live', value: { temperatureC: 24 },
+    home: { mode: 'optional', priority: 0, icon: 'weather', fields: ['temperatureC'] } }] }))
+  const result = await bot.judge({ state: {}, questions: { check: { type: 'noul', instructions: 'Check' } } })
+  assert.equal(result.model, 'jev-latest')
+  assert.equal(calls, 2)
+})
+
+test('a failed Overview judgment publishes local facts as an error through Home', async t => {
+  let judgmentCalls = 0, generationCalls = 0
+  const runtime = {
+    getModelOfType: () => ({ api: 'typesafe-system-one', id: 'jev-latest', provider: 'typesafe' }),
+    getAuth: async () => ({ auth: { apiKey: 'synthetic' } }),
+    classify: async () => { judgmentCalls++; return { model: 'jev-latest', stopReason: 'error', answers: {} } },
+  }
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'typesafe' }, async () => { generationCalls++ }, () => {}, false, runtime)
+  const reading = { id: 'weather', label: 'Weather', state: 'live', value: { temperatureC: 24 },
+    home: { mode: 'optional', priority: 0, icon: 'weather', fields: ['temperatureC'] } }
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [reading], read: async () => reading,
+    generate: bot.generateBriefing, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.equal(judgmentCalls, 1)
+  assert.equal(generationCalls, 0)
+  assert.equal(home.frame.state, 'error')
+  assert.equal(home.frame.generatedAt, 0)
+  assert.match(home.frame.items[0].text, /24°C/)
+})
+
 test('Home generation accepts finite source selections and returns the existing bound template',async t=>{
  const bot=await generationFixture(t,{ODK_JEV_PROVIDER:'disabled'},async(emit,text)=>{
   const request=JSON.parse(text.slice(text.indexOf('{')))
-  assert.equal(request.variables[0].id,'weather')
-  assert.equal(request.variables[0].factId, 'weather:@summary')
-  assert.equal(request.variables[0].text, 'Local weather 25°C overcast in Taipei')
+  assert.equal(request.variables[0].id,'source-0')
+  assert.equal(request.variables[0].factId, 'fact-0')
+  assert.match(request.variables[0].text, /^weather: /)
+  assert.doesNotMatch(request.variables[0].text, /Taipei|Local weather/)
   assert.equal(request.variables[0].required, undefined)
   assert.equal(JSON.stringify(request.variables).includes('{{'),false)
   assert.deepEqual(request.previous,[])
@@ -554,14 +787,14 @@ test('Home generation accepts finite source selections and returns the existing 
 
 test('invalid fact selections retry without restoring required source coverage', async t => {
   let attempts = 0
-  const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only' }, async (emit, text) => {
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async (emit, text) => {
     const request = JSON.parse(text.slice(text.indexOf('{')))
     if (++attempts === 2) {
       assert.match(request.formatCorrection, /integer selector/)
       assert.match(request.formatCorrection, /exactly one selector/)
       assert.equal(request.variables[0].required,undefined)
       assert.equal(request.variables[0].icon,'portfolio')
-      assert.match(request.variables[0].text,/Futu holdings/)
+      assert.match(request.variables[0].text,/^portfolio:/)
     }
     const content = attempts === 1 ? '{"items":[{"sources":[999]}]}' : JSON.stringify({items:[{sources:[0]}]})
     emit?.({ type: 'message_end', message: assistant(content) })
@@ -1034,7 +1267,7 @@ test('Overview disables Model Studio thinking at the SDK request boundary withou
   const runtime = { streamSimple: (value, context, options) => streamSimple(value, context, {
     ...options, apiKey: 'synthetic-only', onPayload: value => { payload = value; throw Error('Stop fixture before transport') },
   }) }
-  const bot = await generationFixture(t, {}, async emit => {
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async emit => {
     emit({ type: 'message_end', message: assistant('{"items":[]}') })
   }, options => { generatedRuntime = options.modelRuntime }, false, runtime)
   await bot.generateBriefing({ readings: [{ id: 'one', label: 'One', state: 'live', value: { count: 1 } }] })
@@ -1052,12 +1285,12 @@ test('Overview disables Model Studio thinking at the SDK request boundary withou
 
 test('oversized selections receive exact character costs and a specific retry correction', async t => {
   let attempts = 0
-  const bot = await generationFixture(t, {}, async (emit, text) => {
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async (emit, text) => {
     const request = JSON.parse(text.slice(text.indexOf('{')))
     if (++attempts === 2) {
       assert.match(request.formatCorrection, /Select fewer/)
       assert.equal(request.maxCharacters, 240)
-      for (const fact of request.variables) assert.equal(fact.characters, fact.text.length + 2)
+      assert.ok(request.variables.every(fact => fact.characters > fact.text.length), 'display cost measures the local fact')
     }
     emit({ type: 'message_end', message: assistant(JSON.stringify({ items: [{ sources: attempts === 1 ? [0, 1] : [0] }] })) })
   })
@@ -1127,7 +1360,7 @@ test('confirmed Hosted continuation is admission while unknown or mismatched rec
 
 test('analysis-only selections retry inside the bounded provider validation', async t => {
   let attempts = 0
-  const bot = await generationFixture(t, {}, async (emit, text) => {
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async (emit, text) => {
     const request = JSON.parse(text.slice(text.indexOf('{')))
     if (++attempts === 1) assert.equal(request.variables[0].displayable, false)
     else {
@@ -1151,7 +1384,7 @@ test('Overview follows a changed native model and thinking selection while retai
   const selected = { provider: 'fixture', id: 'selected' }
   let options
   const runtime = { getModel: () => initial, streamSimple() {} }
-  const bot = await generationFixture(t, {}, async emit => {
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async emit => {
     emit({ type: 'message_end', message: assistant('{"items":[]}') })
   }, value => { options = value }, false, runtime, { model: 'fixture/initial' })
   await bot.configureSelection({ model: selected, thinkingLevel: 'low' })
@@ -1160,4 +1393,16 @@ test('Overview follows a changed native model and thinking selection while retai
   assert.equal(options.thinkingLevel, 'low')
   assert.notEqual(options.modelRuntime, runtime)
   assert.equal(typeof options.modelRuntime.streamSimple, 'function')
+})
+
+test('an empty model selection cannot blank a desk that has current facts', async t => {
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, async emit => {
+    emit({ type: 'message_end', message: assistant('{"items":[]}') })
+  })
+  const readings = [{ id: 'weather', label: 'Weather', state: 'live', value: { temperatureC: 24 },
+    home: { mode: 'optional', priority: 0, icon: 'weather', fields: ['temperatureC'] } }]
+  const result = await bot.generateBriefing({ readings })
+  const { resolveHomeTemplate } = await import('../src/home-template.mjs')
+  assert.equal(result.items.length, 1)
+  assert.match(resolveHomeTemplate(result, readings).items[0].text, /24°C/)
 })

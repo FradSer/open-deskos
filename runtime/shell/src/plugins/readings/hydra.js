@@ -26,6 +26,7 @@ const projectHydra = snapshot => ({
     watering: node => node.pump,
     online: node => node.online,
     stale: node => node.stale,
+    soilStale: node => node.soilStale,
     measuredAt: node => isoTime(node.soilUpdatedAt),
   })),
 })

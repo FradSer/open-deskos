@@ -17,7 +17,7 @@ test('hydra store parses atomic environment and node readings', () => {
   assert.equal(snapshot.configured, true)
   assert.deepEqual(snapshot.env, { tempC: 24.5, humidity: 61.2, pressureHpa: 1002.6, lux: 12340, vpdKpa: 1.23, updatedAt: now, stale: false })
   assert.equal(snapshot.nodes.length, 2)
-  assert.deepEqual(snapshot.nodes[0], { id: 1, online: true, pump: false, soilPercent: 62.4, soilUpdatedAt: now, updatedAt: now, stale: false })
+  assert.deepEqual(snapshot.nodes[0], { id: 1, online: true, pump: false, soilPercent: 62.4, soilUpdatedAt: now, updatedAt: now, stale: false, soilStale: false })
   assert.equal(snapshot.nodes[1].soilPercent, null)
   assert.equal(snapshot.nodes[1].pump, true)
 })
@@ -128,6 +128,53 @@ test('hydra retained snapshots remain stale until a live publication arrives', (
   assert.equal(snapshot.nodes[0].stale, false)
 })
 
+test('invalid soil cannot turn retained watering status into a current node', () => {
+  const store = createHydraStore(), now = 1_800_000_000_000
+  store.markConnected(true)
+  store.applyMessage('hydra/main/online', 'true', now)
+  store.applyMessage('hydra/node1/online', 'true', now, { retained: true })
+  store.applyMessage('hydra/node1/status', 'PULSE', now, { retained: true })
+  store.applyMessage('hydra/node1/soil', '54', now, { retained: true })
+  assert.equal(store.snapshot(now).nodes[0].stale, true)
+  store.applyMessage('hydra/node1/soil', 'junk', now + 1)
+  const plant = store.snapshot(now + 1).nodes[0]
+  assert.equal(plant.soilPercent, null)
+  assert.equal(plant.stale, true, 'malformed soil cannot refresh node liveness')
+  store.applyMessage('hydra/node1/soil', '47.3', now + 2)
+  assert.equal(store.snapshot(now + 2).nodes[0].soilPercent, 47.3)
+})
+
+test('non-decimal soil payloads cannot become measurements', () => {
+  for (const payload of ['0b11', '0x20', '0o10', '5e1', '47.3suffix', '']) {
+    const store = createHydraStore(), now = 1_800_000_000_000
+    store.applyMessage('hydra/main/online', 'true', now)
+    store.applyMessage('hydra/node1/online', 'true', now)
+    store.applyMessage('hydra/node1/soil', '54.2', now)
+    store.applyMessage('hydra/node1/soil', payload, now + 1)
+    const plant = store.snapshot(now + 1).nodes[0]
+    assert.equal(plant.soilPercent, null, `${JSON.stringify(payload)} is not a decimal measurement`)
+    store.applyMessage('hydra/node1/soil', '47.3', now + 2)
+    assert.equal(store.snapshot(now + 2).nodes[0].soilPercent, 47.3)
+  }
+})
+
+test('retained soil cannot become current through a live node heartbeat', () => {
+  const store = createHydraStore(), now = 1_800_000_000_000
+  store.markConnected(true)
+  store.applyMessage('hydra/main/online', 'true', now)
+  store.applyMessage('hydra/node1/online', 'true', now)
+  store.applyMessage('hydra/node1/soil', '10', now, { retained: true })
+  store.applyMessage('hydra/node1/status', 'IDLE', now + 1)
+  const retained = store.snapshot(now + 1).nodes[0]
+  assert.equal(retained.stale, false, 'the node heartbeat is current')
+  assert.equal(retained.soilPercent, 10)
+  assert.equal(retained.soilStale, true, 'the separate measurement is retained')
+  store.applyMessage('hydra/node1/soil', '12', now + 2)
+  assert.equal(store.snapshot(now + 2).nodes[0].soilStale, false)
+  store.applyMessage('hydra/node1/soil', '15', now + 3, { retained: true })
+  assert.equal(store.snapshot(now + 3).nodes[0].soilStale, true, 'a later retained value cannot reuse live provenance')
+})
+
 test('hydra store exposes additive main-node diagnostics', () => {
   const store = createHydraStore()
   const now = 1000
@@ -179,19 +226,27 @@ test('hydra store rejects foreign topics and malformed payloads', () => {
   const now = 1000
   assert.equal(store.applyMessage('other/main/temp', '24.5', now), false)
   assert.equal(store.applyMessage('hydra/node9/soil', '50', now), false)
-  assert.equal(store.applyMessage('hydra/node1/soil', 'junk', now), false)
+  assert.equal(store.applyMessage('hydra/node1/soil', 'junk', now), true)
+  assert.equal(store.snapshot(now).nodes[0].soilPercent, null)
   assert.equal(store.applyMessage('hydra/node1/pump', 'junk', now), false)
   assert.equal(store.applyMessage('hydra/main/env', 'junk', now), false)
-  assert.deepEqual(store.snapshot(now), { configured: true, connected: false, env: null, nodes: [] })
+  assert.equal(store.snapshot(now).nodes.length, 1)
+  assert.equal(store.snapshot(now).connected, false)
+  assert.equal(store.snapshot(now).env, null)
 })
 
-test('hydra store clamps soil to the healthy band and reports stale env', () => {
+test('invalid soil remains unavailable and the environment reports stale', () => {
   const store = createHydraStore()
   const now = 1000
-  store.applyMessage('hydra/node1/soil', '150', now)
-  assert.equal(store.snapshot(now).nodes[0].soilPercent, 100)
-  store.applyMessage('hydra/node2/soil', '-3', now)
-  assert.equal(store.snapshot(now).nodes[1].soilPercent, 0)
+  for (const [id, value] of [[1, '150'], [2, '-3'], [3, '47.3suffix'], [4, 'NaN']]) {
+    store.applyMessage(`hydra/node${id}/soil`, '50', now)
+    store.applyMessage(`hydra/node${id}/soil`, value, now + 1)
+    assert.equal(store.snapshot(now + 1).nodes[id - 1].soilPercent, null, value)
+  }
+  store.applyMessage('hydra/node1/soil', '0', now + 2)
+  store.applyMessage('hydra/node2/soil', '100', now + 2)
+  assert.equal(store.snapshot(now + 2).nodes[0].soilPercent, 0)
+  assert.equal(store.snapshot(now + 2).nodes[1].soilPercent, 100)
 
   store.applyMessage('hydra/main/env', 'v=1;l=1;t=24.5;h=61.2;p=1002.6;x=12340.0;d=1.23', now)
   assert.equal(store.snapshot(now + ENV_STALE_MS - 1).env.stale, false)

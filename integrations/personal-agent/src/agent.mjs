@@ -1,4 +1,6 @@
-import {createJevClient} from './jev-client.mjs'
+import {createJevClient, checkJevAuthentication} from './jev-client.mjs'
+import {withOpenDeskOSClient} from './model-client-identity.mjs'
+import {DEFAULT_OVERVIEW_PREFERENCES} from './overview-preferences.mjs'
 import {createJudgmentClient, judgmentInstructions, validateOrdinaryJudgmentAnswers} from './judgment-client.mjs'
 import { guardReplyTools, hostedPromptAcknowledgement } from './session-replies.mjs'
 import { remoteTaskNamesInstructions, remoteTaskNamesReviewInstructions, validateRemoteTaskNames, remoteSummaryInstructions, validateRemoteSummary, remoteReviewInstructions, validateRemoteReview } from './remote-conversation.mjs'
@@ -6,6 +8,7 @@ import { createIntentStore, createIntentRuntime } from './intents.mjs'
 import { createIntentJudge } from './intent-jev.mjs'
 import { createIntentTools } from './intent-tools.mjs'
 import { odkDataRequest } from './odk-data.mjs'
+import { createOverviewJevJudge } from './overview-jev.mjs'
 import { resolveHomeTemplate, generateHomeSelection, compileHomeSelection, normalizeHomeSelection } from './home-template.mjs'
 import { generateWithinDeadline, generationDeadlineMs } from './proactive-generation-session.mjs'
 import { homeInstructions, validateHomeBriefing } from './home-briefing.mjs'
@@ -81,7 +84,7 @@ function homeGenerationModels(source) {
     const selected = modelStudio && model.api === 'openai-completions' && model.reasoning
       ? { ...model, compat: { ...model.compat, thinkingFormat: 'qwen', supportsReasoningEffort: false } } : model
     return source.streamSimple(selected, context, { ...options,
-      maxTokens: Math.max(8192, options?.maxTokens > 0 ? options.maxTokens : 8192) })
+      maxTokens: Math.min(2048, options?.maxTokens > 0 ? options.maxTokens : 2048) })
   }
   return new Proxy(source, { get(target, key) {
     if (key === 'streamSimple') return stream
@@ -145,7 +148,7 @@ export function agentOptions(cwd, stateDir, customTools, profile = 'coding', set
   }
 }
 
-export async function createPersonalAgent(config, { createSession = createDurableAgentSession, createRuntime = options => ModelRuntime.create(options), createIntentRouter = createJevIntentRouter, createIntentJudgment = createIntentJudge, onIntentDiagnostic = undefined } = {}) {
+export async function createPersonalAgent(config, { createSession = createDurableAgentSession, createRuntime = async options => withOpenDeskOSClient(await ModelRuntime.create(options)), createIntentRouter = createJevIntentRouter, createIntentJudgment = createIntentJudge, onIntentDiagnostic = undefined } = {}) {
   const signal = config.signal
   signal?.throwIfAborted()
   const profile = config.personal?.profile || 'coding'
@@ -165,6 +168,17 @@ export async function createPersonalAgent(config, { createSession = createDurabl
     generate: input => { if (!generateJudgment) throw Error('Judgment runtime unavailable'); return generateJudgment(input) },
   })
   const inferIntent = config.childAgent ? undefined : createIntentRouter({ env: config.env ?? process.env, request: judgment.request })
+  let overviewFailed = false
+  const overviewJudge = config.childAgent || (config.env ?? process.env).ODK_JEV_PROVIDER === 'disabled' ? undefined : createOverviewJevJudge({
+    client: async input => {
+      if (overviewFailed || !judgment.jevEnabled) throw Error('Overview judgment unavailable')
+      try { return await judgment.requestJevOnly(input) }
+      catch (error) {
+        if (!input.signal?.aborted) overviewFailed = true
+        throw error
+      }
+    },
+  })
   const routeIntent = async input => {
     const signal = input.signal ? AbortSignal.any([input.signal, lifetime.signal]) : lifetime.signal
     signal.throwIfAborted()
@@ -408,8 +422,9 @@ export async function createPersonalAgent(config, { createSession = createDurabl
     const api = { ...adapter,
       judge: input => judgment.request({...input, signal: input.signal ? AbortSignal.any([input.signal, lifetime.signal]) : lifetime.signal}),
       get judgmentStatus() { return lifetime.signal.aborted ? {status: 'unavailable', provider: 'model'} : judgment.status },
+      checkJevAuthentication: signal => checkJevAuthentication({ env: config.env ?? process.env, signal, runtime: modelRuntime }),
       setJevHealth: health => judgment.setJevHealth(health),
-      resetJevHealth: health => judgment.resetJevHealth(health),
+      resetJevHealth: health => { judgment.resetJevHealth(health); if (health?.status === 'verified') overviewFailed = false },
       refreshAuthentication: () => modelRuntime.refresh({allowNetwork:false, signal:lifetime.signal}),
       agentTasks: tasks,
       privateSources,
@@ -437,9 +452,12 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         const duration = generationDeadlineMs((config.env ?? process.env).ODK_PROACTIVE_GENERATION_TIMEOUT_MS)
         const deadlineAt = Date.now() + duration
         const combined = AbortSignal.any([lifetime.signal, AbortSignal.timeout(duration), ...(signal ? [signal] : [])])
-        return generateHomeSelection(input.readings, { now: input.now, previous: input.previous,
-          choose: (request, variables) => generateWithinDeadline({
-          signal: combined, timeoutMs: Math.max(1000, deadlineAt - Date.now()),
+        let judgmentFailed = false
+        const selection = await generateHomeSelection(input.readings, { now: input.now, previous: input.previous, judge: input.judge ?? overviewJudge, signal: combined,
+          preferences: input.preferences ?? DEFAULT_OVERVIEW_PREFERENCES,
+          onJudgmentFailure: () => { judgmentFailed = true },
+          choose: (request, variables, batchSignal) => generateWithinDeadline({
+          signal: batchSignal, timeoutMs: Math.max(1000, deadlineAt - Date.now()),
           formatCorrection: 'Select fewer facts. Use the original facts as analysis context. Select only a displayable fact from the CURRENT variables list. Return one item containing exactly one selector (an integer selector), or {"items":[]} when no choices remain. Never select a selector missing from this list.',
           serialize: request => JSON.stringify({
             task: 'Select and organize the most useful current facts from variables. Return only JSON: {"items":[{"sources":[0,1]}]}, or {"items":[]} if nothing is useful.',
@@ -450,7 +468,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
           validate: raw => {
             const selected = normalizeHomeSelection(raw, variables)
             if (selected.items.some(item => item.sources.some(selector => !request.variables[selector].displayable))) throw Error('Home selection exceeds display budget')
-            validateHomeBriefing(resolveHomeTemplate(compileHomeSelection(selected, variables), input.readings), input.readings, { requireSegments: true })
+            validateHomeBriefing(resolveHomeTemplate(compileHomeSelection(selected, variables), input.readings, input.now), input.readings, { requireSegments: true })
           },
           create: async () => {
             const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,
@@ -463,6 +481,8 @@ export async function createPersonalAgent(config, { createSession = createDurabl
           },
           prompt: (generator, text) => sessionAdapter(generator).prompt(text),
         }, request) })
+        if (judgmentFailed) throw Error('Overview judgment unavailable')
+        return selection
       },
       get selection() {return {model:session.model,thinkingLevel:session.getThinkingLevel?.()}},
       get configurationBusy() {return activeWork>0},
@@ -666,7 +686,6 @@ function responseSnapshots(onSnapshot) {
   let partial = ''
   let failed = false
   let lastStopReason = ''
-  let lastErrorMessage = ''
   let published = ''
   const text = () => [...completed, partial].filter(Boolean).join('\n\n')
   const publish = () => {
@@ -685,7 +704,6 @@ function responseSnapshots(onSnapshot) {
       }
       if (event.type === 'message_end' && event.message.role === 'assistant') {
         lastStopReason = event.message.stopReason
-        lastErrorMessage = event.message.errorMessage || ''
         failed = ['error', 'aborted'].includes(lastStopReason)
         partial = ''
         if (!failed) completed.push(visibleText(event.message))
@@ -700,7 +718,7 @@ function responseSnapshots(onSnapshot) {
       }
     },
     result() {
-      if (failed || lastStopReason === 'length') throw Error(`Agent request failed: ${lastStopReason} ${lastErrorMessage}`.trim())
+      if (failed || lastStopReason === 'length') throw Error('Agent request failed')
       return completed.filter(Boolean).join('\n\n')
     },
   }

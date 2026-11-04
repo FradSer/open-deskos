@@ -18,12 +18,14 @@ test('CM5 staging isolates concurrent development sessions', () => {
   assert.match(stageRelease, /trap cleanup EXIT/)
   assert.doesNotMatch(stageRelease, /staging\/runtime-linux\//)
   assert.match(stageRelease, /STAGING_ROOT=/)
+  assert.match(stageRelease, /release-host-preflight\.js" --require/)
+  assert.match(stageRelease, /ODK_SKIP_HOST_PREFLIGHT/)
 })
 
 test('CM5 updater serializes transactions and preflights before activating a release', () => {
   assert.match(updater, /openSync\(lockPath, 'wx'\)/)
   assert.match(updater, /preflightRelease/)
-  assert.match(updater, /\['pnpm', 'preflight'\], kiosk/)
+  assert.match(updater, /\['bash', 'scripts\/runtime-preflight\.sh'\], kiosk/)
   assert.match(updater, /activateRelease/)
   assert.match(updater, /post-activation smoke failed/)
   assert.match(updater, /odk-remote-bridge\.service/)
@@ -123,7 +125,7 @@ test('CM5 migration CLI is user-scoped and does not enable experiments', () => {
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-install.sh'), 'utf8'), /ODK_KIOSK_UID="\$\{TARGET_UID\}"/)
 })
 
-test('updater gives complete preflight one hour while post-activation verification stays at 60 seconds', () => {
+test('updater bounds the device preflight at fifteen minutes while post-activation verification stays at 60 seconds', () => {
   const commands = []
   const candidate = '/runtime/releases/candidate'
   const fakeProcess = { getuid: () => 0, env: {
@@ -157,8 +159,8 @@ test('updater gives complete preflight one hour while post-activation verificati
   assert.equal(fakeProcess.exitCode, 0)
   const supervised = commands.filter(command => command.file === 'timeout')
   assert.equal(supervised.length, 2, 'preflight and post-activation verification each run once')
-  assert.deepEqual(supervised[0].args.slice(0, 3), ['--signal=KILL', '3600s', 'runuser'])
-  assert.deepEqual(supervised[0].args.slice(-2), ['pnpm', 'preflight'])
+  assert.deepEqual(supervised[0].args.slice(0, 3), ['--signal=KILL', '900s', 'runuser'])
+  assert.deepEqual(supervised[0].args.slice(-2), ['bash', 'scripts/runtime-preflight.sh'])
   assert.deepEqual(supervised[1].args.slice(0, 3), ['--signal=KILL', '60s', 'runuser'])
   assert.deepEqual(supervised[1].args.slice(-2), ['bash', 'scripts/verify-release.sh'])
   for (const command of supervised) assert.equal(command.options.cwd, candidate)

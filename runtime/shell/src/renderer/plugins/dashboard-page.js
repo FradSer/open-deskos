@@ -61,8 +61,31 @@
     stale: 'Previous briefing. Personal Agent could not confirm current desk state.',
   }
 
-  function appendText(el, text, portfolioLive = false, portfolio = false) {
-    for (const part of text.split(portfolio ? /([+-]?\d+(?:\.\d+)?[°º]C|[°º]C|[+-]?\d+(?:\.\d+)?%)/ : /([+-]?\d+(?:\.\d+)?[°º]C|[°º]C)/)) {
+  // Generic state words use the same shared status tokens as numeric values.
+  // This is a vocabulary-to-tier mapping, never a per-source colour rule.
+  const STATE_TONES = {
+    critical: new Set(['failed', 'blocked', 'interrupted', 'needs_review', 'needs_input']),
+    warning: new Set(['waiting', 'cancelling', 'starting', 'syncing']),
+    healthy: new Set(['running', 'working', 'settled', 'finished', 'completed', 'idle', 'exited']),
+  }
+  // Host state words are lowercase. A capitalised word inside a bound value or
+  // a proper name is data, not a state. Hyphenated project states also qualify.
+  const STATE_CAPTURE = /\b(failed|blocked|interrupted|needs[ _-]review|needs[ _-]input|waiting|cancelling|starting|syncing|running|working|settled|finished|completed|idle|exited)\b/g
+  const stateLevel = word => {
+    const key = word.replace(/[ -]/g, '_')
+    return Object.keys(STATE_TONES).find(level => STATE_TONES[level].has(key))
+  }
+
+  // Severity words and percentages take the established widget colours so the
+  // briefing reads at a glance; a healthy remaining value stays uncoloured.
+  function appendTokens(el, text, live = false, kind = undefined) {
+    const tokens = kind === 'plants'
+      ? text.split(/(\b(?:dry|low|ok|good|wet)\b(?=\s+at\s+[+-]?\d+(?:\.\d+)?%)|[+-]?\d+(?:\.\d+)?%|[+-]?\d+(?:\.\d+)?[°º]C|[°º]C)/i)
+      : kind === 'quota' || kind === 'portfolio'
+        ? text.split(/([+-]?\d+(?:\.\d+)?%|[+-]?\d+(?:\.\d+)?[°º]C|[°º]C)/)
+        : text.split(/([+-]?\d+(?:\.\d+)?[°º]C|[°º]C)/)
+    let soilStatus
+    for (const part of tokens) {
       if (/[°º]C$/.test(part)) {
         const measurement = el.ownerDocument.createElement('span')
         measurement.className = 'dash-temperature'
@@ -75,18 +98,70 @@
         unit.append(degree, el.ownerDocument.createTextNode('C'))
         measurement.append(unit)
         el.append(measurement)
-      } else if (portfolio && /^[+-]?\d+(?:\.\d+)?%$/.test(part)) {
+      } else if (kind === 'plants' && /^(dry|low|ok|good|wet)$/i.test(part)) {
+        const soil = el.ownerDocument.createElement('span')
+        soil.className = 'dash-soil'
+        soil.dataset.status = part.toLowerCase()
+        soil.textContent = part
+        soilStatus = part.toLowerCase()
+        el.append(soil)
+      } else if (kind === 'plants' && /^\d+(?:\.\d+)?%$/.test(part)) {
+        // A percentage right after a moisture status shares that severity; any
+        // other plant percentage is greenhouse humidity and takes its own band.
+        const value = Number(part.slice(0, -1))
+        const severity = el.ownerDocument.createElement('span')
+        if (soilStatus) {
+          severity.className = 'dash-soil-value'
+          severity.dataset.status = soilStatus
+          soilStatus = undefined
+        } else {
+          severity.className = 'dash-humidity'
+          severity.dataset.level = value < 30 ? 'low' : value > 70 ? 'high' : 'ok'
+        }
+        severity.textContent = part
+        el.append(severity)
+      } else if (kind === 'quota' && /^\d+(?:\.\d+)?%$/.test(part)) {
+        const remaining = el.ownerDocument.createElement('span')
+        remaining.className = 'dash-remaining'
+        const value = Number(part.slice(0, -1))
+        remaining.dataset.level = value <= 5 ? 'critical' : value < 25 ? 'low' : 'ok'
+        remaining.textContent = part
+        el.append(remaining)
+      } else if (kind === 'portfolio' && /^[+-]?\d+(?:\.\d+)?%$/.test(part)) {
         const change = el.ownerDocument.createElement('span')
         change.className = 'dash-change'
         change.textContent = part
         const value = Number(part.slice(0, -1))
-        if (portfolioLive && value !== 0 && /^[+-]/.test(part)) change.dataset.direction = value > 0 ? 'up' : 'down'
+        if (live && value !== 0 && /^[+-]/.test(part)) change.dataset.direction = value > 0 ? 'up' : 'down'
         el.append(change)
-      } else el.append(el.ownerDocument.createTextNode(part))
+      } else {
+        for (const piece of part.split(STATE_CAPTURE)) {
+          if (!piece) continue
+          const level = stateLevel(piece)
+          if (!level) { el.append(el.ownerDocument.createTextNode(piece)); continue }
+          const state = el.ownerDocument.createElement('span')
+          state.className = 'dash-state'
+          state.dataset.level = level
+          state.textContent = piece
+          el.append(state)
+        }
+      }
     }
   }
 
-  function appendMarkdown(el, text, portfolioLive, portfolio) {
+  // Only a trailing host joiner carries the subdued Tone Tier. An "and"
+  // inside a bound value or a proper name is data, not a connector.
+  function appendText(el, text, live = false, kind = undefined) {
+    const joiner = text.match(/(\s+and\s+|,\s+)$/)
+    if (!joiner) { appendTokens(el, text, live, kind); return }
+    appendTokens(el, text.slice(0, -joiner[0].length), live, kind)
+    const connector = el.ownerDocument.createElement('span')
+    connector.className = 'dash-context'
+    connector.textContent = joiner[0]
+    el.append(connector)
+  }
+
+  function appendMarkdown(el, text, live, kind) {
     const body = el.ownerDocument.createElement('div')
     root.odkPersonalAgentReply.render(body, text)
     if (!body.classList.contains('personal-agent-status-markdown')) return false
@@ -98,7 +173,7 @@
       // Keep code literal; apply measurement styling to Markdown prose only.
       if (node.parentElement.closest('code, pre')) continue
       const fragment = el.ownerDocument.createDocumentFragment()
-      appendText(fragment, node.textContent, portfolioLive, portfolio)
+      appendText(fragment, node.textContent, live, kind)
       node.replaceWith(fragment)
     }
     el.append(body)
@@ -133,8 +208,7 @@
       for (const segment of item.segments || [{ text: item.text, icon: fallbackIcon }]) {
         const span = doc.createElement('div')
         const icon = ICONS[segment.icon]
-        const portfolio = segment.icon === 'portfolio'
-        const portfolioLive = frame.state === 'live' && item.sources.length > 0 && item.sources.every(source => source.state === 'live')
+        const live = frame.state === 'live' && item.sources.length > 0 && item.sources.every(source => source.state === 'live')
         span.className = icon ? 'dash-fact' : 'dash-context'
         if (icon) {
           // SVG paths are repository-owned; source Markdown uses the safe local parser.
@@ -143,17 +217,19 @@
           glyph.dataset.kind = segment.icon
           if (frame.state === 'live' && item.sources.length && item.sources.every(source => source.state === 'live')) glyph.dataset.state = 'live'
           glyph.innerHTML = `<svg data-tabler="${icon.name}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${icon.paths}</svg>`
-          if (appendMarkdown(span, segment.text, portfolioLive, portfolio)) span.prepend(glyph)
+          if (appendMarkdown(span, segment.text, live, segment.icon)) span.prepend(glyph)
           else {
             const token = doc.createElement('span')
             token.className = 'dash-token'
             const leading = segment.text.match(/^\s*/)[0]
             const word = segment.text.slice(leading.length).match(/^\S+/)[0]
-            const prefix = leading + (word.length <= 8 || /^[+-]?\d+(?:\.\d+)?%$/.test(word) ? word : Array.from(word)[0])
+            // Keep the whole first word with its icon. Truncating a long word
+            // to one character lets the browser break the word across two lines.
+            const prefix = leading + word
             token.append(glyph)
-            appendText(token, prefix, portfolioLive, portfolio)
+            appendText(token, prefix, live, segment.icon)
             span.append(token)
-            appendText(span, segment.text.slice(prefix.length), portfolioLive, portfolio)
+            appendText(span, segment.text.slice(prefix.length), live, segment.icon)
           }
         } else if (!appendMarkdown(span, segment.text)) appendText(span, segment.text)
         clause.append(span)

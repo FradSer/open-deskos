@@ -61,19 +61,21 @@ function protocol({ topicPrefix = 'hydra', onUpdate = () => {} }) {
     const id = +match[1], leaf = match[2]
     let value
     if (leaf === 'soil') {
-      value = payload === 'NC' ? null : numeric(payload)
-      if (value !== null && value !== undefined) value = Math.max(0, Math.min(100, value))
+      const measurement = typeof payload === 'string' && /^\d+(?:\.\d+)?$/.test(payload) ? Number(payload) : NaN
+      value = Number.isFinite(measurement) && measurement >= 0 && measurement <= 100 ? measurement : null
     } else if (leaf === 'status') {
       if (!['IDLE', 'PULSE', 'SOAK', 'WATER', 'PAUSE', 'WAIT', 'DORM', 'FAULT'].includes(payload)) return false
       value = payload
     } else value = boolean(payload)
     if (value === undefined) return false
     const plant = plants.get(id) || { id, online: undefined, pump: undefined, soilPercent: undefined,
-      soilUpdatedAt: 0, updatedAt: 0, live: false }
-    if (leaf === 'soil') { plant.soilPercent = value; plant.soilUpdatedAt = time }
+      soilUpdatedAt: 0, updatedAt: 0, live: false, soilLive: false }
+    if (leaf === 'soil') { plant.soilPercent = value; plant.soilUpdatedAt = time; plant.soilLive = !retained }
     else plant[leaf] = value
-    plant.updatedAt = time
-    if (!retained) plant.live = true
+    if (leaf !== 'soil' || value !== null || payload === 'NC') {
+      plant.updatedAt = time
+      if (!retained) plant.live = true
+    }
     plants.set(id, plant)
     return true
   }
@@ -89,9 +91,10 @@ function protocol({ topicPrefix = 'hydra', onUpdate = () => {} }) {
         ...(updatedAt ? { updatedAt } : {}), ...(heartbeat === undefined ? {} : { mainOnline }),
         ...(diagnosticsAt ? { diagnostics: { ...diagnostics, updatedAt: diagnosticsAt } } : {}),
         env: environment ? { ...environment, stale: !environmentLive || time - environment.updatedAt > 300000 } : null,
-        nodes: [...plants.values()].sort((a, b) => a.id - b.id).map(({ live, ...plant }) => ({ ...plant,
+        nodes: [...plants.values()].sort((a, b) => a.id - b.id).map(({ live, soilLive, ...plant }) => ({ ...plant,
           pump: plant.status === undefined ? plant.pump : ['PULSE', 'WATER'].includes(plant.status),
-          stale: !live || (heartbeat !== undefined && !mainOnline) || time - plant.updatedAt > 180000 })) }
+          stale: !live || (heartbeat !== undefined && !mainOnline) || time - plant.updatedAt > 180000,
+          soilStale: !soilLive || (heartbeat !== undefined && !mainOnline) || time - plant.soilUpdatedAt > 180000 })) }
     },
   }
 }
@@ -111,7 +114,7 @@ function createHydraReadings(source) {
           measuredAt: iso(value.env.updatedAt) }) : null,
         plants: value.nodes.map(plant => present({ id: plant.id, name: `Plant ${plant.id}`,
           soilPercent: plant.soilPercent, watering: plant.pump, online: plant.online, stale: plant.stale,
-          measuredAt: iso(plant.soilUpdatedAt) })) } }
+          soilStale: plant.soilStale, measuredAt: iso(plant.soilUpdatedAt) })) } }
     } }]
 }
 function getHydraHealth(source) {

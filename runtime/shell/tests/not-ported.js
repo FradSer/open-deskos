@@ -17,6 +17,7 @@ const REASONS = {
   'cm5-tooling': 'CM5 deployment and acceptance tooling does not run on a Windows Shell Host',
   'process-inspection': 'A Windows Shell Host reports process inspection through its own source, so this unavailable-inspection simulation does not apply',
   'isolated-native-activation': 'Actual Main activation needs private Windows named pipes before it can run beside an existing Shell',
+  'hydra-host-compiler': 'The Hydra firmware classifier parity check requires a POSIX C++ host compiler',
 }
 
 function isWindowsHost() {

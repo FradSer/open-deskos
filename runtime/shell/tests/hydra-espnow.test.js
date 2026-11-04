@@ -41,6 +41,25 @@ test('existing snapshot values, units, statuses and measurement ages survive the
   f.emit({ p: 'hydra', v: 1, k: 'env', boot: BOOT, seq: 6, age: 0, valid: false }); assert.equal(f.source.snapshot().env, null)
   await f.source.stop()
 })
+test('a fresh plant remains available to Overview when the greenhouse is stale', async t => {
+  const { createHydraReadings } = require('../src/plugins/readings/hydra')
+  const { HomeBriefing } = await import('../../../integrations/personal-agent/src/home-briefing.mjs')
+  const { homeFactVariables, compileHomeSelection } = await import('../../../integrations/personal-agent/src/home-template.mjs')
+  const f = fixture(); t.after(() => f.source.stop())
+  f.emit(hello()); f.emit(env(2, 300001)); f.emit({ ...node(3), soil: 15 })
+  const [entry] = createHydraReadings(f.source)
+  const read = async () => ({ ...entry, ...await entry.read() })
+  const home = new HomeBriefing({ now: f.time, requireBindings: true, list: async () => [entry], read,
+    generate: async ({ readings, now }) => {
+      const facts = homeFactVariables(readings, now)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.equal(home.frame.state, 'live')
+  assert.match(home.frame.items[0].text, /Plant 1 Soil moisture is dry at 15%/)
+  assert.equal((await entry.read()).state, 'stale', 'the greenhouse remains explicitly stale')
+})
 test('foreign peers, duplicate sequences, out of order and retired boots cannot publish', async () => {
   const f = fixture(); f.emit(hello(), B); f.emit(env()); assert.equal(f.source.snapshot().env, null)
   f.emit(hello()); f.emit(env(3)); f.emit({ ...env(3), tc: 99 }); f.emit({ ...env(2), tc: 98 }); assert.equal(f.source.snapshot().env.tempC, 24.5)

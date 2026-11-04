@@ -30,7 +30,7 @@ function createHydraStore({ topicPrefix = 'hydra', onUpdate = () => {} } = {}) {
   function node(id) {
     let entry = nodes.get(id)
     if (!entry) {
-      entry = { id, online: undefined, pump: undefined, soilPercent: undefined, soilUpdatedAt: 0, updatedAt: 0, live: false }
+      entry = { id, online: undefined, pump: undefined, soilPercent: undefined, soilUpdatedAt: 0, updatedAt: 0, live: false, soilLive: false }
       nodes.set(id, entry)
     }
     return entry
@@ -126,18 +126,22 @@ function createHydraStore({ topicPrefix = 'hydra', onUpdate = () => {} } = {}) {
       if (value === 'NC') {
         const entry = node(id)
         entry.soilPercent = null
+        entry.soilLive = !retained
         entry.soilUpdatedAt = now
         entry.updatedAt = now
         if (!retained) entry.live = true
         return true
       }
-      const number = parseNumber(value)
-      if (number === undefined) return false
+      const number = typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value) ? Number(value) : NaN
       const entry = node(id)
-      entry.soilPercent = Math.min(100, Math.max(0, number))
+      const valid = Number.isFinite(number) && number >= 0 && number <= 100
+      entry.soilPercent = valid ? number : null
+      entry.soilLive = !retained
       entry.soilUpdatedAt = now
-      entry.updatedAt = now
-      if (!retained) entry.live = true
+      if (valid) {
+        entry.updatedAt = now
+        if (!retained) entry.live = true
+      }
       return true
     }
     const flag = parseBool(value)
@@ -174,12 +178,13 @@ function createHydraStore({ topicPrefix = 'hydra', onUpdate = () => {} } = {}) {
         env: env ? { ...env, stale: envStale } : null,
         nodes: [...nodes.values()]
           .sort((a, b) => a.id - b.id)
-          .map(({ live, ...entry }) => ({
+          .map(({ live, soilLive, ...entry }) => ({
             ...entry,
             pump: entry.status === undefined
               ? entry.pump
               : entry.status === 'PULSE' || entry.status === 'WATER',
             stale: !live || mainIsOffline || now - entry.updatedAt > NODE_STALE_MS,
+            soilStale: !soilLive || mainIsOffline || now - entry.soilUpdatedAt > NODE_STALE_MS,
           })),
       }
     },

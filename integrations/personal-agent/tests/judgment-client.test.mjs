@@ -81,6 +81,26 @@ test('Given malformed optional Jev answers, ordinary model judgments still work'
   assert.equal((await client.request({state: {}, questions})).model, 'fixture/ordinary')
 })
 
+test('Jev health does not treat an absent runtime as failed authentication', async () => {
+  let requests=0
+  const check=createOptionalJevHealthCheck({check:async()=>{requests++;return {status:'missing_credential'}},getAgent:()=>undefined})
+  const result=await check(new AbortController().signal)
+  assert.deepEqual(result,{status:'unavailable',reason:'credential_unavailable'})
+  assert.equal(requests,0)
+})
+
+test('a replaced runtime cannot receive an older health check result', async () => {
+  let finish, mutations=0
+  const first={setJevHealth:()=>{mutations++}},second={setJevHealth:()=>{mutations++}}
+  let current=first
+  const check=createOptionalJevHealthCheck({check:async()=>new Promise(resolve=>{finish=resolve}),getAgent:()=>current})
+  const pending=check(new AbortController().signal)
+  current=second
+  finish({status:'verified'})
+  await assert.rejects(pending,{name:'AbortError'})
+  assert.equal(mutations,0)
+})
+
 test('Given an abandoned startup check, its late failure cannot poison a replacement runtime', async () => {
   const controller = new AbortController()
   let finish; let mutations = 0

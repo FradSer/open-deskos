@@ -75,7 +75,7 @@ for (const kind of ['default', 'linked', 'signed']) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-hydra-wire-'))
     const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
       XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
-    let broker, host
+    let broker, host, failure
     try {
       let replacements = []
       if (kind === 'signed') {
@@ -138,7 +138,7 @@ for (const kind of ['default', 'linked', 'signed']) {
       assert.equal(reading.value.greenhouse.temperatureC, 24.5)
       assert.equal(reading.value.greenhouse.lightLux, 12340)
       assert.deepEqual(reading.value.plants, [{ id: 1, name: 'Plant 1', soilPercent: 42,
-        watering: true, online: true, stale: false, measuredAt: new Date(1700000000000).toISOString() }])
+        watering: true, online: true, stale: false, soilStale: false, measuredAt: new Date(1700000000000).toISOString() }])
       assert.equal(health().state, 'healthy')
       const before = published
       const cached = source.cachedSnapshot
@@ -153,6 +153,12 @@ for (const kind of ['default', 'linked', 'signed']) {
       assert.equal(handlers.size, 0)
       await wait(broker.closed.promise, t.signal)
       assert.equal(broker.errors.length, 0)
-    } finally { await cleanup(host, broker, root, t.signal) }
+    } catch (error) {
+      failure = error
+      throw error
+    } finally {
+      try { await cleanup(host, broker, root, t.signal) }
+      catch (error) { if (!failure) throw error; t.diagnostic(`Cleanup failed after the test failure: ${error.message}`) }
+    }
   })
 }

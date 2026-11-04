@@ -190,16 +190,23 @@ The [child contract](../../../integrations/personal-agent/docs/AGENT_TASKS.md) o
 
 | Variable | Layer | Default | Consumer | Kind | Note |
 | --- | --- | --- | --- | --- | --- |
+| `XDG_CONFIG_HOME` | device | `~/.config` | integrations/personal-agent/src/overview-preferences.mjs | config | Root for the default Overview preference file on Unix hosts |
+| `ODK_OVERVIEW_PREFERENCES_FILE` | device | `~/.config/odk/overview-preferences.json` | integrations/personal-agent/src/overview-preferences.mjs | config | Owner rules for required sources and private sources; mode `0600` |
+| `ODK_MODEL_CLIENT_NAME` | device | Open deskOS | integrations/personal-agent/src/model-client-identity.mjs | config | Shared client name for gateway requests; its spaces are escaped for Usage |
 | `ODK_JEV_PROVIDER` | device | typesafe | integrations/personal-agent/src/jev-client.mjs | config | Select typesafe or opencode; disabled uses ordinary model judgment |
 | `OPENCODE_API_KEY` | device | none | External consumer: Pi ModelRuntime | config | Native Pi OpenCode environment credential; stored credentials take precedence |
 | `ODK_PERSONAL_AGENT_MAIN_SSH` | device | none | integrations/personal-agent/src/display-client.mjs | config | Windows display requires the fixed odk-cm5-agent SSH alias |
-| `ODK_JEV_MODEL` | device | provider default | integrations/personal-agent/src/jev-client.mjs | config | TypeSafe defaults to jev-latest; OpenCode Zen defaults to jev-1.13 |
+| `ODK_JEV_MODEL` | device | provider default | integrations/personal-agent/src/jev-client.mjs | config | TypeSafe defaults to jev-latest; OpenCode defaults to jev-1.13; jev-free selects the free model |
+| `ODK_JEV_BASE_URL` | device | provider default | integrations/personal-agent/src/jev-client.mjs | config | Optional System One address; remote addresses require HTTPS and use the selected Pi provider credentials |
 | `ODK_JEV_INTENT_THRESHOLD` | device | 0.8 | integrations/personal-agent/src/intent-routing.mjs | config | Minimum selected probability and confidence; initially uncalibrated, must exceed 0.5 |
 | `ODK_JEV_THRESHOLD` | device | 0.8 | integrations/personal-agent/src/proactive-jev.mjs | config | Minimum usefulness and factual support |
 | `ODK_JEV_TIMEOUT_MS` | device | 10000 | integrations/personal-agent/src/jev-client.mjs | config | Judgment deadline, integer 1000 through 30000 milliseconds |
 | `TYPESAFE_API_KEY` | device | none | External consumer: Pi ModelRuntime | config | Private TypeSafe environment credential; never expose its value |
 | `ODK_PROACTIVE_GENERATION_TIMEOUT_MS` | device | 90000 | integrations/personal-agent/src/agent.mjs | config | Total generation deadline, integer 1000 through 180000 |
+| `MAGPIE_API_KEY` | device | none | External consumer: Pi ModelRuntime | config | Shared model gateway key; keep it in `runtime.env` and never in source |
 | `ODK_PERSONAL_AGENT_MODEL` | device | none | integrations/personal-agent/src/main.mjs | config | Resident Pi model at startup; absent uses Pi's new-session selection |
+| `ODK_HOST_PREFLIGHT_DIR` | development host | `$XDG_STATE_HOME/odk/host-preflight` | runtime/shell/scripts/release-host-preflight.js | config | Receipt directory for the content-digest host test gate |
+| `ODK_SKIP_HOST_PREFLIGHT` | development host | none | runtime/shell/scripts/cm5-stage-release.sh | config | Set to 1 to stage without a host test receipt; the device smoke still runs |
 
 ## Saved plugin preferences
 

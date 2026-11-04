@@ -115,7 +115,7 @@ for (const replacement of [false, true, 'signed']) {
     assert.equal(reading.id, 'odk.tile.hydra')
     assert.deepEqual(reading.value, { asOf: new Date(timestamp).toISOString(), gatewayOnline: true,
       greenhouse: { temperatureC: 24.5, humidityPercent: 61.2, pressureHpa: 1002.6, lightLux: 12340, stale: false, measuredAt: new Date(timestamp).toISOString() },
-      plants: [{ id: 1, name: 'Plant 1', soilPercent: 42, watering: true, online: true, stale: false, measuredAt: new Date(timestamp).toISOString() }] })
+      plants: [{ id: 1, name: 'Plant 1', soilPercent: 42, watering: true, online: true, stale: false, soilStale: false, measuredAt: new Date(timestamp).toISOString() }] })
     assert.equal(f.health().state, 'healthy')
     const count = f.updates()
     for (const [topic, value] of [['hydra/node1/soil', '99'], ['plants/node9/soil', '99'], ['plants/main/env', 'bad'], ['plants/main/temp', '99']]) f.publish(topic, value)

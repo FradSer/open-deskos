@@ -121,6 +121,7 @@ test('an existing Durable conversation takes precedence over legacy context with
 
 test('production proactive advice uses scoped tools while briefing and phrasing stay isolated', async t => {
   const { config } = await fixture(t)
+  config.env.ODK_JEV_PROVIDER = 'disabled'
   const requests = []
   const modelRuntime = runtime(context => {
     requests.push(context)

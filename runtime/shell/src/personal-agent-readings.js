@@ -9,6 +9,8 @@ function createPersonalAgentReadingSource({ request = requestLocalControl, signa
   const lifetime = new AbortController()
   const requestSignal = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal
   let declarations = []
+  let catalogAvailable = false
+  let catalogEpoch = 0
   let closed = false
   let refreshing = null
   const pending = new Set()
@@ -35,9 +37,11 @@ function createPersonalAgentReadingSource({ request = requestLocalControl, signa
     return { id: entry.id, label: entry.label, kind: 'service', home }
   }
   async function read(entry) {
+    if (!catalogAvailable) throw Error('resident catalog unavailable')
+    const epoch = catalogEpoch
     const result = await ask('producer_read', entry.id)
     const reading = result.reading
-    if (!declarations.includes(entry) || reading?.id !== entry.id || !['live', 'stale', 'unavailable', 'unconfigured', 'error'].includes(reading.state)
+    if (!catalogAvailable || epoch !== catalogEpoch || !declarations.includes(entry) || reading?.id !== entry.id || !['live', 'stale', 'unavailable', 'unconfigured', 'error'].includes(reading.state)
       || (reading.value !== null && (typeof reading.value !== 'object' || Array.isArray(reading.value)))
       || Buffer.byteLength(JSON.stringify(reading)) > 65536
       || (reading.value && Object.keys(reading.value).some(key => !entry.home.fields.includes(key)))) throw Error('invalid resident reading')
@@ -59,9 +63,12 @@ function createPersonalAgentReadingSource({ request = requestLocalControl, signa
             if (counts.get(entry?.id) !== 1) continue
             try { next.push(parse(entry)) } catch { /* An incompatible declaration cannot remove healthy siblings. */ }
           }
-          if (current()) declarations = next.map(entry => declarations.find(previous => previous.id === entry.id
-            && JSON.stringify(previous) === JSON.stringify(entry)) || entry)
-        } catch { if (current()) declarations = [] }
+          if (current()) {
+            declarations = next.map(entry => declarations.find(previous => previous.id === entry.id
+              && JSON.stringify(previous) === JSON.stringify(entry)) || entry)
+            catalogAvailable = true
+          }
+        } catch { if (current()) { catalogAvailable = false; catalogEpoch++ } }
       }).finally(() => { refreshing = null })
       return refreshing
     },

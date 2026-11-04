@@ -30,7 +30,7 @@ test('Pi activity bursts update selected identities without another model call i
   }
   assert.equal(calls, 1)
   assert.equal(frames.filter(frame => frame.state === 'loading').length, 1)
-  assert.match(home.frame.items[0].text, /Build finished.*\(reported\)/)
+  assert.match(home.frame.items[0].text, /Build is finished.*\(reported\)/)
   assert.doesNotMatch(home.frame.items[0].text, /running|reported_unverified/)
   now = 1000 + 15 * 60000 - 1; await home.refresh(); assert.equal(calls, 1)
   now++; await home.refresh(); assert.equal(calls, 2)
@@ -199,14 +199,15 @@ test('resident Agent tasks and every remote report page join the shared source i
   const seen = []
   const selected = await generateHomeSelection(readings, { choose: async request => {
     seen.push(...request.variables)
-    const agent = request.variables.filter(fact => fact.id.startsWith('odk.agent.') && /:(state|goal)$/.test(fact.factId))
-    const pi = request.variables.find(fact => fact.id === 'odk.app.pi-sessions')
-    const reports = request.variables.filter(fact => fact.id.startsWith('odk.remote.') && fact.factId.endsWith(':report')).slice(0, 2)
+    const agent = request.variables.filter(fact => fact.icon === 'tasks' && /(?:state|goal):/.test(fact.text))
+    const reports = request.variables.filter(fact => fact.icon === 'sessions' && fact.text.includes('report:')).slice(0, 2)
+    const pi = request.variables.find(fact => fact.icon === 'status' && fact.serviceId === reports[0]?.serviceId)
     return { items: [{ sources: [...agent, ...reports, pi].map(fact => fact.selector) }] }
   } })
   assert.equal(seen.length, homeFactVariables(readings).length)
   assert.equal(resolveHomeTemplate(selected, readings).items.flatMap(item => item.segments).length, 2, 'Declared services cannot create repeated Overview facts')
-  assert.deepEqual([...new Set(seen.filter(fact => fact.id.startsWith('odk.remote.')).map(fact => fact.serviceId))], ['odk.app.pi-sessions'])
+  const reportServices = new Set(seen.filter(fact => fact.icon === 'sessions' && fact.text.includes('report:')).map(fact => fact.serviceId))
+  assert.equal(reportServices.size, 1, 'Remote reports retain one anonymous service identity')
   const agent = await access.read(entries.find(entry => entry.id.startsWith('odk.agent.')).id)
   assert.equal(agent.value.goal, 'Check the runtime')
   assert.equal(agent.value.state, 'running')
@@ -347,7 +348,7 @@ test('source changes invalidate an in-flight answer and regenerate fresh data', 
   home.invalidate()
   release()
   await first
-  assert.equal(frames.some(f => f.state === 'live'), false)
+  assert.ok(!frames.some(f => f.state === 'live' && f.items.some(item => item.text.includes('Two sessions'))))
   now += 15 * 60000
   await home.refresh()
   assert.equal(frames.at(-1).items[0].sources[0].state, 'live')
@@ -384,11 +385,30 @@ test('a source push during confirmation cannot publish captured old data as live
     return captured
   }, generate: async () => { home.invalidate(); return output }, publish: f => frames.push(f) })
   await home.refresh()
-  assert.equal(frames.some(f => f.state === 'live'), false)
+  assert.ok(!frames.some(f => f.state === 'live' && f.items.some(item => item.text.includes('Two sessions'))))
   now += 15 * 60000
   await home.refresh()
   assert.equal(frames.at(-1).state, 'live')
   home.close()
+})
+
+test('a push during confirmation cannot publish an old bound Weather value as live', async t => {
+  const { compileHomeSelection, homeFactVariables } = await import('../src/home-template.mjs')
+  let temperatureC = 24, reads = 0
+  const frames = []
+  const weather = () => ({ id: 'weather', label: 'Weather', state: 'live', value: { temperatureC },
+    home: { mode: 'optional', priority: 0, icon: 'weather', fields: ['temperatureC'] } })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [weather()], read: async () => {
+    const captured = weather()
+    if (++reads === 2) { temperatureC = 40; home.invalidate() }
+    return captured
+  }, generate: async ({ readings }) => compileHomeSelection({ items: [{ sources: [0] }] }, homeFactVariables(readings)),
+  publish: frame => frames.push(frame) })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.ok(!frames.some(frame => frame.state === 'live' && frame.items.some(item => item.text.includes('24°C'))))
+  await home.refresh()
+  assert.match(home.frame.items[0].text, /40°C/)
 })
 
 test('a newly connected error source participates and updates coverage', async () => {
@@ -589,12 +609,19 @@ test('an excluded plugin becoming required invalidates pending coverage', async 
     return { items: [{ text: 'Source0 and Source3 are live.', readingIds: ['source-0', 'source-3'], segments: [{ text: 'Source0 and Source3 are live.', icon: 'status' }] }] }
   }, publish: frame => frames.push(frame) })
   await home.refresh()
-  assert.equal(frames.some(frame => frame.state === 'live'), false)
+  assert.ok(!frames.some(frame => frame.state === 'live' && frame.items.some(item => /Source0 (?:is|and)/.test(item.text))))
   now += 15 * 60000
   await home.refresh()
   assert.equal(home.frame.state, 'live')
   assert.equal(calls, 2)
   home.close()
+})
+
+test('concise portfolio copy validates without repeating the source label', () => {
+  const source = { id: 'futu', label: 'Futu holdings', state: 'live', value: { todayChangePercent: -0.63 }, home: { mode: 'required', priority: 100, icon: 'portfolio', fields: ['todayChangePercent'] } }
+  const text = '-0.63% today'
+  const output = { items: [{ text, readingIds: ['futu'], segments: [{ text, icon: 'portfolio' }] }] }
+  assert.equal(validateHomeBriefing(output, [source]).length, 1)
 })
 
 test('percentage-only portfolio coverage rejects amounts and stale percentages', () => {
@@ -619,7 +646,7 @@ test('first startup synthesis failure keeps exact declared source facts visible 
   const source={id:'synthetic.sessions',label:'Synthetic sessions',kind:'app',state:'live',value:{total:2},home:{mode:'required',priority:100,icon:'sessions',fields:['total']}}
   const home=new HomeBriefing({requireBindings:true,list:async()=>[source],read:async()=>source,generate:async()=>{throw Error('synthetic classification failure')},publish:()=>{}})
   await home.refresh()
-  assert.equal(home.frame.state,'error');assert.equal(home.frame.items.length,1);assert.match(home.frame.items[0].text,/2 Synthetic sessions/)
+  assert.equal(home.frame.state,'error');assert.equal(home.frame.items.length,1);assert.match(home.frame.items[0].text,/Total is 2/)
   assert.deepEqual(home.frame.items[0].sources.map(s=>s.id),[source.id]);assert.equal(home.template,null);home.close()
 })
 
@@ -633,7 +660,7 @@ test('source-only fallback rereads current facts after failed synthesis', async 
   let total=2
   const source=()=>({id:'synthetic.sessions',label:'Synthetic sessions',kind:'app',state:'live',value:{total},home:{mode:'required',priority:100,icon:'sessions',fields:['total']}})
   const home=new HomeBriefing({requireBindings:true,list:async()=>[source()],read:async()=>source(),generate:async()=>{total=3;throw Error('synthetic failure')},publish:()=>{}})
-  await home.refresh();assert.match(home.frame.items[0].text,/3 Synthetic sessions/);assert.doesNotMatch(home.frame.items[0].text,/2 Synthetic/);home.close()
+  await home.refresh();assert.match(home.frame.items[0].text,/Total is 3/);assert.doesNotMatch(home.frame.items[0].text,/2 Synthetic/);home.close()
 })
 
 test('a source-only confirmation invalidated during pending reads is scheduled again after the first timer coalesces', {timeout:6000}, async t => {
@@ -661,7 +688,7 @@ test('first startup publishes exact bound facts while generation is pending with
   t.after(()=>home.close())
   const pending=home.refresh();await started
   assert.equal(home.frame.state,'loading');assert.equal(home.frame.items.length,1)
-  assert.match(home.frame.items[0].text,/2 Synthetic sessions/)
+  assert.match(home.frame.items[0].text,/Total is 2/)
   assert.deepEqual(home.frame.items[0].sources.map(s=>s.id),[source().id])
   assert.equal(home.frame.generatedAt,0);assert.equal(home.template,null)
   total=3;home.invalidate()
@@ -694,7 +721,7 @@ test('a retained template cannot clear failure cooldown without another successf
   now += 15 * 60000; fail = false; await home.refresh()
   assert.equal(home.frame.state, 'live'); assert.deepEqual(home.frame.items, modelItems); assert.equal(calls, 3)
   sources = [source(true)]; now += 15 * 60000; fail = true; await home.refresh()
-  assert.equal(home.frame.state, 'error'); assert.match(home.frame.items[0].text, /2 Synthetic sessions/)
+  assert.equal(home.frame.state, 'error'); assert.equal(home.frame.items[0].text, 'Running is 1.')
 })
 
 test('busy Pi activity publishes current bound facts and reselects with new completion qualifiers', async t => {
@@ -717,7 +744,7 @@ test('busy Pi activity publishes current bound facts and reselects with new comp
   task = { ...task, state: 'finished', activity: 'Checks reported complete' }
   home.invalidate(); release(); await pending
   assert.equal(home.frame.state, 'live')
-  assert.match(home.frame.items[0].text, /Build finished/)
+  assert.match(home.frame.items[0].text, /Build is finished/)
   assert.equal(home.frame.items[0].segments.length, 1, 'One service supplies one selected fact')
   assert.match(home.frame.items[0].text, /\(reported\)/)
   assert.doesNotMatch(home.frame.items[0].text, /running|Checking/)
@@ -749,4 +776,23 @@ for (const change of ['hidden', 'unavailable', 'removed']) test(`pending selecte
   assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /Old selected fact/)
   assert.equal(home.frame.generatedAt, 0)
   if (change !== 'unavailable') assert.ok(home.frame.items.every(item => item.sources.every(source => source.id !== 'selected')))
+})
+
+test('the published Home frame carries the current Hydra projection for display hosts', async () => {
+  const hydra = { id: 'odk.tile.hydra', label: 'Hydra plants', kind: 'tile', state: 'live', value: {
+    asOf: '2026-11-03T12:00:00.000Z', gatewayOnline: true,
+    greenhouse: { temperatureC: 27.1, humidityPercent: 74, pressureHpa: 1015, lightLux: 0, stale: false },
+    plants: [{ id: 1, soilPercent: 49, watering: false, online: true, stale: false, soilStale: false }],
+  }, home: { mode: 'optional', priority: 0, icon: 'plants', fields: ['greenhouse', 'plants'] } }
+  const frames = []
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [hydra], read: async () => hydra,
+    generate: async () => ({ items: [] }), publish: frame => frames.push(frame) })
+  await home.refresh()
+  assert.equal(frames.at(-1).hydra.env.humidity, 74)
+  assert.equal(frames.at(-1).hydra.nodes[0].soilPercent, 49)
+  hydra.value.plants[0].soilPercent = 8
+  home.invalidate()
+  await home.refresh()
+  assert.equal(frames.at(-1).hydra.nodes[0].soilPercent, 8)
+  home.close()
 })

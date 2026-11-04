@@ -340,3 +340,31 @@ test('native Pi requests correlate replies and reject a disconnect without repla
   await assert.rejects(client.configure({ action: 'status' }), /disconnected/)
   assert.equal(commands.length, 2)
 })
+
+test('a resident Hydra projection crosses the display status frame and stays bounded', { timeout: 3000 }, async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-hydra-frame-'))
+  const endpoint = path.join(dir, 'a.sock')
+  const server = net.createServer()
+  const peers = new Set()
+  server.on('connection', peer => { peers.add(peer); peer.on('error', () => {}) })
+  t.after(async () => { for (const peer of peers) peer.destroy(); await new Promise(r => server.close(r)); await fs.rm(dir, { recursive: true, force: true }) })
+  server.listen(endpoint)
+  await once(server, 'listening')
+  const client = createPersonalAgentClient({ socketPath: endpoint, reconnectDelayMs: 1 })
+  t.after(() => client.stop())
+  let connection = once(server, 'connection')
+  client.start()
+  let [peer] = await connection
+  await once(peer, 'data')
+  const hydra = { configured: true, connected: true, mainOnline: true,
+    env: { tempC: 27.1, humidity: 74, pressureHpa: 1015, lux: 0, stale: false, updatedAt: 1000 },
+    nodes: [{ id: 1, soilPercent: 49, pump: false, online: true, stale: false, soilStale: false, soilUpdatedAt: 900 }], updatedAt: 1000 }
+  const frame = { state: 'live', generatedAt: 1000, omittedSources: 0, items: [{ text: 'Hydra plants humidity: 74%.', sources: [{ id: 'odk.tile.hydra', label: 'Hydra plants', state: 'live' }] }], hydra }
+  peer.write(JSON.stringify({ v: 1, type: 'briefing', briefing: frame }) + '\n')
+  await new Promise(r => setTimeout(r, 50))
+  assert.equal(client.snapshot().hydra.env.humidity, 74)
+  assert.equal(client.snapshot().hydra.nodes[0].soilPercent, 49)
+  peer.write(JSON.stringify({ v: 1, type: 'briefing', briefing: { ...frame, hydra: { ...hydra, connected: false } } }) + '\n')
+  await new Promise(r => setTimeout(r, 50))
+  assert.equal(client.snapshot().hydra, undefined)
+})

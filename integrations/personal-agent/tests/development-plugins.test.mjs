@@ -34,6 +34,7 @@ function composition(replacementPlugins, events = []) {
     createWatch: () => ({ start() {}, close() {} }),
     createTaskReadings: () => ({ list: () => [], read: () => null }),
     createRemoteReadings: () => ({ list: () => [], read: () => null }),
+    createHydraReadings: () => ({ list: () => [], read: () => null }),
   })
 }
 
@@ -1211,7 +1212,7 @@ test('inspection is lazy and native trust is required', async t => {
   const selected = await selection(t, 'home', "throw Error('entry executed')")
   assert.throws(() => loadPersonalAgentReplacements(selected.config), /trust/)
   const resident = composition(loadPersonalAgentReplacements(selected.config, { trusted: true }))
-  assert.equal(resident.catalog().length, 7)
+  assert.equal(resident.catalog().length, 8)
 })
 
 test('incompatible replacement fails before any factory runs', () => {
@@ -1233,6 +1234,31 @@ test('actual resident inspection validates without executing entries or requirin
   assert.equal(report.scope, 'declarations')
   assert.equal(report.plugins.find(item => item.manifest.id === 'odk.personal-agent.home').manifest.version, '2.0.0')
   assert.equal(result.stderr, '')
+})
+
+test('actual resident startup preserves disabled Jev health without starting a provider', { skip: process.platform === 'win32', timeout: 15000 }, async t => {
+  const { spawn } = await import('node:child_process')
+  const { fileURLToPath } = await import('node:url')
+  const selected = await selection(t, 'runtime', "exports.create = () => ({ agent: { abort() {}, close() {} } })")
+  const home = join(selected.dir, 'home-disabled.cjs')
+  await writeFile(home, "exports.create = ({ get }) => ({ start() { const service = get('odk:personal-agent/service/v1'); setTimeout(() => console.log('jev.status:' + service.jev.status), 100) }, close() {} })")
+  await writeFile(selected.config, JSON.stringify({ schemaVersion: 1, replacements: [
+    { manifest: { ...personalAgentManifest('runtime'), version: '2.0.0' }, entry: selected.entry },
+    { manifest: { ...personalAgentManifest('home'), version: '2.0.0' }, entry: home },
+  ] }))
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../src/main.mjs', import.meta.url)), '--plugin-selection', selected.config, '--trust-plugins'], {
+    env: { PATH: process.env.PATH, HOME: selected.dir, XDG_RUNTIME_DIR: selected.dir, XDG_STATE_HOME: selected.dir, ODK_JEV_PROVIDER: 'disabled' }, stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL') })
+  let output = '', errors = ''
+  child.stderr.on('data', chunk => { errors += chunk })
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(Error(`startup timed out: ${errors}`)), 10000)
+    child.stdout.on('data', chunk => { output += chunk; if (output.includes('jev.status:')) { clearTimeout(timeout); resolve() } })
+    child.once('close', code => { clearTimeout(timeout); reject(Error(`startup exited ${code}: ${errors}`)) })
+  })
+  assert.match(output, /jev\.status:disabled/)
+  child.kill('SIGTERM')
 })
 
 test('actual resident startup uses external runtime and home then closes them on termination', { skip: process.platform === 'win32', timeout: 15000 }, async t => {

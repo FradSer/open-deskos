@@ -5,6 +5,21 @@ Feature: Hydra plant and environment Widget on the Desk page
   (soil moisture, pump state, online state) and the main node's
   environment sensors (temperature, humidity, pressure, lux).
 
+  Scenario: Retained soil readings remain historical after an unrelated update
+    Given a retained soil measurement and a current node status
+    When the Shell reports Hydra data to Overview
+    Then the retained soil measurement cannot be a live plant status
+    When a fresh soil measurement arrives
+    Then that plant can report its current moisture status
+
+  Scenario: Invalid soil messages cannot make a historical node current
+    Given a plant has a retained watering status and a retained online state
+    When the bridge receives an invalid soil measurement
+    Then soil moisture is unavailable
+    And the retained watering status remains historical
+    When the bridge receives a valid current soil measurement
+    Then the current moisture is available
+
   Scenario: Hydra runtime browser replacement preserves rendered consumers without navigation
     Given authenticated discovery exposes a trusted independent Hydra entry while the Shell is running
     When the browser loads that entry and the runtime controller replaces the surface
@@ -319,3 +334,18 @@ Feature: Hydra plant and environment Widget on the Desk page
     When the fixture supplies outer Cell widths of 338, 337, and 334 pixels
     Then the measured content lanes are 280, 279, and 276 pixels in each theme
     And Pixel environment readings use 40, 32, and 32 pixels respectively
+
+  Scenario: A display host with no local Hydra source shows the central reading
+    Given Windows has no local ESP-NOW gateway or legacy MQTT source
+    And the resident Personal Agent reads a live Hydra reading on the reference host
+    When the Hydra Widget refreshes on Windows
+    Then the Widget shows the two plant percentages and the four environment readings
+    And the Hydra App shows the same current values
+    And a live local Hydra source keeps precedence over the central projection
+
+  Scenario: A missing central Hydra projection states the local truth
+    Given Windows has no local Hydra source
+    And the resident Personal Agent reports the Hydra reading unavailable
+    When the Hydra Widget refreshes on Windows
+    Then the Widget shows an unavailable state instead of invented numbers
+    And a malformed projection cannot become a live reading
