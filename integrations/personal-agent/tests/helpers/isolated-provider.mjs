@@ -5,7 +5,7 @@ import {createJevIntentRouter as router} from '../../src/intent-routing.mjs'
 import {createJudgmentClient as judgment} from '../../src/judgment-client.mjs'
 
 // Real Pi authentication with an empty credential store. Never read user credentials or model overrides.
-export async function isolatedRuntime(env = {}) {
+async function isolatedRuntime(env = {}) {
   const runtime = await ModelRuntime.create({modelsPath:null,allowModelNetwork:false,refreshOnCreate:false,
     credentials:{read:async()=>undefined,list:async()=>[],modify:async()=>{throw Error('Read only fixture')},delete:async()=>{throw Error('Read only fixture')}}})
   for(const id of ['typesafe','opencode','opencode-go']) {
