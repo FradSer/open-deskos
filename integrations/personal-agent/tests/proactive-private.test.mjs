@@ -231,4 +231,16 @@ test('a bounded OpenUI tree survives private checkpoint validation and round-tri
   }
   store.save(state)
   assert.deepEqual(store.load().proposals[0].ui, boundedUi, 'a valid checkpoint replaces a rejected tree')
+
+  // Structural bounds match the Shell frame contract: the service must reject
+  // the same malformed shapes rather than persisting a tree the host cannot render.
+  for (const [name, ui] of [
+    ['empty type', { type: '', children: [] }],
+    ['scalar children', { type: 'Suggestions', children: 'nope' }],
+    ['untyped child', { type: 'Suggestions', children: [{ nope: 1 }] }],
+    ['scalar props', { type: 'Suggestions', props: 'bad', children: [] }],
+  ]) {
+    assert.throws(() => store.save({ version: 1, proposals: [{ ...proposal, ui }] }),
+      /Invalid proposal OpenUI tree/, `${name}: service rejects the tree`)
+  }
 })
