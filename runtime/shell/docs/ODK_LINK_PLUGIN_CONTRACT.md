@@ -100,6 +100,6 @@ It verifies selected source execution, normal shutdown, IPC release, and request
 
 These fixtures do not establish rendered replacement parity, external reporters, or deployed-host acceptance.
 Token input checks do not establish a real Windows named-pipe handshake.
-The [native source results](PLUGIN_COVERAGE.md#native-odk-link-source-acceptance) record CM5 execution of these existing checks.
+The [native source results](PLUGIN_COVERAGE.md#native-open-deskos-link-source-acceptance) record CM5 execution of these existing checks.
 Windows, physical input, and real Hosted Pi control require separate acceptance.
 [Plugin coverage](PLUGIN_COVERAGE.md) owns recorded check results.
