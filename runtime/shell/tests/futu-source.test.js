@@ -10,6 +10,15 @@ const os = require('node:os')
 const path = require('node:path')
 const { createFutuSource } = require('../src/futu-source')
 
+function futuSource(dir) {
+  const endpoint = path.join(dir, 'futu-poller.sock')
+  const source = createFutuSource({
+    runtimeDir: dir,
+    services: () => ({ 'futu-poller': { revision: 'r1', endpoint } }),
+  })
+  return { endpoint, source }
+}
+
 const FEATURE = fs.readFileSync(path.join(__dirname, 'features', 'service-plugin-refresh.feature'), 'utf8')
 
 // The plugin's connection is held open while a test reads, because a connection
@@ -157,11 +166,7 @@ test('a service that could not bind is retried by the next refresh', async () =>
 
 test('a listener that is starting when stop runs cannot resurrect after stop', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-race-'))
-  const endpoint = path.join(dir, 'futu-poller.sock')
-  const source = createFutuSource({
-    runtimeDir: dir,
-    services: () => ({ 'futu-poller': { revision: 'r1', endpoint } }),
-  })
+  const { endpoint, source } = futuSource(dir)
   try {
     const refresh = source.refreshServices()
     const stop = source.stop()
@@ -174,11 +179,7 @@ test('a listener that is starting when stop runs cannot resurrect after stop', a
 
 test('an explicit start after stop restarts the service listener', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-restart-'))
-  const endpoint = path.join(dir, 'futu-poller.sock')
-  const source = createFutuSource({
-    runtimeDir: dir,
-    services: () => ({ 'futu-poller': { revision: 'r1', endpoint } }),
-  })
+  const { endpoint, source } = futuSource(dir)
   try {
     await source.start()
     await source.stop()
@@ -246,11 +247,7 @@ test('a declaration that moved is followed and the old endpoint is withdrawn', a
 // longer means anything, and the tile draws live and stale differently.
 test('a plugin that dropped is stale, and is live again once it reconnects', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-'))
-  const endpoint = path.join(dir, 'futu-poller.sock')
-  const source = createFutuSource({
-    runtimeDir: dir,
-    services: () => ({ 'futu-poller': { revision: 'r1', endpoint } }),
-  })
+  const { endpoint, source } = futuSource(dir)
   const connect = () => new Promise((resolve, reject) => {
     const socket = net.connect(endpoint, () => {
       socket.write(`${JSON.stringify({ v: 1, type: 'hello', service: 'futu-poller', revision: 'r1', proto: 1 })}\n`)
@@ -286,11 +283,7 @@ test('a plugin that dropped is stale, and is live again once it reconnects', asy
 // as live, which is the same claim the drop removed one moment earlier.
 test('a plugin that reconnects without publishing is still not live', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-'))
-  const endpoint = path.join(dir, 'futu-poller.sock')
-  const source = createFutuSource({
-    runtimeDir: dir,
-    services: () => ({ 'futu-poller': { revision: 'r1', endpoint } }),
-  })
+  const { endpoint, source } = futuSource(dir)
   const open = (records) => new Promise((resolve, reject) => {
     const socket = net.connect(endpoint, () => {
       for (const record of records) socket.write(`${JSON.stringify(record)}\n`)
