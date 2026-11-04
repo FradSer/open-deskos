@@ -2,6 +2,8 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const { createRequire } = require('node:module')
+const { EventEmitter } = require('node:events')
+const { createRemoteBridgeClient } = require('../src/remote-bridge-client')
 function fixtureBridgeEntry(filename = __filename) {
   const path = require('node:path'), fs = require('node:fs')
   const candidates = ['../integrations/remote-bridge/lib/remote-bridge.js', '../../../integrations/remote-bridge/lib/remote-bridge.js']
@@ -55,8 +57,6 @@ test('facade snapshot subscriptions retain cleanup ownership after a failed rele
 })
 
 test('client device correlation times out without replay and disconnect invalidates caches', async t => {
-  const { EventEmitter } = require('node:events')
-  const { createRemoteBridgeClient } = require('../src/remote-bridge-client')
   const socket = new EventEmitter(), writes = []
   Object.assign(socket, { write(line) { writes.push(JSON.parse(line)); return true }, destroy() { this.destroyed = true; this.emit('close') } })
   const client = createRemoteBridgeClient({ socketPath: '/private/bridge.sock', createConnection: () => socket, deviceTimeoutMs: 15 })
@@ -78,8 +78,6 @@ test('client device correlation times out without replay and disconnect invalida
 })
 
 test('oversized Bridge records cannot inject a valid-looking tail after a split read', () => {
-  const { EventEmitter } = require('node:events')
-  const { createRemoteBridgeClient } = require('../src/remote-bridge-client')
   const socket = new EventEmitter(); Object.assign(socket, { write() {}, destroy() {} })
   const client = createRemoteBridgeClient({ socketPath: '/private/bridge.sock', createConnection: () => socket })
   const inputs = []; client.onInput(input => inputs.push(input)); client.start()
@@ -90,8 +88,6 @@ test('oversized Bridge records cannot inject a valid-looking tail after a split 
 
 async function exerciseSharedBridge(t, RemoteBridge) {
   const fs = require('node:fs/promises'), path = require('node:path'), os = require('node:os')
-  const { EventEmitter } = require('node:events')
-  const { createRemoteBridgeClient } = require('../src/remote-bridge-client')
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-device-client-'))
   const adapter = new EventEmitter(); let started = 0
   const snapshot = { status: 'live', gateway: { status: 'live' }, remote: { status: 'ready' }, peers: [], events: [] }
@@ -186,8 +182,6 @@ test('late status continuation cannot overwrite a newer disconnect snapshot', as
 })
 
 test('silent live Bridge socket loses cached readiness on a bounded clock deadline', () => {
-  const { EventEmitter } = require('node:events')
-  const { createRemoteBridgeClient } = require('../src/remote-bridge-client')
   const socket = new EventEmitter(); Object.assign(socket, { write() {}, destroy() {} })
   let now = 1000
   const tasks = new Map(); let id = 0
