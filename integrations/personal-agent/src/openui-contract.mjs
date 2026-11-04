@@ -57,6 +57,7 @@ const HOST_RULES = [
   'Different topics deserve different compositions. Do not reuse one fixed shape for every suggestion.',
   'Use Heading, Text and Badge for presentation and context. Do not copy the entire advice sentence into them.',
   'Reading and Metric carry observed label/value pairs; Metric emphasizes one pair. Use Stack and Row to organize sections.',
+  'Never emit source, timestamp, state or provenance metadata as card text. The host appends one footer row: the session source on the left and a Reply control on the right. Those are host-bound, not generated.',
   'Omit a Suggestion when observations show no current need.',
   'The host binds evidence, freshness and actions, and judges usefulness independently of presentation.',
 ]

@@ -20,6 +20,8 @@ test('the library generates the contract and carries host authority rules', () =
     /Advice is one short sentence/i,
     /Omit a Suggestion.*no current need/i,
     /Compose the card freely/i,
+    /Never emit source, timestamp, state or provenance metadata as card text/i,
+    /session source on the left and a Reply control on the right/i,
   ]) assert.match(generationSystemPrompt, rule)
   assert.doesNotMatch(generationSystemPrompt, /preview\.items|boundedPreview|generationInstructions/)
 })
