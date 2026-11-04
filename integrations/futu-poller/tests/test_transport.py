@@ -157,6 +157,16 @@ def links_from_env(env=None):
     )
 
 
+def links_with_handheld_target(monkeypatch, tmp_path, port, token_file, *earlier_targets):
+    targets_file = write_targets(tmp_path, [
+        *earlier_targets,
+        {"name": "handheld", "endpoint": "tcp://127.0.0.1:%d" % port,
+         "tokenFile": str(token_file)},
+    ])
+    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
+    return links_from_env()
+
+
 def test_a_unix_socket_target_sends_hello_without_a_handshake(monkeypatch, tmp_path, socket_dir):
     isolate_home(monkeypatch, tmp_path)
     socket_path = socket_dir / "futu-poller.sock"
@@ -186,13 +196,7 @@ def test_a_tcp_target_sends_the_handshake_before_hello(monkeypatch, tmp_path):
     token_file = tmp_path / "handheld-channel.token"
     token_file.write_text("handheld-secret\n", encoding="utf-8")
     token_file.chmod(0o600)
-    targets_file = write_targets(tmp_path, [
-        {"name": "handheld", "endpoint": "tcp://127.0.0.1:%d" % port,
-         "tokenFile": str(token_file)},
-    ])
-    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
-
-    links = links_from_env()
+    links = links_with_handheld_target(monkeypatch, tmp_path, port, token_file)
     assert len(links.links) == 1
     links.send(dict(DATA))
     assert server.wait_for(3), server.snapshot()
@@ -259,13 +263,7 @@ def test_an_empty_token_file_is_refused_instead_of_sending_a_bad_handshake(
     token_file = tmp_path / "handheld-channel.token"
     token_file.write_text("  \n", encoding="utf-8")
     token_file.chmod(0o600)
-    targets_file = write_targets(tmp_path, [
-        {"name": "handheld", "endpoint": "tcp://127.0.0.1:%d" % port,
-         "tokenFile": str(token_file)},
-    ])
-    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
-
-    links = links_from_env()
+    links = links_with_handheld_target(monkeypatch, tmp_path, port, token_file)
     assert len(links.links) == 1
     links.links[0].send(dict(DATA))
 
@@ -303,16 +301,12 @@ def test_two_targets_receive_the_same_records_and_a_refused_one_does_not_stop_th
     token_file.write_text("handheld-secret\n", encoding="utf-8")
     token_file.chmod(0o600)
 
-    targets_file = write_targets(tmp_path, [
+    links = links_with_handheld_target(
+        monkeypatch, tmp_path, port, token_file,
         # First on purpose: a refusal here must not cost the healthy desks.
         {"name": "offline", "endpoint": str(socket_dir / "nobody-listens.sock")},
         {"name": "local", "endpoint": str(local_path)},
-        {"name": "handheld", "endpoint": "tcp://127.0.0.1:%d" % port,
-         "tokenFile": str(token_file)},
-    ])
-    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
-
-    links = links_from_env()
+    )
     assert len(links.links) == 3
 
     for record in (dict(DATA), {"type": "data", "snapshot": {"positions": []}, "updatedAt": 2}):
