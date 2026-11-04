@@ -7,16 +7,9 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createPersonalAgent } from '../src/agent.mjs'
 import { openAgentCatalog } from '../src/agent-catalog/catalog.mjs'
-import { assistant, fixtureModel, visibleTools } from './helpers/pi-fixture.mjs'
+import { assistant, offlineRuntime as runtime, visibleTools } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
 
-function runtime(reply) {
-  return { getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel,
-    getAuth: async () => ({auth: {apiKey: 'offline-fixture'}}), streamSimple: (_model, context) => {
-      const result = Promise.resolve().then(() => reply(context))
-      return { async *[Symbol.asyncIterator]() { const message = await result; yield { type: 'done', reason: message.stopReason, message } }, result: () => result }
-    } }
-}
 const execute = (id, code) => assistant([{ type: 'toolCall', id, name: 'codemode', arguments: { code } }], 'toolUse')
 
 test('the actual Durable resident admits a general child with no parent history or recursive child tools', async t => {

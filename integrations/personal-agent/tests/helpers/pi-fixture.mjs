@@ -11,6 +11,14 @@ export function assistant(content, stopReason = 'stop') {
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } }
 }
 
+export function offlineRuntime(reply) {
+  return { getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel,
+    getAuth: async () => ({auth: {apiKey: 'offline-fixture'}}), streamSimple: (_model, context) => {
+      const result = Promise.resolve().then(() => reply(context))
+      return { async *[Symbol.asyncIterator]() { const message = await result; yield { type: 'done', reason: message.stopReason, message } }, result: () => result }
+    } }
+}
+
 export function visibleTools(context) {
   const tools = new Map()
   for (const message of context.messages) {

@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createPersonalAgent } from '../src/agent.mjs'
 import { loadPersonalConfig } from '../src/personal-config.mjs'
-import { assistant, fixtureModel, visibleTools } from './helpers/pi-fixture.mjs'
+import { assistant, offlineRuntime as offline, visibleTools } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
 
 async function fixture(t) {
@@ -17,14 +17,6 @@ async function fixture(t) {
   await mkdir(stateDir, { mode: 0o700 })
   return { directory, config: { stateDir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(directory, 'explicit-notes.json'),
     agentPlugins: { enabled: ['experience', 'completion', 'learning'] } }, env: {} } }
-}
-
-function offline(reply) {
-  return { getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel,
-    getAuth: async () => ({auth: {apiKey: 'offline-fixture'}}), streamSimple: (_model, context) => {
-      const result = Promise.resolve().then(() => reply(context))
-      return { async *[Symbol.asyncIterator]() { const message = await result; yield { type: 'done', reason: message.stopReason, message } }, result: () => result }
-    } }
 }
 
 test('completion and learning providers receive original literal receipts through actual Durable tools', async t => {

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { createPersonalAgent } from '../src/agent.mjs'
 import { openAgentCatalog } from '../src/agent-catalog/catalog.mjs'
 import { loadPersonalConfig } from '../src/personal-config.mjs'
-import { assistant, fixtureModel, visibleTools } from './helpers/pi-fixture.mjs'
+import { assistant, offlineRuntime as runtime, visibleTools } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
 
 async function fixture(t, enabled = ['catalog']) {
@@ -20,14 +20,6 @@ async function fixture(t, enabled = ['catalog']) {
   await writeFile(join(candidates, 'report-helper', 'checks.md'), 'Check every requested region.')
   return { root, candidates, config: { stateDir: join(root, 'state'), personal: { profile: 'personal', skillPaths: [], memoryFile: join(root, 'notes.json'), agentPlugins: { enabled } },
     env: { ODK_AGENT_PACKAGE_CANDIDATES: candidates } } }
-}
-
-function runtime(reply) {
-  return { getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel,
-    getAuth: async () => ({auth: {apiKey: 'offline-fixture'}}), streamSimple: (_model, context) => {
-      const result = Promise.resolve().then(() => reply(context))
-      return { async *[Symbol.asyncIterator]() { const message = await result; yield { type: 'done', reason: message.stopReason, message } }, result: () => result }
-    } }
 }
 
 const execute = (id, code) => assistant([{ type: 'toolCall', id, name: 'codemode', arguments: { code } }], 'toolUse')
