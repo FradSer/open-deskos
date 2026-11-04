@@ -99,6 +99,13 @@ const config = () => ({
   suppressed: [], snoozed: {}, routineDays: {}, rules: structuredClone(rules)
 })
 
+const watchDefaults = () => ({
+  config: { ...config(), rules: [structuredClone(rules[0])] },
+  now: () => Date.parse(stamp),
+  canExecute: () => true,
+  read: async id => ({ id, state: 'live', value: readings[id] }),
+})
+
 function fixture(judge) {
   const frames = []
   const watch = new ProactiveWatch({
@@ -250,10 +257,7 @@ test('a preview candidate is judged by usefulness and support without a style ga
     return { model: 'jev-fixture', answers: Object.fromEntries(Object.keys(asked).map(id => [id, { type: 'noul', noul: id.endsWith('_unsupported') ? 0.05 : 0.95 }])) }
   } })
   const watch = new ProactiveWatch({
-    config: { ...config(), rules: [structuredClone(rules[0])] },
-    now: () => Date.parse(stamp),
-    canExecute: () => true,
-    read: async id => ({ id, state: 'live', value: readings[id] }),
+    ...watchDefaults(),
     generate: async () => ({ suggestions: [{ topicId: 'commute-anomaly', key: 'primary', advice: '通勤明显慢于常态。', actionId: action.id,
       preview: { items: [{ label: '预计耗时', value: '52 分钟', tone: 'warn' }, { label: '基准耗时', value: '24 分钟' }] }, evidenceIds: ['e0'] }] }),
     judge, publish: () => {},
@@ -268,10 +272,7 @@ test('a preview candidate is judged by usefulness and support without a style ga
 test('equal values for distinct facts publish on the two host gates', async () => {
   const frames = []
   const watch = new ProactiveWatch({
-    config: { ...config(), rules: [structuredClone(rules[0])] },
-    now: () => Date.parse(stamp),
-    canExecute: () => true,
-    read: async id => ({ id, state: 'live', value: readings[id] }),
+    ...watchDefaults(),
     generate: async ({ topics }) => ({ suggestions: [{ topicId: 'commute-anomaly', key: 'primary', advice: '通勤与常态一致。', actionId: action.id,
       preview: { items: [{ label: '当前耗时', value: '24 分钟' }, { label: '基准耗时', value: '24 分钟' }] }, evidenceIds: topics[0].evidence.map(entry => entry.id) }] }),
     judge: createJevJudge({ request: async ({ questions }) => ({ model: 'jev-fixture',
@@ -322,10 +323,7 @@ test('a preview survives an evidence refresh without changing its values', async
 test('a malformed preview cannot publish a proposal', async () => {
   const frames = []
   const watch = new ProactiveWatch({
-    config: { ...config(), rules: [structuredClone(rules[0])] },
-    now: () => Date.parse(stamp),
-    canExecute: () => true,
-    read: async id => ({ id, state: 'live', value: readings[id] }),
+    ...watchDefaults(),
     generate: async () => ({ suggestions: [{ topicId: 'commute-anomaly', key: 'primary', advice: '通勤明显慢于常态。', actionId: action.id, preview: { items: [{ label: 'a', value: 'b', tone: 'alarm' }] }, evidenceIds: ['e0'] }] }),
     judge: deterministic(),
     publish: frame => frames.push(frame),
