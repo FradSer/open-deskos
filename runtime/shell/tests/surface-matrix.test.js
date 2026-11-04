@@ -88,6 +88,7 @@ function assertMatrixGate(scripts, io, file) {
   assert.match(workflow, /workflow_dispatch:/)
   assert.match(workflow, /pnpm test:matrix/)
   assert.match(workflow, /-screen 0 1920x1280x24/)
+  assert.match(workflow, /ODK_SURFACE_MATRIX_CI: '1'/)
   assert.match(workflow, /pnpm styles/)
   assert.match(workflow, /node_modules\/\.pnpm\/electron@.*chrome-sandbox/)
   assert.match(workflow, /chmod 4755/)

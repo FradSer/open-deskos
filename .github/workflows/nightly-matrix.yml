@@ -11,7 +11,9 @@ permissions:
 jobs:
   matrix:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+    env:
+      ODK_SURFACE_MATRIX_CI: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

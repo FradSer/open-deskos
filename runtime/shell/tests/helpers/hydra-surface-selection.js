@@ -71,8 +71,11 @@ async function capture(env, keyring, assets, { mutate = true, productionPolicy =
   return entries
 }
 
-function hydraSurfaceTimeouts(runtime, platform = process.platform, arch = process.arch) {
-  if (platform !== 'linux' || arch !== 'arm64') return { fixture: 70000, child: 80000, test: 90000 }
+function hydraSurfaceTimeouts(runtime, platform = process.platform, arch = process.arch, env = process.env) {
+  const referenceHost = platform === 'linux' && arch === 'arm64'
+  // Hosted CI runners use llvmpipe software rendering. The full matrix needs
+  // the same budget as the CM5 reference host, not the short GPU-host budget.
+  if (!referenceHost && env.ODK_SURFACE_MATRIX_CI !== '1') return { fixture: 70000, child: 80000, test: 90000 }
   // Runtime replacement adds the restored phase to the ordinary two-phase matrix.
   return runtime
     ? { fixture: 225000, child: 235000, test: 255000 }

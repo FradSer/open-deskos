@@ -9,11 +9,10 @@ const os = require('node:os')
 const path = require('node:path')
 const execute = require('node:util').promisify(require('node:child_process').execFile)
 const { install } = require('./helpers/hydra-selection')
-const { prepare } = require('./helpers/hydra-surface-selection')
+const { prepare, hydraSurfaceTimeouts } = require('./helpers/hydra-surface-selection')
 const { readConfig, resolveConfigPath, updateConfig } = require('../src/plugin-config')
 const id = 'odk.tile.hydra'
-const cm5 = process.platform === 'linux' && process.arch === 'arm64'
-const childTimeout = cm5 ? 160000 : 80000
+const childTimeout = hydraSurfaceTimeouts(false).child
 const matrix = process.env[MATRIX_ENV] || REPRESENTATIVE
 const full = matrix === FULL
 const comparisons = full ? 13 * 3 * 8 : 1

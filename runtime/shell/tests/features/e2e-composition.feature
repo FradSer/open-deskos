@@ -38,6 +38,12 @@ Feature: E2E validates the current declarative desktop
     And the complete E2E result is unsuccessful
     And the original diagnostic and profile cleanup remain available
 
+  Scenario: A software-rendered CI runner keeps the reference-host budget
+    Given the full Hydra matrix runs under llvmpipe on a hosted CI runner
+    When the fixture reads its rendering deadline
+    Then it uses the same budget as the CM5 reference host
+    And a normal host keeps its shorter rendering deadline
+
   Scenario: Every declared widget is present once
     Given the current desktop layout declares its widget identities
     When E2E inspects the Home page

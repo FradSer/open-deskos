@@ -12,8 +12,7 @@ const fixture = fs.readFileSync(path.join(__dirname, 'hydra-surface-electron.cjs
 test('Hydra revision children retain the existing CM5 rendering budget', () => {
   assert.match(fixture, /hydraSurfaceTimeouts\(runtimeSurface\)\.fixture/)
   assert.deepEqual(hydraSurfaceTimeouts(false, 'linux', 'arm64'), { fixture: 150000, child: 160000, test: 180000 })
-  assert.match(restart, /const cm5 = process\.platform === 'linux' && process\.arch === 'arm64'/)
-  assert.match(restart, /const childTimeout = cm5 \? 160000 : 80000/)
+  assert.match(restart, /const childTimeout = hydraSurfaceTimeouts\(false\)\.child/)
   assert.match(restart, /timeout: childTimeout, killSignal: 'SIGKILL'/)
 })
 
@@ -26,6 +25,13 @@ test('CM5 runtime surface budget covers the additional restored phase without ch
   const parent = fs.readFileSync(path.join(__dirname, 'hydra-surface-electron.test.js'), 'utf8')
   assert.match(parent, /hydraSurfaceTimeouts\(mode\.startsWith\('runtime-'\)\)\.test/)
   assert.match(parent, /hydraSurfaceTimeouts\(runtime\)\.child/)
+})
+
+test('a software-rendered CI runner keeps the reference-host rendering budget', () => {
+  const env = { ODK_SURFACE_MATRIX_CI: '1' }
+  assert.deepEqual(hydraSurfaceTimeouts(false, 'linux', 'x64', env), { fixture: 150000, child: 160000, test: 180000 })
+  assert.deepEqual(hydraSurfaceTimeouts(true, 'linux', 'x64', env), { fixture: 225000, child: 235000, test: 255000 })
+  assert.deepEqual(hydraSurfaceTimeouts(false, 'linux', 'x64', {}), { fixture: 70000, child: 80000, test: 90000 })
 })
 
 test('Hydra revision parent covers four children and preserves other host budgets', () => {
