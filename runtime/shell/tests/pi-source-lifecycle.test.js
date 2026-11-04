@@ -9,13 +9,7 @@ const { createPiSessionsSource } = require('../src/pi-sessions-source')
 const { createPiSessionEventsSource } = require('../src/pi-session-events-source')
 const { createPluginHost } = require('../src/plugin-host')
 const { createDataSourcePlugins, DATA_PORTS } = require('../src/plugins/data-sources')
-
-function deferred() {
-  let resolve
-  let reject
-  const promise = new Promise((yes, no) => { resolve = yes; reject = no })
-  return { promise, resolve, reject }
-}
+const { deferred } = require('./helpers/hydra-wire-lifecycle')
 
 test('SSH cancellation waits for close after an early abort callback', async () => {
   const child = new EventEmitter()

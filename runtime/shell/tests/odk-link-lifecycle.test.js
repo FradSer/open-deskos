@@ -8,13 +8,7 @@ const path = require('node:path')
 const { createOdkLinkClient } = require('../src/odk-link-client')
 const { createPiSessionEventsSource } = require('../src/pi-session-events-source')
 const { posixOnlyReason } = require('./not-ported')
-
-function deferred() {
-  let resolve
-  let reject
-  const promise = new Promise((yes, no) => { resolve = yes; reject = no })
-  return { promise, resolve, reject }
-}
+const { deferred } = require('./helpers/hydra-wire-lifecycle')
 
 async function fixture(t, count = 1, respondMachines = false) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-link-stop-'))

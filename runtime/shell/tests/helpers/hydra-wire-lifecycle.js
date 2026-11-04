@@ -29,4 +29,11 @@ function fixtureRejection(error, expected) {
     && expected.test(error.stderr || '')
 }
 
-module.exports = { wait, cleanup, runCommand, fixtureRejection }
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no })
+  return { promise, resolve, reject }
+}
+
+module.exports = { wait, cleanup, runCommand, fixtureRejection, deferred }

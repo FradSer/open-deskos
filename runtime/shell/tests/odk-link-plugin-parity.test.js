@@ -15,14 +15,7 @@ const { createOdkLinkClient, createOdkLinkTransport } = require('../src/odk-link
 const { createPiSessionEventsSource } = require('../src/pi-session-events-source')
 const { createPiSessionsSource } = require('../src/pi-sessions-source')
 const { select } = require('./helpers/odk-link-selection')
-const { wait } = require('./helpers/hydra-wire-lifecycle')
-
-function deferred() {
-  let resolve
-  let reject
-  const promise = new Promise((yes, no) => { resolve = yes; reject = no })
-  return { promise, resolve, reject }
-}
+const { wait, deferred } = require('./helpers/hydra-wire-lifecycle')
 
 async function fixture(t, mode, send, socketPath = '/fixture/link.sock', extraOptions = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-link-parity-'))
