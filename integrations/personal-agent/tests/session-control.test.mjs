@@ -13,6 +13,15 @@ const TASK_ID = '12345678-1234-1234-1234-123456789abc'
 const PROJECT = process.platform === 'win32' ? '\\work' : '/work'
 const integration = fileURLToPath(new URL('..', import.meta.url))
 
+function useTaskTargetsFile(t, targets) {
+  const previous = process.env.ODK_TASK_TARGETS_FILE
+  process.env.ODK_TASK_TARGETS_FILE = targets
+  t.after(() => {
+    if (previous === undefined) delete process.env.ODK_TASK_TARGETS_FILE
+    else process.env.ODK_TASK_TARGETS_FILE = previous
+  })
+}
+
 // The helper is the target's own control entry point: it echoes the correlated
 // request it received, so the assertion is about what actually left the
 // coordinator rather than about the coordinator's own bookkeeping.
@@ -34,12 +43,7 @@ process.stdin.on('end', () => {
   executable = await nodeExecutable(t, executable)
   const targets = join(dir, 'targets.json')
   await writeFile(targets, `${JSON.stringify({ targets: [{ id: 'cm5', name: 'CM5', executable, roots: [PROJECT] }] })}\n`)
-  const previous = process.env.ODK_TASK_TARGETS_FILE
-  process.env.ODK_TASK_TARGETS_FILE = targets
-  t.after(() => {
-    if (previous === undefined) delete process.env.ODK_TASK_TARGETS_FILE
-    else process.env.ODK_TASK_TARGETS_FILE = previous
-  })
+  useTaskTargetsFile(t, targets)
   const tools = await loadCapabilities()
   const call = async (name, params) => JSON.parse((await tools.find(tool => tool.name === name).execute('call', params)).content[0].text)
   return { tools, call }
@@ -96,12 +100,7 @@ test('an empty target list is reported instead of a guessed host', async t => {
   t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   const targets = join(dir, 'targets.json')
   await writeFile(targets, '{"targets":[]}\n')
-  const previous = process.env.ODK_TASK_TARGETS_FILE
-  process.env.ODK_TASK_TARGETS_FILE = targets
-  t.after(() => {
-    if (previous === undefined) delete process.env.ODK_TASK_TARGETS_FILE
-    else process.env.ODK_TASK_TARGETS_FILE = previous
-  })
+  useTaskTargetsFile(t, targets)
   const tools = await loadCapabilities()
   const listed = JSON.parse((await tools.find(tool => tool.name === 'coding_targets').execute('call', {}, undefined)).content[0].text)
   assert.deepEqual(listed, { targets: [] })
@@ -144,12 +143,7 @@ async function hostCoordinator(t, seed) {
     if (!live) await new Promise(resolve => setTimeout(resolve, 50))
   }
   assert.ok(live, 'the host daemon never served its control socket')
-  const previous = process.env.ODK_TASK_TARGETS_FILE
-  process.env.ODK_TASK_TARGETS_FILE = targets
-  t.after(() => {
-    if (previous === undefined) delete process.env.ODK_TASK_TARGETS_FILE
-    else process.env.ODK_TASK_TARGETS_FILE = previous
-  })
+  useTaskTargetsFile(t, targets)
   return { root, tools: await loadCapabilities() }
 }
 
