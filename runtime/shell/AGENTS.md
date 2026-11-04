@@ -19,6 +19,9 @@ Read @README.md for controlled releases and `scripts/verify-release.sh`. `ODK_WO
 
 ```sh
 node --test tests/<affected>.test.js
+pnpm test:fast
+pnpm test:acceptance
+pnpm test:matrix
 pnpm test
 pnpm styles
 pnpm smoke

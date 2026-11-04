@@ -38,6 +38,11 @@ Feature: Shared Bridge device access
     When the peripheral State Bar button renders
     Then Remote Control uses a service glyph
     And no device glyph identifies Remote Control
+
+  Scenario: The Devices fixture freezes its renderer baselines
+    Given the Devices Electron fixture reads the renderer skeleton and Liquid Glass SDK
+    When a contributor changes either frozen source file
+    Then a host contract reports the stale pin before the Electron fixture runs
     And no gamepad glyph appears in the State Bar
 
   Scenario: Devices fixture retains the Personal Agent bridge

@@ -24,7 +24,8 @@ Feature: Open DeskOS repository architecture
     Given a contributor runs repository architecture checks from a Git checkout
     When git-agent classifies a contribution
     Then it uses concise scopes for Shell, hardware, link, vision, computer vision, research, tooling, and experiments
-    And a research scope covers contributions spanning preserved research components
+    And it adds explicit scopes for the current source trees
+    And every scope name stays unique and declares an owner
     And it does not retain scopes for the removed app or firmware roots
     But a deployed runtime slice does not require preserved research source trees or Git metadata
 

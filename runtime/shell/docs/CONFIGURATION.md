@@ -68,6 +68,8 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `ODK_OVERVIEW_LIVE_OUTPUT` | Test | Explicit live Overview harness | integrations/personal-agent/scripts/test-home-briefing-live.mjs | Private temporary directory | Evidence destination; model requests still require `--run`. |
 | `ODK_OVERVIEW_LIVE_DEVICE_ONLY` | Test | Explicit live Overview harness | integrations/personal-agent/scripts/test-home-briefing-live.mjs | Unset | Set `1` to skip synthetic cases and read the configured device sources; requires `--run`. |
 | `ODK_SHELL_WIDTH` | Test | Smoke/acceptance | runtime/shell/src/main.js | — | Window width override. |
+| `ODK_TEST_FAST_CONCURRENCY` | Test | Test process | runtime/shell/scripts/test-tiers.cjs | Host default | Fast-tier worker count. Use a positive integer. The CM5 reference host defaults to four. Other hosts default to eight. |
+| `ODK_SURFACE_MATRIX` | Test | Full-matrix gate | runtime/shell/tests/helpers/surface-matrix.js | Representative combination | Set `full` to render every Cell, theme, size, and reading state. Revision acceptance uses one representative combination by default. |
 | `ODK_SKIP_GPU_USERSPACE` | L2 install | Installer override | runtime/shell/scripts/cm5-install.sh | 0 | Skip the Mali userspace install. |
 | `ODK_SMOKE_RESULT_FILE` | Test | Smoke run | runtime/shell/src/main.js | — | Smoke result file. |
 | `ODK_TAILSCALE_BIN` | L3 device | Operator | runtime/shell/scripts/provision-tailscale.sh | /usr/bin/tailscale | Override a nonstandard Tailscale executable path. Reuse an existing host installation. |

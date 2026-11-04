@@ -3,7 +3,18 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { EventEmitter } = require('node:events')
 const { PassThrough } = require('node:stream')
+const { createHash } = require('node:crypto')
+const fs = require('node:fs')
+const path = require('node:path')
 const { createDeviceGatewaySource, createLineDecoder, validateAction } = require('../src/device-gateway-source')
+
+test('the Devices fixture pins the current renderer skeleton and SDK', () => {
+  const fixture = fs.readFileSync(path.join(__dirname, 'device-gateway-electron.cjs'), 'utf8')
+  const pins = [...fixture.matchAll(/digest\('hex'\), '([a-f0-9]{64})'/g)].map(match => match[1])
+  assert.equal(pins.length, 2)
+  const digest = file => createHash('sha256').update(fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', file))).digest('hex')
+  assert.deepEqual(pins, [digest(path.join('themes', 'liquid-glass-sdk.js')), digest('index.html')])
+})
 
 function worker({ firmware = '0.1.0' } = {}) {
   const child = new EventEmitter()

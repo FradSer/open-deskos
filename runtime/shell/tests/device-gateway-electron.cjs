@@ -105,7 +105,7 @@ ipcMain.handle('odk-remote-publish-page-state', () => true)
 
 app.whenReady().then(async () => {
   assert.equal(createHash('sha256').update(fs.readFileSync(sdkPath)).digest('hex'), '30d784231503778aaf3712091d5f8c08df40a007e6027cfadd4d472dd2168ac3')
-  assert.equal(createHash('sha256').update(fs.readFileSync(path.resolve(__dirname, '../src/renderer/index.html'))).digest('hex'), 'effe18f70e49bf744b3b23e4534468c8e4c8b0ed77f73c9d50793160dcb7c0ee')
+  assert.equal(createHash('sha256').update(fs.readFileSync(path.resolve(__dirname, '../src/renderer/index.html'))).digest('hex'), '7525e3c71edb064dbeb6af05b5ee8e45bca490b28f41975e8f4129cb3d8a1859')
 
   const win = new BrowserWindow({ width: 1280, height: 800, show: false, webPreferences: {
     preload: path.resolve(__dirname, '../src/preload.js'), contextIsolation: true, nodeIntegration: false, offscreen: true, backgroundThrottling: false,

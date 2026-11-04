@@ -1,5 +1,6 @@
 'use strict'
 const { isolatedElectronArgs } = require('./helpers/electron-fixture')
+const { MATRIX_ENV, REPRESENTATIVE, FULL } = require('./helpers/surface-matrix')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -12,6 +13,8 @@ const { prepare } = require('./helpers/weread-surface-selection')
 const { runCommand } = require('./helpers/hydra-wire-lifecycle')
 const { readConfig, resolveConfigPath, updateConfig } = require('../src/plugin-config')
 const id = 'odk.tile.weread'
+const matrix = process.env[MATRIX_ENV] || REPRESENTATIVE
+const full = matrix === FULL
 
 test('signed independent WeRead surface update rollback and removal preserve separate Electron consumers', { timeout: surfaceTimeouts().revisions }, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-weread-surface-revisions-'))
@@ -47,7 +50,7 @@ test('signed independent WeRead surface update rollback and removal preserve sep
     }
     const launch = async (version, cached = true) => {
       const profile = await fs.mkdtemp(path.join(root, 'electron-'))
-      const childEnv = { ...env, ODK_WEREAD_FIXTURE_PROFILE: profile, ODK_WEREAD_SURFACE_REPLACEMENT: '1',
+      const childEnv = { ...env, [MATRIX_ENV]: matrix, ODK_WEREAD_FIXTURE_PROFILE: profile, ODK_WEREAD_SURFACE_REPLACEMENT: '1',
         ODK_WEREAD_SURFACE_NATIVE: '1', ODK_WEREAD_SURFACE_REVISION: version, ODK_WEREAD_PERSISTENT_CACHE: cacheFile,
         ODK_WEREAD_CACHE_ONLY: cached ? '1' : '0' }
       delete childEnv.ELECTRON_RUN_AS_NODE
@@ -65,7 +68,7 @@ test('signed independent WeRead surface update rollback and removal preserve sep
         assert.notEqual(report.pid, process.pid)
         assert.equal(pids.has(report.pid), false)
         pids.add(report.pid)
-        assert.equal(report.consumers.length, 15)
+        assert.equal(report.consumers.length, full ? 15 : 1)
         const { initial, initialProviderCalls, snapshot, providerCalls, primingProviderCalls, rendered, health } = report.cache
         assert.equal(initialProviderCalls, 0)
         assert.equal(snapshot.status, 'live')

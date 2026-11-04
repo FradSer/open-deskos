@@ -16,6 +16,9 @@
     "parity:android": "node tests/personal-agent-parity-gate.mjs",
     "composition:android": "node tests/personal-agent-device-composition.mjs",
     "test": "node --test --test-concurrency=2 tests/*.test.js",
+    "test:fast": "node scripts/test-tiers.cjs fast",
+    "test:acceptance": "node scripts/test-tiers.cjs acceptance",
+    "test:matrix": "node scripts/test-matrix.cjs",
     "build:native": "node scripts/build-native.mjs",
     "geometry": "for f in src/renderer/**/*.js; do node --check \"$f\" || exit 1; done && pnpm styles && electron tests/status-bar-style.cjs && electron tests/home-handle.cjs && electron tests/agent-home.cjs --agent-reference-only && electron tests/agent-home.cjs --onee-flow-only && electron tests/avatar-pixel-theme.cjs && electron tests/responsive-matrix.cjs && electron tests/home-preview.cjs --widget-grid && electron tests/widget-density.cjs && electron tests/pi-tile-style.cjs && electron tests/futu-style.cjs && electron tests/input-scroll-polish.cjs && electron tests/agent-radius.cjs && electron tests/hydra-style.cjs && electron tests/widget-app-styles.cjs && electron tests/quota-account-preview.cjs && electron tests/app-gallery.cjs --verify --all-themes && electron tests/widget-navigation.cjs && node --test --test-concurrency=2 tests/calendar-surface-electron.test.js && node --test --test-concurrency=2 tests/desk-tool-surface-electron.test.js && node --test --test-concurrency=2 tests/quota-surface-electron.test.js && node --test --test-concurrency=2 tests/pi-status-surface-electron.test.js && node --test --test-concurrency=2 tests/input-status-surface-electron.test.js",
     "preview:home": "pnpm styles && electron tests/home-preview.cjs"

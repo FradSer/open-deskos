@@ -1,0 +1,30 @@
+name: Nightly full rendering matrix
+
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: runtime/shell/pnpm-lock.yaml
+      - name: Install Shell dependencies
+        working-directory: runtime/shell
+        run: pnpm install --frozen-lockfile
+      - name: Run the full rendering matrix
+        working-directory: runtime/shell
+        run: xvfb-run -a pnpm test:matrix

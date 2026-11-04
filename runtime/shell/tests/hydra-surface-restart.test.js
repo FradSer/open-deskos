@@ -1,5 +1,6 @@
 'use strict'
 const { isolatedElectronArgs } = require('./helpers/electron-fixture')
+const { MATRIX_ENV, REPRESENTATIVE, FULL } = require('./helpers/surface-matrix')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -13,7 +14,9 @@ const { readConfig, resolveConfigPath, updateConfig } = require('../src/plugin-c
 const id = 'odk.tile.hydra'
 const cm5 = process.platform === 'linux' && process.arch === 'arm64'
 const childTimeout = cm5 ? 160000 : 80000
-const comparisons = 13 * 3 * 8 // Cell shapes, themes, and reading states.
+const matrix = process.env[MATRIX_ENV] || REPRESENTATIVE
+const full = matrix === FULL
+const comparisons = full ? 13 * 3 * 8 : 1
 
 test('signed Hydra surface revisions preserve rendered consumers across separate processes', { timeout: 4 * childTimeout + 100000 }, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-hydra-surface-revisions-'))
@@ -41,7 +44,7 @@ test('signed Hydra surface revisions preserve rendered consumers across separate
     const launch = async version => {
       const profile = await fs.mkdtemp(path.join(root, 'electron-'))
       const consumers = path.join(profile, 'consumers.json')
-      const childEnv = { ...env, ODK_HYDRA_SURFACE_PROFILE: profile, ODK_HYDRA_SURFACE_NATIVE: '1',
+      const childEnv = { ...env, [MATRIX_ENV]: matrix, ODK_HYDRA_SURFACE_PROFILE: profile, ODK_HYDRA_SURFACE_NATIVE: '1',
         ODK_HYDRA_SURFACE_REVISION: version, ODK_HYDRA_SURFACE_CONSUMERS: consumers }
       delete childEnv.ELECTRON_RUN_AS_NODE
       const operation = execute(require('electron'), isolatedElectronArgs([`--user-data-dir=${profile}`, '--force-device-scale-factor=1', path.join(__dirname, 'hydra-surface-electron.cjs')]),

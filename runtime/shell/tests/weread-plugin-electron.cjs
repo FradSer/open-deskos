@@ -33,6 +33,7 @@ const { loadNativePlugins } = require('../src/native-plugin-loader')
 const { installGeometryFixtures } = require('./helpers/live-fixtures')
 const { surfaceTimeouts } = require('./helpers/weread-selection')
 const { WEREAD_PROFILE, measureDensity, collectWidgetContent } = require('./helpers/widget-density')
+const { select } = require('./helpers/surface-matrix')
 const id = 'odk.source.weread'
 const widget = 'odk.tile.weread'
 const channel = 'odk-weread-highlight'
@@ -196,6 +197,8 @@ app.whenReady().then(async () => {
     assert.equal(result.fixtureError, undefined, result.fixtureError)
     return result
   }
+  const sizes = select([[1920, 1280], [1920, 1080], [960, 640], [480, 854], [320, 480]])
+  const themes = select(['instrument', 'pixel', 'border-beam'])
   const baseline = new Map()
   let executedVersion
   let cacheReport
@@ -254,7 +257,7 @@ app.whenReady().then(async () => {
       executedVersion = host.get(DATA_PORTS.weread).fixtureRevision || host.list()[0].manifest.version
     }
     assertSource()
-    for (const size of [[1920, 1280], [1920, 1080], [960, 640], [480, 854], [320, 480]]) for (const theme of ['instrument', 'pixel', 'border-beam']) {
+    for (const size of sizes) for (const theme of themes) {
       await host.setEnabled(id, false)
       assert.equal(handlers.size, 0)
       assert.equal(host.list()[0].state, 'disabled')
@@ -398,7 +401,7 @@ app.whenReady().then(async () => {
     nativeSurfaceAssets.close()
     if (surfaceEntries.length) assert.equal(nativeSurfaceAssets.response({ url: surfaceEntries[0].entryUrl }).status, 410)
   }
-  const report = { ok: true, actualPreload: true, signedIndependent: !restartVersion || restartVersion !== '1.0.0', themes: 3, sizes: 5, decodedCovers: true,
+  const report = { ok: true, actualPreload: true, signedIndependent: !restartVersion || restartVersion !== '1.0.0', themes: themes.length, sizes: sizes.length, decodedCovers: true,
     ...(surfaceReplacement ? { independentSurface: surfaceRevision !== '1.0.0', developmentLoaded: !signedSurface,
       ...(signedSurface ? { signedSurface: true, capturedSurfaceIntegrity: !surfaceRevision, assetLeaseReleased: true } : {}) } : {}),
     ...(surfaceRevision ? { surfaceProcessRestart: true, surfaceVersion: surfaceRevision, pid: process.pid, consumers: [...baseline.entries()] } : {}),

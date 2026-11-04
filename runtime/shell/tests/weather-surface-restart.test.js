@@ -1,5 +1,6 @@
 'use strict'
 const { isolatedElectronArgs } = require('./helpers/electron-fixture')
+const { MATRIX_ENV, REPRESENTATIVE, FULL } = require('./helpers/surface-matrix')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -12,6 +13,12 @@ const { prepare } = require('./helpers/weather-surface-selection')
 const { runCommand } = require('./helpers/hydra-wire-lifecycle')
 const { readConfig, resolveConfigPath, updateConfig } = require('../src/plugin-config')
 const id = 'odk.tile.weather'
+const matrix = process.env[MATRIX_ENV] || REPRESENTATIVE
+const full = matrix === FULL
+const consumerKeys = full
+  ? ['1920x1280', '1920x1080', '960x640', '480x854', '320x480']
+    .flatMap(size => ['instrument', 'pixel', 'border-beam', 'liquid-glass'].map(theme => `${size}/${theme}`)).sort()
+  : ['1920x1280/instrument']
 
 test('signed independent Weather surface update rollback and removal preserve separate Electron consumers', { timeout: surfaceTimeouts().revisions }, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-weather-surface-revisions-'))
@@ -47,7 +54,7 @@ test('signed independent Weather surface update rollback and removal preserve se
     }
     const launch = async (version, offline = true) => {
       const profile = await fs.mkdtemp(path.join(root, 'electron-'))
-      const childEnv = { ...env, ODK_WEATHER_FIXTURE_PROFILE: profile, ODK_WEATHER_SURFACE_REPLACEMENT: '1',
+      const childEnv = { ...env, [MATRIX_ENV]: matrix, ODK_WEATHER_FIXTURE_PROFILE: profile, ODK_WEATHER_SURFACE_REPLACEMENT: '1',
         ODK_WEATHER_SURFACE_NATIVE: '1', ODK_WEATHER_SURFACE_REVISION: version,
         ODK_WEATHER_PERSISTENT_CACHE: cacheFile, ODK_WEATHER_CACHE_OFFLINE: offline ? '1' : '0' }
       delete childEnv.ELECTRON_RUN_AS_NODE
@@ -65,9 +72,7 @@ test('signed independent Weather surface update rollback and removal preserve se
         assert.notEqual(report.pid, process.pid)
         assert.equal(pids.has(report.pid), false)
         pids.add(report.pid)
-        assert.deepEqual(report.consumers.map(([key]) => key).sort(),
-          ['1920x1280', '1920x1080', '960x640', '480x854', '320x480']
-            .flatMap(size => ['instrument', 'pixel', 'border-beam', 'liquid-glass'].map(theme => `${size}/${theme}`)).sort())
+        assert.deepEqual(report.consumers.map(([key]) => key).sort(), consumerKeys)
         const { initial, initialProviderCalls, snapshot, rendered, health } = report.cache
         assert.equal(initialProviderCalls, 0)
         assert.equal(snapshot.status, offline ? 'stale' : 'live')

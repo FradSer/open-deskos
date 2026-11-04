@@ -57,9 +57,19 @@ if (!exists('.git')) {
   test('git-agent uses concise scopes aligned with the current topology', () => {
     const config = fs.readFileSync(GIT_AGENT_CONFIG, 'utf8')
     const names = [...config.matchAll(/^    - name: (.+)$/gm)].map((match) => match[1])
-    assert.match(fs.readFileSync(FEATURE, 'utf8'), /uses concise scopes for Shell, hardware, link, vision, computer vision, research, tooling, and experiments/)
-    assert.deepEqual(names.slice().sort(), ['shell', 'hw', 'link', 'vision', 'vis', 'rsrch', 'tool', 'exp'].sort())
-    assert.doesNotMatch(config, /^    - name: (?:app|firmware|experiments)$/m)
+    const feature = fs.readFileSync(FEATURE, 'utf8')
+    assert.match(feature, /uses concise scopes for Shell, hardware, link, vision, computer vision, research, tooling, and experiments/)
+    assert.match(feature, /adds explicit scopes for the current source trees/)
+    assert.equal(new Set(names).size, names.length, 'scope names stay unique')
+    assert.equal([...config.matchAll(/^      description: .+$/gm)].length, names.length, 'every scope declares an owner')
+    for (const concise of ['shell', 'hw', 'link', 'vision', 'vis', 'rsrch', 'tool', 'exp']) {
+      assert.ok(names.includes(concise), `${concise} concise scope is missing`)
+    }
+    for (const tree of ['runtime', 'integrations', 'peripherals', 'research', 'experiments', 'tools']) {
+      assert.ok(names.includes(tree), `${tree} has no explicit scope`)
+      assert.equal(exists(tree), true, `${tree} source tree is missing`)
+    }
+    assert.doesNotMatch(config, /^    - name: (?:app|firmware)$/m)
   })
 
   test('active product documentation does not direct contributors to obsolete paths', () => {

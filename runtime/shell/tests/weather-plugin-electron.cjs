@@ -36,6 +36,7 @@ const { loadNativePlugins } = require('../src/native-plugin-loader')
 const { installGeometryFixtures } = require('./helpers/live-fixtures')
 const { surfaceTimeouts } = require('./helpers/weather-selection')
 const { WEATHER_PROFILE, measureDensity, collectWidgetContent } = require('./helpers/widget-density')
+const { select } = require('./helpers/surface-matrix')
 const id = 'odk.source.weather'
 const widget = 'odk.tile.weather'
 const channel = 'odk-weather-status'
@@ -155,6 +156,8 @@ app.whenReady().then(async () => {
     assert.deepEqual(density.violations, [], `Weather density: ${result.theme}/${result.state}`)
     return { ...result, density: { fill: density.fill, occupied: density.occupied, emptyBand: density.emptyBand } }
   }
+  const sizes = select([[1920, 1280], [1920, 1080], [960, 640], [480, 854], [320, 480]])
+  const themes = select(['instrument', 'pixel', 'border-beam', 'liquid-glass'])
   const baseline = new Map()
   let executedVersion
   let cacheReport
@@ -218,7 +221,7 @@ app.whenReady().then(async () => {
       selected()
       await js(`window.odkRendererRuntime.setEnabled(${JSON.stringify(widget)}, true)`)
     }
-    for (const size of [[1920, 1280], [1920, 1080], [960, 640], [480, 854], [320, 480]]) for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
+    for (const size of sizes) for (const theme of themes) {
       await host.setEnabled(id, false)
       fs.rmSync(cacheFile, { force: true })
       options.latitude = 1
@@ -330,7 +333,7 @@ app.whenReady().then(async () => {
     nativeSurfaceAssets.close()
     if (surfaceEntries.length) assert.equal(nativeSurfaceAssets.response({ url: surfaceEntries[0].entryUrl }).status, 410)
   }
-  console.log(JSON.stringify({ ok: true, actualPreload: true, signedIndependent: !restartVersion || restartVersion !== '1.0.0', themes: 4, sizes: 5, states: 6,
+  console.log(JSON.stringify({ ok: true, actualPreload: true, signedIndependent: !restartVersion || restartVersion !== '1.0.0', themes: themes.length, sizes: sizes.length, states: 6,
     ...(restartVersion ? { processRestart: true, pid: process.pid, version: executedVersion, consumers: [...baseline.entries()] } : {}),
     ...(surfaceReplacement ? { independentSurface: surfaceRevision !== '1.0.0', developmentLoaded: !signedSurface,
       ...(signedSurface ? { signedSurface: true, capturedSurfaceIntegrity: !surfaceRevision, assetLeaseReleased: true } : {}) } : {}),

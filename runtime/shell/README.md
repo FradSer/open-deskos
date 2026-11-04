@@ -16,6 +16,9 @@ pnpm styles
 ODK_SHELL_KIOSK=1 ./run.sh --kiosk
 bash tests/smoke.sh
 pnpm test
+pnpm test:fast
+pnpm test:acceptance
+pnpm test:matrix
 pnpm run e2e
 pnpm exec electron tests/widget-app-styles.cjs
 pnpm exec electron tests/widget-density.cjs
@@ -24,6 +27,10 @@ pnpm exec electron tests/pixel-font.cjs
 pnpm exec electron tests/pi-sessions-states.cjs
 pnpm exec electron tests/capture-sheet.cjs
 ```
+
+Use `pnpm test:fast` for local checks. It runs Node contract files that do not start a graphical Electron process. It uses eight workers on most hosts. The CM5 reference host uses four workers so kiosk services keep room. Set `ODK_TEST_FAST_CONCURRENCY` to override that number. Use `pnpm test:acceptance` for Electron fixture checks. It keeps two workers to protect the CM5 Mali GPU. `pnpm test` and `pnpm preflight` still run every test file.
+
+Use `pnpm test:matrix` for the full rendering matrix. Revision acceptance runs one representative combination in each Electron process by default. The full-matrix gate restores every Cell, theme, size, and reading state. It also compares complete consumer sets across all four revisions. The nightly workflow and a manual dispatch run this gate. CM5 device acceptance keeps a manual `pnpm test:matrix` run. The nightly workflow does not run on the device.
 
 Linux/macOS use `./run.sh`; Windows uses `run.ps1`. Use `node tests/smoke.mjs` for the shared smoke checks. `tests/smoke.sh` is the CM5 wrapper. Live startup reads configured services and user state; it is not an isolated fixture test.
 

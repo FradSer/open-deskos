@@ -27,6 +27,7 @@ if (consumerFile) {
 const { createNativeRendererAssets, NATIVE_PLUGIN_SCHEME } = require('../src/native-renderer-assets')
 const { capture, hydraSurfaceTimeouts } = require('./helpers/hydra-surface-selection')
 const { serializeComputedStyle } = require('./helpers/hydra-style-snapshot')
+const { select } = require('./helpers/surface-matrix')
 const assets = signedSurface ? createNativeRendererAssets() : null
 if (signedSurface) require('../src/user-app-system').registerUserAppScheme(protocol)
 let win, host, finishing
@@ -79,13 +80,13 @@ app.whenReady().then(async () => {
   const live = { configured: true, connected: true, mainOnline: true,
     env: { stale: false, tempC: -10.2, humidity: 79.8, pressureHpa: 1013.6, lux: 1234 },
     nodes: [{ id: 2, online: true, soilPercent: 44, pump: true }, { id: 1, online: true, soilPercent: 62 }] }
-  const states = [live, { ...live, env: { ...live.env, stale: true } },
+  const states = select([live, { ...live, env: { ...live.env, stale: true } },
     { ...live, mainOnline: false, nodes: [{ id: 1, online: false, soilPercent: 80, pump: true }] },
     { ...live, connected: false }, { configured: false }, { ...live, env: null, nodes: [] },
-    { ...live, env: { ...live.env, lux: 0.25 }, nodes: [{ id: 1, stale: true, pump: true, soilPercent: 49 }] }, live]
-  const cells = [[619, 196], [1103, 730], [480, 340], [348, 724], [186, 400], [168, 336], [120, 240], [292, 292],
-    [168, 168], [128, 128], [116, 120], [110, 260], [94, 94]]
-  const themes = ['instrument', 'pixel', 'border-beam']
+    { ...live, env: { ...live.env, lux: 0.25 }, nodes: [{ id: 1, stale: true, pump: true, soilPercent: 49 }] }, live])
+  const cells = select([[619, 196], [1103, 730], [480, 340], [348, 724], [186, 400], [168, 336], [120, 240], [292, 292],
+    [168, 168], [128, 128], [116, 120], [110, 260], [94, 94]])
+  const themes = select(['instrument', 'pixel', 'border-beam'])
   const baseline = []
   let lastConsumers, executedVersion, entryCount
   const phases = runtimeSurface ? ['default', 'independent', 'restored'] : ['default', 'independent']
