@@ -2,6 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { fixtureRejection } = require('./helpers/hydra-wire-lifecycle')
 const { promisify } = require('node:util')
+const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm')
 const execute = promisify(require('node:child_process').execFile)
 const marker = /Controlled fixture rejection/
 
@@ -32,7 +33,6 @@ test('a wrong message or process outcome cannot establish rejection', () => {
 for (const [control, mode, message] of [['missing', 'built-in', 'Selected Renderer control missing'],
   ['default', 'missing-tick', 'Clock Tick subscription changed']]) {
   test(`Clock Main ${control}/${mode} negative guard requires its own failure exit`, async () => {
-    const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm')
     const source = fs.readFileSync(path.join(__dirname, 'clock-main-bootstrap.test.js'), 'utf8')
     const start = source.indexOf("        if (control === 'missing-bridge') await assert.rejects(launch,")
     const end = source.indexOf('        else {', start)
@@ -48,7 +48,6 @@ for (const [control, mode, message] of [['missing', 'built-in', 'Selected Render
 
 
 test('App Manager omitted rollback requires its own normal failure exit', async () => {
-  const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm')
   const source = fs.readFileSync(path.join(__dirname, 'app-manager-electron.test.js'), 'utf8')
   const start = source.indexOf('      if (invalid) await assert.rejects(running,')
   const end = source.indexOf('      else {', start)
@@ -78,7 +77,6 @@ for (const [name, index, stderr] of [
   ['native Page', 2, 'Captured Pi views must not call packaged mounts\nPI_EXTERNAL_GUARD_PHASE:signed'],
 ]) {
   test(`Pi ${name} negative guard requires normal failure even with matching stderr`, () => {
-    const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm')
     const source = fs.readFileSync(path.join(__dirname, 'pi-electron.test.js'), 'utf8')
     const validators = [...source.matchAll(/error => \{([\s\S]*?)\n\s*return true\n\s*\}/g)]
     assert.equal(validators.length, 3, 'Exercise all actual Pi guard validators')

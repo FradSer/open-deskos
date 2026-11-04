@@ -2,6 +2,8 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
+const vm = require('node:vm')
+const { spawnSync } = require('node:child_process')
 
 const updater = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'update-runtime.js'), 'utf8')
 const migrator = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'migrate-runtime.js'), 'utf8')
@@ -123,7 +125,6 @@ test('CM5 migration CLI is user-scoped and does not enable experiments', () => {
 })
 
 test('updater gives complete preflight one hour while post-activation verification stays at 60 seconds', () => {
-  const vm = require('node:vm')
   const commands = []
   const candidate = '/runtime/releases/candidate'
   const fakeProcess = { getuid: () => 0, env: {
@@ -165,7 +166,6 @@ test('updater gives complete preflight one hour while post-activation verificati
 })
 
 function gnuTimeoutUnavailableReason() {
-  const { spawnSync } = require('node:child_process')
   const probe = spawnSync('timeout', ['--version'], {
     encoding: 'utf8', timeout: 1000, killSignal: 'SIGKILL',
   })
@@ -177,8 +177,6 @@ test('stalled verifier fails, rolls back, and releases its lock without leaving 
   skip: require('./not-ported').posixOnlyReason('cm5-tooling') || gnuTimeoutUnavailableReason(),
 }, async () => {
   const os = require('node:os')
-  const vm = require('node:vm')
-  const { spawnSync } = require('node:child_process')
   const { activateRelease, readRuntimeState } = require('../scripts/lib/runtime-release')
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-bounded-verify-'))
   const context = vm.createContext({ fs, path, process, spawnSync })
@@ -230,7 +228,6 @@ test('stalled verifier fails, rolls back, and releases its lock without leaving 
 })
 
 test('release command supervision encloses runuser and fails closed when timeout cannot start', () => {
-  const vm = require('node:vm')
   const calls = []
   const context = vm.createContext({
     process,
@@ -251,8 +248,6 @@ test('release command supervision encloses runuser and fails closed when timeout
 
 test('sealing makes owner-private dependencies readable without granting write or new execute access', { skip: process.platform === 'win32' }, () => {
   const os = require('node:os')
-  const vm = require('node:vm')
-  const { spawnSync } = require('node:child_process')
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-seal-permissions-'))
   const nested = path.join(temporary, 'node_modules', 'electron')
   const moduleFile = path.join(nested, 'index.js')

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
+const vm = require('node:vm')
 const { parseProcessTable, scanPiSessions, readSessionEvents } = require('../src/pi-sessions')
 
 test('parseProcessTable finds Pi executables and derives elapsed start times', () => {
@@ -34,7 +35,6 @@ test('parseProcessTable finds Pi executables and derives elapsed start times', (
 })
 
 function darwinProcessFixture(execute) {
-  const vm = require('node:vm')
   const { createRequire } = require('node:module')
   const file = path.join(__dirname, '../src/pi-sessions.js')
   const actualRequire = createRequire(file)
@@ -662,7 +662,6 @@ test('scanPiSessions parses sessions, deduplicates, and evaluates process livene
 })
 
 test('Pi Sessions widget reports scanner failure without fabricating zero sessions', async () => {
-  const vm = require('node:vm')
   const pluginSrc = fs.readFileSync(path.join(__dirname, '../src/renderer/plugins/pi-sessions.js'), 'utf8')
   const registered = []
   const root = {
@@ -702,7 +701,6 @@ test('Pi Sessions widget reports scanner failure without fabricating zero sessio
 })
 
 test('status-pi-sessions plugin satisfies Open DeskOS status contract and mounts interactive indicator', () => {
-  const vm = require('node:vm')
   const pluginSrc = fs.readFileSync(path.join(__dirname, '../src/renderer/plugins/status-pi-sessions.js'), 'utf8')
   const registered = []
   const root = {
