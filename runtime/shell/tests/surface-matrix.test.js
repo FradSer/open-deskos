@@ -88,7 +88,7 @@ function assertMatrixGate(scripts, io, file) {
   assert.match(workflow, /workflow_dispatch:/)
   assert.match(workflow, /pnpm test:matrix/)
   assert.match(workflow, /pnpm styles/)
-  assert.match(workflow, /find .*node_modules.*chrome-sandbox/)
+  assert.match(workflow, /node_modules\/\.pnpm\/electron@.*chrome-sandbox/)
   assert.match(workflow, /chmod 4755/)
   assert.match(workflow, /chown root/)
   assert.doesNotMatch(workflow, /--no-sandbox/)
