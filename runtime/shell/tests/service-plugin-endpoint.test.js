@@ -65,6 +65,21 @@ function collect() {
   }
 }
 
+async function servePlugin(t, { endpoint, token, onReject = false }) {
+  const sink = collect()
+  const server = createServicePluginSocket({
+    endpoint,
+    channelToken: token,
+    services: { 'futu-poller': { revision: 'r1' } },
+    onSnapshot: sink.onSnapshot,
+    ...(onReject ? { onReject: sink.onReject } : {}),
+    onStatus: () => {},
+  })
+  await server.start()
+  t.after(() => server.stop())
+  return sink
+}
+
 const HELLO = { v: 1, type: 'hello', service: 'futu-poller', revision: 'r1', proto: 1 }
 const DATA = { v: 1, type: 'data', service: 'futu-poller', snapshot: { positions: [{ code: 'HK.00700' }], totals: {} }, updatedAt: Date.now() }
 
@@ -72,16 +87,7 @@ test('a tcp endpoint accepts a plugin that presents the channel token', async (t
   const dir = await temporaryDir(t)
   const token = await readOrCreateToken({ stateDir: dir })
   const endpoint = `tcp://127.0.0.1:${await freePort()}`
-  const sink = collect()
-  const server = createServicePluginSocket({
-    endpoint,
-    channelToken: token,
-    services: { 'futu-poller': { revision: 'r1' } },
-    onSnapshot: sink.onSnapshot,
-    onStatus: () => {},
-  })
-  await server.start()
-  t.after(() => server.stop())
+  const sink = await servePlugin(t, { endpoint, token })
 
   await push(endpoint, [HELLO, DATA], { token })
   await new Promise((resolve) => setTimeout(resolve, 150))
@@ -96,17 +102,7 @@ test('a tcp endpoint refuses a plugin that presents no token or the wrong one', 
   const dir = await temporaryDir(t)
   const token = await readOrCreateToken({ stateDir: dir })
   const endpoint = `tcp://127.0.0.1:${await freePort()}`
-  const sink = collect()
-  const server = createServicePluginSocket({
-    endpoint,
-    channelToken: token,
-    services: { 'futu-poller': { revision: 'r1' } },
-    onSnapshot: sink.onSnapshot,
-    onReject: sink.onReject,
-    onStatus: () => {},
-  })
-  await server.start()
-  t.after(() => server.stop())
+  const sink = await servePlugin(t, { endpoint, token, onReject: true })
 
   await push(endpoint, [HELLO, DATA], { expectRefusal: true })
   await push(endpoint, [HELLO, DATA], { token: 'not-the-token', expectRefusal: true })
@@ -134,16 +130,7 @@ test('a socket endpoint still accepts the plugin that predates the token', { ski
   const dir = await temporaryDir(t)
   const token = await readOrCreateToken({ stateDir: dir })
   const endpoint = path.join(dir, 'odk', 'futu-poller.sock')
-  const sink = collect()
-  const server = createServicePluginSocket({
-    endpoint,
-    channelToken: token,
-    services: { 'futu-poller': { revision: 'r1' } },
-    onSnapshot: sink.onSnapshot,
-    onStatus: () => {},
-  })
-  await server.start()
-  t.after(() => server.stop())
+  const sink = await servePlugin(t, { endpoint, token })
 
   // The reference host's running poller sends no handshake: ownership is what
   // authenticates it there, and that must not change.
