@@ -3,6 +3,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 MAIN = ROOT / 'peripherals/esp32-p4-camera/main'
 
+def compile_and_run(tmp_path, name, args):
+    import shutil
+    import subprocess
+    compiler = shutil.which('cc')
+    assert compiler is not None, 'Host C compiler required'
+    binary = tmp_path / name
+    built = subprocess.run([compiler, '-std=c11', '-Wall', '-Wextra', '-Werror', '-Wno-unused-parameter',
+                            *args, '-o', str(binary)], capture_output=True, text=True)
+    assert built.returncode == 0, built.stderr
+    result = subprocess.run([str(binary)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
 def test_real_boot_uses_native_plugin_host():
     source = (MAIN / 'p4_camera_main.c').read_text()
     assert 'odk_plugin_host_start' in source
@@ -11,9 +23,6 @@ def test_real_boot_uses_native_plugin_host():
 
 def test_actual_composition_consumes_replacements_and_retains_providers(tmp_path):
     import subprocess
-    import shutil
-    compiler = shutil.which('cc')
-    assert compiler is not None, 'Host C compiler required'
     common = ROOT / 'peripherals/common'
     (tmp_path / 'esp_err.h').write_text('''
 #pragma once
@@ -35,16 +44,11 @@ typedef int esp_err_t;
     fixture = Path(__file__).with_name('plugin_composition_test.c').read_text()
     fixture = fixture.replace('/* GENERATED_PORTS */',ports).replace('/* GENERATED_COMPOSITION */',source)
     (tmp_path/'fixture.c').write_text(fixture)
-    binary = tmp_path/'composition'
-    built = subprocess.run([compiler,'-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-parameter','-Wno-unused-variable','-I',str(tmp_path),'-I',str(common),str(common/'odk_plugin_host.c'),str(tmp_path/'p4_plugins.c'),str(tmp_path/'fixture.c'),'-o',str(binary)],capture_output=True,text=True)
-    assert built.returncode==0,built.stderr
-    result = subprocess.run([str(binary)],capture_output=True,text=True)
-    assert result.returncode==0,result.stderr
+    compile_and_run(tmp_path, 'composition', ['-Wno-unused-variable', '-I', str(tmp_path), '-I', str(common),
+                                              str(common / 'odk_plugin_host.c'), str(tmp_path / 'p4_plugins.c'), str(tmp_path / 'fixture.c')])
 
 
 def test_actual_usb_transport_blocks_failed_init_until_framework_cleanup(tmp_path):
-    import subprocess
-    import shutil
     source=(MAIN/'p4_usb_transport.c').read_text()
     source='\n'.join(line for line in source.splitlines() if not line.startswith('#include'))
     ports=(MAIN/'p4_plugin_ports.h').read_text()
@@ -53,18 +57,10 @@ def test_actual_usb_transport_blocks_failed_init_until_framework_cleanup(tmp_pat
     fixture=fixture.replace('/* GENERATED_PORTS */',ports).replace('/* GENERATED_TRANSPORT */',source)
     unit=tmp_path/'transport.c'
     unit.write_text(fixture)
-    compiler=shutil.which('cc')
-    assert compiler is not None, 'Host C compiler required'
-    binary=tmp_path/'transport'
-    built=subprocess.run([compiler,'-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-parameter',str(unit),'-o',str(binary)],capture_output=True,text=True)
-    assert built.returncode==0,built.stderr
-    result=subprocess.run([str(binary)],capture_output=True,text=True)
-    assert result.returncode==0,result.stderr
+    compile_and_run(tmp_path, 'transport', [str(unit)])
 
 
 def test_actual_microphone_consumes_transport_and_retains_cleanup_state(tmp_path):
-    import subprocess
-    import shutil
     source=(MAIN/'p4_usb_microphone.c').read_text()
     def function(name):
         marker = ('static esp_err_t ' if name=='microphone_input' else 'const p4_audio_source_t *' if name=='p4_microphone_source' else 'esp_err_t ') + name + '('
@@ -86,9 +82,4 @@ def test_actual_microphone_consumes_transport_and_retains_cleanup_state(tmp_path
     fixture=Path(__file__).with_name('microphone_lifecycle_test.c').read_text()
     fixture=fixture.replace('/* GENERATED_PORTS */',ports).replace('/* GENERATED_GLOBALS */',source[globals_start:globals_end]).replace('/* GENERATED_FUNCTIONS */',functions)
     unit=tmp_path/'microphone.c'; unit.write_text(fixture)
-    compiler=shutil.which('cc'); assert compiler is not None, 'Host C compiler required'
-    binary=tmp_path/'microphone'
-    built=subprocess.run([compiler,'-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-parameter',str(unit),'-o',str(binary)],capture_output=True,text=True)
-    assert built.returncode==0,built.stderr
-    result=subprocess.run([str(binary)],capture_output=True,text=True)
-    assert result.returncode==0,result.stderr
+    compile_and_run(tmp_path, 'microphone', [str(unit)])
