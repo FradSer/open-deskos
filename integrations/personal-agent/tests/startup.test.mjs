@@ -199,21 +199,11 @@ test('oversize transcription prompts disable voice with safe guidance', async t 
 })
 
 test('main wires validated transcription context including empty opt-out', async t => {
-  const dir = await mkdtemp(join(tmpdir(), 'voice-context-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
-  const initializeSource = source.match(/async function initialize\(env, report, onRideUpdate, platform = process\.platform(?:, getWatch = undefined)?(?:, signal = undefined)?(?:, onAgentUpdate = undefined)?(?:, onRemoteUpdate = undefined)?\) \{[\s\S]*?\n\}/)[0]
-  const { transcriptionLanguage, transcriptionPrompt, transcriptionProvider, isLoopbackUrl, isDeviceLocalStt } = await import('../src/transcribe.mjs')
-  const { prepareHostDirectories } = await import('../src/host-paths.mjs')
-  const initialize = Function('access', 'createPersonalAgent', 'join', 'homedir', 'prepareHostDirectories', 'transcriptionLanguage', 'transcriptionPrompt', 'transcriptionProvider', 'isLoopbackUrl', 'isDeviceLocalStt', 'loadPersonalConfig', 'attachRemoteConversation', `return (${initializeSource})`)(
-    async () => {}, async () => ({}), join, () => '/test-home', prepareHostDirectories, transcriptionLanguage, transcriptionPrompt, transcriptionProvider, isLoopbackUrl, isDeviceLocalStt, async () => ({ profile: 'coding' }), async () => undefined,
-  )
+  const { transcriptionPrompt } = await import('../src/transcribe.mjs')
   for (const prompt of [undefined, '', ' My TypeScript project。 ']) {
-    const runtime = await initialize({
+    const { runtime } = await initializeFor(t, {
       ODK_WORKSPACE: '/test-checkout', ODK_PERSONAL_AGENT_STT_KEY_FILE: '/test-key', ODK_PERSONAL_AGENT_STT_PROMPT: prompt,
-      XDG_RUNTIME_DIR: dir, XDG_STATE_HOME: join(dir, 'state'), LOCALAPPDATA: join(dir, 'local'),
-      ODK_PERSONAL_AGENT_AUDIO_DEVICE: 'Offline fixture microphone',
-    }, () => {})
+    })
     assert.equal(runtime.stt.prompt, transcriptionPrompt(prompt))
   }
 })
