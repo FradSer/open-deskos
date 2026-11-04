@@ -6,9 +6,9 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { EventEmitter } = require('node:events')
+const { createVerifierObserver } = require('./helpers/verifier-observation')
 
 test('verifier observation preserves spawn identity and excludes private fields', async t => {
-  const { createVerifierObserver } = require('./helpers/verifier-observation')
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-verifier-observer-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const child = new EventEmitter()
@@ -48,7 +48,6 @@ test('verifier observation preserves spawn identity and excludes private fields'
 })
 
 test('verifier observation failure never replaces the spawn error or leaks a watcher', async () => {
-  const { createVerifierObserver } = require('./helpers/verifier-observation')
   const failure = Error('Controlled spawn failure')
   let closed = 0
   const observer = createVerifierObserver({
@@ -62,7 +61,6 @@ test('verifier observation failure never replaces the spawn error or leaks a wat
 })
 
 test('reported success remains a production timeout until the actual verifier child closes', async () => {
-  const { createVerifierObserver } = require('./helpers/verifier-observation')
   const { createUserAppVerifier } = require('../src/user-app-verifier')
   const child = new EventEmitter()
   child.stdout = new EventEmitter()
@@ -96,7 +94,6 @@ test('reported success remains a production timeout until the actual verifier ch
 })
 
 test('an unavailable result watcher preserves child execution and closure', async () => {
-  const { createVerifierObserver } = require('./helpers/verifier-observation')
   const child = new EventEmitter()
   child.stdout = new EventEmitter()
   const observer = createVerifierObserver({
