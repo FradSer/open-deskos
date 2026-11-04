@@ -462,6 +462,18 @@ async function waitState(service, taskId, expected) {
   throw new Error(`Task did not reach ${expected}`)
 }
 
+async function streamingFixture(t) {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  await service.handle(launched)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  return { adapter, f, service, launched }
+}
+
 test('persistent host retains one Pi session across turns and steers while streaming', async t => {
   const adapter = persistentAdapter()
   const f = await fixture(t)
@@ -547,14 +559,7 @@ test('goal previews stay inside their escaped-cost ceiling', () => {
 })
 
 test('ending a running turn leaves a terminal state, never running', async t => {
-  const adapter = persistentAdapter()
-  const f = await fixture(t)
-  await f.service.close()
-  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
-  t.after(() => service.close())
-  const launched = start(f.root)
-  await service.handle(launched)
-  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  const { service, launched } = await streamingFixture(t)
   assert.equal((await service.handle(request('end', { taskId: launched.taskId }))).ok, true)
   const ended = (await service.handle(request('status', { taskId: launched.taskId }))).task
   assert.equal(ended.lifecycle, 'ended')
@@ -603,14 +608,7 @@ test('launch mutation identity reconciles independently from Hosted Pi identity'
 })
 
 test('mutation receipt is durable before a Hosted Pi side effect begins', async t => {
-  const adapter = persistentAdapter()
-  const f = await fixture(t)
-  await f.service.close()
-  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
-  t.after(() => service.close())
-  const launched = start(f.root)
-  await service.handle(launched)
-  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  const { adapter, f, service, launched } = await streamingFixture(t)
   let sawReceipt = false
   const originalPrompt = adapter.sessions[0].prompt.bind(adapter.sessions[0])
   adapter.sessions[0].prompt = async (text, options) => {
@@ -625,14 +623,7 @@ test('mutation receipt is durable before a Hosted Pi side effect begins', async 
 })
 
 test('a failed mutation retry reports the recorded failure instead of accepted', async t => {
-  const adapter = persistentAdapter()
-  const f = await fixture(t)
-  await f.service.close()
-  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
-  t.after(() => service.close())
-  const launched = start(f.root)
-  await service.handle(launched)
-  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  const { adapter, service, launched } = await streamingFixture(t)
   adapter.sessions[0].deliver = async () => { throw new Error('delivery failed') }
   const failed = request('prompt', { taskId: launched.taskId, mutationId: 'failed-steer', prompt: 'redirect', streamingBehavior: 'steer' })
   assert.equal((await service.handle(failed)).ok, false)
@@ -642,14 +633,7 @@ test('a failed mutation retry reports the recorded failure instead of accepted',
 })
 
 test('mutation identities make prompt, cancel and end exact-retry safe', async t => {
-  const adapter = persistentAdapter()
-  const f = await fixture(t)
-  await f.service.close()
-  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
-  t.after(() => service.close())
-  const launched = start(f.root)
-  await service.handle(launched)
-  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  const { adapter, service, launched } = await streamingFixture(t)
   const steer = request('prompt', { taskId: launched.taskId, mutationId: 'steer-1', prompt: 'redirect', streamingBehavior: 'steer' })
   assert.equal((await service.handle(steer)).ok, true)
   assert.equal((await service.handle({ ...steer, requestId: randomUUID() })).ok, true)
@@ -733,14 +717,7 @@ test('four abandoned sessions never block all further work', async t => {
 })
 
 test('attach catch-up pages to its boundary before reporting caught up', async t => {
-  const adapter = persistentAdapter()
-  const f = await fixture(t)
-  await f.service.close()
-  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
-  t.after(() => service.close())
-  const launched = start(f.root)
-  await service.handle(launched)
-  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  const { adapter, service, launched } = await streamingFixture(t)
   adapter.sessions[0].history = position => position === 0
     ? { events: [{ position: 1, events: [{ kind: 'assistant', text: 'one' }] }], boundary: 2, continuation: 1 }
     : { events: [{ position: 2, events: [{ kind: 'assistant', text: 'two' }] }], boundary: 2, continuation: null }
@@ -752,14 +729,7 @@ test('attach catch-up pages to its boundary before reporting caught up', async t
 })
 
 test('an unbounded attach catch-up is refused instead of overflowing the Console buffer', async t => {
-  const adapter = persistentAdapter()
-  const f = await fixture(t)
-  await f.service.close()
-  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
-  t.after(() => service.close())
-  const launched = start(f.root)
-  await service.handle(launched)
-  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  const { adapter, service, launched } = await streamingFixture(t)
   const total = 30_000
   adapter.sessions[0].boundary = () => total
   adapter.sessions[0].history = (position = 0, limit = 100) => {
@@ -779,14 +749,7 @@ test('an unbounded attach catch-up is refused instead of overflowing the Console
 })
 
 test('attach catch-up advances across a page containing only non-message entries', async t => {
-  const adapter = persistentAdapter()
-  const f = await fixture(t)
-  await f.service.close()
-  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
-  t.after(() => service.close())
-  const launched = start(f.root)
-  await service.handle(launched)
-  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  const { adapter, service, launched } = await streamingFixture(t)
   adapter.sessions[0].history = () => ({ events: [], boundary: 3, continuation: null })
   adapter.sessions[0].boundary = () => 3
   const response = await service.handle(request('attach', { taskId: launched.taskId, after: 0, attachmentId: 'empty-page', console: { machineName: 'Mac', sessionId: 'console' } }), { connectionId: 'empty-page', send() {} })
@@ -795,14 +758,7 @@ test('attach catch-up advances across a page containing only non-message entries
 })
 
 test('attach replacement, disconnect, positioned history and audit identity are explicit', async t => {
-  const adapter = persistentAdapter()
-  const f = await fixture(t)
-  await f.service.close()
-  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
-  t.after(() => service.close())
-  const launched = start(f.root)
-  await service.handle(launched)
-  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  const { adapter, service, launched } = await streamingFixture(t)
   const firstEvents = []
   const secondEvents = []
   const firstContext = { connectionId: 'one', send: value => firstEvents.push(value) }
@@ -879,14 +835,7 @@ test('list orders by most recent update rather than by the order the store enume
 })
 
 test('repeating an end never rewrites a terminal receipt', async t => {
-  const adapter = persistentAdapter()
-  const f = await fixture(t)
-  await f.service.close()
-  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
-  t.after(() => service.close())
-  const launched = start(f.root)
-  await service.handle(launched)
-  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  const { adapter, service, launched } = await streamingFixture(t)
   adapter.sessions[0].release()
   await waitState(service, launched.taskId, 'settled')
   const first = await service.handle(request('end', { taskId: launched.taskId }))
@@ -956,14 +905,7 @@ test('ending a session during its launch keeps the terminal receipt when the bui
 })
 
 test('ending a Console-attached session clears attribution and tells that Console', async t => {
-  const adapter = persistentAdapter()
-  const f = await fixture(t)
-  await f.service.close()
-  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
-  t.after(() => service.close())
-  const launched = start(f.root)
-  await service.handle(launched)
-  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  const { adapter, service, launched } = await streamingFixture(t)
   const events = []
   assert.equal((await service.handle(request('attach', { taskId: launched.taskId, position: 0, console: { machineName: 'Mac', sessionId: 'console-1' } }), { connectionId: 'one', send: value => events.push(value) })).ok, true)
   adapter.sessions[0].release()
