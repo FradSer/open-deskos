@@ -65,7 +65,6 @@ if [ -z "${TARGET_USER}" ] || ! id "${TARGET_USER}" >/dev/null 2>&1 || [ "$(id -
 fi
 TARGET_HOME="$(getent passwd "${TARGET_USER}" | cut -d: -f6)"
 TARGET_UID="$(id -u "${TARGET_USER}")"
-TARGET_GID="$(id -g "${TARGET_USER}")"
 
 # Apply the deadline to the CLI executable under the kiosk identity.
 run_cli_as_target_user() {

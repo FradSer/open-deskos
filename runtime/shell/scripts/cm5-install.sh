@@ -22,7 +22,6 @@ fi
 
 DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null && pwd -P)"
 REPOSITORY_ROOT="$(CDPATH= cd -- "${DIR}/../.." >/dev/null && pwd -P)"
-REMOTE_BRIDGE_SOURCE="${REPOSITORY_ROOT}/integrations/remote-bridge"
 PERSONAL_AGENT_SOURCE="${REPOSITORY_ROOT}/integrations/personal-agent"
 source "${DIR}/scripts/cm5-personal-agent.sh"
 cd "$DIR"
