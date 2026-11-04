@@ -2,6 +2,7 @@
 
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
+const { deferred } = require('./helpers/hydra-wire-lifecycle')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -15,11 +16,6 @@ const userAppRequire = createRequire(path.resolve(__dirname, '../src/user-app-sy
 // the Personal Agent meet. Only the launcher, the display and the store's bytes are
 // stood in for: the user-application system that owns the publish handler and
 // the catalog hook runs for real, or this file would test nothing.
-function deferred() {
-  let resolve
-  const promise = new Promise(result => { resolve = result })
-  return { promise, resolve }
-}
 
 function wireShell({ installed = [], host: hostOverride, env = {}, startupError = null, holdCatalogList = false, holdUserAppListen = false, holdOdkDataListen = false, holdNativeDiscovery = false } = {}) {
   env = { ODK_CONFIG_DIR: '/fixture/absent-plugin-config', ...env }

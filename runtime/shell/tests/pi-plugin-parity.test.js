@@ -2,6 +2,7 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const { deferred } = require('./helpers/hydra-wire-lifecycle')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -32,11 +33,6 @@ function snapshot(sessions = [session]) {
     workspaces: [{ name: 'Fixture', cwd: '/fixture', sessions }],
     summary: { total: sessions.length, running: sessions.filter(s => s.status === 'running').length,
       settled: sessions.filter(s => s.status === 'settled').length, exited: 0, workspacesCount: 1 } }
-}
-function deferred() {
-  let resolve
-  const promise = new Promise(yes => { resolve = yes })
-  return { promise, resolve }
 }
 
 for (const preAborted of [false, true]) test(`Pi Events replacement constructs without host factories or imports (${preAborted ? 'pre-aborted' : 'active'})`, async t => {

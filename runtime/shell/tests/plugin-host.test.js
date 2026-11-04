@@ -2,6 +2,7 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const { deferred } = require('./helpers/hydra-wire-lifecycle')
 const { createPluginHost } = require('../src/plugin-host')
 
 const SOURCE = 'odk:data/source/v1'
@@ -12,12 +13,6 @@ function definition(id, { provides = [], requires = [], permissions = [], create
     manifest: { schemaVersion: 1, id: `odk.test.${id}`, name: id, version: '1.0.0', kind: 'service', host: 'electron-main', provides, requires, permissions },
     create,
   }
-}
-
-function deferred() {
-  let resolve
-  const promise = new Promise(accept => { resolve = accept })
-  return { promise, resolve }
 }
 
 test('starts providers before consumers and stops them in reverse order', async () => {

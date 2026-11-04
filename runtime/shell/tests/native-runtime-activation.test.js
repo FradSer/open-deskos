@@ -2,6 +2,7 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const { deferred } = require('./helpers/hydra-wire-lifecycle')
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const os = require('node:os')
@@ -153,12 +154,6 @@ test('actual CLI activates over an isolated Main channel without changing saved 
   await assert.rejects(run(process.execPath, [cli, 'activate', id], { env: f.env }), /activate requires/)
   assert.equal(await fs.readFile(f.configPath, 'utf8'), before)
 })
-
-function deferred() {
-  let resolve
-  const promise = new Promise(done => { resolve = done })
-  return { promise, resolve }
-}
 
 test('shutdown during verified capture fences active and queued activation before release', async t => {
   const captured = deferred()

@@ -2,6 +2,7 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const { deferred } = require('./helpers/hydra-wire-lifecycle')
 const fs = require('node:fs/promises')
 const syncFs = require('node:fs')
 const path = require('node:path')
@@ -53,12 +54,6 @@ test('runtime stop retains ownership of an installation waiting for verification
   assert.equal(cleanedBeforeVerification, false, 'runtime cleanup released ownership before pending installation settled')
   assert.equal(notifications, 0, 'stopping runtime cannot notify released consumers')
 })
-
-function deferred() {
-  let resolve, reject
-  const promise = new Promise((yes, no) => { resolve = yes; reject = no })
-  return { promise, resolve, reject }
-}
 
 async function runtime({ content = () => new Response('Content'), syncPackages = async () => {}, hosted = false,
   startupSync = false, verifierClose = async () => {}, replacement = false } = {}) {

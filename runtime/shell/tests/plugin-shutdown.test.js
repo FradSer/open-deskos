@@ -1,15 +1,9 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const { deferred } = require('./helpers/hydra-wire-lifecycle')
 const { EventEmitter } = require('node:events')
 const { installPluginShutdown } = require('../src/plugin-shutdown')
 const { createPluginHost } = require('../src/plugin-host')
-
-function deferred() {
-  let resolve
-  let reject
-  const promise = new Promise((done, fail) => { resolve = done; reject = fail })
-  return { promise, resolve, reject }
-}
 
 function application() {
   const app = new EventEmitter()
