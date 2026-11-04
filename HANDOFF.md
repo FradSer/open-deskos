@@ -77,7 +77,9 @@ The device loop fell from 14 failing checks to zero. Four causes were fixed.
   Do not treat the workspace as a source of truth.
 - The Windows active release still reports sourceCommit `5f699d03`. Only 15
   files were staged. A full release build and task re-registration are pending
-  an operator decision.
+  an operator decision. Keep `source-receipt.json` unchanged. It records the
+  build baseline, not the staged files. Activation scripts compare that baseline.
+  Editing it would create a mixed-commit release.
 - Another session keeps in-flight edits in the shared checkout. Do not stage
   that work. A merge commit preserves its five commits and this fix together.
 
