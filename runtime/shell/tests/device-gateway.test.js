@@ -16,6 +16,25 @@ test('the Devices fixture pins the current renderer skeleton and SDK', () => {
   assert.deepEqual(pins, [digest(path.join('themes', 'liquid-glass-sdk.js')), digest('index.html')])
 })
 
+test('each State Bar identity step belongs to its own feature scenario', () => {
+  const feature = fs.readFileSync(path.join(__dirname, 'features', 'device-gateway.feature'), 'utf8')
+  const scenarios = new Map()
+  let current = null
+  for (const line of feature.split('\n')) {
+    const heading = line.match(/^\s*Scenario: (.+)$/)
+    if (heading) current = heading[1].trim()
+    else if (current !== null && /^\s*(Given|When|Then|And|But)\b/.test(line)) {
+      scenarios.set(current, [...(scenarios.get(current) || []), line.trim()])
+    }
+  }
+  const identity = scenarios.get('The peripheral button keeps a distinct Remote Control identity') || []
+  assert.ok(identity.includes('And no gamepad glyph appears in the State Bar'),
+    'the Remote Control scenario must keep its gamepad glyph assertion')
+  const baselines = scenarios.get('The Devices fixture freezes its renderer baselines') || []
+  assert.ok(!baselines.includes('And no gamepad glyph appears in the State Bar'),
+    'the renderer baseline scenario must not absorb a State Bar step')
+})
+
 function worker({ firmware = '0.1.0' } = {}) {
   const child = new EventEmitter()
   child.stdout = new PassThrough()
