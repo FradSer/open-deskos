@@ -14,7 +14,6 @@ const { readConfig } = require('../../src/plugin-config')
 const { createNativePluginStore } = require('../../src/native-plugin-store')
 const { readNativeKeyring } = require('../../src/native-plugin-policy')
 const { resolveShellHost } = require('../../src/platform')
-const { SYSTEM_PORTS } = require('../../src/plugins/system-channels')
 const ID = 'odk.system.app-manager'
 const CHANNELS = ['odk-app-manager-list', 'odk-app-manager-state', 'odk-app-manager-intent']
 

@@ -9,7 +9,7 @@
 // Usage: node tests/personal-agent-parity-gate.mjs [--viewport=redroid|sony]
 //        [--device=<adb serial>] [--report=<json>]
 import { execFile } from 'node:child_process'
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'

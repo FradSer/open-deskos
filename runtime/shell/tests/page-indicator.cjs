@@ -5,7 +5,6 @@ const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
 ipcMain.handle('odk-personal-agent-consumer-ready', () => ({ accepted: false }))
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
-const { resolvePages } = require('./helpers/pages')
 
 if (process.platform === 'darwin') app.dock.hide()
 const root = path.resolve(__dirname, '..')

@@ -131,15 +131,6 @@ const shellCss = require('node:fs').readFileSync(require('node:path').join(harne
 check('every grid pins to top', /\.widget-grid\s*\{[^}]*margin:\s*0 auto/.test(shellCss))
 check('single-tile grid pins to top', shellCss.includes('.widget-grid:has(> .widget:only-child)') && shellCss.includes('margin: 0 auto'))
 
-// stroke. Depth stays tonal and stroked: the photo gets no scrim and no shadow.
-
-// The unit is the numeral divided by phi: em-relative, so count/unit is
-// exactly the golden ratio at every density, compact tiles included.
-
-// Zpix is a bitmap face: a flat 12px never reads as pixel art. Pixel-theme type
-// sizing scales with the tile and keeps 12px only as its floor.
-const pixelCss = require('node:fs').readFileSync(require('node:path').join(harnessDirectory, '../src/renderer/themes/pixel.css'), 'utf8')
-
 if (failures > 0) {
   console.error(`layout harness: ${failures} failure(s)`)
   process.exit(1)
