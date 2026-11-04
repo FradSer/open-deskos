@@ -62,11 +62,14 @@ class SystemdControllerTests(unittest.TestCase):
     def start(self) -> dict:
         return self.controller.start("report-poller", self.revision, self.manifest, {"secret": "must-not-enter-unit"}, self.root / "data")
 
-    def test_linked_fragment_is_accepted_and_replacement_is_refused(self) -> None:
+    def start_with_link_directory(self) -> tuple[Path, dict]:
         alias_directory = self.root / "user-units"
         alias_directory.mkdir(mode=0o700)
         self.fake.link_directory = alias_directory
-        handle = self.start()
+        return alias_directory, self.start()
+
+    def test_linked_fragment_is_accepted_and_replacement_is_refused(self) -> None:
+        _, handle = self.start_with_link_directory()
         alias = Path(self.fake.fragment)
         self.assertTrue(alias.is_symlink())
         self.assertEqual(self.controller.status(handle), {"state": "running"})
@@ -105,20 +108,14 @@ class SystemdControllerTests(unittest.TestCase):
         self.assertTrue(all(call[2] == "show" for call in self.fake.calls))
 
     def test_group_writable_installed_link_parent_is_refused(self) -> None:
-        alias_directory = self.root / "user-units"
-        alias_directory.mkdir(mode=0o700)
-        self.fake.link_directory = alias_directory
-        handle = self.start()
+        alias_directory, handle = self.start_with_link_directory()
         alias_directory.chmod(0o777)
         self.fake.calls.clear()
         with self.assertRaises(SystemdControllerError): self.controller.remove(handle)
         self.assertTrue(all(call[2] == "show" for call in self.fake.calls))
 
     def test_disable_can_immediately_forget_the_owned_fragment(self) -> None:
-        alias_directory = self.root / "user-units"
-        alias_directory.mkdir(mode=0o700)
-        self.fake.link_directory = alias_directory
-        handle = self.start()
+        _, handle = self.start_with_link_directory()
         target = Path(self.fake.fragment).resolve()
         self.fake.disable_forgets_fragment = True
         self.controller.remove(handle)
@@ -150,10 +147,7 @@ class SystemdControllerTests(unittest.TestCase):
                 self.controller.remove(handle)
 
     def test_linked_bad_setting_unit_is_cleaned(self) -> None:
-        alias_directory = self.root / "user-units"
-        alias_directory.mkdir(mode=0o700)
-        self.fake.link_directory = alias_directory
-        handle = self.start()
+        _, handle = self.start_with_link_directory()
         alias = Path(self.fake.fragment)
         target = alias.resolve()
         self.fake.load = "bad-setting"

@@ -12,6 +12,11 @@ import poller
 from plugin_control import dispatch_plugin_control
 
 
+class SilentPublisher:
+    def send(self, record):
+        pass
+
+
 @pytest.mark.parametrize("unavailable", ["occupied", "public-directory"])
 def test_failed_management_startup_preserves_independent_polling(tmp_path, unavailable):
     directory = tmp_path / "odk-futu"
@@ -64,9 +69,7 @@ def test_feature_error_is_not_hidden_by_unavailable_management(tmp_path):
 
 def test_loop_error_retains_manager_for_explicit_retry(tmp_path, monkeypatch):
     events = []
-    class Publisher:
-        def send(self, record):
-            pass
+    Publisher = SilentPublisher
     class Loop:
         def __init__(self):
             events.append("create")
@@ -95,9 +98,7 @@ def test_loop_error_retains_manager_for_explicit_retry(tmp_path, monkeypatch):
 
 def test_unmanaged_loop_error_keeps_original_exit_and_cleanup():
     events = []
-    class Publisher:
-        def send(self, record):
-            pass
+    Publisher = SilentPublisher
     class Loop:
         def run(self):
             raise RuntimeError("loop error")
@@ -112,9 +113,7 @@ def test_unmanaged_loop_error_keeps_original_exit_and_cleanup():
 @pytest.mark.parametrize("reuse_instance", [False, True])
 def test_retired_loop_error_cannot_fail_new_generation(tmp_path, monkeypatch, reuse_instance):
     events = []
-    class Publisher:
-        def send(self, record):
-            pass
+    Publisher = SilentPublisher
     class Loop:
         def run(self):
             events.append("run")
@@ -143,9 +142,7 @@ def test_retired_loop_error_cannot_fail_new_generation(tmp_path, monkeypatch, re
 def test_wait_stops_when_reused_loop_gets_a_new_activation(tmp_path, monkeypatch):
     waits = []
     callbacks = []
-    class Publisher:
-        def send(self, record):
-            pass
+    Publisher = SilentPublisher
     class Loop:
         def run(self):
             pass

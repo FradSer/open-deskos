@@ -157,14 +157,18 @@ def links_from_env(env=None):
     )
 
 
+def links_with_targets(monkeypatch, tmp_path, targets):
+    targets_file = write_targets(tmp_path, targets)
+    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
+    return links_from_env()
+
+
 def links_with_handheld_target(monkeypatch, tmp_path, port, token_file, *earlier_targets):
-    targets_file = write_targets(tmp_path, [
+    return links_with_targets(monkeypatch, tmp_path, [
         *earlier_targets,
         {"name": "handheld", "endpoint": "tcp://127.0.0.1:%d" % port,
          "tokenFile": str(token_file)},
     ])
-    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
-    return links_from_env()
 
 
 def test_a_unix_socket_target_sends_hello_without_a_handshake(monkeypatch, tmp_path, socket_dir):
@@ -236,13 +240,10 @@ def test_a_missing_token_file_is_refused_instead_of_sending_a_bad_handshake(
     isolate_home(monkeypatch, tmp_path)
     server, port = tcp_server()
     missing = tmp_path / "not-created-yet.token"
-    targets_file = write_targets(tmp_path, [
+    links = links_with_targets(monkeypatch, tmp_path, [
         {"name": "handheld", "endpoint": "tcp://127.0.0.1:%d" % port,
          "tokenFile": str(missing)},
     ])
-    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
-
-    links = links_from_env()
     assert len(links.links) == 1
     links.links[0].send(dict(DATA))
 
@@ -279,12 +280,9 @@ def test_an_empty_token_file_is_refused_instead_of_sending_a_bad_handshake(
 def test_a_token_endpoint_with_no_token_configured_is_refused_by_name(
         monkeypatch, tmp_path, capsys):
     isolate_home(monkeypatch, tmp_path)
-    targets_file = write_targets(tmp_path, [
+    links = links_with_targets(monkeypatch, tmp_path, [
         {"name": "handheld", "endpoint": "tcp://127.0.0.1:8790"},
     ])
-    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
-
-    links = links_from_env()
     assert links.links == []
     err = capsys.readouterr().err
     assert "handheld" in err
@@ -333,14 +331,11 @@ def test_a_malformed_target_is_refused_by_name_while_the_others_run(
     second_path = socket_dir / "second.sock"
     first_server = unix_server(first_path)
     second_server = unix_server(second_path)
-    targets_file = write_targets(tmp_path, [
+    links = links_with_targets(monkeypatch, tmp_path, [
         {"name": "first", "endpoint": str(first_path)},
         {"name": "broken", "endpoint": "udp://127.0.0.1:9999"},
         {"name": "second", "endpoint": str(second_path)},
     ])
-    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
-
-    links = links_from_env()
     assert len(links.links) == 2, "the malformed entry is dropped, the others load"
     links.send(dict(DATA))
 
