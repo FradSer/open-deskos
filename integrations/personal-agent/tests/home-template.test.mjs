@@ -1,16 +1,25 @@
 import { test } from 'node:test'
 import { readFileSync, existsSync } from 'node:fs'
 import assert from 'node:assert/strict'
-import { resolveHomeTemplate, homeTemplateVariables, compileHomeSelection, homeFactVariables as rawHomeFactVariables, generateHomeSelection as rawGenerateHomeSelection, rebindHomeSelection as rawRebindHomeSelection } from '../src/home-template.mjs'
+import { resolveHomeTemplate, homeTemplateVariables, compileHomeSelection, homeFactVariables as rawHomeFactVariables, generateHomeSelection as rawGenerateHomeSelection, fallbackHomeSelection, rebindHomeSelection } from '../src/home-template.mjs'
 // Display-mechanics tests opt out of the owner's default Pi privacy policy.
 const homeFactVariables = (readings, now = Date.now()) => rawHomeFactVariables(readings, now, OPEN_PREFERENCES)
 const generateHomeSelection = (readings, options = {}) => rawGenerateHomeSelection(readings, { preferences: OPEN_PREFERENCES, ...options })
-const rebindHomeSelection = (raw, readings, latest, now = Date.now(), capturedAt = now) => rawRebindHomeSelection(raw, readings, latest, now, capturedAt, OPEN_PREFERENCES)
 import { HomeBriefing } from '../src/home-briefing.mjs'
 
 const OPEN_PREFERENCES = { version: 1, mustShow: [], privateSources: [] }
 const source = (id, icon, value) => ({ id, label: id, state: 'live', value, home: { mode: 'required', priority: 100, icon, fields: Object.keys(value) } })
 const template = (id, icon, text) => ({ items: [{ text, readingIds: [id], segments: [{ text, icon }] }] })
+
+const plantHome = (t, reading) => {
+  const home = new HomeBriefing({ preferences: OPEN_PREFERENCES, requireBindings: true, list: async () => [reading()], read: async () => reading(),
+    generate: async ({ readings }) => {
+      const facts = homeFactVariables(readings)
+      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
+    }, publish() {} })
+  t.after(() => home.close())
+  return home
+}
 
 test('local attention treats unknown and familiar fields with the same task state consistently', async () => {
   const { homeAttention } = await import('../src/home-template.mjs')
@@ -20,7 +29,6 @@ test('local attention treats unknown and familiar fields with the same task stat
 })
 
 test('local fallback selects an actual measurement before an identity label', async () => {
-  const { fallbackHomeSelection } = await import('../src/home-template.mjs')
   const readings = [source('quota', 'quota', { accounts: [{ name: 'Alice', remainingPercent: 3 }] })]
   const result = resolveHomeTemplate(fallbackHomeSelection(readings, Date.now(), OPEN_PREFERENCES), readings)
   assert.match(result.items[0].text, /3%/)
@@ -28,7 +36,6 @@ test('local fallback selects an actual measurement before an identity label', as
 })
 
 test('Pi verification metadata informs analysis without becoming the displayed report', async () => {
-  const { fallbackHomeSelection } = await import('../src/home-template.mjs')
   const readings = [source('odk.remote.audit', 'sessions', {
     report: 'The worker found **two permission gaps**.', verification: 'reported_unverified',
     tasks: [{ id: 'audit', name: 'Bridge security audit', reportedState: 'settled', verification: 'reported_unverified' }],
@@ -53,7 +60,6 @@ test('Pi verification metadata informs analysis without becoming the displayed r
 })
 
 test('nested verification status and execution flags stay analysis-only', async () => {
-  const { fallbackHomeSelection } = await import('../src/home-template.mjs')
   const readings = [source('only-metadata', 'tasks', { verification: { status: 'not_run' }, execution: 'reported_unverified' })]
   const facts = homeFactVariables(readings)
   assert.equal(facts.length, 2)
@@ -157,12 +163,7 @@ test('numeric record identities survive reordering under cached selection', asyn
   const two = { id: 2, name: 'Plant', soilPercent: 18 }
   let plants = [one, two]
   const reading = () => source('generic', 'plants', { plants })
-  const home = new HomeBriefing({ preferences: OPEN_PREFERENCES, requireBindings: true, list: async () => [reading()], read: async () => reading(),
-    generate: async ({ readings }) => {
-      const facts = homeFactVariables(readings)
-      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
-    }, publish() {} })
-  t.after(() => home.close())
+  const home = plantHome(t, reading)
   await home.refresh()
   assert.match(home.frame.items[0].text, /10%/)
   plants = [two, one]; home.invalidate(); await home.refresh()
@@ -192,12 +193,7 @@ test('selected fresh Hydra moisture conveys its status and follows updates durin
 test('Hydra moisture status follows its main display bands at each boundary', async t => {
   let soilPercent = 0
   const reading = () => source('odk.tile.hydra', 'plants', { plants: [{ id: 1, name: 'Plant 1', soilPercent, online: true, stale: false, soilStale: false, measuredAt: new Date().toISOString() }] })
-  const home = new HomeBriefing({ preferences: OPEN_PREFERENCES, requireBindings: true, list: async () => [reading()], read: async () => reading(),
-    generate: async ({ readings }) => {
-      const facts = homeFactVariables(readings)
-      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
-    }, publish() {} })
-  t.after(() => home.close())
+  const home = plantHome(t, reading)
   for (const [value, status] of [[0, 'dry'], [19.9, 'dry'], [20, 'low'], [34.9, 'low'], [35, 'OK'], [59.9, 'OK'], [60, 'good'], [79.9, 'good'], [80, 'wet'], [100, 'wet']]) {
     soilPercent = value; home.invalidate(); await home.refresh()
     assert.match(home.frame.items[0].text, new RegExp(`${status} at ${value}%`, 'i'))
@@ -210,12 +206,7 @@ test('Hydra selection excludes unreliable plant measurements and keeps healthy p
     { id: 2, name: 'Plant 2', soilPercent: 70.1, online: true, stale: false, soilStale: false, measuredAt: new Date().toISOString() },
   ]
   const reading = () => ({ ...source('odk.tile.hydra', 'plants', { plants }), label: 'Hydra plants' })
-  const home = new HomeBriefing({ preferences: OPEN_PREFERENCES, requireBindings: true, list: async () => [reading()], read: async () => reading(),
-    generate: async ({ readings }) => {
-      const facts = homeFactVariables(readings)
-      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
-    }, publish() {} })
-  t.after(() => home.close())
+  const home = plantHome(t, reading)
   await home.refresh()
   plants[0].online = false; home.invalidate(); await home.refresh()
   assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /Plant 1.*(?:54\.6%|OK|good)/i)
@@ -348,12 +339,7 @@ test('MQTT retained soil stays unavailable through the source projection', async
 test('a cached selection does not switch plants when their order changes', async t => {
   let plants = [1, 2].map((id, index) => ({ id, name: `Plant ${id}`, soilPercent: [54, 70][index], online: true, stale: false, soilStale: false, measuredAt: new Date().toISOString() }))
   const reading = () => source('odk.tile.hydra', 'plants', { plants })
-  const home = new HomeBriefing({ preferences: OPEN_PREFERENCES, requireBindings: true, list: async () => [reading()], read: async () => reading(),
-    generate: async ({ readings }) => {
-      const facts = homeFactVariables(readings)
-      return compileHomeSelection({ items: [{ sources: [facts.findIndex(fact => fact.factId.endsWith(':plants.0.soilPercent'))] }] }, facts)
-    }, publish() {} })
-  t.after(() => home.close())
+  const home = plantHome(t, reading)
   await home.refresh()
   plants[0].soilStale = true
   plants.reverse(); home.invalidate(); await home.refresh()
@@ -387,7 +373,6 @@ test('an ID-less replacement plant cannot inherit a selected plant identity', as
 })
 
 test('reordered unavailable Hydra plant retains its identity through rebinding', async () => {
-  const { rebindHomeSelection } = await import('../src/home-template.mjs')
   const now = Date.now()
   const plant = (id, soilStale) => ({ id, name: `Plant ${id}`, soilPercent: 50, online: true, stale: false, soilStale, measuredAt: new Date(now).toISOString() })
   const before = [source('odk.tile.hydra', 'plants', { plants: [plant(1, false), plant(2, false)] })]
@@ -928,7 +913,6 @@ test('independent source batches start together before final selection', async (
 })
 
 test('rebinding follows task identities across reordered Pi sessions', async () => {
-  const { rebindHomeSelection } = await import('../src/home-template.mjs')
   const task = (id, state) => ({ id, name: id, state })
   const before = [source('pi', 'sessions', { sessions: [task('Task A', 'waiting'), task('Task B', 'running')] })]
   const after = [source('pi', 'sessions', { sessions: [task('Task B', 'running'), task('Task A', 'finished')] })]
@@ -940,7 +924,6 @@ test('rebinding follows task identities across reordered Pi sessions', async () 
 })
 
 test('rebinding keeps complete current facts within the existing display budget', async () => {
-  const { rebindHomeSelection } = await import('../src/home-template.mjs')
   const before = [source('agent', 'tasks', { goal: 'x'.repeat(130), state: 'running', verification: 'not_run' })]
   const after = [source('agent', 'tasks', { goal: 'x'.repeat(130), state: 'finished', verification: 'not_run' })]
   const facts = homeFactVariables(before)
@@ -953,7 +936,6 @@ test('rebinding keeps complete current facts within the existing display budget'
 
 
 test('selection and recovery show one fact per service while every fact reaches analysis', async () => {
-  const { fallbackHomeSelection } = await import('../src/home-template.mjs')
   const readings = [
     { ...source('pi', 'sessions', { state: 'failed', goal: 'Fix **release**' }), serviceId: 'pi-service' },
     { ...source('remote', 'sessions', { report: 'Prior result', verification: 'reported_unverified' }), serviceId: 'pi-service' },
@@ -1015,7 +997,6 @@ test('a report that already ends a sentence does not gain a second period', asyn
 })
 
 test('local fallback keeps several services when idle sessions score highest', async () => {
-  const { fallbackHomeSelection } = await import('../src/home-template.mjs')
   const readings = [
     source('pi', 'sessions', { sessions: Array.from({ length: 3 }, (_, index) => ({ id: `s${index}`, project: 'Desk', state: 'settled' })) }),
     source('futu', 'portfolio', { todayChangePercent: 2.37 }),
