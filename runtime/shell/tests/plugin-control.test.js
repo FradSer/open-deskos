@@ -7,7 +7,7 @@ const os = require('node:os')
 const { execFile } = require('node:child_process')
 const { promisify } = require('node:util')
 const { createPluginHost } = require('../src/plugin-host')
-const { createPluginControl } = require('../src/plugin-control')
+const { createPluginControl, createPluginControlPlugin } = require('../src/plugin-control')
 const { requestLocalControl } = require('../src/local-control-client')
 const { resolveShellHost } = require('../src/platform')
 const { posixOnlyReason } = require('./not-ported')
@@ -42,7 +42,6 @@ test('runtime control applies lifecycle and refuses invalid targets without priv
 
 for (const selected of [false, true]) {
   test(`${selected ? 'selected' : 'default'} CLI runtime management uses the isolated channel and preserves preferences`, { skip: posixOnlyReason('unix-socket') }, async t => {
-    const { createPluginControlPlugin } = require('../src/plugin-control')
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-plugin-control-'))
     t.after(() => fs.rm(root, { recursive: true, force: true }))
     const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: path.join(root, 'state'), ODK_CONFIG_DIR: path.join(root, 'config') }
@@ -75,7 +74,6 @@ for (const selected of [false, true]) {
 }
 
 test('actual CLI routes a Main plugin from declared ownership rather than its resident prefix', { skip: posixOnlyReason('unix-socket') }, async t => {
-  const { createPluginControlPlugin } = require('../src/plugin-control')
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-route-'))
   const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: root, ODK_CONFIG_DIR: path.join(root, 'config') }
   const platform = resolveShellHost({ env })
@@ -95,7 +93,6 @@ test('actual CLI routes a Main plugin from declared ownership rather than its re
 
 for (const selected of [false, true]) {
   test(`${selected ? 'selected' : 'default'} token-gated runtime control refuses incorrect authentication before mutation`, { skip: posixOnlyReason('unix-socket') }, async t => {
-    const { createPluginControlPlugin } = require('../src/plugin-control')
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-control-token-'))
     t.after(() => fs.rm(root, { recursive: true, force: true }))
     const endpoint = path.join(root, 'control.sock')
@@ -122,7 +119,6 @@ for (const selected of [false, true]) {
 
 for (const selected of [false, true]) {
   test(`${selected ? 'selected' : 'default'} management restart releases only its listener`, { skip: posixOnlyReason('unix-socket') }, async t => {
-    const { createPluginControlPlugin } = require('../src/plugin-control')
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-mgr-'))
     const endpoint = path.join(root, 'control.sock')
     const management = 'odk.system.plugin-control'
