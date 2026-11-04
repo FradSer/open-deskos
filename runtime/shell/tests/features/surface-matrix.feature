@@ -48,5 +48,7 @@ Feature: Surface matrices keep revision acceptance fast
   Scenario: The nightly gate configures the Electron sandbox for CI
     Given the CI runner installs Electron as an unprivileged user
     When the workflow prepares the full-matrix step
-    Then it sets the SUID sandbox helper to root ownership and mode 4755
+    Then it builds the generated renderer assets before the matrix runs
+    And it locates the SUID sandbox helper inside the installed Electron tree
+    And it sets the helper to root ownership and mode 4755
     And the gate does not pass a no-sandbox argument to Electron
