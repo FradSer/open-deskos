@@ -15,6 +15,7 @@ import { createPersonalAgentComposition, personalAgentManifest, BOT_PORTS } from
 import { loadPersonalAgentReplacements } from '../src/development-plugins.mjs'
 import { PersonalAgentService } from '../src/service.mjs'
 import { protectProactivePath } from '../src/proactive-private.mjs'
+import { openuiBatch, openuiDocument, openuiDocuments } from './openui-fixtures.test.mjs'
 
 const stamp = '2026-10-02T10:00:00.000Z'
 const config = () => ({ version: 1, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 3600000, rules: [{ id: 'dry', urgent: true, delivery: 'immediate', advice: '检查盆土。考虑浇水。', conditions: [{ readingId: 'plant', field: 'soil', op: 'lt', value: 20 }], action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土后浇水' } } }], suppressed: [], snoozed: {} })
@@ -27,11 +28,9 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-selected-proactive-')))
   t.after(() => rm(root, { recursive: true, force: true }))
   await isolateAgentDirectory(t, root)
-  const generated = `root = Suggestions([s1])
-s1 = Suggestion([a1, b1],"deliveries","collect",["e0"])
-a1 = Advice("领取待取物品。")
-b1 = ApprovedAction("save-collection")`
-  const generatedCandidates = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }] }
+  const fields = { topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }
+  const generated = openuiDocument(fields)
+  const generatedCandidates = openuiBatch([fields])
   for (const version of [1, 2]) {
     const reports = []
     for (const external of [false, true]) {
@@ -189,11 +188,9 @@ test('default and selected Agent disable cancel pending proactive consumers and 
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-proactive-cancel-')))
   t.after(() => rm(root, { recursive: true, force: true }))
   await isolateAgentDirectory(t, root)
-  const batch = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }] }
-  const batchDocument = `root = Suggestions([s1])
-s1 = Suggestion([a1, b1],"deliveries","collect",["e0"])
-a1 = Advice("领取待取物品。")
-b1 = ApprovedAction("save-collection")`
+  const batchFields = { topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }
+  const batch = openuiBatch([batchFields])
+  const batchDocument = openuiDocument(batchFields)
   for (const stage of ['phrasing', 'generation']) {
     const reports = []
     for (const external of [false, true]) {
@@ -355,13 +352,10 @@ test('real SDK generator carries only scoped investigation tools and no skills, 
   await isolateAgentDirectory(t, dir)
   const optionsSeen = [], requests = []
   await writeFile(join(dir, 'memory.json'), JSON.stringify({ private: 'MUST_NOT_ENTER_GENERATION' }))
-  const suggestionsDoc = `root = Suggestions([s1, s2])
-s1 = Suggestion([a1, b1],"packages","item-1",["e0"])
-a1 = Advice("待取物品 1 件已到。")
-b1 = ApprovedAction("inspect-package")
-s2 = Suggestion([a2, b2],"packages","item-2",["e0"])
-a2 = Advice("待取物品 2 件已到。")
-b2 = ApprovedAction("inspect-package")`
+  const suggestionsDoc = openuiDocuments([
+    { topicId: 'packages', key: 'item-1', advice: '待取物品 1 件已到。', actionId: 'inspect-package', evidenceIds: ['e0'] },
+    { topicId: 'packages', key: 'item-2', advice: '待取物品 2 件已到。', actionId: 'inspect-package', evidenceIds: ['e0'] },
+  ])
   const agent = await createPersonalAgent({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') } }, {
     createIntentRouter: fixtureIntentRouter,
     createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel }),

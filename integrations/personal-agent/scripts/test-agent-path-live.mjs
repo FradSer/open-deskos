@@ -118,7 +118,7 @@ try {
     try {
       await watch.tick()
       const proposals = watch.list().filter(p => p.status === 'pending').map(p => ({
-        run: item.round, topic: p.ruleId, advice: p.advice, preview: p.preview ?? null, nextStep: p.nextStep,
+        run: item.round, topic: p.ruleId, advice: p.advice, preview: p.preview ?? null, ui: p.ui ?? null, nextStep: p.nextStep,
         probability: p.judgment.probability, grounding: p.judgment.groundingProbability,
         threshold: p.judgment.threshold, pass: true,
       }))

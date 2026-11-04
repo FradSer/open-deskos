@@ -712,3 +712,33 @@ Feature: Owner controlled proactive Personal Agent proposals
     Then the round produces no candidate and leaves other topics usable
     And the renderer receives no unvalidated structure
 
+  # --- OpenUI full replacement (pipeline contract) ------------------------
+  Scenario: The full parsed component tree reaches the renderer
+    Given the parser returns a ui tree holding every emitted component node
+    When the host admits a candidate and publishes it
+    Then the proposal carries the full ui tree over IPC
+    And the renderer receives the tree without projection or node loss
+    And no generation code rebuilds the tree into preview items
+
+  Scenario: An unknown primitive is not dropped by the renderer
+    Given a published ui tree holds a type outside the renderer vocabulary
+    When the renderer mounts that tree
+    Then the unknown type renders as plain text
+    And every other component node still reaches the shared DOM
+    And the unknown node never disappears silently
+
+  Scenario: OpenUI needs no React runtime or remote asset
+    Given the Shell is a framework-free DOM renderer with a strict CSP
+    When the renderer builds the generic OpenUI structure
+    Then each type maps to an existing shared primitive class
+    And no React runtime, inline style, inline script or remote asset loads
+    And every text value is written with textContent
+
+  Scenario: Host authority survives the OpenUI contract
+    Given OpenUI owns prompt generation, wire syntax, parsing and component structure
+    When the host qualifies a returned candidate
+    Then Jev still decides usefulness and factual support
+    And the host still binds approved actions, evidence and freshness
+    And no generated component grants execution permission or invents a fact
+    And the host independently judges every candidate
+

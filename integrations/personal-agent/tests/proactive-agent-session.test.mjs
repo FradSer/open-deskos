@@ -7,8 +7,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createDurableAgentSession } from '../src/durable-agent-session.mjs'
 import { createProactiveInvestigationTools } from '../src/proactive-investigation.mjs'
-import { generationInstructions } from '../src/proactive-generation.mjs'
+import { generationSystemPrompt } from '../src/openui-contract.mjs'
 import { sessionAdapter } from '../src/agent.mjs'
+import { EMPTY_DOCUMENT } from './openui-fixtures.test.mjs'
 import { fixtureModel, assistant, visibleTools } from './helpers/pi-fixture.mjs'
 import { DefaultResourceLoader, SettingsManager, SessionManager, getAgentDir } from '@earendil-works/pi-coding-agent'
 
@@ -44,7 +45,7 @@ async function run(scripted) {
   }
   const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,
     settingsManager: SettingsManager.inMemory({}), agentsFilesOverride: () => ({ agentsFiles: [] }),
-    appendSystemPromptOverride: () => [], systemPromptOverride: () => generationInstructions })
+    appendSystemPromptOverride: () => [], systemPromptOverride: () => generationSystemPrompt })
   await loader.reload()
   let session
   try {
@@ -65,7 +66,7 @@ async function run(scripted) {
 }
 
 test('an ephemeral generation session exposes both scoped tools to the model', async () => {
-  const { visible, activeNames } = await run(() => assistant('{"suggestions":[]}'))
+  const { visible, activeNames } = await run(() => assistant(EMPTY_DOCUMENT))
   assert.deepEqual(activeNames.sort(), ['proactive_judge', 'proactive_read'])
   assert.ok(visible.includes('proactive_read'), 'proactive_read is visible to the model')
   assert.ok(visible.includes('proactive_judge'), 'proactive_judge is visible to the model')
@@ -74,7 +75,7 @@ test('an ephemeral generation session exposes both scoped tools to the model', a
 test('a model tool call reaches proactive_read and its result returns without error', async () => {
   const { results, reads } = await run(context => {
     const last = context.messages.at(-1)
-    if (last?.role === 'toolResult') return assistant('{"suggestions":[]}')
+    if (last?.role === 'toolResult') return assistant(EMPTY_DOCUMENT)
     return assistant([{ type: 'toolCall', id: 'read-1', name: 'proactive_read',
       arguments: { readingId: 'commute.traffic' } }], 'toolUse')
   })
@@ -87,7 +88,7 @@ test('a model tool call reaches proactive_read and its result returns without er
 test('a model tool call reaches proactive_judge and returns typed judgments', async () => {
   const { results } = await run(context => {
     const last = context.messages.at(-1)
-    if (last?.role === 'toolResult') return assistant('{"suggestions":[]}')
+    if (last?.role === 'toolResult') return assistant(EMPTY_DOCUMENT)
     const args = { suggestions: [{ topicId: 'commute-anomaly', advice: '通勤延误 28 分钟。',
       actionId: 'open', evidenceIds: ['e0', 'e1', 'e2'] }] }
     return assistant([{ type: 'toolCall', id: 'judge-1', name: 'proactive_judge', arguments: args }], 'toolUse')

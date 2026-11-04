@@ -13,6 +13,7 @@ import { HomeBriefing } from '../src/home-briefing.mjs'
 import { PersonalAgentService } from '../src/service.mjs'
 import { loadCapabilities } from '../src/capabilities.mjs'
 import { agentOptions, validateWorkspace, createPersonalAgent, createResourceLoader, sessionAdapter } from '../src/agent.mjs'
+import { uiTypes } from './openui-fixtures.test.mjs'
 
 async function proposalExecutionFixture(t, { route, helperSource, capabilitySource } = {}) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'odk-proposal-execution-')))
@@ -597,7 +598,12 @@ n1 = OwnerStep("查看行程候选并选择起终点。")`
     // The generation session carries only the two scoped investigation tools.
     assert.deepEqual(options.customTools.map(tool => tool.name), ['proactive_read', 'proactive_judge'])
   })
-  assert.deepEqual(await bot.generateProposals({ topics: [topic], maxCandidates: 1 }), { suggestions: [repaired] })
+  const result = await bot.generateProposals({ topics: [topic], maxCandidates: 1 })
+  assert.equal(result.suggestions.length, 1)
+  const { ui, ...candidate } = result.suggestions[0]
+  assert.deepEqual(candidate, repaired)
+  assert.deepEqual([...new Set(uiTypes(ui))].sort(), ['Advice', 'OwnerStep', 'Suggestion'].sort())
+  assert.deepEqual(JSON.parse(JSON.stringify(ui)), ui, 'the repaired candidate keeps a serialisable UI tree')
   assert.equal(calls, 2)
   assert.match(instructions, /\bAdvice\b/)
   assert.match(instructions, /\bSuggestions\b/)
