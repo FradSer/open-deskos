@@ -4,6 +4,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { main, readConfig, resolveConfigPath, validateManifest } = require('../scripts/odk-plugin-cli')
+const { createPluginHost, validatePluginManifest } = require('../src/plugin-host')
 
 test('CLI validate checks manifest schema version 1', t => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-cli-test-'))
@@ -27,7 +28,6 @@ test('CLI validate checks manifest schema version 1', t => {
 })
 
 test('CLI rejects declarations rejected by the Host', t => {
-  const { createPluginHost } = require('../src/plugin-host')
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-cli-manifest-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
   const target = path.join(root, 'manifest.json')
@@ -52,7 +52,6 @@ test('CLI rejects declarations rejected by the Host', t => {
 })
 
 test('manifest validation is pure and returns the Host normalized declaration without loading entry code', async t => {
-  const { validatePluginManifest, createPluginHost } = require('../src/plugin-host')
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-cli-pure-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
   const entry = path.join(root, 'entry.js')
@@ -83,7 +82,6 @@ test('manifest validation is pure and returns the Host normalized declaration wi
 
 test('browser and Node exports validate the same manifest without loading a Node module', () => {
   const vm = require('node:vm')
-  const { validatePluginManifest } = require('../src/plugin-host')
   const window = {}
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/plugin-host.js'), 'utf8'), { window, structuredClone })
   const manifest = { schemaVersion: 1, id: 'odk.test.renderer', kind: 'surface', host: 'electron-renderer', name: 'Renderer', version: '1.0.0',

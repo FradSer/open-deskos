@@ -1,7 +1,7 @@
 'use strict'
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { parseApiSources, isPublicAddress, createUserAppApi } = require('../src/user-app-api')
+const { parseApiSources, isPublicAddress, createUserAppApi, requestPublicJson, lookupPublicDns } = require('../src/user-app-api')
 const revision = 'a'.repeat(32)
 const source = { url: 'https://clock.example/time?zone=UTC', refreshMs: 10000 }
 const app = { id: 'clock', revision, api: { clock: source } }
@@ -43,7 +43,6 @@ test('a failed refresh retains previous data with explicit stale state', async (
 })
 
 test('DNS rebinding and mixed public/private answers never start HTTPS', async () => {
-  const { requestPublicJson } = require('../src/user-app-api')
   for (const addresses of [[{ address:'127.0.0.1',family:4 }],[{address:'8.8.8.8',family:4},{address:'169.254.169.254',family:4}]]) {
     let requests = 0
     await assert.rejects(requestPublicJson(source.url,{ lookup:async()=>addresses,get:()=>{requests++} }),/address-blocked/)
@@ -51,7 +50,6 @@ test('DNS rebinding and mixed public/private answers never start HTTPS', async (
   }
 })
 test('HTTPS pins checked DNS, refuses redirects, malformed and oversized responses', async () => {
-  const { requestPublicJson } = require('../src/user-app-api')
   const { PassThrough } = require('node:stream')
   const { EventEmitter } = require('node:events')
   for (const [status, type, body, error] of [[200,'application/json','{"utc":1}',null],[302,'application/json','{}','response-rejected'],[200,'text/html','{}','response-rejected'],[200,'application/json','broken','invalid-json'],[200,'application/json',' '.repeat(65537),'response-too-large']]) {
@@ -88,7 +86,6 @@ test('a revision change during a request prevents old source publication', async
 })
 
 test('configured public DNS resolves through fixed HTTPS and retains address checks', async () => {
-  const { lookupPublicDns } = require('../src/user-app-api')
   let requested
   const request=async(url,options)=>{requested={url,options};return {Status:0,Answer:[{type:5,data:'alias.example'},{type:1,data:'8.8.8.8'}]}}
   assert.deepEqual(await lookupPublicDns('clock.example',{request}),[{address:'8.8.8.8',family:4}])

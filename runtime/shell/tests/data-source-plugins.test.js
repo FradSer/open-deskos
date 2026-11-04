@@ -3,7 +3,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const { createPluginHost } = require('../src/plugin-host')
-const { createDataSourcePlugins, DATA_PORTS } = require('../src/plugins/data-sources')
+const { createDataSourcePlugins, createSourcePlugin, DATA_PORTS } = require('../src/plugins/data-sources')
 
 test('Devices uses the existing Bridge client without acquiring a device transport', async () => {
   const client = { getDeviceSnapshot: () => ({ status: 'live' }) }
@@ -195,7 +195,6 @@ test('one disabled source leaves unrelated endpoints running', async () => {
 })
 
 test('an independent source factory publishes readings from its own instance without a central source key', async () => {
-  const { createSourcePlugin } = require('../src/plugins/data-sources')
   let serial = 0
   const dispatched = new Map()
   const stopped = []
@@ -229,7 +228,6 @@ test('legacy Pi scan callers retain their method receiver', async () => {
 })
 
 test('invalid source reading factories fail before publishing ports and release owned resources', async () => {
-  const { createSourcePlugin } = require('../src/plugins/data-sources')
   const handlers = new Map()
   let stopped = 0
   const host = createPluginHost({ capabilities: {
