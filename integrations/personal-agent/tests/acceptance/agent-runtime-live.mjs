@@ -1,7 +1,7 @@
 import { parsePluginInput } from '../../src/agent-plugins/prompt.mjs'
 import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'

@@ -2,7 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
 const { spawnSync } = require('node:child_process')
-const { boundedEvent, retainEvents, assistantMetadata } = require('./pi-session-events')
+const { retainEvents, assistantMetadata } = require('./pi-session-events')
 const { resolveShellHost } = require('./platform')
 const { tokenizeWindowsCommandLine } = require('./platform/win32-command-line')
 

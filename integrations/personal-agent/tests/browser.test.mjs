@@ -1,6 +1,5 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { isAbsolute } from 'node:path'
 import { BrowserError, boundedContent, checkedTarget, createBrowserSession, isPrivateHost } from '../src/browser/session.mjs'
 import { createBrowserTools } from '../src/browser/index.mjs'
 
