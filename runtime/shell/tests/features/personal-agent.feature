@@ -63,6 +63,13 @@ Feature: Independent resident Personal Agent
     And no chip label or value wraps, clips or overflows its card
     And the card text uses one reading size from the shared scale
 
+  Scenario: An OpenUI message states its advice once and nests one card
+    Given a recommendation message renders a composed OpenUI tree
+    When the owner reads the bubble
+    Then the advice sentence appears exactly once in the bubble
+    And the preview has one card surface, not a card inside another card
+    And every reading is still visible with its label and value
+
   Scenario: One message bubble uses one reading size for its text and card
     Given a recommendation message shows advice above a generic preview card
     When the owner reads the message and its card

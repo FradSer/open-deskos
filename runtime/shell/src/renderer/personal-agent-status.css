@@ -403,15 +403,13 @@
   white-space: normal;
 }
 
+/* A Stack is a layout group inside the one card, not a second bordered surface.
+   Concentric radii belong to nested surfaces; a layout container adds no frame. */
 .openui-stack {
   display: grid;
   align-content: start;
   gap: var(--agent-gap-block);
   min-width: 0;
-  padding: var(--agent-pad-card);
-  border: thin solid var(--odk-stroke);
-  border-radius: var(--agent-radius-card);
-  background: var(--odk-elevated);
   color: var(--odk-primary);
   overflow-wrap: anywhere;
   white-space: normal;
@@ -426,14 +424,9 @@
   gap: var(--agent-gap-inline);
 }
 
-:is(.openui-stack, .openui-option-set) :is(.openui-stack, .openui-option-set) {
-  border-radius: var(--agent-radius-inset);
-  background: var(--odk-surface);
-}
-
+:is(.openui-stack, .openui-option-set) :is(.openui-stack, .openui-option-set),
 :is(.openui-stack, .openui-option-set) :is(.openui-stack, .openui-option-set) :is(.openui-stack, .openui-option-set) {
-  border-radius: var(--agent-radius-chip);
-  background: var(--odk-elevated);
+  background: transparent;
 }
 
 .openui-row {

@@ -143,12 +143,12 @@ const api = loadRenderer()
 const isNode = value => Boolean(value && typeof value === 'object' && typeof value.nodeType === 'number')
 const classesIn = doc => new Set(doc.created.flatMap(el => el.className.split(/\s+/)).filter(Boolean))
 
-// Composable primitives the generic renderer must turn into a DOM node. The two
-// host-bound controls (ApprovedAction, OwnerStep) are exercised in their own test.
+// Composable primitives the generic renderer must turn into a DOM node. Host-owned
+// nodes (Advice, ApprovedAction, OwnerStep) are exercised in their own test: the
+// bubble already renders advice once and binds its controls.
 const RENDERABLE = {
   Suggestions: node('Suggestions', {}, []),
   Suggestion: leaf('Suggestion', { topicId: 't', key: 'k', evidenceIds: ['e0'] }),
-  Advice: leaf('Advice', { value: 'CHANGED' }),
   Readings: node('Readings', {}, []),
   Reading: leaf('Reading', { label: 'Today', value: '52 min', tone: 'warn' }),
   Heading: leaf('Heading', { value: 'Summary' }),
@@ -271,8 +271,23 @@ test('host-bound ApprovedAction and OwnerStep never become renderer controls', (
   const root = api.renderOpenUI(tree, ctx)
   assert.ok(isNode(root), 'a tree with host-bound nodes still renders its card')
   assert.ok(String(root.className).split(/\s+/).includes('personal-agent-preview-card'), 'the concentric card primitive class is applied')
-  assert.ok(root.textContent.includes('CHANGED_MARK'))
+  assert.ok(!root.textContent.includes('CHANGED_MARK'), 'Advice is host-owned: the bubble already renders advice once')
   assert.ok(!doc.created.some(el => el.tagName === 'BUTTON'), 'the generic adapter invents no action button')
+})
+
+test('one suggestion tree renders exactly one card surface', () => {
+  const doc = makeDocument(), ctx = contextFor(doc)
+  const tree = node('Suggestions', {}, [
+    node('Suggestion', {}, [
+      leaf('Heading', { value: '通勤状态' }),
+      node('Stack', {}, [leaf('Metric', { label: '用时', value: '52 分钟' })]),
+    ]),
+  ])
+  const root = api.renderOpenUI(tree, ctx)
+  assert.ok(isNode(root))
+  const cards = doc.created.filter(el => String(el.className).split(/\s+/).includes('personal-agent-preview-card'))
+  assert.equal(cards.length, 1, 'a container must not nest another bordered card')
+  assert.ok(doc.created.some(el => String(el.className).includes('personal-agent-preview-chip')), 'the reading is still visible')
 })
 
 test('isOpenUINode accepts plain JSON component trees and rejects non-nodes', () => {

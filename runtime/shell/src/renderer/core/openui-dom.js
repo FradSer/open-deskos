@@ -242,13 +242,18 @@
     if (!dom || typeof dom.createElement !== 'function') return null
     const kind = componentName(node), type = kind.toLowerCase()
     // The caller binds approved actions and read-only owner steps.
-    if (type === 'approvedaction' || type === 'ownerstep') return null
+    // Advice, ApprovedAction and OwnerStep are host-owned: the bubble already
+    // renders advice once and binds its controls. Rendering them again duplicates text.
+    if (type === 'advice' || type === 'approvedaction' || type === 'ownerstep') return null
     const props = propsOf(node)
     seen.add(node)
     try {
       let element
       switch (type) {
         case 'suggestions':
+          element = createElement('div', context)
+          // The root is a layout container, not another bordered card.
+          break
         case 'suggestion':
           element = createElement('div', context)
           if (element) element.className = 'personal-agent-preview-card'
@@ -271,7 +276,6 @@
           }
           break
         case 'text':
-        case 'advice':
           element = createElement('p', context)
           if (element) {
             applyTone(element, props)
