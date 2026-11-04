@@ -25,6 +25,13 @@ jobs:
       - name: Install Shell dependencies
         working-directory: runtime/shell
         run: pnpm install --frozen-lockfile
+      - name: Configure the Electron SUID sandbox helper
+        working-directory: runtime/shell
+        run: |
+          helper="$(dirname "$(node -p "require('electron')")")/chrome-sandbox"
+          test -f "$helper"
+          sudo chown root:root "$helper"
+          sudo chmod 4755 "$helper"
       - name: Run the full rendering matrix
         working-directory: runtime/shell
         run: xvfb-run -a pnpm test:matrix

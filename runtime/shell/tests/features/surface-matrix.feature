@@ -44,3 +44,9 @@ Feature: Surface matrices keep revision acceptance fast
     Given a contributor schedules the full-matrix gate
     When the contributor reads the workflow
     Then a nightly schedule and a manual dispatch run the gate command
+
+  Scenario: The nightly gate configures the Electron sandbox for CI
+    Given the CI runner installs Electron as an unprivileged user
+    When the workflow prepares the full-matrix step
+    Then it sets the SUID sandbox helper to root ownership and mode 4755
+    And the gate does not pass a no-sandbox argument to Electron
