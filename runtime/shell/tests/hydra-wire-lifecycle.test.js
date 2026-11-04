@@ -30,7 +30,7 @@ test('command argument refusal retains its original error without a child to joi
   await assert.rejects(runCommand(null, [], {}), error => error.code === 'ERR_INVALID_ARG_TYPE')
 })
 
-test('cancelled command joins its child before private state can be removed', { timeout: 10000 }, async t => {
+test('cancelled command joins its child before private state can be removed', { timeout: 10000 }, async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-command-close-'))
   const marker = path.join(root, 'pid')
   const controller = new AbortController()
