@@ -22,6 +22,17 @@ async function setup(t) {
   }
   return { options, draft, store: createUserAppStore(options) }
 }
+
+async function installedNote(t) {
+  const { store, options, draft } = await setup(t)
+  await draft('note', '1')
+  const placement = { pageId: 'home', col: '4', row: '3' }
+  assert.equal((await store.install('note', placement)).ok, true)
+  await draft('note', '2')
+  assert.equal((await store.update('note')).ok, true)
+  return { options, draft, placement }
+}
+
 test('persists exact spans; moves survive revision changes and restart', async t => {
   const { store, options, draft } = await setup(t)
   await draft('note')
@@ -146,12 +157,7 @@ test('unavailable geometry is reported per widget and never hidden as corruption
 })
 
 test('updates and rollbacks retain a conflicted widget placement', async t => {
-  const { store, options, draft } = await setup(t)
-  await draft('note', '1')
-  const placement = { pageId: 'home', col: '4', row: '3' }
-  assert.equal((await store.install('note', placement)).ok, true)
-  await draft('note', '2')
-  assert.equal((await store.update('note')).ok, true)
+  const { options, draft, placement } = await installedNote(t)
 
   const conflicted = createUserAppStore({ ...options, layout: { pages: [
     { id: 'home', name: 'Home', kind: 'grid', surface: 'display', widgets: [{ id: 'odk.tile.weather', col: '4', row: '3' }] },
@@ -194,12 +200,7 @@ test('an App updated to a Widget receives a placement', async t => {
 })
 
 test('updates and rollbacks retain geometry unavailable after a layout release', async t => {
-  const { store, options, draft } = await setup(t)
-  await draft('note', '1')
-  const placement = { pageId: 'home', col: '4', row: '3' }
-  assert.equal((await store.install('note', placement)).ok, true)
-  await draft('note', '2')
-  assert.equal((await store.update('note')).ok, true)
+  const { options, draft, placement } = await installedNote(t)
 
   const released = createUserAppStore({ ...options, layout: { pages: [
     { id: 'today', kind: 'page', name: 'Today' },
@@ -222,12 +223,7 @@ test('updates and rollbacks retain geometry unavailable after a layout release',
 })
 
 test('updates and rollbacks retain a stored span outside a released grid', async t => {
-  const { store, options, draft } = await setup(t)
-  await draft('note', '1')
-  const placement = { pageId: 'home', col: '4', row: '3' }
-  assert.equal((await store.install('note', placement)).ok, true)
-  await draft('note', '2')
-  assert.equal((await store.update('note')).ok, true)
+  const { options, draft, placement } = await installedNote(t)
 
   const catalogPath = path.join(options.stateDir, 'user-apps.json')
   const entries = JSON.parse(await fs.readFile(catalogPath))
