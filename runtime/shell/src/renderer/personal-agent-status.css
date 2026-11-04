@@ -245,6 +245,33 @@
    It shares the card radius so the two corners stay tangent at that level.
    Controls outside a recommendation keep the independent control token. */
 .agent-recommendation .personal-agent-proposals button { border-radius: var(--agent-radius-card); }
+/* Every session footer shares one geometry, whether or not the message has a
+   generated OpenUI card. Both the plain remote message and the recommendation
+   use the same sessionLabel() DOM, so scope to that shared class. The Reply
+   keeps its real replyTo target in both messages. The extra .agent-panel
+   .agent-message-session specificity beats home-desk.css, which loads later. */
+.agent-panel .agent-update-sources {
+  gap: var(--agent-gap-block);
+  margin-block-start: var(--agent-gap-block);
+}
+/* The theme layers give every #personal-agent button a control radius. A
+   session footer Reply is a card-level control, so match that specificity and
+   scope it to the shared footer class. Both message kinds then agree. */
+html #personal-agent .agent-update-sources .agent-message-session .agent-session-reply {
+  border-radius: var(--agent-radius-card);
+}
+/* The icon, source text and Reply button stay on one horizontal line. Their
+   small text leaves a larger visual gap below, so the source row takes a larger
+   left inset to match it. A 2px optical nudge lowers the source group a little;
+   a transform keeps the layout box, 44px touch target and Reply position. */
+.agent-panel .agent-update-sources .agent-message-session .agent-session-open {
+  padding-left: var(--agent-pad-card);
+  transform: translateY(2px);
+}
+.agent-panel .agent-update-sources .agent-message-session :is(.agent-message-session, .agent-session-open, .agent-session-name, .agent-session-reply, .agent-reply-unavailable) {
+  font-size: var(--agent-text-body);
+  line-height: var(--agent-line-body);
+}
 /* One 17px reading size for every visible text inside a recommendation bubble.
    iOS-style hierarchy comes from weight and colour, not a second size. Scoped so
    other conversation messages and the nonmodal panel retain their own scale. */
@@ -389,6 +416,12 @@
   text-wrap: pretty;
   white-space: normal;
 }
+/* The conversation bubble gives every <p> a 12px paragraph margin. Inside a
+   generated card those <p> primitives are not prose paragraphs: the card's
+   named gap is the only spacing owner. Match the bubble selector's specificity. */
+.agent-recommendation .personal-agent-preview-card :is(.openui-heading, .openui-text) {
+  margin: 0;
+}
 
 /* A Readings group is a frameless list; the one card owns the only surface. */
 .personal-agent-preview-chips.openui-readings {
@@ -494,12 +527,16 @@
 
 .openui-option-set button { cursor: pointer; }
 
+/* A divider draws one hairline. Its spacing comes only from the card's named
+   gap, so it never doubles the surrounding space. A trailing divider is an
+   orphan line and adds nothing after the last primitive. */
 .openui-divider {
   block-size: 0;
-  margin-block: var(--agent-gap-chip);
+  margin-block: 0;
   border: 0;
   border-block-start: thin solid var(--odk-stroke);
 }
+.openui-divider:last-child { display: none; }
 
 .openui-unknown {
   display: inline;

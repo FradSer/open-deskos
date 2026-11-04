@@ -39,9 +39,10 @@ function fixture({ readiness = false, hidden = false } = {}) {
   class Clock extends Date { static now() { return now } }
   const surface = new Element(); surface.hidden = true
   const content = new Element()
-  const local = new Element('textarea'), commands = [], ready = [], events = {}, observers = []
+  const local = new Element('textarea'), commands = [], ready = [], events = {}, observers = [], markdown = []
   const document = { hidden, visibilityState: hidden ? 'hidden' : 'visible', addEventListener(name, cb) { events[name] = cb }, removeEventListener() {}, querySelector: () => null, getElementById: () => surface, activeElement: local, body: { children: [local, surface, content] }, createElement: tag => new Element(tag) }
-  const window = { odkPersonalAgent: { proposalCommand: async command => { commands.push(command); return { accepted: true } } } }
+  const window = { odkPersonalAgent: { proposalCommand: async command => { commands.push(command); return { accepted: true } } },
+    odkPersonalAgentReply: { render: (target, message) => { markdown.push({ target, message }); target.textContent = message } } }
   if (readiness) window.odkPersonalAgent.consumerReady = id => { ready.push(id); return Promise.resolve({ accepted: true }) }
   let sequence = 0
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/personal-agent-suggestions.js'), 'utf8'), { window, document, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++sequence).padStart(12, '0')}` }, console, Date: Clock, IntersectionObserver: class { constructor(callback) { this.callback = callback; this.nodes = new Set(); observers.push(this) } observe(node) { this.nodes.add(node) } disconnect() { this.nodes.clear() } unobserve(node) { this.nodes.delete(node) } } })
@@ -53,7 +54,7 @@ function fixture({ readiness = false, hidden = false } = {}) {
   const controller = window.odkPersonalAgentSuggestions.mount(content, { focusInput: () => local.focus() })
   const render = status => controller.update(status)
 
-  return { controller, surface, content, local, commands, ready, render, window, events, document, observers, states,
+  return { controller, surface, content, local, commands, ready, render, window, events, document, observers, states, markdown,
     state() { return states.at(-1) || { caption: '', detail: '' } },
     advance(ms) { now += ms }, visible(node, ratio = 1, { height = 44, viewportHeight = 200 } = {}) { for (const observer of observers) if (observer.nodes.has(node)) observer.callback([{ target: node, isIntersecting: ratio > 0, intersectionRatio: ratio, boundingClientRect: { width: 100, height }, rootBounds: { width: 100, height: viewportHeight }, intersectionRect: { width: ratio > 0 ? 100 : 0, height: height * ratio } }]) } }
 }
@@ -164,6 +165,16 @@ test('a desk-projected next step stays readable on the read-only Android surface
   f.visible(f.content.querySelector('.personal-agent-proposal-advice'))
   assert.equal(f.commands.length, 0)
 })
+test('advice renders through the safe shared Markdown renderer, not raw textContent', () => {
+  const f = fixture(), p = { ...proposal(), advice: 'Gmail 连接状态：**未配置**。' }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const advice = f.content.querySelector('.personal-agent-proposal-advice')
+  assert.ok(advice)
+  const call = f.markdown.find(entry => entry.target === advice)
+  assert.ok(call, 'advice must go through odkPersonalAgentReply.render')
+  assert.equal(call.message, 'Gmail 连接状态：**未配置**。')
+})
+
 test('technical advice remains private and cannot acknowledge an unread original', () => {
   const f = fixture(), p = { ...proposal(), action: null, advice: `Inspect expectedSHA256 ${'a'.repeat(64)}` }
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })

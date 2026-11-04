@@ -276,8 +276,9 @@ html[data-theme='pixel'] #home-summary .dash {
   #home-desk #dots[data-dragging] .dot.active::before { background: ButtonText; forced-color-adjust: none; }
 }
 
-/* Task names stay below messages; technical provenance stays outside the timeline. */
-.agent-message-actions { display: grid; gap: 8px; margin-block-start: 8px; white-space: normal; }
+/* Task names stay below messages; technical provenance stays outside the timeline.
+   One named block gap keeps plain conversation footers in step with recommendation footers. */
+.agent-message-actions { display: grid; gap: var(--agent-gap-block); margin-block-start: var(--agent-gap-block); white-space: normal; }
 .agent-update-sources { width: 100%; min-width: 0; }
 .agent-reply-details { min-width: 0; }
 .agent-panel .agent-reply-status[hidden], .agent-panel .agent-state[hidden] { display: none; }

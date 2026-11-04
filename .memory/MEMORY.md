@@ -13,7 +13,7 @@ Descriptions shortened for bounded metadata reads/rows have an explicit notice; 
 - [open-deskos-device-diagnostic-gotchas.md](open-deskos-device-diagnostic-gotchas.md) — 远程诊断这两台设备的四个反直觉陷阱：远端 pgrep -f 匹配自己的 ssh 命令行、Get-ChildItem -Include 不带尾部 \ * 返回空、单遍引用分析判不出死代码须剪枝到不动点、工具无法表达的改动要上报不要绕过
 - [open-deskos-futu-holdings-refresh.md](open-deskos-futu-holdings-refresh.md) — Futu 持仓在两个 Shell Host 上同时不刷新的三层叠加根因：runtime 目录 0755 被 prepareDirectory 拒绝 → 绑定失败却已记入 registry 从此永不重试 → hello 与首帧合并成一读被 512 字节握手上限误判为 handshake-too-large
 - [open-deskos-mac-pi-task-host.md](open-deskos-mac-pi-task-host.md) — Mac 受管 Pi 任务主机已按 operator 要求完整回滚；launchd 必须用稳定 fnm 别名路径（fnm_multishells 每次登录都变）；CM5 语音端曾因缺 task-*.mjs 未打通，该阻塞现已不存在
-- [open-deskos-openui-contract-mapping.md](open-deskos-openui-contract-mapping.md) — OpenUI 当前接入：模型拥有组合、宿主拥有事实与权限；proactive 链路主动不用 Jev 分类器、只问一个 usefulness 问题；卡片数值机械绑定已引用读数；渲染器区分各原语。
+- [open-deskos-openui-contract-mapping.md](open-deskos-openui-contract-mapping.md) — OpenUI 当前接入：模型拥有组合、宿主拥有事实与权限；proactive 链路不用 Jev 分类器、只问一个 usefulness 问题；卡片数值机械绑定已引用读数；渲染器区分各原语；footer 为产品特性、CSS 单一所有者、gate 守住共圆。
 - [open-deskos-user-application-lifecycle.md](open-deskos-user-application-lifecycle.md) — 已安装的本地包落在 stateDir（不在 ODESK_WORKSPACE）；统一插件模型下"独立的 User Application 概念"已被 ADR-0009 退役，只有"未受信任的本地包 vs 内建可信插件"这条区分仍然成立
 - [open-deskos-windows-handheld-access.md](open-deskos-windows-handheld-access.md) — 64-bit Windows 掌机的接入方式：Tailscale 上的公钥 SSH、Session 0 无桌面所以 GUI 工作走交互计划任务、带哈希门控的同步部署
 - [project-widget-skill-inheritance.md](project-widget-skill-inheritance.md) — 上游 interface 参考一律平铺在 open-deskos-widget/references 下（operator 明令禁止顶层 jakubkrehel-skills 目录），interface-review 是创建后的独立流程而非实现步骤——由一条测试钉死

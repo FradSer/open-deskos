@@ -500,7 +500,10 @@
             const executableAction = Boolean(p.action && typeof p.confirmation === 'string' && p.confirmation.trim())
             const nextStep = typeof p.nextStep === 'string' && p.nextStep.length <= 240 && !/[\x00-\x1f\x7f]/.test(p.nextStep) && !technicalNext ? p.nextStep.trim() : ''
             const readOnlyStep = !suggestionCapabilities.respond && Boolean(nextStep)
-            advice.textContent = technicalAdvice ? 'This message is no longer available. Ask again.' : p.advice
+            // Advice is model text. Use the shared safe Markdown renderer so
+            // strong/code/list emphasis shows, while HTML stays literal and
+            // plain text still goes through textContent.
+            root.odkPersonalAgentReply.render(advice, technicalAdvice ? 'This message is no longer available. Ask again.' : p.advice)
             if (!technicalAdvice && p.advice.length > 180) {
               advice.dataset.long = 'true'
               advice.setAttribute('tabindex', '0')
