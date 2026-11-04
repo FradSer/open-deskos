@@ -29,6 +29,16 @@ async function temporaryDir(t) {
   return dir
 }
 
+async function tokenChannel(t) {
+  const dir = await temporaryDir(t)
+  const endpoint = `tcp://127.0.0.1:${await freePort()}`
+  const token = await readOrCreateToken({ stateDir: dir })
+  const sink = collect()
+  const channel = await listenChannel({ endpoint, stateDir: dir, token, onConnection: sink.onConnection, onReject: sink.onReject })
+  t.after(() => channel.close())
+  return { endpoint, token, sink }
+}
+
 /** One connection: optional handshake, then one line, then whatever comes back. */
 function exchange(endpoint, { token, handshake, line, timeoutMs = 500 } = {}) {
   return new Promise((resolve) => {
@@ -135,12 +145,7 @@ test('the handshake is consumed rather than handed to the protocol', async (t) =
 })
 
 test('a token-required handshake larger than the cap is rejected before the protocol sees it', async (t) => {
-  const dir = await temporaryDir(t)
-  const endpoint = `tcp://127.0.0.1:${await freePort()}`
-  const token = await readOrCreateToken({ stateDir: dir })
-  const sink = collect()
-  const channel = await listenChannel({ endpoint, stateDir: dir, token, onConnection: sink.onConnection, onReject: sink.onReject })
-  t.after(() => channel.close())
+  const { endpoint, token, sink } = await tokenChannel(t)
 
   const handshake = `${JSON.stringify({ v: CHANNEL_VERSION, token, padding: 'x'.repeat(4096) })}\n`
   assert.ok(Buffer.byteLength(handshake) > MAX_HANDSHAKE_BYTES, 'the handshake has to exceed the cap for this to mean anything')
@@ -152,12 +157,7 @@ test('a token-required handshake larger than the cap is rejected before the prot
 })
 
 test('a small token handshake leaves a large protocol remainder intact', async (t) => {
-  const dir = await temporaryDir(t)
-  const endpoint = `tcp://127.0.0.1:${await freePort()}`
-  const token = await readOrCreateToken({ stateDir: dir })
-  const sink = collect()
-  const channel = await listenChannel({ endpoint, stateDir: dir, token, onConnection: sink.onConnection, onReject: sink.onReject })
-  t.after(() => channel.close())
+  const { endpoint, token, sink } = await tokenChannel(t)
 
   const remainder = `${JSON.stringify({ v: 1, type: 'snapshot', payload: 'x'.repeat(4096) })}\n`
   const handshake = `${JSON.stringify({ v: CHANNEL_VERSION, token })}\n${remainder}`
@@ -171,12 +171,7 @@ test('a small token handshake leaves a large protocol remainder intact', async (
 })
 
 test('an idle pre-authentication connection is closed while an authenticated idle service connection stays open', async (t) => {
-  const dir = await temporaryDir(t)
-  const endpoint = `tcp://127.0.0.1:${await freePort()}`
-  const token = await readOrCreateToken({ stateDir: dir })
-  const sink = collect()
-  const channel = await listenChannel({ endpoint, stateDir: dir, token, onConnection: sink.onConnection, onReject: sink.onReject })
-  t.after(() => channel.close())
+  const { endpoint, token, sink } = await tokenChannel(t)
 
   const port = Number(endpoint.split(':').at(-1))
   const idle = net.createConnection({ host: '127.0.0.1', port })
