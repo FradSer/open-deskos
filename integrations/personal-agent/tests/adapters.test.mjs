@@ -15,12 +15,17 @@ async function temp(t) {
   return dir
 }
 
-test('transcription sends multipart and rejects unsafe provider results', async t => {
+async function transcriptionFixtures(t) {
   const dir = await temp(t)
   const path = join(dir, 'audio.wav')
   const keyFile = join(dir, 'key')
   await writeFile(path, 'RIFFaudio')
   await writeFile(keyFile, 'private-key')
+  return { path, keyFile }
+}
+
+test('transcription sends multipart and rejects unsafe provider results', async t => {
+  const { path, keyFile } = await transcriptionFixtures(t)
   const config = { url: 'https://example.com/transcribe', model: 'whisper-1', keyFile }
   const fetcher = async (url, options) => {
     assert.equal(options.headers.Authorization, 'Bearer private-key')
@@ -117,11 +122,7 @@ test('status transport preserves maximally escaped bounded replies and transcrip
 })
 
 test('Chinese transcription preserves mixed project names and configurable languages', async t => {
-  const dir = await temp(t)
-  const path = join(dir, 'audio.wav')
-  const keyFile = join(dir, 'key')
-  await writeFile(path, 'RIFFaudio')
-  await writeFile(keyFile, 'private-key')
+  const { path, keyFile } = await transcriptionFixtures(t)
   const text = '请在 Open DeskOS 中用 pi-session-control 查看会话，不要改名。'
   for (const language of [undefined, 'zh', 'eng', 'en', 'auto']) {
     const config = { url: 'https://example.com/transcribe', model: 'whisper-1', keyFile, language }
@@ -144,11 +145,7 @@ test('invalid transcription languages fail before I/O without revealing configur
 })
 
 test('transcription transport and malformed provider errors are sanitized', async t => {
-  const dir = await temp(t)
-  const path = join(dir, 'audio.wav')
-  const keyFile = join(dir, 'key')
-  await writeFile(path, 'RIFFaudio')
-  await writeFile(keyFile, 'private-key')
+  const { path, keyFile } = await transcriptionFixtures(t)
   const config = { url: 'https://example.com/transcribe', model: 'whisper-1', keyFile }
   for (const fetcher of [
     async () => { throw Error('private-key transport details') },
