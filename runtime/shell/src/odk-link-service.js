@@ -1,7 +1,6 @@
 const { conclusionPage } = require('./pi-conclusions')
 const net = require('node:net')
 const os = require('node:os')
-const fs = require('node:fs')
 const path = require('node:path')
 const { timingSafeEqual, createHmac, createHash, randomBytes } = require('node:crypto')
 const { StringDecoder } = require('node:string_decoder')
