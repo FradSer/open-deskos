@@ -31,7 +31,12 @@ jobs:
       - name: Configure the Electron SUID sandbox helper
         working-directory: runtime/shell
         run: |
-          helper="$(find node_modules/.pnpm -type f -name chrome-sandbox -print -quit)"
+          helper="$(find -L node_modules -name chrome-sandbox -print -quit)"
+          if [ -z "$helper" ]; then
+            binary="$(node -p "require('electron')")"
+            helper="$(dirname "$(readlink -f "$binary")")/chrome-sandbox"
+          fi
+          echo "sandbox helper: $helper"
           test -n "$helper"
           test -f "$helper"
           sudo chown root:root "$helper"

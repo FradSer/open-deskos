@@ -76,10 +76,13 @@ test('the matrix gate lists six tests in full mode', () => {
   }
 })
 
-test('the package and workflow run the matrix gate', () => {
-  const { scripts } = require('../package.json')
+const workflowFile = path.join(root, '..', '..', '.github', 'workflows', 'nightly-matrix.yml')
+
+function assertMatrixGate(scripts, io, file) {
   assert.match(scripts['test:matrix'], /node scripts\/test-matrix\.cjs/)
-  const workflow = fs.readFileSync(path.join(root, '..', '..', '.github', 'workflows', 'nightly-matrix.yml'), 'utf8')
+  assert.match(scripts.test, /--test-concurrency=2 tests\/\*\.test\.js/)
+  if (!io.existsSync(file)) return
+  const workflow = io.readFileSync(file, 'utf8')
   assert.match(workflow, /schedule:/)
   assert.match(workflow, /cron:/)
   assert.match(workflow, /workflow_dispatch:/)
@@ -89,5 +92,13 @@ test('the package and workflow run the matrix gate', () => {
   assert.match(workflow, /chmod 4755/)
   assert.match(workflow, /chown root/)
   assert.doesNotMatch(workflow, /--no-sandbox/)
-  assert.match(scripts.test, /--test-concurrency=2 tests\/\*\.test\.js/)
+}
+
+test('the package and workflow run the matrix gate', () => {
+  assertMatrixGate(require('../package.json').scripts, fs, workflowFile)
+})
+
+test('a sealed release keeps the matrix gate without repository-only files', () => {
+  const releaseFs = { existsSync: () => false, readFileSync: () => { throw Error('sealed release must not read the workflow') } }
+  assert.doesNotThrow(() => assertMatrixGate(require('../package.json').scripts, releaseFs, '/opt/odk/.github/workflows/nightly-matrix.yml'))
 })

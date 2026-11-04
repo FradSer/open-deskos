@@ -52,3 +52,9 @@ Feature: Surface matrices keep revision acceptance fast
     And it locates the SUID sandbox helper inside the installed Electron tree
     And it sets the helper to root ownership and mode 4755
     And the gate does not pass a no-sandbox argument to Electron
+
+  Scenario: A sealed release keeps the matrix gate without repository-only files
+    Given the Shell runs from a sealed release without a .github tree
+    When a host contract inspects the matrix gate
+    Then it checks the package commands without reading the workflow file
+    And it reports no failure for the missing repository-only file
