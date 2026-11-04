@@ -8,12 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { record } from '../src/recorder.mjs'
 import { createWebRtcVad } from '../src/vad.mjs'
-
-function pcm(frames, sample = 0) {
-  const data = Buffer.alloc(frames * 640)
-  for (let i = 0; i < data.length; i += 2) data.writeInt16LE(sample, i)
-  return data
-}
+import { pcm } from './helpers/pcm.mjs'
 
 async function fixture(t, options = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'voice-capture-'))

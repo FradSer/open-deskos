@@ -6,14 +6,9 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { record } from '../src/recorder.mjs'
+import { pcm } from './helpers/pcm.mjs'
 
 const DIRECTSHOW_DEVICE = 'Microphone (2- USB Audio Device)'
-
-function pcm(frames, sample = 0) {
-  const data = Buffer.alloc(frames * 640)
-  for (let i = 0; i < data.length; i += 2) data.writeInt16LE(sample, i)
-  return data
-}
 
 async function fixture(t, { platform, device = 'test-device', classify, onQuit, onKill, ...dependencies } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'voice-win32-'))
