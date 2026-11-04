@@ -342,3 +342,181 @@
 .personal-agent-proposal-note { margin: 0; font-size: var(--agent-text-label); line-height: var(--agent-line-body); color: var(--odk-secondary-strong); }
 .personal-agent-proposal-error { margin: 0; font-size: var(--agent-text-label); line-height: var(--agent-line-body); color: var(--odk-accent-red); }
 .agent-recommendation .personal-agent-proposals button { width: auto; height: auto; min-width: 44px; padding: var(--odk-space-2) var(--odk-space-3); }
+
+/* OpenUI primitives use one reading size, shared gaps and concentric surfaces. */
+.openui-heading,
+.openui-text,
+.openui-badge,
+.openui-stack,
+.openui-row,
+.openui-option-set,
+.openui-divider,
+.openui-unknown {
+  font-size: var(--agent-text-body);
+  line-height: var(--agent-line-body);
+}
+
+:is(.openui-heading, .openui-text, .openui-badge, .openui-stack, .openui-row, .openui-option-set, .openui-unknown) :where(*) {
+  font-size: var(--agent-text-body);
+  line-height: var(--agent-line-body);
+}
+
+:is(.openui-heading, .openui-text, .openui-badge, .openui-stack, .openui-row, .openui-option-set, .openui-unknown) :is(button, input, select, textarea, option) {
+  font: inherit;
+  font-size: var(--agent-text-body);
+  line-height: var(--agent-line-body);
+}
+
+:is(.openui-heading, .openui-text, .openui-badge, .openui-stack, .openui-row, .openui-option-set, .openui-divider, .openui-unknown)[hidden] {
+  display: none;
+}
+
+.openui-heading {
+  margin: 0;
+  color: var(--odk-primary);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.openui-text {
+  margin: 0;
+  color: var(--odk-primary);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+  white-space: normal;
+}
+
+.openui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--agent-gap-chip);
+  min-height: var(--odk-status-control-h);
+  max-width: 100%;
+  padding: var(--agent-gap-inline) var(--agent-pad-card);
+  border: thin solid var(--odk-stroke);
+  border-radius: var(--agent-radius-chip);
+  background: var(--odk-surface);
+  color: var(--odk-secondary-strong);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.openui-stack {
+  display: grid;
+  align-content: start;
+  gap: var(--agent-gap-block);
+  min-width: 0;
+  padding: var(--agent-pad-card);
+  border: thin solid var(--odk-stroke);
+  border-radius: var(--agent-radius-card);
+  background: var(--odk-elevated);
+  color: var(--odk-primary);
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.openui-stack[data-direction='row'],
+.openui-stack[data-direction='horizontal'],
+.openui-stack[data-direction='inline'] {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: var(--agent-gap-inline);
+}
+
+:is(.openui-stack, .openui-option-set) :is(.openui-stack, .openui-option-set) {
+  border-radius: var(--agent-radius-inset);
+  background: var(--odk-surface);
+}
+
+:is(.openui-stack, .openui-option-set) :is(.openui-stack, .openui-option-set) :is(.openui-stack, .openui-option-set) {
+  border-radius: var(--agent-radius-chip);
+  background: var(--odk-elevated);
+}
+
+.openui-row {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: var(--agent-gap-inline);
+  min-width: 0;
+  border-radius: var(--agent-radius-inset);
+  color: inherit;
+  white-space: normal;
+}
+
+.openui-option-set {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: var(--agent-gap-inline);
+  min-width: 0;
+  padding: var(--agent-pad-card);
+  border: thin solid var(--odk-stroke);
+  border-radius: var(--agent-radius-inset);
+  background: var(--odk-surface);
+  color: var(--odk-primary);
+  white-space: normal;
+}
+
+.openui-option-set :is(button, .openui-option):not(option) {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--agent-gap-chip);
+  min-height: var(--odk-status-control-h);
+  max-width: 100%;
+  padding: var(--agent-gap-inline) var(--agent-pad-card);
+  border: thin solid var(--odk-stroke);
+  border-radius: var(--agent-radius-chip);
+  background: var(--odk-button);
+  color: var(--odk-primary);
+  overflow-wrap: anywhere;
+  text-align: start;
+  white-space: normal;
+}
+
+.openui-option-set button { cursor: pointer; }
+
+.openui-divider {
+  block-size: 0;
+  margin-block: var(--agent-gap-chip);
+  border: 0;
+  border-block-start: thin solid var(--odk-stroke);
+}
+
+.openui-unknown {
+  display: inline;
+  color: var(--odk-secondary-strong);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.openui-heading[data-tone='warn'],
+.openui-text[data-tone='warn'],
+.openui-badge[data-tone='warn'],
+.openui-unknown[data-tone='warn'] {
+  color: var(--odk-accent-red);
+}
+
+.openui-heading[data-tone='good'],
+.openui-text[data-tone='good'],
+.openui-badge[data-tone='good'],
+.openui-unknown[data-tone='good'] {
+  color: var(--odk-accent-green);
+}
+
+.openui-badge[data-tone='warn'] { border-color: var(--odk-accent-red); }
+.openui-badge[data-tone='good'] { border-color: var(--odk-accent-green); }
+
+.openui-heading[data-tone='warn'] :where(*),
+.openui-text[data-tone='warn'] :where(*),
+.openui-badge[data-tone='warn'] :where(*),
+.openui-unknown[data-tone='warn'] :where(*),
+.openui-heading[data-tone='good'] :where(*),
+.openui-text[data-tone='good'] :where(*),
+.openui-badge[data-tone='good'] :where(*),
+.openui-unknown[data-tone='good'] :where(*) {
+  color: inherit;
+}

@@ -22,6 +22,14 @@ const proposal = {
     { label: '今天', value: '52 分钟', tone: 'warn' },
     { label: '平时', value: '24 分钟' },
     { label: '多出', value: '28 分钟', tone: 'warn' } ] },
+  // A small composable OpenUI tree. It mirrors the legacy preview so the ui path
+  // renders the same generic card, chips, labels and values as the preview fallback.
+  ui: { type: 'Suggestion', props: { children: [
+    { type: 'Heading', props: { value: '路上的时间' } },
+    { type: 'Reading', props: { label: '今天', value: '52 分钟', tone: 'warn' } },
+    { type: 'Reading', props: { label: '平时', value: '24 分钟' } },
+    { type: 'Reading', props: { label: '多出', value: '28 分钟', tone: 'warn' } },
+  ] } },
   action: { tool: 'memory_update', params: { category: 'note', value: 'opened' } },
   confirmation: '记住 note：opened', nextStep: '打开计划',
   createdAt: new Date().toISOString(),

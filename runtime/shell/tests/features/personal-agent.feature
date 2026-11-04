@@ -647,3 +647,33 @@ Feature: Independent resident Personal Agent
     And the concentric radius scale, one reading size and capsule state ownership are unchanged
     And no React runtime, inline style, inline script or remote asset is required
 
+  # --- OpenUI full component tree (renderer contract) ----------------------
+  Scenario: The full OpenUI component tree reaches the renderer
+    Given a parsed candidate carries a ui tree with nested generic primitives
+    When the host publishes the candidate to the Shell
+    Then the renderer receives every component node in that ui tree
+    And no node is projected into a flat preview item list
+    And nested children render in the order the model emitted them
+
+  Scenario: An unknown OpenUI primitive is rendered and never dropped
+    Given a ui tree holds one type the renderer does not register
+    When the renderer mounts the tree in a recommendation message
+    Then the unknown type appears as a plain text node
+    And its siblings and children still render
+    And the tree never loses the unknown node silently
+
+  Scenario: OpenUI rendering uses only shared DOM primitives
+    Given a composable OpenUI tree holds text, badges, metrics and option selectors
+    When the renderer maps each type to a concentric shared primitive class
+    Then rendered text uses textContent and never innerHTML
+    And no React runtime, inline style, inline script or remote asset is required
+    And the concentric radius scale and one 17-pixel reading size stay unchanged
+
+  Scenario: Host authority survives the OpenUI renderer
+    Given OpenUI owns the component vocabulary and the rendered structure
+    When a candidate with an approved action reaches the renderer
+    Then only the host binds the approved action label and tool
+    And evidence provenance, freshness and lifecycle receipts stay with the host
+    And Jev still judges the candidate before publication
+    And the identity capsule keeps all authoritative state
+

@@ -1,6 +1,9 @@
 // Renders each case from a real Agent-path corpus, not hand-written cards.
 // Usage: electron scripts/capture-paradigms.cjs --corpus <json> --out <dir>
-// Corpus: { rounds: [{ round, proposals: [{ topic, advice, preview, nextStep, probability, grounding }] }] }
+// Corpus: { rounds: [{ round, proposals: [{ topic, advice, preview, ui, nextStep, probability, grounding }] }] }
+// A corpus preview is projected into a small composable OpenUI tree so the
+// screenshots exercise the generic renderOpenUI path, not a bespoke card. The
+// pass===true truthfulness filter always stays; only admitted candidates render.
 const { app, BrowserWindow, ipcMain } = require('electron')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -31,11 +34,34 @@ const CASE_NAMES = {
   'release-pipeline': 'P2 · 流水线推进',
 }
 
+// OpenUI owns the component vocabulary. Children live in props.children and every
+// rendered value is copied from the corpus preview, so no fact is invented here.
+const isUiTree = value => value && typeof value === 'object' && !Array.isArray(value) && typeof value.type === 'string'
+const uiFromPreview = preview => {
+  if (!preview || typeof preview !== 'object') return undefined
+  const items = Array.isArray(preview.items) ? preview.items.slice(0, 8) : []
+  const readings = items.map(item => ({ type: 'Reading', props: {
+    label: String(item.label ?? item.productName ?? '').slice(0, 256),
+    value: String(item.value ?? item.priceText ?? '').slice(0, 256),
+    ...(['warn', 'good', 'neutral'].includes(item.tone) ? { tone: item.tone } : {}),
+  } }))
+  // A small composable tree built only from preview values. The root is a card;
+  // Heading, Readings/Reading and Divider map to existing shared primitives.
+  const children = []
+  if (preview.summary) children.push({ type: 'Heading', props: { value: String(preview.summary).slice(0, 256) } })
+  if (readings.length) children.push({ type: 'Readings', props: { children: readings } })
+  children.push({ type: 'Divider', props: {} })
+  return { type: 'Suggestion', props: {
+    topicId: 'corpus', key: 'corpus', evidenceIds: ['e0'], children,
+  } }
+}
+
 const proposalFor = (row, index) => ({
   id: `${String(index).padStart(8, '0')}-1111-4111-8111-${String(index).padStart(12, '0')}`,
   status: 'pending', offered: true, presented: true,
   advice: row.advice,
   ...(row.preview ? { preview: row.preview } : {}),
+  ...(() => { const ui = uiFromPreview(row.preview) ?? (isUiTree(row.ui) ? row.ui : undefined); return ui ? { ui } : {} })(),
   nextStep: row.nextStep || '打开计划',
   action: { tool: 'memory_update', params: { category: 'note', value: 'opened' } },
   confirmation: '记住 note：opened',
@@ -69,6 +95,7 @@ app.whenReady().then(async () => {
   for (const round of rounds) {
     // Only a candidate that passed the host gates may appear as a published message.
     // A rejected round is an honest empty state, with its scores shown in the matrix.
+    // Keep the pass===true truthfulness filter; every shown proposal carries a ui tree.
     const proposals = (round.proposals ?? []).filter(p => p.pass === true).map(proposalFor)
     const topics = round.topics ?? (corpus.cases?.[round.round - 1]?.topics) ?? [...new Set((round.proposals ?? []).map(p => p.topic))]
     const label = CASE_NAMES[round.proposals?.[0]?.topic] || CASE_NAMES[topics[0]] || `Case ${round.round}`
