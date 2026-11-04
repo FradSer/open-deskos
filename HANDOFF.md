@@ -2,11 +2,12 @@
 
 ## State
 
-The Shell test suite runs 3029 checks with `pnpm test`. The nightly workflow is
-green on the default branch. CM5 runs release `20261104T084519Z-1231660`.
-Its rollback release is `20261103T191135Z-1116082`. The Windows handheld keeps
-release `20261103-main-5f699d03`. Its 15 changed files now match the default
-branch. No Windows task or service changed. The default branch is `5388505d`.
+The nightly workflow is green on the default branch. CM5 runs release
+`20261104T084519Z-1231660`. Its rollback release is
+`20261103T191135Z-1116082`. The Windows handheld keeps release
+`20261103-main-5f699d03`. Fifteen staged files match the default branch.
+Other files keep the older build baseline. No Windows task or service changed.
+The default branch holds this fix and a parallel contributor's five commits.
 
 ## Decisions
 
