@@ -209,7 +209,6 @@ test('diagnosing an older resident sends no unknown command and preserves its vo
 })
 
 for (const independent of [false, true]) test(`${independent ? 'selected independent' : 'default'} older Personal Agent replacements retain their port contract and explicit diagnosis limits`, async () => {
-  const { createMainPlugins } = require('../src/plugins/main-composition')
   const original = createMainPlugins().find(plugin => plugin.manifest.id === 'odk.system.personal-agent')
   assert.deepEqual(original.manifest.provides, [{ interface: 'odk:system/personal-agent/v1' }])
   const provider = selectedProvider(independent)
