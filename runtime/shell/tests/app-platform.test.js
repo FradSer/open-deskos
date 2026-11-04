@@ -7,6 +7,14 @@ const { createPluginHost } = require('../src/plugin-host')
 
 const source = fs.readFileSync('src/renderer/core/app-platform.js', 'utf8')
 
+function registryContext(endpoint) {
+  const root = { odkPluginHost: { createPluginHost }, odkPlatform: { dispatchIntent: intent => endpoint.dispatch(intent) } }
+  const context = vm.createContext({ window: root, structuredClone, console: { error() {} } })
+  vm.runInContext(fs.readFileSync('src/renderer/core/registry.js', 'utf8'), context)
+  vm.runInContext(source, context)
+  return { root, context }
+}
+
 function createHarness({ targetFails = false, targetRejected = false, clockFailsAfterStart = false, actionAccepted = true, dispatchIntent, releaseGate, releaseCallback } = {}) {
   const endpoint = createAppManagerEndpoint({ apps: [
     { appId: 'clock', name: '时钟', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
@@ -167,10 +175,7 @@ test('a failed replacement mount drains real registry cleanup before foreground 
     { appId: 'clock', name: 'Clock', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
     { appId: 'target', name: 'Target', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   ] })
-  const root = { odkPluginHost: { createPluginHost }, odkPlatform: { dispatchIntent: intent => endpoint.dispatch(intent) } }
-  const context = vm.createContext({ window: root, structuredClone, console: { error() {} } })
-  vm.runInContext(fs.readFileSync('src/renderer/core/registry.js', 'utf8'), context)
-  vm.runInContext(source, context)
+  const { root, context } = registryContext(endpoint)
   const clock = { id: 'odk.app.clock', appId: 'clock', kind: 'app', manifest: { schemaVersion: 1 }, mount() {} }
   const target = { id: 'odk.app.target', appId: 'target', kind: 'app', manifest: { schemaVersion: 1 }, mount() {} }
   root.odkPlugins.register(clock)
@@ -230,10 +235,7 @@ for (const operation of ['close', 'switch']) {
     const endpoint = createAppManagerEndpoint({ apps: ['clock', 'target'].map(appId => ({
       appId, name: appId, kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [],
     })) })
-    const root = { odkPluginHost: { createPluginHost }, odkPlatform: { dispatchIntent: intent => endpoint.dispatch(intent) } }
-    const context = vm.createContext({ window: root, structuredClone, console: { error() {} } })
-    vm.runInContext(fs.readFileSync('src/renderer/core/registry.js', 'utf8'), context)
-    vm.runInContext(source, context)
+    const { root, context } = registryContext(endpoint)
     let fail = true
     let cleanups = 0
     let targetMounts = 0
@@ -312,10 +314,7 @@ test('real failed partial mount keeps its endpoint and releases resources throug
   const endpoint = createAppManagerEndpoint({ apps: ['clock', 'target'].map(appId => ({
     appId, name: appId, kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [],
   })) })
-  const root = { odkPluginHost: { createPluginHost }, odkPlatform: { dispatchIntent: intent => endpoint.dispatch(intent) } }
-  const context = vm.createContext({ window: root, structuredClone, console: { error() {} } })
-  vm.runInContext(fs.readFileSync('src/renderer/core/registry.js', 'utf8'), context)
-  vm.runInContext(source, context)
+  const { root, context } = registryContext(endpoint)
   let fail = true
   let cleanups = 0
   let clockMounts = 0

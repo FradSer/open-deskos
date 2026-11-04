@@ -44,6 +44,14 @@ function fixture({ oldStop = () => {}, disabled = [] } = {}) {
   return { host, events, signals, original, provider, peerCreates: () => peerCreates }
 }
 
+async function startedOldStopFixture() {
+  const entered = deferred()
+  const finish = deferred()
+  const f = fixture({ oldStop() { entered.resolve(); return finish.promise } })
+  await f.host.start()
+  return { entered, finish, f }
+}
+
 test('runtime replacement releases consumers first and retains independent factories', async () => {
   const f = fixture()
   await f.host.start()
@@ -213,10 +221,7 @@ test('consumer startup failure rolls back the provider and optional transitive c
 })
 
 test('replacement captures declaration and factory before queued caller mutation', async () => {
-  const entered = deferred()
-  const finish = deferred()
-  const f = fixture({ oldStop() { entered.resolve(); return finish.promise } })
-  await f.host.start()
+  const { entered, finish, f } = await startedOldStopFixture()
   const next = f.provider('2.0.0')
   const replaced = f.host.replace(next)
   await entered.promise
@@ -232,10 +237,7 @@ test('replacement captures declaration and factory before queued caller mutation
 })
 
 test('queued disable suppresses candidate allocation and retains its selection for later enable', async () => {
-  const entered = deferred()
-  const finish = deferred()
-  const f = fixture({ oldStop() { entered.resolve(); return finish.promise } })
-  await f.host.start()
+  const { entered, finish, f } = await startedOldStopFixture()
   const replaced = f.host.replace(f.provider('2.0.0'))
   await entered.promise
   const disabled = f.host.setEnabled(providerId, false)
@@ -251,10 +253,7 @@ test('queued disable suppresses candidate allocation and retains its selection f
 })
 
 test('shutdown cancels queued disable and enable allocation behind replacement release', async () => {
-  const entered = deferred()
-  const finish = deferred()
-  const f = fixture({ oldStop() { entered.resolve(); return finish.promise } })
-  await f.host.start()
+  const { entered, finish, f } = await startedOldStopFixture()
   const replaced = f.host.replace(f.provider('2.0.0'))
   const rejected = assert.rejects(replaced, /cancelled/)
   await entered.promise
