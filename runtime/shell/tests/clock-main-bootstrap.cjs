@@ -174,7 +174,7 @@ async function exercise() {
       try {
       await Promise.all([document.fonts.load('700 32px "Montserrat"'),document.fonts.load('400 16px "Noto Sans SC"'),document.fonts.load('400 16px "Zpix"')]);
       await document.fonts.ready;
-      if(devicePixelRatio!==1||visualViewport.scale!==1||innerWidth!==1920||innerHeight!==1280)throw Error('Clock measurement inputs changed');
+      if(devicePixelRatio!==1||visualViewport.scale!==1||Math.abs(innerWidth-1920)>1||Math.abs(innerHeight-1280)>1)throw Error('Clock measurement inputs changed');
       const time=clockPlacement.querySelector('.sb-time'),bounds=time.getBoundingClientRect(),frame=document.getElementById('status-bar').getBoundingClientRect(),style=getComputedStyle(time);
       if(style.transitionDuration!=='0s'||style.animationName!=='none')throw Error('Clock comparison motion control failed');
       if(bounds.width<=0||bounds.height<=0||bounds.left<frame.left||bounds.right>frame.right||bounds.top<frame.top||bounds.bottom>frame.bottom)throw Error('Clock time clipped');

@@ -199,6 +199,7 @@ The [child contract](../../../integrations/personal-agent/docs/AGENT_TASKS.md) o
 | `ODK_JEV_TIMEOUT_MS` | device | 10000 | integrations/personal-agent/src/jev-client.mjs | config | Judgment deadline, integer 1000 through 30000 milliseconds |
 | `TYPESAFE_API_KEY` | device | none | External consumer: Pi ModelRuntime | config | Private TypeSafe environment credential; never expose its value |
 | `ODK_PROACTIVE_GENERATION_TIMEOUT_MS` | device | 90000 | integrations/personal-agent/src/agent.mjs | config | Total generation deadline, integer 1000 through 180000 |
+| `ODK_PERSONAL_AGENT_MODEL` | device | none | integrations/personal-agent/src/main.mjs | config | Resident Pi model at startup; absent uses Pi's new-session selection |
 
 ## Saved plugin preferences
 

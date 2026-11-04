@@ -356,3 +356,10 @@ Feature: Weather instrument on the Home grid
     Then its sky icon is at least 36 pixels square
     And Pixel uses at least two whole 24-pixel grid units
     And the current temperature remains the primary reading without overflow
+
+  Scenario: A CM5 content bound accepts one pixel of window chrome
+    Given a CM5 Shell window reports 1919 by 1279 content pixels for a 1920 by 1280 request
+    When the hidden Weather fixture checks its viewport before measuring
+    Then it accepts at most one pixel of difference on each axis
+    And it still requires a device scale and page zoom of one
+    And density, clipping, and content keep their existing assertions

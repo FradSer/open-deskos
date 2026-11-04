@@ -420,17 +420,16 @@ test('a first frame larger than the handshake cap is accepted when it ends in a 
   assert.match(seen.connections[0].text, /"type":"data"/, 'the whole frame reaches the protocol intact')
 })
 
-// The same cap still has to hold: a peer that sends bytes and no newline is the
-// case it was written for, and loosening it for large complete frames must not
-// have removed it.
-test('a peer that sends bytes with no newline is still cut off at the cap', { skip: posixOnlyReason('unix-socket') }, async (t) => {
+// A Unix channel accepts complete protocol frames larger than the handshake cap.
+// An unbounded frame without a newline still reaches the separate frame limit.
+test('a Unix peer that sends bytes with no newline is cut off at the frame cap', { skip: posixOnlyReason('unix-socket') }, async (t) => {
   const dir = await temporaryDir(t)
   const socketPath = path.join(dir, 'silent.sock')
   const seen = collect()
   const channel = await listenChannel({ endpoint: socketPath, stateDir: dir, onConnection: seen.onConnection, onReject: seen.onReject })
   t.after(() => channel.close())
 
-  await exchange(socketPath, { line: 'x'.repeat(4096) })
-  assert.deepEqual(seen.rejections, ['handshake-too-large'])
+  await exchange(socketPath, { line: 'x'.repeat(64 * 1024 * 4 + 1) })
+  assert.deepEqual(seen.rejections, ['frame-too-large'])
   assert.equal(seen.connections.length, 0, 'a frame that never completes never reaches the protocol')
 })

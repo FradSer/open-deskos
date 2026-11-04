@@ -6,7 +6,14 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 const { EventEmitter } = require('node:events')
-const { RemoteBridge } = require('../../../integrations/remote-bridge/lib/remote-bridge')
+// A development checkout keeps integrations at the repository root. A sealed
+// release flattens runtime/shell into the release root and seals integrations
+// beside it, so resolve the Bridge from the layout this process actually has.
+const releaseBridge = path.join(__dirname, '..', 'integrations', 'remote-bridge', 'lib', 'remote-bridge.js')
+const bridgeModule = fs.existsSync(releaseBridge)
+  ? releaseBridge
+  : path.join(__dirname, '..', '..', '..', 'integrations', 'remote-bridge', 'lib', 'remote-bridge.js')
+const { RemoteBridge } = require(bridgeModule)
 const { resolveShellHost } = require('../src/platform')
 const { TYPES, decodeControlFrame, encodeControlFrame } = require('../src/hydra-control-codec')
 const profile = process.env.ODK_HYDRA_RADIO_PROFILE

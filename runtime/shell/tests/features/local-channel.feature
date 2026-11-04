@@ -28,6 +28,11 @@ Feature: The runtime channel keeps an authentication of its own on every host
     When a client sends a valid token handshake larger than the authentication cap
     Then the service closes the connection before its protocol sees anything
 
+  Scenario: A Unix channel caps an incomplete protocol frame
+    Given a channel endpoint on a Unix host
+    When a client sends more than 256 KiB without a newline
+    Then the service closes the connection before its protocol sees anything
+
   Scenario: An idle pre-authentication connection is released
     Given a channel that requires a token
     When a client connects and sends no handshake bytes

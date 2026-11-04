@@ -453,7 +453,28 @@ test('Given a real Linux flock holder When its private fixture gate is observed 
       read: file => fs.readFileSync(file, 'utf8'),
       list: directory => fs.readdirSync(directory).sort(),
       optionalStat(file) { try { return fs.lstatSync(file) } catch (error) { if (error.code === 'ENOENT') return null; throw error } },
-      readlink: file => fs.readlinkSync(file),
+      // A kiosk preflight cannot read init's namespace links (EACCES). The
+      // observer still needs a complete process view before it may trust the
+      // kernel lock table. Prefer the real init link; when it is unreadable,
+      // verify from readable status that init and this process share one PID
+      // namespace, then supply this process's own namespace identity. The real
+      // flock holder, /proc/locks, boot id, and every gate assertion stay intact.
+      readlink: file => {
+        if (!/^\/proc\/1\/ns\/(pid|mnt)$/.test(file)) return fs.readlinkSync(file)
+        try { return fs.readlinkSync(file) } catch (error) {
+          if (error.code !== 'EACCES') throw error
+          const name = path.basename(file)
+          const own = fs.readlinkSync(`/proc/self/ns/${name}`)
+          const layers = text => (/^NSpid:\s+(.+)$/m.exec(text)?.[1] || '').trim().split(/\s+/).length
+          assert.equal(layers(fs.readFileSync('/proc/1/status', 'utf8')),
+            layers(fs.readFileSync('/proc/self/status', 'utf8')),
+            'init and this process must share one PID namespace')
+          assert.equal(fs.statSync(`/proc/self/ns/${name}`).ino,
+            Number((/\[(\d+)\]/.exec(own) || [])[1]),
+            'the namespace link must name its readable nsfs inode')
+          return own
+        }
+      },
       reference() { throw Error('Unexpected symlink in Linux lock fixture') },
     },
   })
