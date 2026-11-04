@@ -19,7 +19,7 @@ const plainObject = value => {
 
 /** A proposal may carry one OpenUI tree: typed plain JSON, no functions, at most eight nested nodes. */
 function validOpenUITree(node) {
-  if (!node || typeof node !== 'object' || Array.isArray(node) || !plainObject(node) || typeof node.type !== 'string') return false
+  if (!node || typeof node !== 'object' || Array.isArray(node) || !plainObject(node) || typeof node.type !== 'string' || !node.type) return false
   let serialized
   try { serialized = JSON.stringify(node) } catch { return false }
   if (typeof serialized !== 'string' || Buffer.byteLength(serialized) > UI_MAX_BYTES) return false
@@ -36,6 +36,11 @@ function validOpenUITree(node) {
     const isNode = !Array.isArray(value) && typeof value.type === 'string'
     if (!Array.isArray(value) && !plainObject(value)) return false
     if (isNode && depth > UI_MAX_DEPTH) return false
+    // The Shell frame applies the same structural bounds; keep both ends in step.
+    if (isNode && Object.hasOwn(value, 'children')) {
+      if (!Array.isArray(value.children) || value.children.some(child => !child || typeof child !== 'object' || Array.isArray(child) || typeof child.type !== 'string')) return false
+    }
+    if (isNode && value.props !== undefined && value.props !== null && (typeof value.props !== 'object' || Array.isArray(value.props) || !plainObject(value.props))) return false
     for (const child of Object.values(value)) stack.push([child, isNode ? depth + 1 : depth])
   }
   return true
