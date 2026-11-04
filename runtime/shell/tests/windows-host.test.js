@@ -4,7 +4,6 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const RUNTIME = path.resolve(__dirname, '..')
-const REPO = path.resolve(RUNTIME, '..', '..')
 
 // A release flattens the runtime to the release root, so there is no repository
 // above it. A document that lives only in the repository is therefore absent from a
