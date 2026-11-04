@@ -6,6 +6,20 @@ const os = require('node:os')
 const vm = require('node:vm')
 const { parseProcessTable, scanPiSessions, readSessionEvents } = require('../src/pi-sessions')
 
+function scanOneProcess(agentDir, cwd, startedAt = 1_700_000_000_000) {
+  return scanPiSessions({
+    agentDir,
+    checkProcessAlive: (pid) => pid === 4321,
+    listProcesses: () => [{
+      pid: 4321,
+      cwd,
+      command: 'pi',
+      startedAt,
+      isAlive: true,
+    }],
+  })
+}
+
 test('parseProcessTable finds Pi executables and derives elapsed start times', () => {
   const now = 1_700_000_000_000
   const output = [
@@ -232,17 +246,7 @@ test('scanPiSessions merges process facts into a matching metadata record', asyn
     modifiedFiles: ['README.md'],
   }))
 
-  const result = await scanPiSessions({
-    agentDir: tmpAgentDir,
-    checkProcessAlive: (pid) => pid === 4321,
-    listProcesses: () => [{
-      pid: 4321,
-      cwd: '/Users/test/merge-workspace',
-      command: 'pi',
-      startedAt: 1_699_999_940_500,
-      isAlive: true,
-    }],
-  })
+  const result = await scanOneProcess(tmpAgentDir, '/Users/test/merge-workspace', 1_699_999_940_500)
 
   assert.equal(result.sessions.length, 1)
   assert.equal(result.sessions[0].pid, 4321)
@@ -318,17 +322,7 @@ test('scanPiSessions separates a reused PID from its historical metadata', async
     modifiedFiles: [],
   }))
 
-  const result = await scanPiSessions({
-    agentDir: tmpAgentDir,
-    checkProcessAlive: (pid) => pid === 4321,
-    listProcesses: () => [{
-      pid: 4321,
-      cwd: '/Users/test/new-workspace',
-      command: 'pi',
-      startedAt: 1_700_000_000_000,
-      isAlive: true,
-    }],
-  })
+  const result = await scanOneProcess(tmpAgentDir, '/Users/test/new-workspace')
 
   assert.equal(result.sessions.length, 2)
   assert.equal(result.summary.running, 1)
@@ -360,17 +354,7 @@ test('scanPiSessions refuses indistinguishable live PID metadata candidates', as
     }))
   }
 
-  const result = await scanPiSessions({
-    agentDir: tmpAgentDir,
-    checkProcessAlive: (pid) => pid === 4321,
-    listProcesses: () => [{
-      pid: 4321,
-      cwd: '/Users/test/current-workspace',
-      command: 'pi',
-      startedAt: 1_700_000_000_000,
-      isAlive: true,
-    }],
-  })
+  const result = await scanOneProcess(tmpAgentDir, '/Users/test/current-workspace')
 
   assert.equal(result.sessions.length, 2)
   assert.equal(result.summary.running, 0)
@@ -392,17 +376,7 @@ test('scanPiSessions does not merge ambiguous metadata without a start time', as
     latestGoal: 'Possibly stale goal',
   }))
 
-  const result = await scanPiSessions({
-    agentDir: tmpAgentDir,
-    checkProcessAlive: (pid) => pid === 4321,
-    listProcesses: () => [{
-      pid: 4321,
-      cwd: '/Users/test/new-workspace',
-      command: 'pi',
-      startedAt: 1_700_000_000_000,
-      isAlive: true,
-    }],
-  })
+  const result = await scanOneProcess(tmpAgentDir, '/Users/test/new-workspace')
 
   assert.equal(result.sessions.length, 1)
   assert.equal(result.summary.running, 0)
@@ -429,17 +403,7 @@ test('scanPiSessions merges a live process with a session resumed into it', asyn
     modifiedFiles: [],
   }))
 
-  const result = await scanPiSessions({
-    agentDir: tmpAgentDir,
-    checkProcessAlive: (pid) => pid === 4321,
-    listProcesses: () => [{
-      pid: 4321,
-      cwd: '/Users/test/resume-workspace',
-      command: 'pi',
-      startedAt: 1_700_000_000_000,
-      isAlive: true,
-    }],
-  })
+  const result = await scanOneProcess(tmpAgentDir, '/Users/test/resume-workspace')
 
   assert.equal(result.sessions.length, 1)
   assert.equal(result.sessions[0].source, 'session')
@@ -465,17 +429,7 @@ test('scanPiSessions merges a session created inside a long-lived process', asyn
     modifiedFiles: [],
   }))
 
-  const result = await scanPiSessions({
-    agentDir: tmpAgentDir,
-    checkProcessAlive: (pid) => pid === 4321,
-    listProcesses: () => [{
-      pid: 4321,
-      cwd: '/Users/test/long-lived-workspace',
-      command: 'pi',
-      startedAt: 1_700_000_000_000,
-      isAlive: true,
-    }],
-  })
+  const result = await scanOneProcess(tmpAgentDir, '/Users/test/long-lived-workspace')
 
   assert.equal(result.sessions.length, 1)
   assert.equal(result.sessions[0].source, 'session')
@@ -500,17 +454,7 @@ test('scanPiSessions matches start-time-less metadata written by the live proces
     modifiedFiles: [],
   }))
 
-  const result = await scanPiSessions({
-    agentDir: tmpAgentDir,
-    checkProcessAlive: (pid) => pid === 4321,
-    listProcesses: () => [{
-      pid: 4321,
-      cwd: '/Users/test/nostart-workspace',
-      command: 'pi',
-      startedAt: 1_700_000_000_000,
-      isAlive: true,
-    }],
-  })
+  const result = await scanOneProcess(tmpAgentDir, '/Users/test/nostart-workspace')
 
   assert.equal(result.sessions.length, 1)
   assert.equal(result.sessions[0].source, 'session')
@@ -535,17 +479,7 @@ test('scanPiSessions marks unmatched settled metadata as exited', async () => {
     modifiedFiles: [],
   }))
 
-  const result = await scanPiSessions({
-    agentDir: tmpAgentDir,
-    checkProcessAlive: (pid) => pid === 4321,
-    listProcesses: () => [{
-      pid: 4321,
-      cwd: '/Users/test/fresh-workspace',
-      command: 'pi',
-      startedAt: 1_700_000_000_000,
-      isAlive: true,
-    }],
-  })
+  const result = await scanOneProcess(tmpAgentDir, '/Users/test/fresh-workspace')
 
   assert.equal(result.summary.exited, 1)
   assert.equal(result.sessions.find((session) => session.latestGoal === 'Stale settled goal').status, 'exited')
