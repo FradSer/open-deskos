@@ -88,7 +88,6 @@ def test_actual_send_consumes_offline_gestures_and_escapes_action_ids(tmp_path: 
     unit.write_text('''
 #include <assert.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <string.h>
 #include "touchpad_gesture.h"
 #include "cJSON.h"
