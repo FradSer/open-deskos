@@ -1,5 +1,4 @@
 """Worker packaging and supervisor boundaries without SDK or provider access."""
-import io
 import os
 from pathlib import Path
 import signal

@@ -15,8 +15,6 @@ const {
   validateShellState,
 } = require('./protocol')
 const {
-  SOCKET_DIRECTORY,
-  SOCKET_NAME,
   closeServer,
   createAdapterState,
   listen,

@@ -36,7 +36,7 @@ test('the coordinator loader ignores a checkout\'s extensions, skills, prompts a
 })
 
 test('a Hosted Pi session is configured by the operator agent dir, not the checkout', async t => {
-  const { dir, agent } = await checkout(t, 'voice-trust-worker-')
+  const { dir } = await checkout(t, 'voice-trust-worker-')
   const hosted = await createHostedSession({ task: { project: dir }, sessionDir: join(dir, 'logs') },
     { createRuntime: async () => ({}), createSession: async options => {
       assert.equal(options.resourceLoader.getExtensions().extensions.length, 2, 'codemode plus host check evidence only')

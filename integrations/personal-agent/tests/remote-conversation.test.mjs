@@ -515,7 +515,7 @@ test('reporter identity upgrades baseline legacy reports without replaying concl
 
 test('reply references bind the exact durable message and session thread across restart',async t=>{
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-session-reply-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
- let current=row('reply-source'),calls=0
+ let current=row('reply-source')
  const options={file:join(directory,'remote.json'),read:async()=>({ok:true,records:[current],total:1,nextCursor:null,omitted:0}),synthesize:async input=>({updates:updates('任务已完成。',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}}
  const remote=new RemoteConversation(options);await remote.poll()
  const message=remote.snapshot().messages[0],replyTo={messageId:message.id,sourceKey:current.key,sourceRevision:current.revision}

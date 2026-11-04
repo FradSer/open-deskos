@@ -161,7 +161,7 @@ class RemoteBridge {
     await this.#synchronizeActiveLink()
   }
 
-  #onAdapterDisconnected({ transport, reason } = {}) {
+  #onAdapterDisconnected({ transport } = {}) {
     if (!this.started) return
     if (transport && transport !== this.activeTransport) return
     this.linkRevision++

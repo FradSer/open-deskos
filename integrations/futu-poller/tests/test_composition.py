@@ -197,7 +197,6 @@ def test_failed_reenable_retains_original_error_and_closes_publisher():
 
 @pytest.mark.parametrize("management", ["off", "available", "occupied"])
 def test_copied_cli_refuses_stdout_fallback_without_loading_sdk(tmp_path, management):
-    import json
     import os
     import pathlib
     import shutil
