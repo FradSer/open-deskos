@@ -12,6 +12,7 @@ const { createDiagnosticsPlugin, requestDiagnostics } = require('../src/plugin-d
 const { resolveHostedPiSocketPath } = require('../src/odk-link-host-adapter')
 const { createMainPlugins } = require('../src/plugins/main-composition')
 const { independentHostedPiDiagnosis } = require('./fixtures/hosted-pi-diagnostic-replacement')
+const { HOSTED_PI_RUNTIME_PORT } = require('../src/plugins/hosted-pi-diagnostics')
 
 function selectedPlugin(independent) {
   const plugin = createMainPlugins({ replacementPlugins: independent ? [independentHostedPiDiagnosis()] : [] })
@@ -23,7 +24,6 @@ function selectedPlugin(independent) {
 for (const independent of [false, true]) {
 
   test(`${independent ? 'selected independent' : 'default'} Hosted Pi diagnosis reads the actual composition and preserves task requests`, { timeout: 5000 }, async t => {
-    const { HOSTED_PI_RUNTIME_PORT } = require('../src/plugins/hosted-pi-diagnostics')
     const { createTaskComposition } = await import(integrationURL('personal-agent/src/task-composition.mjs'))
     const { serveTasks, requestTask } = await import(integrationURL('personal-agent/src/task-protocol.mjs'))
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-hdiag-'))
@@ -70,7 +70,6 @@ for (const independent of [false, true]) {
   test(`${independent ? 'selected independent' : 'default'} Hosted Pi diagnosis cancels pending probes and re-resolves endpoint discovery`, { timeout: 3000 }, async t => {
     const net = require('node:net')
     const { once } = require('node:events')
-    const { HOSTED_PI_RUNTIME_PORT } = require('../src/plugins/hosted-pi-diagnostics')
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-hpend-'))
     const socketPath = path.join(directory, 'task.sock')
     const peers = new Set()
@@ -94,7 +93,6 @@ for (const independent of [false, true]) {
   })
 
   test(`${independent ? 'selected independent' : 'default'} older Hosted Pi refuses diagnosis without changing ordinary task control`, { timeout: 3000 }, async t => {
-    const { HOSTED_PI_RUNTIME_PORT } = require('../src/plugins/hosted-pi-diagnostics')
     const { serveTasks, requestTask } = await import(integrationURL('personal-agent/src/task-protocol.mjs'))
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-hold-'))
     const endpoint = path.join(directory, 'task.sock')

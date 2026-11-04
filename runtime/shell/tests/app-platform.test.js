@@ -3,6 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
+const { createPluginHost } = require('../src/plugin-host')
 
 const source = fs.readFileSync('src/renderer/core/app-platform.js', 'utf8')
 
@@ -158,7 +159,6 @@ test('consecutive App switches preserve request order while surface release is p
 })
 
 test('a failed replacement mount drains real registry cleanup before foreground restoration', async () => {
-  const { createPluginHost } = require('../src/plugin-host')
   let release
   let entered
   const gate = new Promise(resolve => { release = resolve })
@@ -227,7 +227,6 @@ for (const operation of ['close', 'switch']) {
 
 for (const operation of ['close', 'switch']) {
   test(`real registry retains failed cleanup during App ${operation} and drains the retry`, async () => {
-    const { createPluginHost } = require('../src/plugin-host')
     const endpoint = createAppManagerEndpoint({ apps: ['clock', 'target'].map(appId => ({
       appId, name: appId, kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [],
     })) })
@@ -310,7 +309,6 @@ test('a failed partial mount remains the owned foreground until close Retry succ
 
 
 test('real failed partial mount keeps its endpoint and releases resources through the dialog Retry', async () => {
-  const { createPluginHost } = require('../src/plugin-host')
   const endpoint = createAppManagerEndpoint({ apps: ['clock', 'target'].map(appId => ({
     appId, name: appId, kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [],
   })) })

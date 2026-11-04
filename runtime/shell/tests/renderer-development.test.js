@@ -8,6 +8,7 @@ const { promisify } = require('node:util')
 const { execFile } = require('node:child_process')
 const { loadDevelopmentPlugins, readDevelopmentPlugin } = require('../src/development-plugins')
 const { readConfig, resolveConfigPath } = require('../src/plugin-config')
+const { createPluginHost } = require('../src/plugin-host')
 const run = promisify(execFile)
 
 for (const mode of ['default', 'selected']) {
@@ -26,7 +27,6 @@ for (const mode of ['default', 'selected']) {
 
   for (const stage of ['protocol', 'ipc']) {
     test(`${mode} discovery releases its asset lease when ${stage} registration fails without removing another owner`, async t => {
-      const { createPluginHost } = require('../src/plugin-host')
       let leases = 0
       let removed = 0
       const host = createPluginHost({ capabilities: { 'system.renderer-development': {
@@ -44,7 +44,6 @@ for (const mode of ['default', 'selected']) {
   }
 
   test(`${mode} discovery retains its lease when protocol removal fails and releases it on retry`, async t => {
-    const { createPluginHost } = require('../src/plugin-host')
     let route
     let failed = true
     let leases = 0
@@ -69,7 +68,6 @@ for (const mode of ['default', 'selected']) {
   })
 
   test(`${mode} renderer development IPC preserves bounds, authority, and restart lifetime`, async t => {
-    const { createPluginHost } = require('../src/plugin-host')
     const { RENDERER_DEVELOPMENT_CHANNEL } = require('../src/plugins/renderer-development')
     const handlers = new Map()
     const mainFrame = {}
@@ -159,7 +157,6 @@ test('CLI links renderer browser entries separately from Main code and removal p
 
 function browserFixture(entries, scripts, timers = { setTimeout, clearTimeout }) {
   const vm = require('node:vm')
-  const { createPluginHost } = require('../src/plugin-host')
   const root = { odkPluginHost: { createPluginHost }, odkRendererPluginBridge: { list: async () => entries } }
   let executed = 0
   const stagedStyles = new Set()

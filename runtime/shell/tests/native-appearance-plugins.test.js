@@ -12,6 +12,7 @@ const { readConfig } = require('../src/plugin-config')
 const { createNativeRendererAssets } = require('../src/native-renderer-assets')
 const { loadNativeAppearancePlugins } = require('../src/native-plugin-loader')
 const api = require('../src/renderer/core/appearance-plugins')
+const { createNativeRendererActivator } = require('../src/native-renderer-activation')
 
 async function fixture(t, { code = true, change = {} } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-native-appearance-'))
@@ -191,7 +192,6 @@ test('signed Appearance recovery releases the external factory without discovery
 test('Appearance Main activation uses signed loading and revalidates policy before cached capture reuse', async t => {
   const f = await fixture(t)
   await f.manager.install(f.source, { trust: true, grants: [] })
-  const { createNativeRendererActivator } = require('../src/native-renderer-activation')
   const entries = []
   const activate = createNativeRendererActivator({ env: f.env, assets: f.assets, entries: () => entries,
     publishSelection(entry) { entries.splice(0, entries.length, entry) } })
@@ -209,7 +209,6 @@ test('Appearance Main activation uses signed loading and revalidates policy befo
 test('Appearance Main activation rejects data-only palette selections without publication', async t => {
   const f = await fixture(t, { code: false })
   await f.manager.install(f.source, { trust: true, grants: [] })
-  const { createNativeRendererActivator } = require('../src/native-renderer-activation')
   const activate = createNativeRendererActivator({ env: f.env, assets: f.assets, publishSelection() { assert.fail('palette cannot activate code') } })
   await assert.rejects(activate('odk.theme.pixel'), /selection unavailable/)
   assert.equal(f.assets.hasEntries(), false)
@@ -319,7 +318,6 @@ for (const phase of ['create', 'start']) test(`Appearance Theme activation cance
 for (const fillDuringCapture of [false, true]) test(`Appearance activation refuses full discovery ${fillDuringCapture ? 'after' : 'before'} signed capture`, async t => {
   const f = await fixture(t)
   await f.manager.install(f.source, { trust: true, grants: [] })
-  const { createNativeRendererActivator } = require('../src/native-renderer-activation')
   let peers = Array.from({ length: fillDuringCapture ? 31 : 32 }, (_, index) => ({ manifest: { id: `odk.tile.capacity-${index}` } }))
   let loads = 0
   const activate = createNativeRendererActivator({ env: f.env, assets: f.assets, entries: () => peers,
