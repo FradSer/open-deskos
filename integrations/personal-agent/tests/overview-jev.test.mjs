@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { buildOverviewFactQuestions, createOverviewJevJudge } from '../src/overview-jev.mjs'
 import { createJevClient } from '../src/jev-client.mjs'
-import { homeFactVariables, generateHomeSelection, compileHomeSelection } from '../src/home-template.mjs'
+import { homeFactVariables, generateHomeSelection } from '../src/home-template.mjs'
 
 const source = (id, icon, value, fields = Object.keys(value)) => ({
   id, label: id, kind: 'service', state: 'live',
