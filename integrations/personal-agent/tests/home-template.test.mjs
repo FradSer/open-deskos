@@ -404,7 +404,7 @@ for (const change of ['hidden', 'removed']) test(`a ${change} source requires a 
     home: { mode: hidden ? 'hidden' : 'optional', priority: 0, icon: 'sessions', fields: ['sessions'] } })
   const weather = source('weather', 'weather', { temperatureC: 24 })
   const readings = () => included ? [pi(), weather] : [weather]
-  const home = new HomeBriefing({ preferences: OPEN_PREFERENCES, requireBindings: true, preferences: OPEN_PREFERENCES, list: async () => readings(), read: async id => readings().find(source => source.id === id),
+  const home = new HomeBriefing({ preferences: OPEN_PREFERENCES, requireBindings: true, list: async () => readings(), read: async id => readings().find(source => source.id === id),
     generate: async ({ readings }) => {
       calls++
       const facts = homeFactVariables(readings, Date.now(), OPEN_PREFERENCES)

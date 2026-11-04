@@ -45,7 +45,7 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   bad.write(`${JSON.stringify({ v: 1, token: 'b'.repeat(64) })}\n${JSON.stringify({ v: 1, type: 'runtime_diagnose', requestId: require('node:crypto').randomUUID() })}\n`)
   await refused
   assert.equal(snapshots, 0)
-  const client = createPersonalAgentClient({ token: 'a'.repeat(64), socketPath: endpoint, token })
+  const client = createPersonalAgentClient({ token: 'a'.repeat(64), socketPath: endpoint })
   t.after(() => client.stop())
   const connected = new Promise(resolve => { client.subscribe(state => { if (state.state === 'error') resolve() }) })
   client.start()

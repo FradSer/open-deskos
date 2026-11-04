@@ -18,7 +18,7 @@ import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 function runtime(reply) {
   const requests = []
   return { requests, getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel,
-    getModels: () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel],
+    getModels: () => [fixtureModel],
     getAuth: async () => ({auth: {apiKey: 'offline-fixture'}}), streamSimple: (_model, context, options) => {
       requests.push(context)
       const result = Promise.resolve(reply(context, requests.length, options))
