@@ -5,6 +5,7 @@ const path = require('node:path')
 const vm = require('node:vm')
 const { createRequire } = require('node:module')
 const { runFixture, isolatedElectronArgs } = require('./helpers/electron-fixture')
+const { scripts } = require('../package.json')
 
 // Automated private browser fixtures opt in explicitly. Capability probes and production
 // verifier consumers keep their own contracts; manual live acceptance is outside this inventory.
@@ -61,28 +62,23 @@ test('App Manager uses the isolated initial argv policy without changing command
 })
 
 test('geometry includes isolated connection and gamepad status replacements', () => {
-  const { scripts } = require('../package.json')
   assert.match(scripts.geometry, /node --test --test-concurrency=2 tests\/input-status-surface-electron\.test\.js(?:$| &&)/)
 })
 
 test('geometry includes the isolated Quota surface replacement matrix', () => {
-  const { scripts } = require('../package.json')
   assert.match(scripts.geometry, /node --test --test-concurrency=2 tests\/quota-surface-electron\.test\.js(?:$| &&)/)
 
 })
 
 test('geometry includes the isolated Pi State Bar replacement matrix', () => {
-  const { scripts } = require('../package.json')
   assert.match(scripts.geometry, /node --test --test-concurrency=2 tests\/pi-status-surface-electron\.test\.js(?:$| &&)/)
 })
 
 test('geometry includes the isolated desk tool replacement matrix', () => {
-  const { scripts } = require('../package.json')
   assert.match(scripts.geometry, /node --test --test-concurrency=2 tests\/desk-tool-surface-electron\.test\.js(?:$| &&)/)
 })
 
 test('geometry includes the isolated calendar and State Bar replacement matrix', () => {
-  const { scripts } = require('../package.json')
   assert.match(scripts.geometry, /node --test --test-concurrency=2 tests\/calendar-surface-electron\.test\.js(?:$| &&)/)
 })
 

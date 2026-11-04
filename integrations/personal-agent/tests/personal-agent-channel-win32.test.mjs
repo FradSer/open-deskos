@@ -84,6 +84,15 @@ function fakeService() {
   return service
 }
 
+async function startTokenGuardedListener(t) {
+  const dir = await temp(t)
+  const pipeNet = standInPipeNet(dir)
+  const service = fakeService()
+  const server = await listen(PIPE, service, { platform: 'win32', token: 'channel-token-for-this-host', net: pipeNet })
+  t.after(() => server.close())
+  return { pipeNet, service }
+}
+
 /** A connected client and the status records the service has published to it. */
 function openPipe(pipeNet, endpoint = PIPE) {
   const client = net.connect(pipeNet.path(endpoint))
@@ -206,11 +215,7 @@ test('shutdown closes peers that have not sent a handshake or command', async t 
 })
 
 test('a Windows listener refuses a peer that presents the wrong token', async t => {
-  const dir = await temp(t)
-  const pipeNet = standInPipeNet(dir)
-  const service = fakeService()
-  const server = await listen(PIPE, service, { platform: 'win32', token: 'channel-token-for-this-host', net: pipeNet })
-  t.after(() => server.close())
+  const { pipeNet, service } = await startTokenGuardedListener(t)
 
   const result = await attempt(pipeNet, `${channelHandshake('not-the-token')}{"v":1,"type":"toggle"}\n`)
 
@@ -220,11 +225,7 @@ test('a Windows listener refuses a peer that presents the wrong token', async t 
 })
 
 test('a Windows listener refuses a first line that is not the published handshake', async t => {
-  const dir = await temp(t)
-  const pipeNet = standInPipeNet(dir)
-  const service = fakeService()
-  const server = await listen(PIPE, service, { platform: 'win32', token: 'channel-token-for-this-host', net: pipeNet })
-  t.after(() => server.close())
+  const { pipeNet, service } = await startTokenGuardedListener(t)
 
   const malformed = [
     'this is not JSON\n',                        // nothing the handshake could be
@@ -266,11 +267,7 @@ test('a Windows listener refuses a token of the wrong length before the protocol
 })
 
 test('a Windows listener drops a peer whose handshake exceeds 512 bytes', async t => {
-  const dir = await temp(t)
-  const pipeNet = standInPipeNet(dir)
-  const service = fakeService()
-  const server = await listen(PIPE, service, { platform: 'win32', token: 'channel-token-for-this-host', net: pipeNet })
-  t.after(() => server.close())
+  const { pipeNet, service } = await startTokenGuardedListener(t)
 
   const oversized = JSON.stringify({ v: CHANNEL_VERSION, token: 'x'.repeat(MAX_HANDSHAKE_BYTES) })
   assert.ok(Buffer.byteLength(oversized) > MAX_HANDSHAKE_BYTES)
@@ -281,11 +278,7 @@ test('a Windows listener drops a peer whose handshake exceeds 512 bytes', async 
 })
 
 test('a Windows listener publishes nothing to a peer that has not proven the token', async t => {
-  const dir = await temp(t)
-  const pipeNet = standInPipeNet(dir)
-  const service = fakeService()
-  const server = await listen(PIPE, service, { platform: 'win32', token: 'channel-token-for-this-host', net: pipeNet })
-  t.after(() => server.close())
+  const { pipeNet, service } = await startTokenGuardedListener(t)
 
   const { client, received } = openPipe(pipeNet)
   t.after(() => client.destroy())

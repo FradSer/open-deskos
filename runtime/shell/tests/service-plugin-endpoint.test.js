@@ -11,8 +11,6 @@ const { readOrCreateToken } = require('../src/local-channel')
 const { createServicePluginSocket } = require('../src/service-plugin-socket')
 const { posixOnlyReason } = require('./not-ported')
 
-const unixHost = process.platform !== 'win32'
-
 async function temporaryDir(t) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-plugin-endpoint-'))
   t.after(() => fs.rm(dir, { recursive: true, force: true }))

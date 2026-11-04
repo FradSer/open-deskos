@@ -216,4 +216,4 @@ function compareParity(electron, android) {
   return differences.filter(Boolean)
 }
 
-module.exports = { VIEWPORTS, TOLERANCE_PX, STATES, PARITY_THEME, parityScript, parityPrepareScript, compareParity }
+module.exports = { VIEWPORTS, STATES, parityScript, parityPrepareScript, compareParity }
