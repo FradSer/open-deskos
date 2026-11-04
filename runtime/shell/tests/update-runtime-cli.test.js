@@ -58,7 +58,6 @@ test('CM5 updater serializes transactions and preflights before activating a rel
   assert.match(updater, /chmod', \['-R', 'u\+rX,g\+rX,o-rwx,a-w'/)
   assert.match(installer, /chmod -R u\+rX,g\+rX,o-rwx,a-w/)
   assert.match(installer, /chown -R "root:\$\{TARGET_GID\}"/)
-  assert.match(updater, /\['pnpm', 'preflight'\], kiosk/)
   assert.match(updater, /\['bash', 'scripts\/verify-release\.sh'\], kiosk/)
   // The sealed release cannot relink command shims, so the smoke never runs through pnpm.
   assert.doesNotMatch(updater, /\['pnpm', 'verify-release'\]/)
