@@ -5,6 +5,7 @@ const assert = require('node:assert/strict')
 const { EventEmitter } = require('node:events')
 const {
   UsbCdcAdapter,
+  CdcConnection,
   discoverUsbCdcDevice,
   isOpenDeskOsRemoteDevice,
 } = require('../lib/usb-cdc-adapter')
@@ -40,7 +41,7 @@ test('closing a CDC connection retains a timed-out read and retries after its ca
   let finishRead
   let entered
   const reading = new Promise(resolve => { entered = resolve })
-  const connection = new (require('../lib/usb-cdc-adapter').CdcConnection)('/dev/mock', {
+  const connection = new CdcConnection('/dev/mock', {
     io: {
       read(_fd, _buffer, _offset, _length, _position, callback) { finishRead = callback; entered() },
       write(_fd, _buffer, _offset, length, _position, callback) { queueMicrotask(() => callback(null, length)) },
@@ -63,7 +64,7 @@ test('closing a CDC connection retains a timed-out read and retries after its ca
 
 test('closing a CDC connection cancels nonblocking polling before service shutdown', async () => {
   let closed = false
-  const connection = new (require('../lib/usb-cdc-adapter').CdcConnection)('/dev/mock', {
+  const connection = new CdcConnection('/dev/mock', {
     io: {
       read(_fd, _buffer, _offset, _length, _position, callback) {
         queueMicrotask(() => callback(Object.assign(new Error('try again'), { code: 'EAGAIN' })))
@@ -183,7 +184,7 @@ test('stop waits for late device open and retains its failed cleanup', async () 
 
 test('descriptor close error remains unresolved and does not repeat a potentially completed OS close', async () => {
   let closes = 0
-  const connection = new (require('../lib/usb-cdc-adapter').CdcConnection)('/dev/mock', {
+  const connection = new CdcConnection('/dev/mock', {
     io: { close(_fd, callback) { closes++; callback(Error('descriptor cleanup unknown')) } }, fd: 43,
   })
   await assert.rejects(connection.close(), /descriptor cleanup unknown/)
@@ -193,7 +194,7 @@ test('descriptor close error remains unresolved and does not repeat a potentiall
 
 test('read failure reports unresolved close without an unhandled rejection or connection reuse', async (t) => {
   let closes = 0
-  const connection = new (require('../lib/usb-cdc-adapter').CdcConnection)('/dev/mock', {
+  const connection = new CdcConnection('/dev/mock', {
     io: {
       read(_fd, _buffer, _offset, _length, _position, callback) { queueMicrotask(() => callback(Error('device removed'))) },
       close(_fd, callback) { closes++; callback(Error('release unknown')) },
@@ -220,7 +221,7 @@ test('CDC close waits for the active write and cancels queued writes before clos
   let enter
   const writing = new Promise(resolve => { enter = resolve })
   const events = []
-  const connection = new (require('../lib/usb-cdc-adapter').CdcConnection)('/dev/mock', {
+  const connection = new CdcConnection('/dev/mock', {
     io: {
       read() { assert.fail('polling should be cancelled before its first read') },
       write(_fd, _buffer, _offset, length, _position, callback) {
@@ -249,7 +250,7 @@ test('CDC write timeout retains the descriptor until its active write finishes',
   let enter
   let closes = 0
   const writing = new Promise(resolve => { enter = resolve })
-  const connection = new (require('../lib/usb-cdc-adapter').CdcConnection)('/dev/mock', {
+  const connection = new CdcConnection('/dev/mock', {
     io: {
       read(_fd, _buffer, _offset, _length, _position, callback) { callback(null, 0) },
       write(_fd, _buffer, _offset, length, _position, callback) { finishWrite = () => callback(null, length); enter() },
