@@ -2,6 +2,9 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { EventEmitter } = require('node:events')
 const { createRendererManagement } = require('../src/renderer-management')
+const fs = require('node:fs/promises')
+const os = require('node:os')
+const path = require('node:path')
 
 function fixture(options = {}) {
   const ipc = new EventEmitter()
@@ -21,9 +24,6 @@ const receipt = { ok: true, scope: 'electron-renderer', pluginId: id, enabled: f
 for (const selected of [false, true]) {
   test(`${selected ? 'selected' : 'default'} Renderer control channel preserves public requests, CLI, and restart ownership`,
     { skip: require('./not-ported').posixOnlyReason('unix-socket') }, async t => {
-      const fs = require('node:fs/promises')
-      const os = require('node:os')
-      const path = require('node:path')
       const { promisify } = require('node:util')
       const run = promisify(require('node:child_process').execFile)
       const { createPluginHost } = require('../src/plugin-host')
@@ -110,9 +110,6 @@ for (const selected of [false, true]) {
 
   test(`${selected ? 'selected' : 'default'} Renderer control channel rejects invalid tokens before dispatch`,
     { skip: require('./not-ported').posixOnlyReason('unix-socket') }, async t => {
-      const fs = require('node:fs/promises')
-      const os = require('node:os')
-      const path = require('node:path')
       const { createPluginHost } = require('../src/plugin-host')
       const { requestLocalControl } = require('../src/local-control-client')
       const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-rctrl-auth-'))

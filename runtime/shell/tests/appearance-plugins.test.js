@@ -4,6 +4,9 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { createAppearancePlugin, createAppearancePlugins, createAppearanceHost, selectAppearanceFactories } = require('../src/renderer/core/appearance-plugins')
 const { buildContextStyle, contextTokens } = require('../src/user-app-context')
+const fs = require('node:fs')
+const vm = require('node:vm')
+const path = require('node:path')
 
 function customPlugin() {
   return createAppearancePlugin({
@@ -249,9 +252,6 @@ test('appearance metadata and live port values cannot be mutated through catalog
 })
 
 test('the actual browser scripts preserve first paint, live selection and port disable/enable', async () => {
-  const fs = require('node:fs')
-  const vm = require('node:vm')
-  const path = require('node:path')
   const files = ['src/plugin-host.js', 'src/renderer/core/appearance-plugins.js', 'src/renderer/core/theme.js']
   let stored
   const window = { localStorage: { getItem: () => stored, setItem: (_key, value) => { stored = value } } }
@@ -273,9 +273,6 @@ test('the actual browser scripts preserve first paint, live selection and port d
 })
 
 test('operator startup disables apply before first paint and preserve the saved appearance', async () => {
-  const fs = require('node:fs')
-  const vm = require('node:vm')
-  const path = require('node:path')
   async function boot(storedValue, disabled) {
     let stored = storedValue
     const window = { location: { search: '?disabledPlugins=' + encodeURIComponent(disabled) },

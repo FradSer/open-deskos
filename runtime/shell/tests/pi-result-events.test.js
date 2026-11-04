@@ -2,6 +2,10 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { boundedEvent } = require('../src/odk-link-service')
 const { retainEvents } = require('../src/pi-session-events')
+const { readSessionEvents } = require('../src/pi-sessions')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
 
 test('Open DeskOS Link keeps complete Markdown result text and separate tool identity', () => {
   const text = '# Result\n\n| Name | Value |\n| --- | --- |\n| example | 42 |\n\nLast line.'
@@ -82,10 +86,6 @@ test('retention keeps a long working session rather than a few dozen events', ()
 })
 
 test('all text parts of a result remain in one Markdown body', () => {
-  const { readSessionEvents } = require('../src/pi-sessions')
-  const fs = require('node:fs')
-  const os = require('node:os')
-  const path = require('node:path')
   const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-result-parts-'))
   try {
     const dir = path.join(agentDir, 'sessions', '--example--')
@@ -101,10 +101,6 @@ test('all text parts of a result remain in one Markdown body', () => {
 })
 
 test('a result beyond the local tail limit is unavailable rather than a false empty stream', () => {
-  const { readSessionEvents } = require('../src/pi-sessions')
-  const fs = require('node:fs')
-  const os = require('node:os')
-  const path = require('node:path')
   const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-result-tail-'))
   try {
     const dir = path.join(agentDir, 'sessions', '--example--')
