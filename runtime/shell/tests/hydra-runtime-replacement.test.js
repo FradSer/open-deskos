@@ -14,13 +14,9 @@ const { DATA_PORTS } = require('../src/plugins/data-sources')
 const { DESK_PORTS } = require('../src/plugins/desk-runtime')
 const { healthPort } = require('../src/plugins/health')
 const { install } = require('./helpers/hydra-selection')
+const { deferred } = require('./helpers/hydra-wire-lifecycle')
 
 const id = 'odk.source.hydra'
-const deferred = () => {
-  let resolve
-  const promise = new Promise(accept => { resolve = accept })
-  return { promise, resolve }
-}
 
 test('runtime Host replaces signed Hydra factories only after old MQTT ownership releases', { timeout: 30000 }, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-hydra-runtime-'))

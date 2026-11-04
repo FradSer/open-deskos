@@ -3,6 +3,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const { createPluginHost } = require('../src/plugin-host')
+const { deferred } = require('./helpers/hydra-wire-lifecycle')
 const SOURCE = 'odk:data/source/v1'
 const VIEW = 'odk:surface/view/v1'
 const providerId = 'odk.test.source'
@@ -11,11 +12,7 @@ const definition = (id, options = {}) => ({
     provides: options.provides || [], requires: options.requires || [], permissions: options.permissions || [] },
   create: options.create || (() => ({})),
 })
-const deferred = () => {
-  let resolve
-  const promise = new Promise(accept => { resolve = accept })
-  return { promise, resolve }
-}
+
 function fixture({ oldStop = () => {}, disabled = [] } = {}) {
   const events = []
   const signals = []
