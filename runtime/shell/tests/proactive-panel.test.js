@@ -711,7 +711,6 @@ for (const rawResult of ['Memory updated.', 'The request was accepted; completio
   test(`human-readable legacy result remains primary without inventing completion: ${rawResult}`, () => {
     const f = fixture(), p = { ...proposal(), status: 'unknown', result: rawResult }
     f.render({ state: 'idle', proposals: [p], proposalPopup: true })
-    const article = flatten(f.content).find(n => n.className === 'personal-agent-proposal')
     assert.ok(f.state().detail.includes(rawResult))
     assert.equal(f.state().caption, 'Outcome not confirmed')
   })
