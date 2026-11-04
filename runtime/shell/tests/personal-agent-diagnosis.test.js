@@ -4,6 +4,7 @@ const { integrationURL } = require('./helpers/repo-root')
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
+const net = require('node:net')
 const path = require('node:path')
 const os = require('node:os')
 const { once } = require('node:events')
@@ -102,7 +103,6 @@ test('invalid asynchronous resident snapshots remain unavailable without leaking
 })
 
 for (const independent of [false, true]) test(`${independent ? 'selected independent' : 'default'} diagnosis requests are bounded and client stop cancels pending work`, { timeout: 3000 }, async t => {
-  const net = require('node:net')
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-bpend-'))
   const endpoint = privateEndpoint(directory, 'resident')
   const server = net.createServer()
@@ -137,7 +137,6 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
 })
 
 test('runtime reports reject invalid reasons and correlate out-of-order replies without changing voice state', { timeout: 3000 }, async t => {
-  const net = require('node:net')
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-breply-'))
   const endpoint = privateEndpoint(directory, 'resident')
   const server = net.createServer()
@@ -178,7 +177,6 @@ test('runtime reports reject invalid reasons and correlate out-of-order replies 
 })
 
 test('diagnosing an older resident sends no unknown command and preserves its voice connection', { timeout: 3000 }, async t => {
-  const net = require('node:net')
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-bolder-'))
   const endpoint = privateEndpoint(directory, 'resident')
   const commands = []

@@ -13,6 +13,7 @@ import { HomeBriefing } from '../src/home-briefing.mjs'
 import { PersonalAgentService } from '../src/service.mjs'
 import { loadCapabilities } from '../src/capabilities.mjs'
 import { agentOptions, validateWorkspace, createPersonalAgent, createResourceLoader, sessionAdapter } from '../src/agent.mjs'
+import { resolveHomeTemplate } from '../src/home-template.mjs'
 
 async function proposalExecutionFixture(t, { route, helperSource, capabilitySource } = {}) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'odk-proposal-execution-')))
@@ -561,7 +562,6 @@ test('Overview model requests omit private source text and identifiers while loc
   await fallback.generateBriefing({ readings, previous })
   assert.equal(captured.length, 2, 'both classifier and disabled-Jev generation requests are inspected')
   for (const request of captured) assert.doesNotMatch(request, /Avery|avery|private-project|private-source|example\.test/)
-  const { resolveHomeTemplate } = await import('../src/home-template.mjs')
   assert.match(resolveHomeTemplate(result, readings).items[0].text, /Avery Chen/)
 })
 
@@ -651,7 +651,6 @@ test('the classifier and selector see the same unavailable source status', async
     emit({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
   })
   await fallback.generateBriefing({ readings: [reading] })
-  const { resolveHomeTemplate } = await import('../src/home-template.mjs')
   assert.match(candidate.text, /unavailable/)
   assert.match(variables[0].text, /unavailable/)
   assert.match(resolveHomeTemplate(result, [reading]).items[0].text, /unavailable/)
@@ -1402,7 +1401,6 @@ test('an empty model selection cannot blank a desk that has current facts', asyn
   const readings = [{ id: 'weather', label: 'Weather', state: 'live', value: { temperatureC: 24 },
     home: { mode: 'optional', priority: 0, icon: 'weather', fields: ['temperatureC'] } }]
   const result = await bot.generateBriefing({ readings })
-  const { resolveHomeTemplate } = await import('../src/home-template.mjs')
   assert.equal(result.items.length, 1)
   assert.match(resolveHomeTemplate(result, readings).items[0].text, /24°C/)
 })

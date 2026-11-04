@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { buildOverviewFactQuestions, createOverviewJevJudge } from '../src/overview-jev.mjs'
 import { createJevClient } from '../src/jev-client.mjs'
-import { homeFactVariables, generateHomeSelection } from '../src/home-template.mjs'
+import { homeFactVariables, generateHomeSelection, resolveHomeTemplate } from '../src/home-template.mjs'
 
 const source = (id, icon, value, fields = Object.keys(value)) => ({
   id, label: id, kind: 'service', state: 'live',
@@ -33,7 +33,6 @@ test('verification context reaches judgment without becoming a display fact', as
     return { model: 'jev-latest', answers: Object.fromEntries(Object.keys(questions).map(id => [id, { type: 'noul', noul: 0.8 }])) }
   } })
   const raw = await generateHomeSelection(readings, { judge, choose: async () => { throw Error('not needed') } })
-  const { resolveHomeTemplate } = await import('../src/home-template.mjs')
   assert.match(JSON.stringify(captured), /verification.*failed/)
   assert.doesNotMatch(JSON.stringify(captured), /Check complete/)
   assert.match(resolveHomeTemplate(raw, readings).items[0].text, /reported: Check complete/)
@@ -122,7 +121,6 @@ test('an unresponsive judgment falls back to current local facts within three se
     assert.ok(performance.now() - start < 4000, 'judgment must not keep Overview waiting')
     assert.equal(observed.aborted, true)
     assert.equal(selections, 0)
-    const { resolveHomeTemplate } = await import('../src/home-template.mjs')
     assert.match(resolveHomeTemplate(selection, readings).items[0].text, /24°C/)
   } finally { release() }
   await new Promise(resolve => setImmediate(resolve))
@@ -136,7 +134,6 @@ test('an invalid judgment response does not publish a false success', async () =
     judge: async () => [], onJudgmentFailure: () => { failure = true },
     choose: async () => { throw Error('unexpected selector') },
   })
-  const { resolveHomeTemplate } = await import('../src/home-template.mjs')
   assert.equal(failure, true)
   assert.match(resolveHomeTemplate(selection, readings).items[0].text, /24°C/)
 })
@@ -148,7 +145,6 @@ test('a rejected judgment uses local facts without calling the selector', async 
     judge: async () => { throw Object.assign(Error('synthetic 429'), { status: 429 }) },
     choose: async () => { selections++; throw Error('unexpected selector') },
   })
-  const { resolveHomeTemplate } = await import('../src/home-template.mjs')
   assert.equal(selections, 0)
   assert.match(resolveHomeTemplate(selection, readings).items[0].text, /24°C/)
 })
@@ -283,7 +279,6 @@ test('a failed generation call cannot hide valid ranked source facts', async () 
     judge: async facts => facts.map(fact => ({ ...fact, attention: 80 })),
     choose: async () => { throw Error('synthetic generation outage') },
   })
-  const { resolveHomeTemplate } = await import('../src/home-template.mjs')
   assert.match(resolveHomeTemplate(result, readings).items[0].text, /24°C/)
 })
 
@@ -403,6 +398,5 @@ test('a failing generation selector falls back to current local facts', async ()
   const result = await generateHomeSelection(readings, {
     choose: async () => { throw Error('synthetic generation outage') },
   })
-  const { resolveHomeTemplate } = await import('../src/home-template.mjs')
   assert.match(resolveHomeTemplate(result, readings).items[0].text, /24°C/)
 })

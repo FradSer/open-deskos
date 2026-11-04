@@ -3,12 +3,12 @@ import assert from 'node:assert/strict'
 import { HomeBriefing, validateHomeBriefing } from '../src/home-briefing.mjs'
 import { PersonalAgentService } from '../src/service.mjs'
 import { statusFrames } from '../src/socket.mjs'
+import { compileHomeSelection, homeFactVariables, homeTemplateVariables, generateHomeSelection, resolveHomeTemplate } from '../src/home-template.mjs'
 
 const reading = (value = 2) => ({ id: 'odk.tile.pi-sessions', label: 'Pi Sessions', kind: 'tile', state: 'live', updatedAt: 1000, value: { count: value } })
 const output = { items: [{ text: 'Two sessions are visible.', readingIds: ['odk.tile.pi-sessions'] }] }
 
 test('Pi activity bursts update selected identities without another model call inside fifteen minutes', async t => {
-  const { compileHomeSelection, homeFactVariables } = await import('../src/home-template.mjs')
   let now = 1000, calls = 0
   let task = { taskId: 'build', name: 'Build', state: 'running', activity: 'Starting' }
   const source = () => ({ id: 'pi', label: 'Pi', state: 'live', value: { sessions: [task] },
@@ -57,7 +57,6 @@ for (const fail of [false, true]) test(`fifteen-minute cooldown starts when a ${
 })
 
 test('generation failures back off across pushes and keep current error facts without loading churn', async t => {
-  const { compileHomeSelection, homeFactVariables } = await import('../src/home-template.mjs')
   let now = 1000, calls = 0, count = 1, fail = true
   const source = () => ({ id: 'tasks', label: 'Tasks', state: 'live', value: { count } })
   const frames = []
@@ -84,7 +83,6 @@ test('generation failures back off across pushes and keep current error facts wi
 })
 
 test('cooldown never retains a selected fact after its source becomes hidden', async t => {
-  const { compileHomeSelection, homeFactVariables } = await import('../src/home-template.mjs')
   let calls = 0
   const selected = { id: 'selected', label: 'Selected', state: 'live', value: { note: 'Private old fact' }, home: { mode: 'optional', priority: 0, icon: 'tasks', fields: ['note'] } }
   const sources = [selected, { id: 'other', label: 'Other', state: 'live', value: { count: 1 } }]
@@ -121,7 +119,6 @@ test('automatic push and minute timers share the failed generation cooldown', as
 })
 
 test('ordinary numeric updates retain the template until its fifteen-minute expiry', async t => {
-  const { compileHomeSelection, homeFactVariables } = await import('../src/home-template.mjs')
   let now = 1000, count = 1, calls = 0
   const home = new HomeBriefing({ requireBindings: true, now: () => now, list: async () => [reading(count)], read: async () => reading(count),
     generate: async ({ readings }) => { calls++; return compileHomeSelection({ items: [{ sources: [0] }] }, homeFactVariables(readings)) }, publish() {} })
@@ -155,7 +152,6 @@ test('all visible sources participate without reserved portfolio or priority slo
 
 test('waiting Agent changes trigger selection even when field types do not change', async t => {
   let now = 1000
-  const { compileHomeSelection, homeTemplateVariables } = await import('../src/home-template.mjs')
   let waiting = 1, calls = 0
   const source = () => ({ id: 'pi', label: 'Pi sessions', state: 'live', value: { total: 8, counts: { waiting } }, home: { mode: 'optional', priority: 0, icon: 'sessions', fields: ['total', 'counts'] } })
   const home = new HomeBriefing({ now: () => now, requireBindings: true, list: async () => [source()], read: async () => source(),
@@ -169,7 +165,6 @@ test('waiting Agent changes trigger selection even when field types do not chang
 })
 
 test('an expired generation failure shows current bound facts instead of old values', async t => {
-  const { compileHomeSelection, homeTemplateVariables } = await import('../src/home-template.mjs')
   let now = 1000, count = 2, fail = false
   const source = () => ({ id: 'tasks', label: 'Tasks', state: 'live', value: { count }, home: { mode: 'optional', priority: 0, icon: 'tasks', fields: ['count'] } })
   const home = new HomeBriefing({ requireBindings: true, now: () => now, list: async () => [source()], read: async () => source(),
@@ -194,7 +189,6 @@ test('resident Agent tasks and every remote report page join the shared source i
   const entries = await access.list()
   t.after(() => access.close())
   assert.equal(entries.length, 14)
-  const { generateHomeSelection, homeFactVariables, resolveHomeTemplate } = await import('../src/home-template.mjs')
   const readings = await Promise.all(entries.map(async entry => ({ ...entry, ...await access.read(entry.id) })))
   const seen = []
   const selected = await generateHomeSelection(readings, { choose: async request => {
@@ -260,7 +254,6 @@ test('time approaching a declared event triggers selection without a source upda
 test('retained Overview items keep their own coverage when the inventory shrinks', async t => {
   let now = 1000
   const { default: { parseHomeBriefing } } = await import('../../../runtime/shell/src/home-briefing-frame.js')
-  const { compileHomeSelection, homeTemplateVariables } = await import('../src/home-template.mjs')
   let sources = [reading(), { ...reading(), id: 'other', label: 'Other' }], calls = 0, entered, release
   const ready = new Promise(resolve => { entered = resolve })
   const gate = new Promise(resolve => { release = resolve })
@@ -393,7 +386,6 @@ test('a source push during confirmation cannot publish captured old data as live
 })
 
 test('a push during confirmation cannot publish an old bound Weather value as live', async t => {
-  const { compileHomeSelection, homeFactVariables } = await import('../src/home-template.mjs')
   let temperatureC = 24, reads = 0
   const frames = []
   const weather = () => ({ id: 'weather', label: 'Weather', state: 'live', value: { temperatureC },
@@ -726,7 +718,6 @@ test('a retained template cannot clear failure cooldown without another successf
 
 test('busy Pi activity publishes current bound facts and reselects with new completion qualifiers', async t => {
   let now = 1000
-  const { compileHomeSelection, homeFactVariables } = await import('../src/home-template.mjs')
   let task = { name: 'Build', state: 'running', activity: 'Checking', verification: 'not_run' }, entered, release, calls = 0
   const ready = new Promise(resolve => { entered = resolve })
   const gate = new Promise(resolve => { release = resolve })
@@ -755,7 +746,6 @@ test('busy Pi activity publishes current bound facts and reselects with new comp
 })
 
 for (const change of ['hidden', 'unavailable', 'removed']) test(`pending selected facts cannot survive a source becoming ${change}`, async t => {
-  const { compileHomeSelection, homeFactVariables } = await import('../src/home-template.mjs')
   let entered, release
   const ready = new Promise(resolve => { entered = resolve }), gate = new Promise(resolve => { release = resolve })
   const selected = { id: 'selected', label: 'Selected', state: 'live', value: { note: 'Old selected fact' }, home: { mode: 'optional', priority: 0, icon: 'tasks', fields: ['note'] } }
