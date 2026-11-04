@@ -569,7 +569,7 @@ function listPiProcesses(now = Date.now(), strict = false, options = {}) {
       // would count as a Pi process and a live session parented by any running
       // process would be discarded as another session's worker.
       return (source.list(now) || []).filter(isPiProcess)
-    } catch (error) {
+    } catch {
       if (strict) throw new Error('Pi process inspection unavailable')
       return []
     }
