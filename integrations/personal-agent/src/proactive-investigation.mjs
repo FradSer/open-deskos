@@ -61,7 +61,7 @@ export function createProactiveInvestigationTools({ input, judge, read }) {
       name: 'proactive_judge', label: 'Judge draft suggestions', exposure: 'direct',
       namespace: { name: 'personal_agent', description: 'Typed judgments on this round\'s drafts; never action permission.' },
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-      description: 'Submit all drafts for the round in one call and receive typed judgments for each: probability (worth attention now) and groundingProbability (factual support). Use the answers only to reword a claim that is unsupported; never drop a topic from the response. The host independently qualifies every returned candidate, so this check decides nothing.',
+      description: 'Submit all drafts for the round in one call and receive a usefulness probability for each (worth attention now). The host binds every factual value to cited observations and independently qualifies usefulness, so this self-check decides nothing and grants no permission. Never drop a topic from the response.',
       parameters: Type.Object({ suggestions: Type.Array(Type.Object({
         topicId: Type.String({ minLength: 1, maxLength: 128 }),
         advice: Type.String({ minLength: 1, maxLength: 400 }),

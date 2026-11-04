@@ -365,7 +365,7 @@ test('real SDK generator carries only scoped investigation tools and no skills, 
     },
   })
   t.after(() => agent.close())
-  const result = await agent.generateProposals({ topics: [{ id: 'packages', goal: '领取物品', actions: [{ id: 'inspect-package', label: '检查物品' }], evidence: [{ id: 'e0', value: 2 }] }], maxCandidates: 8 })
+  const result = await agent.generateProposals({ topics: [{ id: 'packages', goal: '领取物品', actions: [{ id: 'inspect-package', label: '检查物品' }], evidence: [{ id: 'e0', value: 2 }, { id: 'e1', value: 1 }] }], maxCandidates: 8 })
   assert.equal(result.suggestions.length, 2)
   assert.deepEqual(optionsSeen[1].tools, [])
   assert.deepEqual(optionsSeen[1].customTools.map(tool => tool.name), ['proactive_read', 'proactive_judge'])

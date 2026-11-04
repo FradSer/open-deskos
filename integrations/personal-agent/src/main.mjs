@@ -19,7 +19,7 @@ import { loadPersonalConfig } from './personal-config.mjs'
 import { proposalStateStore } from './proactive-state.mjs'
 import { ProactiveWatch, loadProactiveConfig, ownerConfigWriter } from './proactive.mjs'
 import { checkJevAuthentication } from './jev-client.mjs'
-import { createJevJudge } from './proactive-jev.mjs'
+import { createProactiveJudge } from './proactive-qualification.mjs'
 import { odkDataRequest } from './odk-data.mjs'
 import { loadTargets, taskRequest } from './task-client.mjs'
 import { createRideNotifier } from './ride-notification.mjs'
@@ -258,7 +258,7 @@ async function main() {
         refineFeedbackMemory: runtime.agent.refineFeedbackMemory,
         feedbackMemoryEnabled: runtime.agent.feedbackMemoryEnabled === true,
         onGeneration: record => console.info(JSON.stringify({ event: 'proactive_generation', model: runtime.agent.generationModel, ...record })),
-        judge: createJevJudge({ env, request: runtime.agent.judge }),
+        judge: createProactiveJudge({ env, generate: runtime.agent.judgeOrdinary, model: () => runtime.agent.generationModel }),
         onJudgment: record => console.info(JSON.stringify({ event: 'proactive_judgment', ...record })),
         ...{ onFeedback: record => console.info(JSON.stringify({ event: 'proactive_feedback', ...record })) },
         read: async (id, signal) => (await odkDataRequest('read', { id, signal, env, platform })).reading,

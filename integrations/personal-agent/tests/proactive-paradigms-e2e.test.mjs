@@ -4,6 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ProactiveWatch } from '../src/proactive.mjs'
+import { createProactiveJudge } from '../src/proactive-qualification.mjs'
 import { createJevJudge } from '../src/proactive-jev.mjs'
 import { validateGeneratedBatch } from '../src/proactive-generation.mjs'
 import { generationSystemPrompt, parseSuggestionDocument, openuiFormatCorrection, OPENUI_EXAMPLE } from '../src/openui-contract.mjs'
@@ -93,11 +94,11 @@ function fixture(judge) {
 
 // A judge that answers through the production question builder but replies deterministically,
 // so the assertion never depends on live model availability.
-const deterministic = () => createJevJudge({
-  request: async ({ questions }) => ({
-    model: 'jev-fixture',
+const deterministic = () => createProactiveJudge({
+  model: () => 'fixture/ordinary-model',
+  generate: async ({ questions }) => ({
     answers: Object.fromEntries(Object.entries(questions).map(([id, q]) => [
-      id, q.type === 'noul' ? { type: 'noul', noul: /_unsupported$/.test(id) ? 0.05 : 0.95 } : { type: 'choice', choice: Object.keys(q.criteria)[0], confidence: 0.9 },
+      id, q.type === 'noul' ? { type: 'noul', noul: 0.95 } : { type: 'choice', choice: Object.keys(q.criteria)[0], confidence: 0.9 },
     ])),
   }),
 })
@@ -108,8 +109,8 @@ test('the generated contract declares composable primitives and host authority',
   }
   assert.match(generationSystemPrompt, /openui-lang/i)
   assert.match(generationSystemPrompt, /Only the host binds approved actions/)
-  assert.match(generationSystemPrompt, /never invent facts/i)
-  assert.match(generationSystemPrompt, /host independently judges every returned candidate/i)
+  assert.match(generationSystemPrompt, /Every number the owner can see/i)
+  assert.match(generationSystemPrompt, /Compose the card freely/i)
   assert.doesNotMatch(generationSystemPrompt, /preview\.items|boundedPreview|generationInstructions/)
   assert.ok(componentNames(OPENUI_EXAMPLE).length >= 6, 'OPENUI_EXAMPLE uses composable primitives')
 })
@@ -120,12 +121,16 @@ test('advice reads as natural content and never repeats the action label', () =>
   const candidate = advice => openuiSuggestion({ topicId: 'commute-anomaly', key: 'primary', advice, actionId: action.id, evidenceIds: ['e0'] })
   assert.doesNotThrow(() => validateGeneratedBatch({ suggestions: [candidate('通勤比平时慢了不少。')] }, topics, 8))
   assert.throws(() => validateGeneratedBatch({ suggestions: [candidate('通勤变慢了，请打开计划。')] }, topics, 8), /action label/i)
-  assert.match(generationSystemPrompt, /Advice states only what changed/i)
-  assert.match(generationSystemPrompt, /one short natural sentence/i)
+  assert.match(generationSystemPrompt, /Advice is one short sentence/i)
+  assert.match(generationSystemPrompt, /one short sentence/i)
 })
 
 test('the full OpenUI tree survives host validation without a preview projection', () => {
-  const topics = [{ id: 'commute-anomaly', actions: [action], evidence: [{ id: 'e0' }, { id: 'e1' }] }]
+  const topics = [{ id: 'commute-anomaly', actions: [action], evidence: [
+    { id: 'e0', readingId: 'r', field: 'minutes', value: 52, state: 'live', measuredAt: stamp },
+    { id: 'e1', readingId: 'r', field: 'baselineMinutes', value: 24, state: 'live', measuredAt: stamp },
+    { id: 'e2', readingId: 'r', field: 'delayMinutes', value: 28, state: 'live', measuredAt: stamp },
+    { id: 'e3', readingId: 'r', field: 'startsAt', value: '14:00', state: 'live', measuredAt: stamp }] }]
   const { suggestions } = parseSuggestionDocument(FULL_TREE_DOCUMENT)
   const [result] = validateGeneratedBatch({ suggestions }, topics, 8)
   assert.deepEqual(result.ui, suggestions[0].ui)
@@ -155,11 +160,11 @@ test('the OpenUI correction reuses the generated contract', () => {
   assert.match(generationSystemPrompt, /Only the host binds approved actions/)
 })
 
-test('an OpenUI candidate is judged by usefulness and support without a style gate', async () => {
+test('an OpenUI candidate is judged by usefulness without a style gate', async () => {
   let questions
-  const judge = createJevJudge({ request: async ({ questions: asked }) => {
+  const judge = createProactiveJudge({ model: () => 'fixture/ordinary-model', generate: async ({ questions: asked }) => {
     questions = asked
-    return { model: 'jev-fixture', answers: Object.fromEntries(Object.keys(asked).map(id => [id, { type: 'noul', noul: id.endsWith('_unsupported') ? 0.05 : 0.95 }])) }
+    return { answers: Object.fromEntries(Object.keys(asked).map(id => [id, { type: 'noul', noul: 0.95 }])) }
   } })
   const watch = new ProactiveWatch({
     config: { ...config(), rules: [structuredClone(rules[0])] }, now: () => Date.parse(stamp), canExecute: () => true,
@@ -168,7 +173,7 @@ test('an OpenUI candidate is judged by usefulness and support without a style ga
     judge, publish: () => {}, save: async () => {}, saveState: () => {}, execute: async () => 'done', phrase: async ({ advice }) => advice,
   })
   await watch.tick()
-  assert.deepEqual(Object.keys(questions).sort(), ['c0', 'c0_grounded', 'c0_unsupported'], 'exactly three typed questions')
+  assert.deepEqual(Object.keys(questions), ['c0'], 'exactly one narrow usefulness question')
   assert.equal(watch.list().filter(p => p.status === 'pending').length, 1, 'a supported candidate publishes on its batch verdict')
   assert.ok(uiTypes(watch.list()[0].ui).includes('Badge'))
   await watch.close()
@@ -204,7 +209,7 @@ test('all four paradigms reach a proposal through generation, validation, and ju
     assert.deepEqual(proposal.ui, shape.ui, `${proposal.ruleId}: the full OpenUI tree survives the pipeline`)
     assert.ok(new Set(uiTypes(proposal.ui)).size >= 6, `${proposal.ruleId}: composable primitives survive`)
     assert.equal(Object.hasOwn(proposal, 'preview'), false)
-    assert.equal(proposal.judgment.model, 'jev-fixture')
+    assert.equal(proposal.judgment.model, 'fixture/ordinary-model')
     assert.ok(proposal.judgment.probability >= proposal.judgment.threshold)
     assert.equal(proposal.action.tool, action.tool)
   }

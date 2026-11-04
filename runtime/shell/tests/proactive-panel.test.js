@@ -908,3 +908,63 @@ test('a completed recommendation keeps its result without reviving operation or 
   assert.equal(f.local.value, 'Keep this draft'); assert.equal(f.local.selectionStart, 2); assert.equal(f.local.selectionEnd, 5)
   await f.controller.destroy()
 })
+
+test('a composed OpenUI bubble states its advice exactly once across the real DOM', () => {
+  const f = fixture()
+  // Load the real component renderer into the same window the bubble module uses.
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/openui-dom.js'), 'utf8'),
+    { window: f.window, document: f.document, console })
+  const sentence = '通勤比平时多了28分钟。'
+  const ui = { type: 'Suggestion', props: { topicId: 'commute', key: 'k', evidenceIds: ['e0'], children: [
+    { type: 'Advice', props: { value: sentence }, children: [] },
+    { type: 'Readings', props: { children: [
+      { type: 'Reading', props: { label: '通勤用时', value: '52分钟' }, children: [] },
+      { type: 'Reading', props: { label: '平时用时', value: '24分钟' }, children: [] },
+    ] }, children: [] },
+  ] }, children: [] }
+  f.render({ state: 'idle', proposals: [{ ...proposal(), advice: sentence, ui }], proposalPopup: true })
+  const bubble = f.content.querySelector('.agent-message-bubble')
+  assert.ok(bubble, 'the real bubble mounted')
+  // The stub's textContent holds each node's own value, so leaf text is exact.
+  const text = flatten(bubble).map(node => node.textContent).join(' ')
+  assert.equal(text.split(sentence).length - 1, 1, 'the sentence appears once; the renderer suppresses the tree Advice node')
+  assert.ok(text.includes('通勤用时') && text.includes('52分钟') && text.includes('平时用时') && text.includes('24分钟'), 'distinct readings stay visible')
+  assert.equal(flatten(bubble).filter(node => node.className?.split(/\s+/).includes('personal-agent-preview-card')).length, 1, 'one card surface')
+})
+
+test('a restated advice sentence in a card Heading is refused before publication', async () => {
+  const { integrationURL } = require('./helpers/repo-root')
+  const { parseSuggestionDocument } = await import(integrationURL('personal-agent/src/openui-contract.mjs'))
+  const { validateGeneratedBatch } = await import(integrationURL('personal-agent/src/proactive-generation.mjs'))
+  const sentence = '通勤比平时多了28分钟。'
+  const doc = `root = Suggestions([s1])
+s1 = Suggestion([a1, h1, r1, b1],"commute","k",["e0","e1"])
+a1 = Advice("${sentence}")
+h1 = Heading("${sentence}")
+r1 = Readings([c1, c2])
+c1 = Reading("通勤用时","52分钟")
+c2 = Reading("平时用时","24分钟")
+b1 = ApprovedAction("open")`
+  const { suggestions } = parseSuggestionDocument(doc)
+  const topics = [{ id: 'commute', actions: [{ id: 'open', label: '查看通勤安排' }],
+    evidence: [
+      { id: 'e0', readingId: 'commute.traffic', field: 'minutes', value: 52, state: 'live', measuredAt: new Date().toISOString() },
+      { id: 'e1', readingId: 'commute.traffic', field: 'baselineMinutes', value: 24, state: 'live', measuredAt: new Date().toISOString() },
+    ] }]
+  assert.throws(() => validateGeneratedBatch({ suggestions }, topics, 8), /restates advice/i)
+})
+
+test('a stored legacy preview does not redraw advice as a second summary', () => {
+  const f = fixture()
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/openui-dom.js'), 'utf8'),
+    { window: f.window, document: f.document, console })
+  const sentence = '行程缺口 22 分钟。'
+  const p = { ...proposal(), advice: sentence,
+    preview: { summary: sentence, items: [{ label: '缺口', value: '22 分钟' }] } }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const bubble = f.content.querySelector('.agent-message-bubble')
+  assert.ok(bubble)
+  const text = flatten(bubble).map(node => node.textContent).join(' ')
+  assert.equal(text.split(sentence).length - 1, 1, 'legacy preview.summary restating advice is suppressed')
+  assert.ok(text.includes('缺口') && text.includes('22 分钟'), 'distinct readings still render')
+})

@@ -1,5 +1,6 @@
 import { feedbackFor, feedbackPending } from './proactive-feedback-memory.mjs'
 import { isJudgmentModel } from './judgment-client.mjs'
+import { visibleUiText, visibleUiPairs } from './openui-contract.mjs'
 import { randomUUID } from 'node:crypto'
 import {privateRule,privateEventReceiptKey} from './private-proposal-sources.mjs'
 import { generationKey, identifyCandidate, observationKey, sameOccurrence, timeWindow } from './proactive-lifecycle.mjs'
@@ -41,7 +42,80 @@ export function modelInput(input) {
   return { ...rest, topics: projected }
 }
 
-/** Host authority only; OpenUI owns the ui tree, so its shape is never inspected here. */
+// A sentence restatement is decidable only for prose nodes, and only when the
+// whole normalized sentence matches. Short reading labels such as 温度 are
+// legitimate even when they occur inside the advice. Every NUMBER the owner can
+// see -- in advice, headings, prose, badges, labels, values and option text --
+// must be a value of one of THIS candidate's cited observations. The host owns
+// facts mechanically; no LLM judgment stands between the card and the owner.
+const PROSE_TYPES = new Set(['Heading', 'Text', 'Badge'])
+const normalize = value => value.normalize('NFKC').replace(/[\p{P}\p{Z}\s]/gu, '').toLowerCase()
+
+// Canonical numeric value from one token. Times (14:00) stay whole; thousands
+// separators and decimal points are normalized; sign and exponent are kept.
+function canonicalNumber(token) {
+  const text = token.replace(/\s/g, '')
+  if (/^[+-]?\d{1,2}:\d{2}(?::\d{2})?$/.test(text)) return text
+  const cleaned = text.replace(/,(?=\d{3}(\D|$))/g, '').replace(/,(?=\d+$)/, '.')
+  const n = Number(cleaned)
+  return Number.isFinite(n) ? String(n) : null
+}
+
+function evidenceNumbers(entry) {
+  const values = []
+  const collect = value => {
+    if (typeof value === 'number' || typeof value === 'boolean') { values.push(String(value)); return }
+    if (typeof value === 'string') { for (const t of value.match(/[+-]?\d[\d,.:]*/g) ?? []) values.push(t); return }
+    if (value && typeof value === 'object') for (const item of Object.values(value)) collect(item)
+  }
+  collect(entry?.value)
+  return values.map(canonicalNumber).filter(Boolean)
+}
+
+function visibleNumbers(strings) {
+  const out = new Set()
+  for (const text of strings) for (const token of String(text).match(/[+-]?\d[\d,.:]*/g) ?? []) {
+    const n = canonicalNumber(token)
+    if (n) out.add(n)
+  }
+  return out
+}
+
+function proseUiText(ui) {
+  const out = []
+  const step = (node, active) => {
+    if (!node || typeof node !== 'object' || active.has(node)) return
+    active.add(node)
+    if (PROSE_TYPES.has(node.type)) {
+      const value = node.props?.value ?? node.props?.text
+      if (typeof value === 'string' && value.trim()) out.push(value.trim())
+    }
+    for (const child of (Array.isArray(node.children) ? node.children : Array.isArray(node.props?.children) ? node.props.children : [])) step(child, active)
+    active.delete(node)
+  }
+  step(ui, new Set())
+  return out
+}
+
+function validateCardText(s, topic) {
+  const advice = normalize(s.advice)
+  const text = visibleUiText(s.ui)
+  if (advice.length >= 4 && proseUiText(s.ui).some(value => {
+    const n = normalize(value)
+    return n.length >= 4 && (n === advice || advice.includes(n) || n.includes(advice))
+  })) throw Error('Card text restates advice')
+  const pairs = visibleUiPairs(s.ui).map(([label, value]) => `${normalize(label)}:${normalize(value)}`)
+  if (new Set(pairs).size !== pairs.length) throw Error('Card repeats a reading')
+  // The host binds the full approved observation set to every candidate, not
+  // just the model's cited subset. Any of those host-issued values can ground a
+  // visible number; a number outside them is an invented fact.
+  const cited = new Set(topic.evidence.flatMap(evidenceNumbers))
+  const shown = visibleNumbers([s.advice, ...text])
+  for (const n of shown) if (!cited.has(n)) throw Error('Card states a number no cited observation supplies')
+  return text
+}
+
+/** OpenUI owns the tree; the host validates only its visible claims before judgment. */
 export function validateGeneratedBatch(raw, topics, maxCandidates) {
   if (!exact(raw, ['suggestions']) || !Array.isArray(raw.suggestions) || raw.suggestions.length > maxCandidates || Buffer.byteLength(JSON.stringify(raw)) > 16384) throw Error('Invalid generated suggestions')
   const seen = new Set()
@@ -59,12 +133,15 @@ export function validateGeneratedBatch(raw, topics, maxCandidates) {
     if (!exact(s, ['topicId', 'key', 'advice', intent ? 'nextStep' : 'actionId', 'evidenceIds', 'ui']) || !topic || typeof s.key !== 'string' || TEMPLATE_MARKER.test(s.key) || !KEY.test(s.key) || seen.has(key) || !text(s.advice, 400) || TECHNICAL_DETAIL.test(s.advice)
       || (intent ? !text(s.nextStep, 240) || /[\x00-\x1f\x7f]/.test(s.nextStep) || TECHNICAL_DETAIL.test(s.nextStep) : typeof s.actionId !== 'string' || !action)
       || !Array.isArray(s.evidenceIds) || !s.evidenceIds.length || s.evidenceIds.length > 8 || new Set(s.evidenceIds).size !== s.evidenceIds.length || !s.evidenceIds.every(id => topic.evidence.some(e => e.id === id))) throw Error('Invalid generated suggestion')
+    // Legacy no-ui candidates are validated for identity/authority only; the
+    // OpenUI card fact binding applies to generated trees.
+    const uiText = s.ui ? validateCardText(s, topic) : []
     seen.add(key)
     // The owner already approved these observation fields for the topic. A model
     // may cite a subset, but judgment needs the full approved set: otherwise a
     // stated relationship appears unsupported and a useful candidate is dropped.
     return { ...s, nextStep: intent ? s.nextStep : action.label,
-      evidence: topic.evidence.map(entry => ({ ...entry })) }
+      evidence: topic.evidence.map(entry => ({ ...entry })), uiText }
   })
 }
 

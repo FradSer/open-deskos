@@ -13,8 +13,6 @@
     'heading', 'text', 'badge', 'metric', 'stack', 'row', 'optionset', 'option', 'divider',
   ])
   const EXTRA_CLASSES = {
-    advice: ['openui-text'],
-    readings: ['openui-stack'],
     optionset: ['openui-option-set'],
     chip: ['openui-badge'],
   }
@@ -259,6 +257,9 @@
           if (element) element.className = 'personal-agent-preview-card'
           break
         case 'stack':
+          element = createElement('div', context)
+          if (element) { element.className = 'personal-agent-preview-chips'; applyDirection(element, props) }
+          break
         case 'readings':
           element = createElement('div', context)
           if (element) { element.className = 'personal-agent-preview-chips'; applyDirection(element, props) }
@@ -283,10 +284,20 @@
           }
           break
         case 'badge':
-        case 'chip':
+          element = createElement('span', context)
+          if (element) {
+            element.className = 'openui-badge'
+            applyTone(element, props)
+            element.textContent = textOf(props, ['value', 'text', 'label']) || describeProps(props, kind)
+          }
+          break
         case 'reading':
+        case 'chip':
+          element = makeChip(kind, props, context)
+          break
         case 'metric':
           element = makeChip(kind, props, context)
+          if (element) element.dataset.emphasis = 'true'
           break
         case 'optionset':
           element = makeSelect(node, props, context, seen)

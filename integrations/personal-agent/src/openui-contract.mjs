@@ -23,19 +23,19 @@ const COMPONENTS = [
     evidenceIds: z.array(text()).min(1).max(8),
   }), 'One candidate; use supplied topicId and 1-8 evidenceIds.'],
   ['Advice', z.object({ value: text() }), 'One short sentence stating what changed.'],
-  ['Readings', z.object({ children: children(1, 3) }), 'One to three Reading nodes.'],
+  ['Readings', z.object({ children: children(1, 8) }), 'A group of one to eight Reading nodes.'],
   ['Reading', z.object({ label: text(), value: text(), tone: tone() }), 'An observed label and cited value.'],
   ['ApprovedAction', z.object({ actionId: text() }), 'One supplied actionId; the host binds its tool.'],
   ['OwnerStep', z.object({ text: text() }), 'Read-only Intent preview; no execution permission.'],
-  ['Heading', z.object({ value: text() }), 'Short section label.'],
-  ['Text', z.object({ value: text(), tone: tone() }), 'Plain paragraph with optional tone.'],
-  ['Badge', z.object({ value: text(), tone: tone() }), 'Status badge with optional tone.'],
-  ['Metric', z.object({ label: text(), value: text(), tone: tone() }), 'One observed label and cited value.'],
-  ['Stack', z.object({ children: children(), direction: z.string().optional() }), 'Generic layout group with optional direction.'],
-  ['Row', z.object({ children: children() }), 'Inline layout group.'],
-  ['OptionSet', z.object({ children: children() }), 'Owner choices; no execution permission.'],
+  ['Heading', z.object({ value: text() }), 'A short section label you choose when it helps the reader.'],
+  ['Text', z.object({ value: text(), tone: tone() }), 'A plain paragraph with optional tone for context or a note.'],
+  ['Badge', z.object({ value: text(), tone: tone() }), 'A short status label with optional tone.'],
+  ['Metric', z.object({ label: text(), value: text(), tone: tone() }), 'An emphasized observed label and cited value.'],
+  ['Stack', z.object({ children: children(), direction: z.string().optional() }), 'A vertical or horizontal group; nest it freely to organize sections.'],
+  ['Row', z.object({ children: children() }), 'An inline group for side-by-side items.'],
+  ['OptionSet', z.object({ children: children() }), 'A list of owner choices; no execution permission.'],
   ['Option', z.object({ label: text(), value: text() }), 'One owner choice.'],
-  ['Divider', z.object({}), 'Visual separator.'],
+  ['Divider', z.object({}), 'A visual separator between sections.'],
 ].map(([name, props, description]) => defineComponent({ name, props, description, component: null }))
 
 const library = createLibrary({ root: 'Suggestions', components: COMPONENTS })
@@ -47,40 +47,65 @@ const HOST_SUGGESTION_PROPS = z.object({
   evidenceIds: z.array(text()).min(1).max(8),
 })
 
-// These rules state who owns evidence, actions, judgment and composition.
+// The model owns composition: which primitives, how many, in what order and
+// nesting. The host owns authority: actions, evidence, facts and freshness.
 const HOST_RULES = [
   'Only the host binds approved actions; never invent one. ApprovedAction carries an actionId only.',
-  'All factual assertions come from cited observations; never invent facts.',
-  'Advice states only what changed, in one short natural sentence.',
-  'Every Reading/Metric value is copied from a cited observation. Readings holds at most three Reading nodes.',
+  'Every number the owner can see -- in advice, headings, prose, badges, labels, values and option text -- must be a value of a cited observation. Never invent, recompute or restate a number.',
+  'Advice is one short sentence stating what changed. It is the only required text.',
+  'Compose the card freely from the shared primitives: choose headings, prose, badges, stacks, rows, dividers, readings, metrics and option sets when each helps the reader.',
+  'Different topics deserve different compositions. Do not reuse one fixed shape for every suggestion.',
+  'Use Heading, Text and Badge for presentation and context. Do not copy the entire advice sentence into them.',
+  'Reading and Metric carry observed label/value pairs; Metric emphasizes one pair. Use Stack and Row to organize sections.',
   'Omit a Suggestion when observations show no current need.',
-  'The host independently judges every returned candidate.',
+  'The host binds evidence, freshness and actions, and judges usefulness independently of presentation.',
 ]
 
+// Three visibly different generic compositions. Each still cites host-issued
+// evidence and an approved action; none is a domain-specific card.
 export const OPENUI_EXAMPLE = `root = Suggestions([s1])
-s1 = Suggestion([a1, h1, r1, stack1, d2, b1],"commute-anomaly","k-commute",["e0","e1"])
+s1 = Suggestion([a1, badge1, d1, stack1, b1],"commute-anomaly","k-commute",["e0","e1","e2"])
 a1 = Advice("通勤比平时多了28分钟。")
-h1 = Heading("当前观察")
-r1 = Readings([c1, c2])
-c1 = Reading("通勤用时","52分钟","warn")
-c2 = Reading("平时用时","24分钟")
-stack1 = Stack([row1, metrics1, d1, options1],"vertical")
-row1 = Row([badge1, text1])
 badge1 = Badge("偏离常态","warn")
-text1 = Text("以下数值均来自本次观察。","neutral")
-metrics1 = Stack([m1, m2],"horizontal")
+d1 = Divider()
+stack1 = Stack([h1, row1],"vertical")
+h1 = Heading("本轮观察")
+row1 = Row([m1, m2])
 m1 = Metric("通勤用时","52分钟","warn")
 m2 = Metric("平时用时","24分钟")
-d1 = Divider()
-options1 = OptionSet([o1, o2])
-o1 = Option("稍后","later")
-o2 = Option("忽略","dismiss")
-d2 = Divider()
 b1 = ApprovedAction("open")`
+
+export const OPENUI_EXAMPLES = [
+  OPENUI_EXAMPLE,
+  `root = Suggestions([s1])
+s1 = Suggestion([a1, t1, readings1, options1, b1],"commitment-guard","k-guard",["e0","e1","e2"])
+a1 = Advice("下一场评审的缓冲时间不足。")
+t1 = Text("以下读数来自本轮引用观察。","neutral")
+readings1 = Readings([c1, c2, c3])
+c1 = Reading("开始时间","14:00")
+c2 = Reading("剩余缓冲","12","warn")
+c3 = Reading("路上用时","34")
+options1 = OptionSet([o1, o2])
+o1 = Option("现在出发","leave")
+o2 = Option("稍后再看","later")
+b1 = ApprovedAction("open")`,
+  `root = Suggestions([s1])
+s1 = Suggestion([a1, badge1, stack1, b1],"release-pipeline","k-release",["e0","e1"])
+a1 = Advice("主线验证已全部通过。")
+badge1 = Badge("验证通过","good")
+stack1 = Stack([h1, r1, d1, t1],"vertical")
+h1 = Heading("检查结果")
+r1 = Readings([c1, c2])
+c1 = Reading("通过用例","116","good")
+c2 = Reading("失败用例","0","good")
+d1 = Divider()
+t1 = Text("读数来自持续集成的当前报告。")
+b1 = ApprovedAction("open")`,
+]
 
 export const generationSystemPrompt = library.prompt({
   additionalRules: HOST_RULES,
-  examples: [OPENUI_EXAMPLE],
+  examples: OPENUI_EXAMPLES,
 })
 
 const parser = createParser(library.toJSONSchema(), library.root)
@@ -176,7 +201,7 @@ function suggestionFrom(ui) {
   if (actions.length && steps.length) fail('a Suggestion cannot carry both an ApprovedAction and an OwnerStep')
   for (const readings of nodes.filter(node => node.type === 'Readings')) {
     const rows = childrenOf(readings)
-    if (!rows.length || rows.length > 3 || rows.some(row => row.type !== 'Reading')) fail('Readings must hold 1 to 3 Reading nodes')
+    if (!rows.length || rows.length > 8 || rows.some(row => row.type !== 'Reading')) fail('Readings must hold 1 to 8 Reading nodes')
   }
   let actionId
   if (actions.length) {
@@ -194,6 +219,73 @@ function suggestionFrom(ui) {
     ...(nextStep !== undefined ? { nextStep } : {}),
     ui,
   }
+}
+
+// The renderer suppresses Advice, ApprovedAction and OwnerStep: the bubble owns
+// that sentence and binds those controls. Layout and Divider nodes draw no text.
+// Option renders its label as an <option>; an unknown type renders every string
+// prop through describeProps. Collect all remaining visible strings so validation
+// and judgment cover exactly what the card shows.
+const NO_TEXT_TYPES = new Set([
+  'Advice', 'ApprovedAction', 'OwnerStep', 'Suggestions', 'Suggestion',
+  'Stack', 'Row', 'Divider', 'OptionSet',
+])
+const NON_TEXT_PROPS = new Set(['children', 'tone', 'direction', 'type', 'typeName', 'component', 'props'])
+
+function uiChildren(node) {
+  if (Array.isArray(node?.children)) return node.children
+  if (Array.isArray(node?.props?.children)) return node.props.children
+  return []
+}
+
+function walkUi(ui, visit) {
+  const active = new Set()
+  const step = node => {
+    if (!isUiNode(node) || active.has(node)) return
+    active.add(node)
+    visit(node)
+    for (const child of uiChildren(node)) step(child)
+    active.delete(node)
+  }
+  step(ui)
+}
+
+/** Visible card strings that can carry a factual assertion, in drawing order. */
+export function visibleUiText(ui) {
+  const out = []
+  walkUi(ui, node => {
+    if (NO_TEXT_TYPES.has(node.type)) return
+    if (node.type === 'Reading' || node.type === 'Metric') {
+      const { label, value } = node.props ?? {}
+      if (typeof label === 'string' && label.trim()) out.push(label.trim())
+      if (typeof value === 'string' && value.trim()) out.push(value.trim())
+      return
+    }
+    if (node.type === 'Option') {
+      const { label, value, text } = node.props ?? {}
+      const shown = label ?? text ?? value
+      if (typeof shown === 'string' && shown.trim()) out.push(shown.trim())
+      return
+    }
+    // Unknown components render describeProps with every string prop. Known
+    // non-text attributes become dataset values or layout, not visible text.
+    for (const [name, value] of Object.entries(node.props ?? {})) {
+      if (NON_TEXT_PROPS.has(name) || typeof value !== 'string' || !value.trim()) continue
+      out.push(value.trim())
+    }
+  })
+  return out
+}
+
+/** Label/value pairs the card shows as readings. */
+export function visibleUiPairs(ui) {
+  const out = []
+  walkUi(ui, node => {
+    if (node.type !== 'Reading' && node.type !== 'Metric') return
+    const { label, value } = node.props ?? {}
+    if (typeof label === 'string' && typeof value === 'string') out.push([label.trim(), value.trim()])
+  })
+  return out
 }
 
 /** Parse a model OpenUI Lang document into host candidates and full UI trees. */

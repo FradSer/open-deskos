@@ -12,16 +12,14 @@ import {
 test('the library generates the contract and carries host authority rules', () => {
   assert.match(generationSystemPrompt, /openui-lang/i)
   assert.match(generationSystemPrompt, /root = Suggestions\(/)
-  assert.ok(generationSystemPrompt.length < 8000, `contract is ${generationSystemPrompt.length} chars`)
+  assert.ok(generationSystemPrompt.length < 12000, `contract is ${generationSystemPrompt.length} chars`)
   for (const name of REGISTERED_PRIMITIVES) assert.match(generationSystemPrompt, new RegExp(`\\b${name}\\b`), name)
   for (const rule of [
     /Only the host binds approved actions/,
-    /never invent facts/i,
-    /cited observations/i,
-    /Advice.*one short natural sentence/i,
-    /copied from a cited observation/i,
+    /Every number the owner can see/i,
+    /Advice is one short sentence/i,
     /Omit a Suggestion.*no current need/i,
-    /host independently judges every returned candidate/i,
+    /Compose the card freely/i,
   ]) assert.match(generationSystemPrompt, rule)
   assert.doesNotMatch(generationSystemPrompt, /preview\.items|boundedPreview|generationInstructions/)
 })

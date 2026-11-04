@@ -272,7 +272,7 @@ test('Intent occurrence identity survives generated paraphrases and changed sema
     const intents = createIntentRuntime({ store, now: () => Date.parse(stamp), memory: async () => ({}), read: async () => null, judge: async () => ({ model: 'jev-test', status: 'true' }), previewRide: undefined })
     let attempt = 0
     const f = fixture({ config: { ...config(), rules: [] }, intents,
-      generate: async ({ topics }) => ({ suggestions: [openuiSuggestion({ topicId: topics[0].id, key: `generated-${++attempt}`, advice: `建议查看本轮情况${attempt}。`, nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: topics[0].evidence.map(e => e.id) })] }),
+      generate: async ({ topics }) => ({ suggestions: [openuiSuggestion({ topicId: topics[0].id, key: `generated-${++attempt}`, advice: `建议查看本轮情况。`, nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: topics[0].evidence.map(e => e.id) })] }),
       judge: async ({ candidates }) => ({ model: 'jev-test', answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.99, groundingProbability: 0.99, threshold: 0.8 }])) }) })
     await f.watch.tick(); const proposal = f.watch.list()[0]; await f.watch.presented([proposal.id]); await f.watch.tick()
     assert.equal(f.watch.list().length, 1); assert.equal(f.watch.list()[0].id, proposal.id); assert.equal(f.frames.at(-1).popup, false)
@@ -401,8 +401,8 @@ test('model input carries each fact once and omits host bookkeeping', () => {
 
 test('OpenUI owns the generated contract while the host keeps advice bounds', () => {
   assert.match(generationSystemPrompt, /openui-lang/i)
-  assert.match(generationSystemPrompt, /Advice.*one short natural sentence/i)
-  assert.match(generationSystemPrompt, /host independently judges every returned candidate/i)
+  assert.match(generationSystemPrompt, /Advice is one short sentence/i)
+  assert.match(generationSystemPrompt, /Compose the card freely/i)
   assert.doesNotMatch(generationSystemPrompt, /preview\.items/)
   assert.ok(componentNames(OPENUI_EXAMPLE).length >= 6, 'the example uses composable primitives')
   const topics = [{ id: 'deliveries', actions: [approved], evidence: [{ id: 'e0' }] }]

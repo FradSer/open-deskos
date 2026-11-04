@@ -69,6 +69,8 @@ Feature: Independent resident Personal Agent
     Then the advice sentence appears exactly once in the bubble
     And the preview has one card surface, not a card inside another card
     And every reading is still visible with its label and value
+    And the mounted DOM harness counts the whole sentence once across the bubble
+    And a restated sentence in a card Heading is refused before publication
 
   Scenario: One message bubble uses one reading size for its text and card
     Given a recommendation message shows advice above a generic preview card

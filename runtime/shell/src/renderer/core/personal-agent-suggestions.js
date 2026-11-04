@@ -60,6 +60,16 @@
 
   // Stored records keep their old summary/items/place shape. Convert them to the
   // same generic component tree; the component renderer owns all DOM output.
+  // A stored summary that restates the advice is redundant: the bubble already
+  // draws that sentence. Only a distinct route/place line earns a card Heading.
+  function distinctSummary(summary, advice) {
+    const text = typeof summary === 'string' ? summary.trim() : ''
+    if (!text) return ''
+    const normalize = value => value.normalize('NFKC').replace(/[\p{P}\p{Z}\s]/gu, '').toLowerCase()
+    const line = normalize(text), sentence = normalize(typeof advice === 'string' ? advice : '')
+    if (line.length >= 4 && sentence.length >= 4 && (line === sentence || sentence.includes(line) || line.includes(sentence))) return ''
+    return text
+  }
   function legacyPlaceLabel(place) {
     if (!place || typeof place !== 'object') return ''
     return [place.name, place.city, place.address].filter(value => typeof value === 'string' && value.trim()).join(' — ')
@@ -81,10 +91,10 @@
     const preview = proposal.preview || proposal.ridePreview
     if (!preview || typeof preview !== 'object') return null
     const children = []
-    let summary = typeof preview.summary === 'string' ? preview.summary.trim() : ''
+    let summary = distinctSummary(preview.summary, proposal.advice)
     if (!summary && Array.isArray(preview.from) && Array.isArray(preview.to) && preview.from.length === 1 && preview.to.length === 1) {
       const from = legacyPlaceLabel(preview.from[0]), to = legacyPlaceLabel(preview.to[0])
-      if (from && to) summary = `${from} → ${to}`
+      if (from && to) summary = distinctSummary(`${from} → ${to}`, proposal.advice)
     }
     if (summary) children.push({ type: 'Heading', props: { value: summary } })
     for (const item of Array.isArray(preview.items) ? preview.items.slice(0, 3) : []) {
@@ -285,7 +295,7 @@
         const current = () => proposal.status === 'pending' && (!hasExpiry || !expired)
         const card = dom.createElement('div')
         card.className = 'personal-agent-preview-card personal-agent-ride-card'
-        const summaryText = preview.summary || (preview.from && preview.to ? [preview.from, preview.to].map(places => Array.isArray(places) && places.length === 1 ? String(places[0].name ?? '').slice(0, 256) : 'Choose a place').join(' → ') : '')
+        const summaryText = distinctSummary(preview.summary || (preview.from && preview.to ? [preview.from, preview.to].map(places => Array.isArray(places) && places.length === 1 ? String(places[0].name ?? '').slice(0, 256) : 'Choose a place').join(' → ') : ''), proposal.advice)
         if (summaryText) {
           const summary = dom.createElement('p')
           summary.className = 'personal-agent-preview-summary personal-agent-ride-route-display'

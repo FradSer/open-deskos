@@ -348,6 +348,7 @@
 .openui-text,
 .openui-badge,
 .openui-stack,
+.openui-readings,
 .openui-row,
 .openui-option-set,
 .openui-divider,
@@ -356,23 +357,25 @@
   line-height: var(--agent-line-body);
 }
 
-:is(.openui-heading, .openui-text, .openui-badge, .openui-stack, .openui-row, .openui-option-set, .openui-unknown) :where(*) {
+:is(.openui-heading, .openui-text, .openui-badge, .openui-stack, .openui-readings, .openui-row, .openui-option-set, .openui-unknown) :where(*) {
   font-size: var(--agent-text-body);
   line-height: var(--agent-line-body);
 }
 
-:is(.openui-heading, .openui-text, .openui-badge, .openui-stack, .openui-row, .openui-option-set, .openui-unknown) :is(button, input, select, textarea, option) {
+:is(.openui-heading, .openui-text, .openui-badge, .openui-stack, .openui-readings, .openui-row, .openui-option-set, .openui-unknown) :is(button, input, select, textarea, option) {
   font: inherit;
   font-size: var(--agent-text-body);
   line-height: var(--agent-line-body);
 }
 
-:is(.openui-heading, .openui-text, .openui-badge, .openui-stack, .openui-row, .openui-option-set, .openui-divider, .openui-unknown)[hidden] {
+:is(.openui-heading, .openui-text, .openui-badge, .openui-stack, .openui-readings, .openui-row, .openui-option-set, .openui-divider, .openui-unknown)[hidden] {
   display: none;
 }
 
 .openui-heading {
   margin: 0;
+  padding-inline-start: var(--agent-gap-inline);
+  border-inline-start: 2px solid var(--odk-stroke-focus);
   color: var(--odk-primary);
   font-weight: 500;
   overflow-wrap: anywhere;
@@ -381,10 +384,29 @@
 
 .openui-text {
   margin: 0;
-  color: var(--odk-primary);
+  color: var(--odk-secondary-strong);
   overflow-wrap: anywhere;
   text-wrap: pretty;
   white-space: normal;
+}
+
+/* A Readings group is a frameless list; the one card owns the only surface. */
+.personal-agent-preview-chips.openui-readings {
+  display: grid;
+  align-content: start;
+  gap: var(--agent-gap-chip);
+  min-width: 0;
+  color: var(--odk-primary);
+}
+
+/* A Metric is an emphasized reading, distinct from a plain Reading chip. */
+.openui-metric[data-emphasis='true'] {
+  border-color: var(--odk-stroke-focus);
+  background: var(--odk-elevated);
+}
+
+.openui-metric[data-emphasis='true'] .personal-agent-preview-value {
+  font-weight: 600;
 }
 
 .openui-badge {
@@ -405,7 +427,7 @@
 
 /* A Stack is a layout group inside the one card, not a second bordered surface.
    Concentric radii belong to nested surfaces; a layout container adds no frame. */
-.openui-stack {
+.personal-agent-preview-chips.openui-stack {
   display: grid;
   align-content: start;
   gap: var(--agent-gap-block);
@@ -415,9 +437,9 @@
   white-space: normal;
 }
 
-.openui-stack[data-direction='row'],
-.openui-stack[data-direction='horizontal'],
-.openui-stack[data-direction='inline'] {
+.personal-agent-preview-chips.openui-stack[data-direction='row'],
+.personal-agent-preview-chips.openui-stack[data-direction='horizontal'],
+.personal-agent-preview-chips.openui-stack[data-direction='inline'] {
   display: flex;
   flex-flow: row wrap;
   align-items: center;
@@ -429,7 +451,7 @@
   background: transparent;
 }
 
-.openui-row {
+.personal-agent-preview-chips.openui-row {
   display: flex;
   flex-flow: row wrap;
   align-items: center;

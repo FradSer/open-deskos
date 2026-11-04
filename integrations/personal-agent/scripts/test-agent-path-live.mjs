@@ -13,7 +13,7 @@ import { join } from 'node:path'
 import { createPersonalAgent } from '../src/agent.mjs'
 import { createDurableAgentSession } from '../src/durable-agent-session.mjs'
 import { ProactiveWatch } from '../src/proactive.mjs'
-import { createJevJudge } from '../src/proactive-jev.mjs'
+import { createProactiveJudge } from '../src/proactive-qualification.mjs'
 
 const roundIndex = process.argv.indexOf('--rounds')
 const rounds = Number(roundIndex > -1 ? process.argv[roundIndex + 1] : 2)
@@ -110,7 +110,7 @@ try {
       canExecute: () => true,
       read: async id => ({ id, state: 'live', value: readings[id] }),
       generate: bot.generateProposals,
-      judge: createJevJudge({ env }),
+      judge: createProactiveJudge({ env, generate: bot.judgeOrdinary, model: () => bot.generationModel }),
       onGeneration: record => note(`  phase=${record.phase} candidates=${record.candidates}`),
       publish: () => {},
       save: async () => {}, saveState: () => {}, execute: async () => 'done', phrase: async ({ advice }) => advice,

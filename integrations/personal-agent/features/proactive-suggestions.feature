@@ -709,7 +709,7 @@ Feature: Owner controlled proactive Personal Agent proposals
   Scenario: Replacing the generation contract preserves host authority
     Given OpenUI owns prompt generation, output syntax and parsing
     When a candidate reaches qualification
-    Then Jev still decides usefulness and factual support
+    Then an ordinary model judges usefulness without a Jev classifier
     And the host still binds approved actions, evidence and freshness
     And no generated UI component can grant execution permission
 
@@ -744,8 +744,62 @@ Feature: Owner controlled proactive Personal Agent proposals
   Scenario: Host authority survives the OpenUI contract
     Given OpenUI owns prompt generation, wire syntax, parsing and component structure
     When the host qualifies a returned candidate
-    Then Jev still decides usefulness and factual support
+    Then an ordinary model judges usefulness without a Jev classifier
     And the host still binds approved actions, evidence and freshness
     And no generated component grants execution permission or invents a fact
     And the host independently judges every candidate
 
+  Scenario: A composed card keeps its own structure and honest numbers
+    Given a generated candidate carries advice and a freely composed OpenUI tree
+    When the host validates that candidate before qualification
+    Then a prose sentence that restates the advice is refused
+    And a repeated reading or metric pair is refused
+    And every number the owner can see resolves to a host-issued observation value
+    And headings, prose, badges, stacks and option sets remain available to the model
+
+  Scenario: The shipped examples show visibly different generic compositions
+    Given the generation contract supplies several example documents
+    When the host parses those examples
+    Then each example cites host-issued evidence and an approved action
+    And no two examples use the same component shape
+    And the host rules ask for varied compositions rather than one fixed form
+
+  # --- Model owns composition, host owns facts ------------------------------
+  Scenario: The proactive chain uses no Jev classifier
+    Given the resident starts the proactive suggestion chain
+    When it builds the host watch judge and the generation investigation judge
+    Then both use an ordinary-model judgment client with the Jev provider disabled
+    And no Jev classifier request or Jev model identity enters those judgments
+    And intent routing keeps its own Jev-enabled client unchanged
+    And stored proposals with an older judgment record still load
+
+  Scenario: Qualification asks one narrow usefulness question
+    Given a generated candidate carries advice, a next step and a composed UI tree
+    When the host requests qualification
+    Then the judgment asks whether the advice is useful to bring to the owner now
+    And the judgment does not ask grounded or unsupported questions about card strings
+    And the returned probability still meets the owner threshold
+    And the candidate judgment record keeps its validated shape
+
+  Scenario: The host binds every card fact mechanically
+    Given the model composes a tree with headings, badges, stacks and readings
+    When the host validates that tree
+    Then every number in advice, headings, prose, badges, labels, values and options resolves to a host-issued observation value
+    And a number no observation supplies is refused
+    And card text enters no factual-support judgment because the host binds it mechanically
+    And the model remains free to choose order, nesting and prose
+
+  Scenario: The model composes varied generic trees
+    Given the generation contract supplies several example documents
+    When the model writes suggestions for different topics
+    Then the examples show distinct compositions of the shared primitives
+    And no rule caps the card at one sentence plus a flat chip list
+    And every example still cites host-issued evidence and an approved action
+
+  Scenario: Each shared primitive has a distinct rendered shape
+    Given a composed tree holds Heading, Text, Badge, Reading, Metric, Stack, Row and Divider
+    When the Shell renders that tree
+    Then each primitive produces its own DOM class and visual treatment
+    And Reading and Metric no longer share one identical chip
+    And every visible text keeps the single 17-pixel reading size
+    And the tree still renders exactly one card surface without concentric frames

@@ -702,18 +702,20 @@ The generation format version invalidates old generation caches without changing
 [openui-contract.mjs](../src/openui-contract.mjs) owns the output contract, component vocabulary, wire syntax, parser and full UI tree.
 The host owns only:
 
-- Jev qualification.
 - Approved action binding.
-- Evidence provenance.
+- Evidence provenance and mechanical fact binding.
 - Freshness.
 - Lifecycle receipts.
 - Budgets.
 
-Each candidate receives independent usefulness, factual-support, and unsupported-assertion judgments through the shared typed judgment service.
-Judgment receipts retain the actual `jev-*` or `provider/model` identity across checkpoint reloads.
+The model owns composition. It selects which of the shared primitives to use, how many, in what order and nesting; `OPENUI_EXAMPLES` shows several visibly different generic compositions, not one fixed form. Advice is the only required sentence. `HOST_RULES` ask for varied compositions and forbid only a whole-sentence restatement in a Heading/Text/Badge; they do not cap readings or ban prose. `validateGeneratedBatch` refuses a restated advice sentence, a repeated Reading/Metric pair, and any visible number -- in advice, headings, prose, badges, labels, values and option text -- that no host-issued observation supplies. Numbers are parsed canonically (times stay whole, separators/decimals normalize, signs and exponents are kept) and evidence values may be scalars or nested objects. Legacy candidates without a `ui` tree keep their identity/authority validation only. `uiText` records the strings the host validated.
+
+The proactive chain uses NO Jev classifier. `createProactiveJudge` (`src/proactive-qualification.mjs`) asks ONE narrow usefulness question of the resident ordinary zero-tool model; it constructs no Jev client, sends no grounded/unsupported question, and never passes card text or `uiText` into judgment state. Intent routing keeps its own Jev-enabled client unchanged. The judgment receipt keeps its validated shape with a `provider/model` identity and full-support signals, so older stored proposals still load. The renderer suppresses Advice/ApprovedAction/OwnerStep; the bubble renders advice once and binds the controls. Each shared primitive now has its own DOM class and visual treatment (Badge is not a chip, Metric is emphasized, Stack/Readings/Row are declared layout classes), while the single 17px size, one card surface and no concentric frames remain.
+
+Each candidate receives one independent usefulness judgment.
+Judgment receipts retain the actual `provider/model` identity across checkpoint reloads.
 Ordinary model probabilities are estimates, not calibrated Jev probabilities.
-Factual qualification separates two judgments. `factualSupport` asks whether every assertion is supported, which is deliberately conservative for a sentence with several clauses. `unsupportedAssertion` asks whether any fact is invented or recomputed. The publication gate uses `1 - unsupportedAssertion`; the support value is retained as a separate signal. A conservative conjunction alone cannot veto content with no fabrication, while an identifiable invented fact still does.
-Usefulness and effective support must both meet `ODK_JEV_THRESHOLD`, default 0.8.
+Usefulness must meet `ODK_JEV_THRESHOLD`, default 0.8.
 Each candidate is judged independently against its own goal and cited observations in one batch. The host does not resample a near miss or return a draft for repair.
 Labels/symbols cannot add attributes; uncited rankings, causes, and aggregates are forbidden.
 Owner preferences do not add facts.

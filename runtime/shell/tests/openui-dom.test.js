@@ -297,3 +297,28 @@ test('isOpenUINode accepts plain JSON component trees and rejects non-nodes', ()
   for (const invalid of [null, undefined, [], {}, 'Reading', 42, { type: 'element' }, { type: 'Reading', props: [] }])
     assert.equal(api.isOpenUINode(invalid), false, `must reject ${JSON.stringify(invalid)}`)
 })
+
+test('each shared primitive renders a distinct DOM shape', () => {
+  const doc = makeDocument(), ctx = contextFor(doc)
+  const tree = node('Suggestions', {}, [node('Suggestion', {}, [
+    leaf('Heading', { value: '本轮观察' }),
+    leaf('Text', { value: '读数来自本轮引用观察。' }),
+    leaf('Badge', { value: '偏离常态', tone: 'warn' }),
+    node('Readings', {}, [leaf('Reading', { label: '通勤用时', value: '52 分钟' })]),
+    node('Row', {}, [leaf('Metric', { label: '平时用时', value: '24 分钟' })]),
+    node('Stack', {}, [leaf('Divider', {})]),
+  ])], [])
+  const root = api.renderOpenUI(tree, ctx)
+  assert.ok(isNode(root))
+  const classes = classesIn(doc)
+  for (const name of ['openui-heading', 'openui-text', 'openui-badge', 'openui-readings', 'openui-row', 'openui-stack', 'openui-divider', 'openui-metric']) {
+    assert.ok(classes.has(name), `${name} must be emitted`)
+  }
+  const metric = doc.created.find(el => String(el.className).split(/\s+/).includes('openui-metric'))
+  const reading = doc.created.find(el => String(el.className).split(/\s+/).includes('openui-reading'))
+  assert.ok(metric && reading)
+  assert.equal(metric.dataset.emphasis, 'true', 'Metric is emphasized, distinct from a Reading chip')
+  assert.equal(reading.dataset.emphasis, undefined)
+  const badge = doc.created.find(el => String(el.className).split(/\s+/).includes('openui-badge'))
+  assert.ok(badge && badge.tagName === 'SPAN' && !String(badge.className).includes('personal-agent-preview-chip'), 'Badge is no longer a chip')
+})
