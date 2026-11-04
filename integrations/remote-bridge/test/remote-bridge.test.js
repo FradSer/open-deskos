@@ -46,18 +46,7 @@ test('speaks the Shell client schema over its 0600 runtime socket, syncs state, 
 })
 
 test('sends each changed Shell state to the active Remote without a reconnect', async (t) => {
-  const runtimeDirectory = await makeRuntimeDirectory()
-  const adapter = new FakeAdapter()
-  const bridge = new RemoteBridge({
-    adapter,
-    socketPath: path.join(runtimeDirectory, 'odk-remote', 'bridge.sock'),
-    logger: silentLogger,
-  })
-  await bridge.start()
-  t.after(async () => {
-    await bridge.stop()
-    await fs.promises.rm(runtimeDirectory, { recursive: true, force: true })
-  })
+  const { adapter, bridge } = await startBridge(t)
 
   const client = await connectClient(bridge.socketPath)
   t.after(() => client.socket.destroy())
@@ -74,18 +63,7 @@ test('sends each changed Shell state to the active Remote without a reconnect', 
 })
 
 test('resynchronizes retained Shell state after a wired Remote Control reconnects', async (t) => {
-  const runtimeDirectory = await makeRuntimeDirectory()
-  const adapter = new FakeAdapter()
-  const bridge = new RemoteBridge({
-    adapter,
-    socketPath: path.join(runtimeDirectory, 'odk-remote', 'bridge.sock'),
-    logger: silentLogger,
-  })
-  await bridge.start()
-  t.after(async () => {
-    await bridge.stop()
-    await fs.promises.rm(runtimeDirectory, { recursive: true, force: true })
-  })
+  const { adapter, bridge } = await startBridge(t)
 
   const client = await connectClient(bridge.socketPath)
   t.after(() => client.socket.destroy())
@@ -107,18 +85,7 @@ test('resynchronizes retained Shell state after a wired Remote Control reconnect
 })
 
 test('marks future non-USB adapter state as wireless without changing retained Shell state', async (t) => {
-  const runtimeDirectory = await makeRuntimeDirectory()
-  const adapter = new FakeAdapter()
-  const bridge = new RemoteBridge({
-    adapter,
-    socketPath: path.join(runtimeDirectory, 'odk-remote', 'bridge.sock'),
-    logger: silentLogger,
-  })
-  await bridge.start()
-  t.after(async () => {
-    await bridge.stop()
-    await fs.promises.rm(runtimeDirectory, { recursive: true, force: true })
-  })
+  const { adapter, bridge } = await startBridge(t)
 
   const client = await connectClient(bridge.socketPath)
   t.after(() => client.socket.destroy())
@@ -135,18 +102,7 @@ test('marks future non-USB adapter state as wireless without changing retained S
 })
 
 test('relays versioned Remote Touchpad input records emitted by an adapter', async (t) => {
-  const runtimeDirectory = await makeRuntimeDirectory()
-  const adapter = new FakeAdapter()
-  const bridge = new RemoteBridge({
-    adapter,
-    socketPath: path.join(runtimeDirectory, 'odk-remote', 'bridge.sock'),
-    logger: silentLogger,
-  })
-  await bridge.start()
-  t.after(async () => {
-    await bridge.stop()
-    await fs.promises.rm(runtimeDirectory, { recursive: true, force: true })
-  })
+  const { adapter, bridge } = await startBridge(t)
 
   const client = await connectClient(bridge.socketPath)
   t.after(() => client.socket.destroy())
@@ -250,6 +206,22 @@ async function connectClient(socketPath) {
 
 function makeRuntimeDirectory() {
   return fs.promises.mkdtemp('/tmp/odk-rb-')
+}
+
+async function startBridge(t) {
+  const runtimeDirectory = await makeRuntimeDirectory()
+  const adapter = new FakeAdapter()
+  const bridge = new RemoteBridge({
+    adapter,
+    socketPath: path.join(runtimeDirectory, 'odk-remote', 'bridge.sock'),
+    logger: silentLogger,
+  })
+  await bridge.start()
+  t.after(async () => {
+    await bridge.stop()
+    await fs.promises.rm(runtimeDirectory, { recursive: true, force: true })
+  })
+  return { adapter, bridge }
 }
 
 function shellStateRecord({ page, canPrev, canNext }) {
