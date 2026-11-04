@@ -207,3 +207,17 @@ Feature: Immutable runtime release deployment
     And a missing or symlinked declared source fails before the integration copy
     And the other integrations remain available with existing private-file exclusions
     And this copy does not install uv or Docker or activate an external service
+
+  Scenario: A kiosk preflight still observes a real flock holder
+    Given a kiosk session cannot read init process namespace links
+    When the closeout observer verifies an unfiltered kernel lock table
+    Then it uses the readable namespace view of the same host
+    And an active gate still blocks closeout until its holder exits
+    And the observer still refuses a mismatched process view
+
+  Scenario: The installer fixture creates its release directory before sealing
+    Given the device installer creates RELEASE_DIR before copying integrations
+    When the packaging test runs the extracted installer branch
+    Then its fixture creates the same directory before the copy
+    And only declared manager sources are sealed
+    And private files remain excluded

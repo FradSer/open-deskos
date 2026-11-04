@@ -46,7 +46,7 @@ const reading = {
   status: 'pending',
   offered: true,
   presented: true,
-  advice: 'open-deskos 主线验证全绿，建议部署至 CM5 实体参考机。',
+  advice: 'Open DeskOS 主线验证全绿，建议部署至 CM5 实体参考机。',
   preview: {
     summary: 'main 分支 · Commit 1998604',
     items: [
@@ -59,7 +59,7 @@ const reading = {
   confirmation: '确认部署当前版本到 CM5 参考机',
   nextStep: '一键部署到 CM5 参考宿主',
   createdAt: new Date().toISOString(),
-  evidence: [{ readingId: 'ci.open-deskos', field: 'status', value: 'success', state: 'live', measuredAt: new Date().toISOString() }]
+  evidence: [{ readingId: 'ci.odk', field: 'status', value: 'success', state: 'live', measuredAt: new Date().toISOString() }]
 }
 
 const readOnly = {

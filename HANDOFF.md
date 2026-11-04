@@ -1,10 +1,13 @@
-# Handoff: test tiers, matrix gate, nightly workflow, CM5 acceptance
+# Handoff: test tiers, matrix gate, nightly workflow, CM5 and Windows hosts
 
 ## State
 
-The Shell test suite runs 3032 checks with `pnpm test`. Two stable failures were
-fixed. The nightly workflow is green on the default branch. The CM5 device keeps
-its previously active release.
+The nightly workflow is green on the default branch. CM5 runs release
+`20261104T084519Z-1231660`. Its rollback release is
+`20261103T191135Z-1116082`. The Windows handheld keeps release
+`20261103-main-5f699d03`. Fifteen staged files match the default branch.
+Other files keep the older build baseline. No Windows task or service changed.
+The default branch holds this fix and a parallel contributor's five commits.
 
 ## Decisions
 
@@ -23,6 +26,10 @@ its previously active release.
 - Configure the Electron SUID sandbox helper. Do not pass `--no-sandbox`.
 - Align the topology contract with the current 15 scopes. Do not delete scopes
   used by other contributors.
+- Fix device preflight assumptions instead of relaxing the gate. Keep every
+  product assertion and the two-worker acceptance tier.
+- Keep the Windows desk running. Stage source files with hash checks only.
+  Do not restart the desk or re-register its tasks for a test-only change.
 
 ## Fixes in this task
 
@@ -39,40 +46,54 @@ its previously active release.
 - `runtime/shell/tests/helpers/hydra-surface-selection.js`: accept an explicit
   environment so CI can select the reference-host budget.
 
+## Device preflight fixes
+
+The device loop fell from 14 failing checks to zero. Four causes were fixed.
+
+- Clock and Weather measurement fixtures accept a one-pixel content bound.
+  The CM5 window reports 1919 by 1279 for a 1920 by 1280 request.
+- The Main Hydra fixture resolves the Remote Bridge from the sealed release
+  layout, and from the repository root in a development checkout.
+- `docs/CONFIGURATION.md` inventories `ODK_PERSONAL_AGENT_MODEL`.
+  `scripts/capture-agent-states.cjs` uses the current technical namespace.
+  `tests/local-channel.test.js` asserts the frame cap instead of the old
+  handshake cap.
+- The installer packaging fixture creates RELEASE_DIR before sealing. The
+  closeout fixture supplies a readable process view through its injected io
+  seam when init namespace links are root-only. Product checks stay intact.
+- One App Manager Electron test failed in a full run. An isolated rerun passed
+  8/8 on the new release and 5/8 on the old release. Treat it as a load effect.
+
 ## Blockers
 
-- CM5 activation is blocked. The device preflight rejected two candidate
-  releases. The active pointer, the rollback pointer and the kiosk process still
-  resolve to `20261103T191135Z-1116082`. This is the correct safety outcome.
-- The device preflight failed 15 checks. Eleven Electron rendering checks also
-  fail on the previously active release. Confirm this with a control run before
-  treating them as regressions. The remaining failures are sealed-release layout
-  and two repository contracts that another session still edits.
-- Two unactivated candidate releases remain on the device:
-  `/opt/odk/releases/20261104T042841Z-1126723` and
-  `/opt/odk/releases/20261104T043447Z-1129464`. Each uses about 869 MB. Do not
-  delete them without authorization. Staging directories are clean. No release
-  pointer references them. Confirm no deployment is in flight before cleanup.
 - Real-device acceptance reports one required failure: `touch-devices`. The CM5
   has no touch-named evdev device. This is a hardware state, not a Shell defect.
   Kiosk, smoke, display mode, GPU renderer, active release and rollback release
-  all pass.
-- Two HEAD contracts are masked by another session's uncommitted edits. Do not
-  stage that work. `docs/CONFIGURATION.md` lacks `ODK_PERSONAL_AGENT_MODEL`, and
-  `scripts/capture-agent-states.cjs` contains a retired technical prefix.
+  all pass. `pi-sessions-remote-source` is an optional failure.
+- Unactivated candidate releases remain on CM5. Each uses about 869 MB. Do not
+  delete them without authorization. Staging directories are clean. No release
+  pointer references them. Confirm no deployment is in flight before cleanup.
+- The Windows workspace `C:/Users/frads/open-deskos` holds a stale gitdir file
+  and a partial old snapshot. The desk runs from the immutable release tree.
+  Do not treat the workspace as a source of truth.
+- The Windows active release still reports sourceCommit `5f699d03`. Only 15
+  files were staged. A full release build and task re-registration are pending
+  an operator decision. Keep `source-receipt.json` unchanged. It records the
+  build baseline, not the staged files. Activation scripts compare that baseline.
+  Editing it would create a mixed-commit release.
+- Another session keeps in-flight edits in the shared checkout. Do not stage
+  that work. A merge commit preserves its five commits and this fix together.
 
 ## Verification
 
-- `pnpm test`: 3032 checks, 3028 pass, 3 skipped, 1 load-related timeout. The
-  Hydra suite passes 5/5 on an isolated rerun.
-- `pnpm test:matrix`: 12 checks pass.
-- `node --test tests/config-inventory.test.js tests/surface-matrix.test.js
-  tests/test-tiers.test.js tests/repository-layout.test.js
-  tests/device-gateway.test.js tests/hydra-surface-restart-budget.test.js`:
-  50 checks pass.
-- Nightly workflow `41783574081`: success, 8m35s.
+- `pnpm test`: 3029 checks, 3025 pass, 4 skipped, 0 fail.
+- Affected contracts: 208/208 pass. Device preflight loop: 127 checks,
+  126 pass, 1 skip, 0 fail. Full device preflight passed on activation.
+- Nightly workflow `41805171732`: success, 10m57s on `5388505d`.
 - CM5 `scripts/cm5-acceptance.sh` with kiosk DISPLAY=:0: 32 checks, 1 required
   failure. See Blockers.
+- Windows hash gate: 15/15 archive checks, 15/15 deployed checks, and 15/15
+  independent read-back checks. Seven staged JS files pass `node --check`.
 
 ## Paths
 
@@ -83,3 +104,5 @@ its previously active release.
 - `runtime/shell/tests/features/test-tiers.feature`
 - `.github/workflows/nightly-matrix.yml`
 - `runtime/shell/docs/CONFIGURATION.md`
+- `runtime/shell/tests/features/config-inventory.feature`
+- `runtime/shell/docs/WINDOWS_HOST.md`

@@ -110,3 +110,11 @@ Feature: Hydra telemetry through the shared Bridge
     When the peer, gateway, source generation, telemetry boot, control boot, or key changes
     Then the old action result and physical owner are absent
     And cancellation within the same controller can retain an unknown result
+
+  Scenario: A sealed release resolves the Bridge beside the flattened Shell
+    Given a sealed release flattens runtime/shell into the release root
+    And integrations are sealed beside that root
+    When the actual Main Hydra fixture loads the shared Remote Bridge module
+    Then it resolves the module from the release layout
+    And a development checkout still resolves it from the repository root
+    And synthetic telemetry and control assertions remain unchanged

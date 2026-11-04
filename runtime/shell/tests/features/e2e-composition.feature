@@ -98,3 +98,10 @@ Feature: E2E validates the current declarative desktop
     Then every page has one visible marker on the desk
     And the driver reports its real failures through its exit status
     And the default complete E2E still runs all child harnesses
+
+  Scenario: Clock measurement inputs accept a CM5 one-pixel content bound
+    Given a CM5 Shell window reports 1919 by 1279 content pixels for a 1920 by 1280 request
+    When the production Clock comparison checks its measurement inputs
+    Then it accepts at most one pixel of difference on each axis
+    And it still requires device scale and visual viewport scale of one
+    And typography, placement, and theme baselines keep their existing assertions

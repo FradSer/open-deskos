@@ -29,3 +29,9 @@ Feature: One ODK technical namespace
     When the installer stages its user-owned executable
     Then its name is odk-pi-task-control
     And active installer source contains no retired helper prefix
+
+  Scenario: Active evidence fixtures use the current technical namespace
+    Given an active script captures Personal Agent evidence states
+    When its fixture text and reading identifiers are inspected
+    Then they use the Open DeskOS name and the odk data namespace
+    And no retired technical prefix remains in active sources
