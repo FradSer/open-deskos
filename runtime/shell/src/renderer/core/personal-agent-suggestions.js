@@ -232,13 +232,17 @@
         const notes = []
         if (proposalError) notes.push({ rank: 0, caption: 'Updates unavailable', detail: String(proposalError) })
         if (proposalCommandError) notes.push({ rank: 1, caption: 'Delivery not confirmed', detail: proposalCommandError })
-        const labels = { ignored: 'Dismissed', expired: 'Expired', executing: 'In progress', completed: 'Completed', unknown: 'Outcome not confirmed' }
+        // A finished proposal keeps its own outcome on its card. Publishing a
+        // terminal word such as Expired here would leave stale text as the
+        // Agent's standing state. An unknown outcome is a safety assertion, not
+        // a proposal label, so it keeps its priority over a result receipt.
+        const activeLabels = { executing: 'In progress', unknown: 'Outcome not confirmed' }
         for (const p of visible) {
           if (!p) continue
           const preview = p.preview || p.ridePreview
           if (executionAttempts.get(p.id)?.uncertain) notes.push({ rank: 2, caption: 'Outcome not confirmed', detail: uncertainActionWarning })
           else if (p.status === 'pending' && executionAttempts.has(p.id)) notes.push({ rank: 3, caption: 'Waiting for result', detail: 'Submitted. Waiting for the result, so do not resend.' })
-          if (labels[p.status]) notes.push({ rank: p.status === 'unknown' ? 4 : 5, caption: labels[p.status], detail: labels[p.status] })
+          if (activeLabels[p.status]) notes.push({ rank: p.status === 'unknown' ? 4 : 5, caption: activeLabels[p.status], detail: activeLabels[p.status] })
           if (p.status === 'pending' && !suggestionCapabilities.respond && typeof p.nextStep === 'string')
             notes.push({ rank: 6, caption: 'Read-only preview', detail: 'Read-only preview; respond from the desk.' })
           if (p.status === 'pending' && !p.action && !p.ridePreview)

@@ -41,6 +41,6 @@ test('retired time and pre-order views have no implementation, entry, asset, or 
   for (const id of ['clock', 'calendar', 'preorder']) assert.equal(catalog.some(app => app.appId === id), false, id)
   const reading = pages.find(page => page.id === 'reading')
   assert.equal(pages.indexOf(reading), pages.findIndex(page => page.id === 'desk') + 1)
-  assert.deepEqual(JSON.parse(JSON.stringify(reading.widgets)), [{ id: 'odk.tile.weread', opensApp: 'weread', col: '1 / 4', row: '1 / 4' }])
+  assert.deepEqual(JSON.parse(JSON.stringify(reading.widgets)), [{ id: 'odk.tile.weread', opensApp: 'weread', col: '1 / 4', row: '1 / 3' }])
   assert.equal(pages.some(page => page.id === 'preorder'), false)
 })

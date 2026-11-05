@@ -9,28 +9,32 @@
 .sb-peripheral svg { width: var(--bar-icon); height: var(--bar-icon); }
 .sb-peripheral:is([data-state="usb"], [data-state="wireless"], [data-state="live"]) { color: var(--odk-primary); }
 #home-desk { position: absolute; inset: var(--status-h) 0 0; display: grid; grid-template-columns: minmax(320px, 1fr) minmax(0, var(--desk-pane-w, 67%)); }
-#personal-agent { container-type: inline-size; min-width: 0; min-height: 0; border-right: 1px solid var(--odk-stroke); }
+/* The Agent pane owns its own column. A scrolling Widget page in the right
+   column must never show through it. */
+#personal-agent { position: relative; z-index: 1; container-type: inline-size; min-width: 0; min-height: 0; overflow: hidden; background: var(--odk-bg); border-right: 1px solid var(--odk-stroke); }
 #personal-agent > .page { padding: 0; width: 100%; height: 100%; }
-#desk-content { display: grid; grid-template-rows: minmax(0, 1fr) max-content 48px; min-width: 0; min-height: 0; }
-#home-summary { container-type: inline-size; width: var(--grid-w); max-width: calc(100% - 2 * var(--desk-side-inset)); height: var(--cell-h); flex: none; margin-inline: auto; min-width: 0; min-height: 0; overflow-y: auto; border: 0; border-radius: 0; background: transparent; }
+/* The Overview keeps its own row above the paging track. Horizontal navigation
+   only moves the 3x2 Widget pages below it; the briefing never follows a page. */
+#desk-content { display: grid; grid-template-rows: max-content minmax(0, 1fr) max-content 48px; min-width: 0; min-height: 0; }
+#home-summary { grid-row: 1; container-type: inline-size; width: var(--grid-w); max-width: calc(100% - 2 * var(--desk-side-inset)); height: var(--cell-h); flex: none; margin-inline: auto; min-width: 0; min-height: 0; overflow-y: auto; border: 0; border-radius: 0; background: transparent; }
 #home-desk .home-canvas { gap: var(--widget-gap); }
 #home-summary > .page { height: auto; padding: 0; overflow: visible; }
 #home-summary .dash { width: 100%; height: auto; max-height: none; margin: 0; padding: 16px clamp(16px, calc(var(--cell-dim) * 0.06), 24px) 8px; gap: 12px; border: 0; border-radius: 0; background: transparent; overflow: visible; }
 #home-summary .dash-head { flex-wrap: wrap; align-items: baseline; gap: 12px; }
-#home-summary .dash-wd { font-size: clamp(32px, 6cqw, 96px); }
+#home-summary .dash-wd { font-size: clamp(40px, 7cqw, 108px); }
 #home-summary .dash-presence { width: clamp(16px, 1.8cqw, 24px); height: auto; aspect-ratio: 1; }
-#home-summary .dash-date { display: inline-block; gap: 0; font-size: clamp(14px, 2.3cqw, 40px); white-space: nowrap; letter-spacing: normal; }
+#home-summary .dash-date { display: inline-block; gap: 0; font-size: clamp(18px, 2.8cqw, 48px); white-space: nowrap; letter-spacing: normal; }
 #home-summary .dash-date span { display: inline; }
 #home-summary #dash-y::before { content: ', '; }
 #home-summary .dash-narrative { font-size: var(--overview-copy-size, clamp(16px, 3.6cqw, 48px)); line-height: 1.5; letter-spacing: normal; }
 @container (max-width: 800px) {
   #home-summary .dash { padding: 12px clamp(16px, calc(var(--cell-dim) * 0.06), 24px) 4px; gap: 8px; }
-  #home-summary .dash-wd { font-size: 32px; }
-  #home-summary .dash-date { font-size: 14px; }
+  #home-summary .dash-wd { font-size: 38px; }
+  #home-summary .dash-date { font-size: 18px; }
   #home-summary .dash-narrative { font-size: var(--overview-copy-size, 16px); line-height: 1.4; }
 }
-#pages-viewport { position: relative; inset: auto; grid-column: 1; grid-row: 1; min-height: 0; width: 100%; }
-#page-center { position: static; transform: none; min-width: 0; }
+#pages-viewport { position: relative; inset: auto; grid-column: 1; grid-row: 2; min-height: 0; width: 100%; }
+#page-center { position: static; transform: none; min-width: 0; grid-row: 3; }
 #home-desk .widget-grid { gap: var(--widget-gap); max-width: calc(100% - 2 * var(--desk-side-inset)); }
 #home-desk .page:has(.widget-grid) { padding-block: var(--widget-gap); }
 html[data-fit-canvas="true"] #home-desk .page:has(.widget-grid),
@@ -43,6 +47,8 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   /* The avatar and identity sit directly below the State Bar, with no extra
      top inset between the panel edge and the header. */
   --agent-top-inset: 0px;
+  /* Only the identity moves up; the conversation and composer keep their inset. */
+  --agent-head-lift: -8px;
   --agent-pad-surface: 16px;
   --agent-pad-card: 12px;
   --agent-radius-surface: var(--odk-radius-card);
@@ -58,7 +64,7 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   --agent-text-body: 17px;
   --agent-text-label: 14px;
   --agent-avatar-size: 112px; --agent-avatar-frame-height: calc(var(--agent-avatar-size) * 2 / 3); --agent-head-overlap: calc(var(--agent-avatar-frame-height) * 0.18); --agent-head-padding: 12px; --agent-capsule-top: max(8px, calc(var(--agent-head-overlap) + 6px)); --agent-head-space: calc(var(--agent-avatar-frame-height) - var(--agent-head-overlap) + var(--agent-capsule-top) + 60px + var(--agent-head-padding)); position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-auto-rows: auto; width: 100%; height: 100%; min-height: 0; padding: var(--agent-top-inset) 20px 20px; gap: 10px; }
-.agent-head { grid-area: 1 / 1; align-self: start; z-index: 2; pointer-events: none; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 0; flex: none; min-width: 0; padding-block: 0 12px; }
+.agent-head { grid-area: 1 / 1; align-self: start; z-index: 2; pointer-events: none; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 0; flex: none; min-width: 0; padding-block: 0 12px; transform: translateY(var(--agent-head-lift)); }
 .agent-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 64px; height: 64px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); }
 .agent-avatar svg { width: 32px; height: 32px; }
 .agent-name { margin: 0; min-width: 0; flex: 0 1 auto; font-size: var(--agent-text-heading); font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -96,8 +102,10 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 .agent-message-assistant:has(.agent-message-body:empty):not(:has(.agent-history-state)) { display: none; }
 .agent-composer { grid-column: 1; flex: none; display: flex; align-items: flex-end; gap: 8px; padding: 8px; border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-surface); background: var(--odk-surface); box-shadow: 0 4px 16px color-mix(in srgb, var(--odk-bg) 20%, transparent); }
 .agent-composer textarea { min-width: 0; flex: 1; min-height: 46px; height: 46px; max-height: none; resize: none; padding: 8px; scrollbar-width: thin; font: inherit; font-size: var(--agent-text-heading); line-height: 1.5; color: var(--odk-primary); background: transparent; border: 0; }
+/* The keyboard message reads like the centered Tap to talk label. */
+.agent-composer[data-mode="keyboard"] textarea { text-align: center; }
 .agent-composer textarea::placeholder { color: var(--odk-secondary-strong); font-size: var(--agent-text-label); white-space: nowrap; overflow: hidden; }
-.agent-latest { min-width: 44px; min-height: 44px; border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-control); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: var(--agent-text-label); cursor: pointer; }
+.agent-latest { min-width: 44px; min-height: 44px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: var(--agent-text-label); cursor: pointer; }
 .agent-latest { position: absolute; z-index: 1; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); padding-inline: 16px; pointer-events: auto; white-space: nowrap; }
 .agent-panel button:disabled { opacity: 0.5; cursor: default; }
 .agent-panel :is(button, input, textarea, select, summary):focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
@@ -118,10 +126,11 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   .agent-panel { --agent-avatar-size: 64px; --agent-head-padding: 4px; }
   .agent-head { padding-block: 0 4px; }
   .agent-message-bubble, .agent-message-user { padding: var(--agent-pad-surface) 16px; }
-  #desk-content { flex: none; min-height: 70vh; grid-template-rows: minmax(360px, 60vh) max-content 48px; }
+  #desk-content { flex: none; min-height: 70vh; grid-template-rows: max-content minmax(360px, 60vh) max-content 48px; }
   #home-summary { width: 100%; height: max(var(--cell-h), 240px); max-height: none; }
   #home-summary .dash-head { column-gap: 8px; }
-  #home-summary .dash-wd { font-size: clamp(20px, 8cqw, 32px); }
+  #home-summary .dash-wd { font-size: clamp(24px, 9cqw, 38px); }
+  #home-summary .dash-date { font-size: 18px; }
 }
 
 [data-theme='border-beam'] #home-desk :is(.widget[data-interaction="display-only"], .dash)::after { content: none; }
@@ -135,7 +144,7 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 .agent-composer .agent-send:active:not(:disabled) { background: color-mix(in srgb, var(--odk-primary) 78%, var(--odk-bg)); color: var(--odk-bg); }
 .agent-composer .agent-send:disabled { opacity: 1; background: var(--odk-button); color: var(--odk-secondary-strong); }
 .agent-mic-label { display: none; font-size: var(--agent-text-label); color: inherit; }
-.agent-composer[data-mode="voice"] .agent-mic { flex: 1; width: auto; min-width: 0; padding-inline: 8px; border-radius: var(--odk-radius-pill); color: var(--odk-primary); }
+.agent-composer[data-mode="voice"] .agent-mic { display: inline-flex; align-items: center; justify-content: center; flex: 1; width: auto; min-width: 0; padding-inline: 8px; border-radius: var(--odk-radius-pill); color: var(--odk-primary); }
 .agent-composer[data-mode="voice"] .agent-mic-label { display: inline; }
 .agent-recording-feedback { flex: 1; min-width: 0; height: 46px; display: flex; align-items: center; justify-content: center; }
 .agent-input-level { width: min(100%, 150px); height: 6px; overflow: hidden; border-radius: var(--odk-radius-pill); background: var(--odk-stroke); }
@@ -162,7 +171,7 @@ html[data-theme='pixel'] #home-summary .dash {
 #desk-content { position: relative; }
 #desk-content > #app-view { inset: var(--widget-gap) var(--desk-side-inset) 56px; overflow: hidden; }
 @media (max-width: 639px) {
-  #desk-content:has(> #app-view:not([hidden])) { height: max(70vh, 408px); grid-template-rows: minmax(0, 1fr) max-content 48px; }
+  #desk-content:has(> #app-view:not([hidden])) { height: max(70vh, 408px); grid-template-rows: max-content minmax(0, 1fr) max-content 48px; }
 }
 #app-view .app-header { padding: 12px 20px; min-height: 64px; border-bottom: 0; }
 #app-view .app-header:has(#app-back[hidden]) { display: none; }

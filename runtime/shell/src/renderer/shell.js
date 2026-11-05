@@ -35,11 +35,12 @@ function applyGeometry() {
   let m = odkLayout.computeDesk(window.innerWidth, window.innerHeight,
     paneBudget, desk?.clientHeight || window.innerHeight, count, content?.clientHeight, minCell)
   if (grids.length) {
-    // Pages share one canvas; only Home reserves a row for Overview.
+    // Overview owns its own row outside the paging track. Every paging page
+    // measures the same shared 3x2 canvas, so no page reserves an extra row.
     const canvasRows = Math.max(...grids.map(grid => {
       const pageId = grid.closest('.page')?.dataset.pageId
       const declaredRows = effectiveLayout.pages.find(page => page.id === pageId)?.gridRows || 0
-      return Math.max(declaredRows, Math.ceil(grid.children.length / m.cols)) + (pageId === 'home' ? 1 : 0)
+      return Math.max(declaredRows, Math.ceil(grid.children.length / m.cols))
     }))
     m = odkLayout.computeDesk(window.innerWidth, window.innerHeight,
       paneBudget, desk?.clientHeight || window.innerHeight, count, content?.clientHeight, minCell, canvasRows)
@@ -544,7 +545,6 @@ async function main() {
   odkComposer.build(effectiveLayout, document.getElementById('pages-track'), uiCtx)
   const homePage = document.querySelector('#pages-track > [data-page-id="home"]')
   homePage.classList.add('home-canvas')
-  homePage.prepend(document.getElementById('home-summary'))
   const deskObserver = new ResizeObserver(() => {
     applyGeometry()
     odkComposer.placeGridTiles(document.getElementById('pages-track'))
