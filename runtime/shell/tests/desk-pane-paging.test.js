@@ -113,3 +113,11 @@ test('the Overview weekday and date type is enlarged', () => {
   assert.match(css, /\.dash-narrative \{ font-size: var\(--overview-copy-size/,
     'the narrative keeps its own fitted size')
 })
+
+test('Home still reserves one Cell of height for the fixed Overview', () => {
+  const shell = read('src/renderer/shell.js')
+  assert.match(shell, /pageId === 'home' \? 1 : 0/,
+    'the Overview row keeps its Cell in the shared canvas budget')
+  assert.match(shell, /Overview owns its own row outside the paging track/,
+    'the reservation is documented as the fixed Overview row')
+})

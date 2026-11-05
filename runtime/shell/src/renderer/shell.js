@@ -35,12 +35,13 @@ function applyGeometry() {
   let m = odkLayout.computeDesk(window.innerWidth, window.innerHeight,
     paneBudget, desk?.clientHeight || window.innerHeight, count, content?.clientHeight, minCell)
   if (grids.length) {
-    // Overview owns its own row outside the paging track. Every paging page
-    // measures the same shared 3x2 canvas, so no page reserves an extra row.
+    // Overview owns its own row outside the paging track, but it still takes
+    // one Cell of height. Home therefore reserves that row on top of the shared
+    // 3x2 Widget canvas; the other paging pages use the same canvas without it.
     const canvasRows = Math.max(...grids.map(grid => {
       const pageId = grid.closest('.page')?.dataset.pageId
       const declaredRows = effectiveLayout.pages.find(page => page.id === pageId)?.gridRows || 0
-      return Math.max(declaredRows, Math.ceil(grid.children.length / m.cols))
+      return Math.max(declaredRows, Math.ceil(grid.children.length / m.cols)) + (pageId === 'home' ? 1 : 0)
     }))
     m = odkLayout.computeDesk(window.innerWidth, window.innerHeight,
       paneBudget, desk?.clientHeight || window.innerHeight, count, content?.clientHeight, minCell, canvasRows)

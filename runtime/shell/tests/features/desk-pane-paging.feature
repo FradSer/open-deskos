@@ -58,3 +58,8 @@ Feature: The right pane keeps its Overview while the 3 by 2 Widget area pages
     Then the text shows at most two decimal places
     And an integer value stays a clean whole number
     And the portfolio grounding check accepts the same formatted value
+
+  Scenario: The fixed Overview keeps its own Cell of Widget height
+    Given the Overview is a fixed row above the 3x2 paging area
+    Then Home still reserves one Cell of height for that Overview row
+    And the Widget Cell size stays the same as before the paging change
