@@ -99,10 +99,14 @@ test('main prompt wiring forwards the live snapshot callback, bound reply and ho
   const mainBody=source.slice(source.indexOf('async function main()'))
   const roleGuard=mainBody.indexOf("if (platform === 'win32') throw Error('Windows must use the CM5 display client')"),migrationStart=mainBody.indexOf('await migratePersonalAgentState(env)')
   assert.ok(roleGuard>=0&&migrationStart>=0&&roleGuard<migrationStart,'Windows refuses the resident before migration or channel creation')
-  const wiring = source.match(/prompt:\s*([^\n]+),\n/)[1]
+  const wiring = source.match(/prompt:\s*(async \([^)]*\) => \{[\s\S]*?\n        \}),/)[1]
   let received
-  const runtime = { agent: { prompt: (...args) => { received = args; return Promise.resolve('done') } } }
-  const prompt = Function('runtime', `return (${wiring})`)(runtime)
+  const runtime = { agent: {
+    prompt: (...args) => { received = args; return Promise.resolve('done') },
+    projectReply: async text => ({ text, ui: undefined }),
+  } }
+  const service = { setReplyUi() {} }
+  const prompt = Function('runtime', 'service', `return (${wiring})`)(runtime, service)
   const snapshot = () => {}
   const reply = {threadId: 'fixture-thread', sessionId: 'fixture-session'}
   const owner = {id:'00000000-0000-0000-0000-000000000081',bind:()=>{}}
