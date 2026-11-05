@@ -62,7 +62,10 @@
 
 .w-weread .weread-text[tabindex='0'] {
   position: relative;
-  z-index: 3;
+  /* A shortened 3x2 tile can overflow. The scrollable excerpt must stay above
+     the full-tile App launcher, or a pointer cannot reach the scroll region. */
+  z-index: 5;
+  pointer-events: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--odk-secondary-strong) transparent;
   overscroll-behavior: contain;
