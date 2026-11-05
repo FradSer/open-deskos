@@ -45,15 +45,7 @@ function makeRelease(runtime, id, metadata = {}) {
 // dependencies.
 function makeCompleteRelease(runtime, id) {
   const release = makeRelease(runtime, id)
-  const renderer = path.join(release, 'src', 'renderer')
-  fs.mkdirSync(path.join(renderer, 'core'), { recursive: true })
-  fs.mkdirSync(path.join(renderer, 'plugins'), { recursive: true })
-  fs.writeFileSync(path.join(renderer, 'index.html'), '<!doctype html>')
-  fs.writeFileSync(path.join(renderer, 'core', 'registry.js'), 'requires manifest schema version 1')
-  fs.writeFileSync(path.join(renderer, 'core', 'composer.js'), 'composition')
-  for (const kind of ['page', 'tile', 'status']) {
-    fs.writeFileSync(path.join(renderer, 'plugins', `${kind}.js`), `id: 'odk.${kind}.test', manifest: { schemaVersion: 1 }`)
-  }
+  makeRenderer(release)
   const integration = path.join(release, 'integrations', 'personal-agent')
   fs.mkdirSync(path.join(integration, 'src'), { recursive: true })
   fs.mkdirSync(path.join(integration, 'systemd'), { recursive: true })
