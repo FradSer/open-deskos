@@ -52,7 +52,7 @@ html[data-theme='liquid-glass'] #liquid-glass-backdrop {
 /* Controls share the frame material. The Agent identity stays frameless so its
    name and status read as plain text under the avatar. Integrated fields inherit
    the composer frame. Widget hit targets and page marks stay transparent. */
-html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summary, [role='button'], .agent-composer):not(:where(.widget-launch, .dot, .agent-session-open, .agent-composer textarea, .agent-composer button, .sb-devices, input[type='checkbox'], input[type='radio'], input[type='range'])) {
+html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summary, [role='button'], .agent-composer, .agent-capsule):not(:where(.widget-launch, .dot, .agent-session-open, .agent-composer textarea, .agent-composer button, .sb-devices, input[type='checkbox'], input[type='radio'], input[type='range'])) {
   border: 1px solid var(--odk-control-stroke, var(--odk-stroke));
   background-color: var(--odk-glass-control-fill);
   background-image: var(--odk-glass-control-material);
@@ -66,29 +66,8 @@ html[data-theme='liquid-glass'] #personal-agent :is(button, input, select, summa
   border-radius: var(--agent-radius-control, var(--odk-radius-pill));
 }
 
-/* The identity is a transparent heading, not a control. It keeps the same
-   accessible group and 44px target while dropping every enclosing surface. */
-html[data-theme='liquid-glass'] #personal-agent .agent-capsule {
-  border: 1px solid transparent;
-  background: none;
-  background-image: none;
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border-radius: 0;
-  padding: calc((var(--agent-capsule-top) + 10px) / 2) 0;
-  row-gap: 2px;
-  min-height: 44px;
-}
-html[data-theme='liquid-glass'] #personal-agent .agent-capsule > .agent-name {
-  font-weight: 300;
-  letter-spacing: -0.02em;
-}
-html[data-theme='liquid-glass'] #personal-agent .agent-capsule > .agent-state {
-  font-size: var(--agent-text-label);
-  font-weight: 400;
-  color: var(--odk-secondary);
-}
+/* The Agent identity keeps the shared framed capsule in every theme. The
+   blanket control rule excludes it, so the frame in home-desk.css owns it. */
 
 
 

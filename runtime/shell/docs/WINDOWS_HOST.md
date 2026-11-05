@@ -269,7 +269,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\windows-kiosk.ps1
 
 The kiosk wrapper restarts the Shell after three seconds and writes `%LOCALAPPDATA%\odk\kiosk.log` without a console window.
 
-The panel covers the display, not the work area. Apply geometry after the Shell window is shown. Request fullscreen and display-bound `setBounds`; compare bounds every 400 ms and retry at most eight times. Once coverage is correct, enter kiosk mode. Kiosk mode hides the taskbar, owns the display and stops Windows touch edge gestures from revealing the taskbar or switching windows. Taps on the panel's own controls still reach the desk. End the kiosk session to restore host control.
+The panel covers the display, not the work area. Apply geometry after the Shell window is shown. Request fullscreen and display-bound `setBounds`; compare bounds every 400 ms and retry at most eight times. Once coverage is correct, enter kiosk mode. Kiosk mode hides the taskbar, owns the display and stops Windows touch edge gestures from revealing the taskbar or switching windows. The panel sets always-on-top at the screen-saver level. Taps on the panel's own controls still reach the desk. End the kiosk session to restore host control.
 
 Do not use `isFullScreen()` as acceptance. On the measured frameless window it stayed false when bounds were already `0,0 1280x800`. A logon race had previously left the panel at `1280x728`. A new display-sized window also initially returned the `1280x776` work area.
 

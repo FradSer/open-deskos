@@ -37,7 +37,7 @@ test('the shell shows its window, then applies the panel geometry', () => {
   assert.ok(showAt >= 0, 'the shell must show its window')
   assert.ok(panelAt > showAt, 'the panel is applied after the window is shown')
   assert.match(main, /\.\.\.\(panelBounds \? KIOSK_WINDOW_LOCK : \{\}\),/, 'a kiosk window is locked, and only a kiosk window')
-  assert.doesNotMatch(main, /setAlwaysOnTop/, 'kiosk mode owns the display without a separate topmost flag')
+  assert.doesNotMatch(main, /setAlwaysOnTop/, 'panel.js owns display ownership, not main.js')
   const panel = read(RUNTIME, 'src/panel.js')
   assert.match(panel, /win\.setKiosk\(true\)/, 'the Windows panel enters kiosk mode')
   assert.doesNotMatch(main, /kiosk: options\.kiosk/, 'kiosk is not requested from the constructor')

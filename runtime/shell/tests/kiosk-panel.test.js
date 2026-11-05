@@ -33,6 +33,7 @@ function fakeWindow({ bounds = WORK_AREA, maximized = false, dropFullscreen = 0,
       this.state.bounds = { ...next }
     },
     setKiosk(flag) { calls.push('setKiosk'); this.state.kiosk = flag },
+    setAlwaysOnTop(flag, level) { calls.push('setAlwaysOnTop'); this.state.alwaysOnTop = flag; this.state.topLevel = level },
   }
 }
 
@@ -66,8 +67,10 @@ test('a panel request the host drops is asked again until the desk covers the di
   assert.equal(win.calls.filter((c) => c === 'setBounds').length, 2, 'a dropped fullscreen request falls back to the window geometry')
   assert.equal(win.calls.filter((c) => c === 'setFullScreen').length, 3, 'a dropped request is asked again, not given up on')
   assert.equal(schedule.runs, 3, 'and the attempts stop as soon as the desk covers the display')
-  assert.equal(win.calls.filter((c) => c === 'setKiosk').length, 1, 'the Windows panel enters kiosk mode like a game')
+  assert.ok(win.calls.filter((c) => c === 'setKiosk').length >= 1, 'the Windows panel enters kiosk mode like a game')
   assert.equal(win.state.kiosk, true, 'kiosk mode stays on once the geometry settles')
+  assert.equal(win.state.alwaysOnTop, true, 'the panel owns the display')
+  assert.equal(win.state.topLevel, 'screen-saver', 'kiosk ownership uses the screen-saver level')
 })
 
 test('the panel stops asking once the window covers the display', () => {

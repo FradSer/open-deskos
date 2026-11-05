@@ -40,7 +40,9 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
      surface -> card -> inset/chip are strictly concentric. A control keeps one
      independent radius because a button is not a nested surface.
      Both paddings are declared here and reused by the owning rules below. */
-  --agent-top-inset: 6px;
+  /* The avatar and identity sit directly below the State Bar, with no extra
+     top inset between the panel edge and the header. */
+  --agent-top-inset: 0px;
   --agent-pad-surface: 16px;
   --agent-pad-card: 12px;
   --agent-radius-surface: var(--odk-radius-card);
