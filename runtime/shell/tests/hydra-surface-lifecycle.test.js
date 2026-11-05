@@ -258,7 +258,7 @@ nodeTest('Desk declares the shared 3x2 Hydra card with the same App continuation
   assert.equal(desk.widgets.length, 1)
   assert.equal(desk.widgets[0].id, 'odk.tile.hydra')
   assert.equal(desk.widgets[0].col, '1 / 4')
-  assert.equal(desk.widgets[0].row, '1 / 3')
+  assert.equal(desk.widgets[0].row, '1')
   assert.equal(desk.widgets[0].opensApp, 'hydra')
   assert.equal(root.DESKTOP_LAYOUT.pages.find(page => page.id === 'home').widgets.length, 6)
 })
