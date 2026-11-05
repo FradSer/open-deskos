@@ -611,7 +611,7 @@ test('an excluded plugin becoming required invalidates pending coverage', async 
 
 test('concise portfolio copy validates without repeating the source label', () => {
   const source = { id: 'futu', label: 'Futu holdings', state: 'live', value: { todayChangePercent: -0.63 }, home: { mode: 'required', priority: 100, icon: 'portfolio', fields: ['todayChangePercent'] } }
-  const text = '-1% today'
+  const text = '-0.63% today'
   const output = { items: [{ text, readingIds: ['futu'], segments: [{ text, icon: 'portfolio' }] }] }
   assert.equal(validateHomeBriefing(output, [source]).length, 1)
 })
@@ -625,7 +625,7 @@ test('percentage-only portfolio coverage rejects amounts and stale percentages',
   const extra = output('Futu holdings -1% today. Worth $48,000 in 11 positions.')
   extra.items[0].segments = [{ text: 'Futu holdings -1% today.', icon: 'portfolio' }, { text: ' Worth $48,000 in 11 positions.', icon: 'portfolio' }]
   assert.throws(() => validateHomeBriefing(extra, [source]), /Invalid portfolio percentage/)
-  assert.equal(validateHomeBriefing(output('Futu holdings -1% today.'), [source])[0].text, 'Futu holdings -1% today.')
+  assert.equal(validateHomeBriefing(output('Futu holdings -0.63% today.'), [source])[0].text, 'Futu holdings -0.63% today.')
 })
 
 test('two percentage portfolio sources keep separate visible coverage', () => {

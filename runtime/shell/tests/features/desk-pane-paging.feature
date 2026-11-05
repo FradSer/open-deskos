@@ -51,3 +51,10 @@ Feature: The right pane keeps its Overview while the 3 by 2 Widget area pages
     Given the Overview shows its weekday and date line
     Then the weekday and date type are larger than their previous scale
     And the narrative keeps its own fitted reading size
+
+  Scenario: Overview numbers keep up to two decimal places
+    Given an Overview reading has a fractional value
+    When the home template formats that value
+    Then the text shows at most two decimal places
+    And an integer value stays a clean whole number
+    And the portfolio grounding check accepts the same formatted value

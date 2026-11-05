@@ -121,11 +121,13 @@ function formatValue(value, format) {
     return value < 20 ? 'dry' : value < 35 ? 'low' : value < 60 ? 'OK' : value < 80 ? 'good' : 'wet'
   }
   if (format === 'integer' && !Number.isSafeInteger(value)) throw Error('Invalid home integer variable')
-  // Overview is prose for a person. State whole numbers and keep signed
-  // percentages honest: a small negative reading rounds to -1, never +0.
-  const whole = Math.sign(value) * Math.round(Math.abs(value)) || 0
-  if (format === 'signedPercent') return `${whole > 0 ? '+' : ''}${whole}%`
-  return `${whole}${format === 'celsius' ? '°C' : format === 'percent' ? '%' : ''}`
+  // Overview is prose for a person. Keep at most two decimal places and write
+  // whole numbers without a trailing .00. Signed percentages stay honest: a
+  // small negative reading never becomes +0.
+  const rounded = Math.sign(value) * Math.round(Math.abs(value) * 100) / 100 || 0
+  const text = Number(rounded.toFixed(2)).toString()
+  if (format === 'signedPercent') return `${rounded > 0 ? '+' : ''}${text}%`
+  return `${text}${format === 'celsius' ? '°C' : format === 'percent' ? '%' : ''}`
 }
 
 /** Bind only declared, cited plugin fields; the model never owns displayed values. */

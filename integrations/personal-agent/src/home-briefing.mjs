@@ -76,9 +76,9 @@ export function validateHomeBriefing(raw, readings, { requireSegments = false } 
     if (segments.length > 1 && segments.some(segment => !readings.some(reading => reading.home?.icon === 'portfolio' && segment.text.includes(reading.label)))) throw Error('Invalid portfolio percentage')
     const facts = labelled.length ? labelled : segments.length === 1 ? segments : []
     const reading = source.value.todayChangePercent
-    const expected = Math.sign(reading) * Math.round(Math.abs(reading)) || 0
+    const expected = Math.sign(reading) * Math.round(Math.abs(reading) * 100) / 100 || 0
     if (facts.length !== 1) throw Error('Invalid portfolio percentage')
-    const matches = [...facts[0].text.matchAll(/([+-]?\d+)%/g)]
+    const matches = [...facts[0].text.matchAll(/([+-]?\d+(?:\.\d{1,2})?)%/g)]
     if (matches.length !== 1 || Number(matches[0][1]) !== expected || (expected !== 0 && !/^[+-]/.test(matches[0][1])) || /[\d$€£¥]/.test(facts[0].text.replace(matches[0][0], ''))) throw Error('Invalid portfolio percentage')
   }
   return raw.items.map(item => {
