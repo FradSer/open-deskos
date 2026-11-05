@@ -615,18 +615,50 @@
             const first = remoteMessages.keys().next().value
             timeline.delete(remoteMessages.get(first));remoteMessages.get(first)?.remove(); remoteMessages.delete(first);remoteRecords.delete(first)
           }
+          const detail = renderRemoteDetail(item)
           const details = document.createElement('div')
           details.className = 'agent-message-actions agent-update-sources'
           details.setAttribute('role','group')
           details.setAttribute('aria-label','Related tasks')
           for (const source of item.sources || []) details.append(sessionLabel(source, item, recordKey))
           body.append(details)
+          if (detail) body.append(detail)
         }
         bindRecommendationFooters(frame)
         updateReplyChoices()
         renderReplies()
         orderTimeline()
         showThread(selectedThread)
+      }
+
+      // A generated card is the result, not a hidden appendix. Render it in full
+      // by default. A very long card stays a card: its bottom fades out and a
+      // text button overlays the fade to reveal the rest.
+      const DETAIL_EXPAND_CHARS = 480
+      function renderRemoteDetail(item) {
+        const api = root.odkOpenUIDOM ?? root.odkOpenUI
+        if (!item.ui || typeof api?.renderOpenUI !== 'function' || typeof api?.isOpenUINode !== 'function'
+          || !api.isOpenUINode(item.ui)) return null
+        const rendered = api.renderOpenUI(item.ui, { document: root.document ?? document })
+        if (!rendered) return null
+        const wrapper = document.createElement('div')
+        wrapper.className = 'agent-remote-detail'
+        const veryLong = (rendered.textContent || '').length > DETAIL_EXPAND_CHARS
+        if (veryLong) {
+          wrapper.classList.add('agent-remote-detail-clipped')
+          const toggle = document.createElement('button')
+          toggle.type = 'button'
+          toggle.className = 'agent-remote-detail-expand'
+          toggle.textContent = 'Show more'
+          toggle.setAttribute('aria-expanded', 'false')
+          toggle.addEventListener('click', () => {
+            const expanded = wrapper.classList.toggle('agent-remote-detail-expanded')
+            toggle.textContent = expanded ? 'Show less' : 'Show more'
+            toggle.setAttribute('aria-expanded', String(expanded))
+          })
+          wrapper.append(rendered, toggle)
+        } else wrapper.append(rendered)
+        return wrapper
       }
 
       // The host owns the session footer. It reuses the frame's remote source and
@@ -709,6 +741,11 @@
         if (!status.replyTo && !turn?.bound && !turn?.historyTerminal && reply && ['thinking', 'idle', 'error'].includes(status.state)) {
           if (!turn) turn = { prompt: '', response: message('assistant', '') }
           root.odkPersonalAgentReply.render(turn.response, reply)
+          const body = turn.response
+          const existing = body.querySelector('.agent-remote-detail')
+          const detail = renderRemoteDetail({ ui: status.replyUi })
+          existing?.remove()
+          if (detail) body.append(detail)
         }
         for (const notification of Array.isArray(status.notifications) ? status.notifications : []) {
           if (!notification || typeof notification.id !== 'string' || !notification.id || typeof notification.message !== 'string' || !notification.message || seenNotifications.has(notification.id)) continue

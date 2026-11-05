@@ -85,8 +85,16 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 .agent-child-details { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
 .agent-child-name { font-size: var(--agent-text-label); line-height: 1.5; color: var(--odk-primary); }
 .agent-child-state { font-size: var(--agent-text-label); line-height: 1.5; }
-.agent-message-bubble { width: fit-content; min-width: 0; max-width: 96%; padding: var(--agent-pad-surface) 20px; background: var(--odk-surface); border-radius: var(--agent-radius-surface); }
+/* Every assistant reply shares one width. A short reply must not leave a narrow
+   card beside a longer one; owner messages keep their own narrower alignment. */
+.agent-message-bubble { width: 100%; max-width: 96%; min-width: 0; padding: var(--agent-pad-surface) 20px; background: var(--odk-surface); border-radius: var(--agent-radius-surface); }
 .agent-message-body { white-space: pre-wrap; }
+/* Safe Markdown renders paragraphs. Its source newlines must not become extra
+   preformatted lines, and consecutive paragraphs keep the named Agent rhythm. */
+.agent-message-body.personal-agent-status-markdown { white-space: normal; }
+.agent-message-body.personal-agent-status-markdown > p { margin: 0; }
+.agent-message-body.personal-agent-status-markdown > p + p { margin-block-start: var(--agent-gap-block); }
+.agent-message-body.personal-agent-status-markdown > :last-child { margin-bottom: 0; }
 .agent-message-body p { margin: 0 0 12px; }
 .agent-message-body details { white-space: normal; overflow-wrap: anywhere; }
 .agent-message-body details > summary { min-height: 44px; display: flex; align-items: center; color: var(--odk-secondary-strong); cursor: pointer; font-size: var(--agent-text-label); }
@@ -280,6 +288,50 @@ html[data-theme='pixel'] #home-summary .dash {
    One named block gap keeps plain conversation footers in step with recommendation footers. */
 .agent-message-actions { display: grid; gap: var(--agent-gap-block); margin-block-start: var(--agent-gap-block); white-space: normal; }
 .agent-update-sources { width: 100%; min-width: 0; }
+.agent-remote-detail { position: relative; margin-block-start: var(--agent-gap-block); white-space: normal; min-width: 0; }
+.agent-remote-detail > .personal-agent-preview-card { margin-block-start: 0; }
+/* A very long card keeps its card surface. Its lower rows fade out and the
+   expand control sits over the fade, so no extra frame or list appears. */
+.agent-remote-detail-clipped > .personal-agent-preview-card {
+  max-block-size: 15rem;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 88px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 88px), transparent);
+}
+.agent-remote-detail-expanded > .personal-agent-preview-card {
+  max-block-size: none;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+.agent-remote-detail-expand {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 88px;
+  padding: 0 0 var(--agent-gap-block);
+  border: 0;
+  background: linear-gradient(to bottom, transparent, var(--odk-surface));
+  color: var(--odk-primary);
+  font: inherit;
+  font-size: var(--agent-text-label);
+  cursor: pointer;
+}
+.agent-remote-detail-expand:hover { text-decoration: underline; }
+.agent-remote-detail-expand:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: -2px; }
+/* Once revealed, the card is whole. The collapse control returns to normal
+   flow below the card instead of overlaying its text. */
+.agent-remote-detail-expanded > .agent-remote-detail-expand {
+  position: static;
+  min-height: 44px;
+  padding: var(--agent-gap-block) 0 0;
+  background: transparent;
+}
+@media (forced-colors: active) {
+  .agent-remote-detail-clipped > .personal-agent-preview-card { mask-image: none; -webkit-mask-image: none; }
+}
 .agent-reply-details { min-width: 0; }
 .agent-panel .agent-reply-status[hidden], .agent-panel .agent-state[hidden] { display: none; }
 .agent-identity > .agent-capsule { color: var(--odk-primary); }

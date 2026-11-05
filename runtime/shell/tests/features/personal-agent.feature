@@ -114,6 +114,14 @@ Feature: Independent resident Personal Agent
     And its text renders through the same safe Markdown as generated advice
     And the two messages share one spacing rhythm in the conversation
 
+  Scenario: Every assistant reply keeps one uniform bubble width
+    Given several assistant replies of short, medium and long text
+    When the Shell renders them in the same conversation at reference and compact sizes
+    Then every assistant bubble has the same measured width
+    And the width does not shrink with the amount of text
+    And owner messages keep their own narrower alignment
+    And no bubble overflows the conversation or clips its text
+
   Scenario: The generated card owns one spacing rhythm and no orphan divider
     Given a recommendation card composes a badge, a divider, a heading, prose and a stack
     When the Shell renders the card across themes and compact widths
@@ -423,6 +431,26 @@ Feature: Independent resident Personal Agent
     And repeated identical replies retain their DOM and scroll position
     And Instrument, Pixel, and Border Beam retain meaningful emphasis without synthesizing Pixel weights or styles
     And long English, CJK, code, and tables remain readable and bounded at native and compact sizes
+
+  Scenario: A multi-paragraph reply keeps one bounded block rhythm
+    Given a final reply contains several blank-line paragraphs, bold text, and inline code
+    When the conversation renders the reply through the safe Markdown renderer
+    Then the rendered body keeps normal white space instead of preformatted line breaks
+    And consecutive paragraphs use the named Agent block gap without extra source-newline space
+    And bold and inline code keep their semantic markup
+    And Instrument, Pixel, and Border Beam keep the same measured gaps
+
+  Scenario: A long model reply is projected into a short message and a detail card
+    Given a model turn returns a long reply with a result, a table, and acceptance boundaries
+    When the host runs one bounded tool-free projection turn over that reply
+    Then the visible message states the concrete result in one short sentence
+    And the generated OpenUI card shows its material values in full with no expand control
+    And the card uses generic read-only primitives without an approved action
+    And only a very long card fades out at the bottom with a Show more text button over the fade
+    And revealing that button removes the fade and keeps the card surface
+    And the host validates the projection against the original reply before publication
+    And a failed or unavailable projection publishes the exact original reply
+    And a short reply stays unchanged with no card
 
   Scenario: Reply to a specific Pi session from its incoming update
     Given an incoming update contains retained references for two Pi sessions

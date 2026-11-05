@@ -189,7 +189,14 @@ async function main() {
           return record(directory, env.ODK_PERSONAL_AGENT_AUDIO_DEVICE || 'default', onLevel, { platform })
         },
         transcribe: (path, signal) => transcribe(path, runtime.stt, signal),
-        prompt: (text, onResponseSnapshot, reply, owner) => runtime.agent.prompt(text, onResponseSnapshot, reply, owner),
+        prompt: async (text, onResponseSnapshot, reply, owner) => {
+          const answer = await runtime.agent.prompt(text, onResponseSnapshot, reply, owner)
+          // A long reply is projected into a short message plus an optional card.
+          // Projection failure returns the exact original answer.
+          const projected = await runtime.agent.projectReply(answer)
+          service.setReplyUi(projected.ui)
+          return projected.text
+        },
       })
       service.setState('error', 'Configure Open DeskOS workspace, STT credential and Pi authentication; restart service')
       const originalToggle = service.toggle.bind(service)
