@@ -68,6 +68,7 @@ Feature: Independent resident Personal Agent
     And the source group takes a small optical nudge below the Reply centre
     And the source row grows its left inset to match the larger gap below its small text
     And the source keeps its full touch target without moving the Reply control
+    And the Reply control's right padding matches its bottom padding
     And the Pixel theme collapses the whole scale to zero
     And a plain conversation message without a generated card keeps the same footer geometry
 

@@ -294,7 +294,7 @@ html[data-theme='pixel'] #home-summary .dash {
 .agent-panel .agent-message-session .agent-session-open svg { width: 18px; height: 18px; flex: none; }
 .agent-session-name { min-width: 0; }
 .agent-panel .agent-message-session button { line-height: 1.4; }
-.agent-panel .agent-message-session .agent-session-reply { padding: 10px 14px; }
+.agent-panel .agent-message-session .agent-session-reply { padding: 10px; }
 .agent-reply-unavailable { grid-column: 1 / -1; }
 @media (prefers-contrast: more), (forced-colors: active) {
   .agent-panel .agent-message-session .agent-session-open { --odk-control-foreground: var(--odk-primary); }

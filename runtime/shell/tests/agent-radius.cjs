@@ -162,6 +162,8 @@ app.whenReady().then(async () => {
               return {
                 gap: c(foot).rowGap, marginTop: c(foot).marginTop,
                 replyRadius: reply ? parseFloat(c(reply).borderTopLeftRadius) : null,
+                replyPaddingRight: reply ? parseFloat(c(reply).paddingRight) : null,
+                replyPaddingBottom: reply ? parseFloat(c(reply).paddingBottom) : null,
                 replyFont: reply ? parseFloat(c(reply).fontSize) : null,
                 nameFont: name ? parseFloat(c(name).fontSize) : null,
                 openPaddingLeft: open ? parseFloat(c(open).paddingLeft) : null,
@@ -255,9 +257,10 @@ app.whenReady().then(async () => {
     // Every geometry field must agree; the footer does not depend on a card.
     const pf = m.footer.bothFooters.plain, of = m.footer.bothFooters.openui
     assert.ok(pf && of, `${theme}: both a plain and an OpenUI message need a session footer`)
-    for (const field of ['gap', 'marginTop', 'replyRadius', 'replyFont', 'nameFont', 'openPaddingLeft', 'openTransform', 'touchTarget', 'iconLeft', 'centreSpread'])
+    for (const field of ['gap', 'marginTop', 'replyRadius', 'replyPaddingRight', 'replyPaddingBottom', 'replyFont', 'nameFont', 'openPaddingLeft', 'openTransform', 'touchTarget', 'iconLeft', 'centreSpread'])
       assert.equal(pf[field], of[field], `${theme}: plain and OpenUI footers must share ${field}: ${pf[field]} vs ${of[field]}`)
     assert.equal(pf.replyRadius, card, `${theme}: the plain Reply shares the card radius ${card}`)
+    assert.equal(pf.replyPaddingRight, pf.replyPaddingBottom, `${theme}: Reply right padding ${pf.replyPaddingRight} must match its bottom padding ${pf.replyPaddingBottom}`)
     // Icon and source text stay strictly on one line. The source group sits a
     // small optical 2px below the Reply centre; a 13px layout break is refused.
     // The larger gap below the small text is matched by growing the left inset.
