@@ -156,7 +156,12 @@ app.whenReady().then(async () => {
     }
     const overflow = text.scrollHeight > text.clientHeight + 1;
     if (overflow) {
-      const hit = document.elementFromPoint(text.getBoundingClientRect().left + text.clientWidth / 2, text.getBoundingClientRect().top + Math.min(8, text.clientHeight / 2));
+      // On a narrow host the 3x2 Widget can sit below the fold. The owner
+      // scrolls to it before reading, so bring the excerpt into view before a
+      // hit test. The assertion on the hit element below is unchanged.
+      const probe = () => document.elementFromPoint(text.getBoundingClientRect().left + text.clientWidth / 2, text.getBoundingClientRect().top + Math.min(8, text.clientHeight / 2));
+      let hit = probe();
+      if (!hit) { text.scrollIntoView({ block: 'center' }); hit = probe(); }
       if (hit !== text && !text.contains(hit)) throw Error('WeRead scrolling is blocked by the App launcher');
       if (getComputedStyle(text).overflowY !== 'auto' || text.tabIndex !== 0) throw Error('WeRead excerpt has no accessible scroll path');
       const previous = text.scrollTop;

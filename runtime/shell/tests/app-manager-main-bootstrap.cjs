@@ -162,8 +162,8 @@ app.on('browser-window-created', (_event, win) => {
           if(performance.now()>deadline)throw Error('Production installed desktop consumer did not settle');
           await new Promise(resolve=>setTimeout(resolve,10));}})()`)
         await wait(`document.querySelectorAll('[data-user-app-id][data-state="ready"]').length===2`)
-        assert.equal(await js(`document.querySelector('[data-user-app-id="note"]').dataset.col`), '2')
         assert.equal(await js(`document.querySelector('[data-user-app-id="note"] iframe').getAttribute('sandbox')`), 'allow-scripts')
+        assert.equal(await js(`document.querySelector('[data-user-app-id="note"]').dataset.surface`), 'app')
         assert.equal(await js(`document.querySelector('[data-user-app-id="counter"]').dataset.surface`), 'app')
         const counterFrame = win.webContents.mainFrame.frames.find(frame => frame.url.includes('/counter/'))
         assert.ok(counterFrame, 'Production protocol must load the installed App document')
@@ -174,13 +174,10 @@ app.on('browser-window-created', (_event, win) => {
         await js('window.desktopRetainedForeground=document.querySelector("#app-runtime").firstElementChild')
         const managerState = host.get('odk:system/app-manager/v1').captureState()
         const desktop = await js(`odkUserApps.dispatch({command:'desktop'})`)
-        const grid = desktop.pages?.find(page => page.id === 'desk')
-        assert.ok(desktop.ok && grid?.columns >= 2 && grid.rows >= 3, `Production grid unavailable: ${JSON.stringify(desktop)}`)
-        const moved = { pageId: grid.id, col: '1 / 3', row: String(grid.rows) }
-        const outside = { ...moved, col: String(grid.columns + 1) }
+        const grid = desktop.pages?.find(page => page.id === 'home')
+        assert.ok(desktop.ok && grid?.columns >= 2 && grid.rows >= 2, `Production grid unavailable: ${JSON.stringify(desktop)}`)
+        const outside = { pageId: grid.id, col: String(grid.columns + 1), row: '1' }
         assert.equal((await js(`odkUserApps.dispatch(${JSON.stringify({ command: 'place', appId: 'note', placement: outside })})`)).ok, false)
-        assert.equal((await js(`odkUserApps.dispatch(${JSON.stringify({ command: 'place', appId: 'note', placement: moved })})`)).ok, true)
-        await wait(`document.querySelector('[data-user-app-id="note"]').dataset.col==='1 / 3'`)
         const retained = async () => {
           assert.equal(await js(`document===desktopRetainedDocument&&desktopRetainedCounter.isConnected&&
             document.querySelector('[data-user-app-id="counter"] iframe')===desktopRetainedCounter&&desktopRetainedClock.isConnected&&

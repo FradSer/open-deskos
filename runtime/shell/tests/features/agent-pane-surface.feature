@@ -23,3 +23,9 @@ Feature: The Agent pane has no flat fill and the State Bar keeps a tight band
     And the paging track is not visible behind the App
     When the App returns to its source Widget
     Then the Overview is visible again
+
+  Scenario: A shortened WeRead tile keeps its excerpt scrollable
+    Given WeRead occupies the shared three-by-two Widget area
+    When the excerpt is taller than its shortened content box
+    Then the excerpt owns a focusable scroll region above the App launcher
+    And a pointer at the excerpt can reach the excerpt instead of the launcher

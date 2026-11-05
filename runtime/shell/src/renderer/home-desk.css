@@ -126,8 +126,11 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   .agent-panel { --agent-avatar-size: 64px; --agent-head-padding: 4px; }
   .agent-head { padding-block: 0 4px; }
   .agent-message-bubble, .agent-message-user { padding: var(--agent-pad-surface) 16px; }
-  #desk-content { flex: none; min-height: 70vh; grid-template-rows: max-content minmax(360px, 60vh) max-content 48px; }
-  #home-summary { width: 100%; height: max(var(--cell-h), 240px); max-height: none; }
+  /* Keep the narrow desk at its original 70vh budget. The fixed Overview takes
+     its height from the Widget row instead of adding a second tall row, so the
+     Widget canvas stays inside the viewport as it did before the paging change. */
+  #desk-content { flex: none; height: 70vh; min-height: 0; grid-template-rows: max-content minmax(0, 1fr) max-content 48px; }
+  #home-summary { width: 100%; height: auto; min-height: 112px; max-height: none; }
   #home-summary .dash-head { column-gap: 8px; }
   #home-summary .dash-wd { font-size: clamp(24px, 9cqw, 38px); }
   #home-summary .dash-date { font-size: 18px; }
