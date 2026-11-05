@@ -66,7 +66,8 @@ test('a panel request the host drops is asked again until the desk covers the di
   assert.equal(win.calls.filter((c) => c === 'setBounds').length, 2, 'a dropped fullscreen request falls back to the window geometry')
   assert.equal(win.calls.filter((c) => c === 'setFullScreen').length, 3, 'a dropped request is asked again, not given up on')
   assert.equal(schedule.runs, 3, 'and the attempts stop as soon as the desk covers the display')
-  assert.equal(win.calls.filter((c) => c === 'setKiosk').length, 0, 'a Windows panel is not the shell kiosk mode')
+  assert.equal(win.calls.filter((c) => c === 'setKiosk').length, 1, 'the Windows panel enters kiosk mode like a game')
+  assert.equal(win.state.kiosk, true, 'kiosk mode stays on once the geometry settles')
 })
 
 test('the panel stops asking once the window covers the display', () => {

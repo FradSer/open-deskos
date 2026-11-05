@@ -66,6 +66,11 @@ function enterPanel(win, panelBounds, platform = process.platform, schedule = se
     if (attemptsLeft > 1 && !coversDisplay(win.getBounds(), panelBounds)) {
       schedule(() => attempt(attemptsLeft - 1), PANEL_RETRY_MS)
     }
+    // A game-like desk owns the display: kiosk keeps the taskbar hidden and
+    // stops Windows touch edge gestures from revealing it or switching apps.
+    // Apply it only once the geometry covers the display, after the same
+    // settle/retry path as the bounds, so a logon race cannot drop it.
+    if (coversDisplay(win.getBounds(), panelBounds)) win.setKiosk(true)
   }
   schedule(() => attempt(PANEL_ATTEMPTS), PANEL_SETTLE_MS)
 }

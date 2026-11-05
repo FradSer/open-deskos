@@ -6,11 +6,9 @@
 #   * one log records every start and every line the shell printed, so a remote
 #     operator can see what happened without a console window on the desk.
 #
-# It deliberately does **not** hide the taskbar. This is a machine that runs other
-# applications: the desk is fullscreen while it is the active window (Windows hides
-# the taskbar for a fullscreen window itself), and switching to another window
-# brings that window and the taskbar back. Hiding the shell would make the other
-# applications unreachable.
+# The desk enters kiosk mode once its geometry covers the display. Kiosk mode hides
+# the taskbar and stops Windows touch edge gestures. Normal taps on the desk's own
+# controls still reach the desk. End the kiosk session to restore host control.
 #
 # Run it from the kiosk user's own interactive session (a scheduled task with
 # `-LogonType Interactive`), never from an SSH session: a GUI started in session 0

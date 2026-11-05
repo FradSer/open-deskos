@@ -35,7 +35,15 @@ Feature: 64-bit Windows as a Shell Host
     When the window is created
     Then it is not movable, resizable, maximizable or minimizable
     And a hand drag leaves its geometry unchanged
-    And the desk is not topmost and the host taskbar is not hidden
+
+  Scenario: The Windows panel fills the display like a game
+    Given the panel window is shown on a Windows host
+    When the desk applies its panel geometry
+    Then the panel enters kiosk mode after the geometry settles
+    And the host taskbar stays hidden while the panel is active
+    And Windows touch edge gestures cannot reveal the taskbar or switch windows
+    And taps on the panel's own controls still reach the desk
+    And the taskbar is available again when the operator ends the kiosk session
 
   Scenario: Host facts resolve the Shell Host
     Given the runtime resolves the Shell Host from host facts

@@ -22,8 +22,9 @@ const read = (...parts) => fs.readFileSync(path.join(...parts), 'utf8')
 //   * a panel that left the window movable followed a hand drag, and Win+Down
 //     minimized it, so a panel window is locked against all four.
 //
-// Nothing may be topmost and nothing may hide the taskbar, because this machine
-// runs other applications. The retry itself is covered behaviourally in
+// The panel enters kiosk mode after the geometry settles. Kiosk mode owns the
+// display, hides the taskbar and suppresses Windows touch edge gestures; no
+// separate always-on-top flag is needed. The retry itself is covered in
 // kiosk-panel.test.js.
 test('the shell shows its window, then applies the panel geometry', () => {
   const main = read(RUNTIME, 'src/main.js')
@@ -36,22 +37,23 @@ test('the shell shows its window, then applies the panel geometry', () => {
   assert.ok(showAt >= 0, 'the shell must show its window')
   assert.ok(panelAt > showAt, 'the panel is applied after the window is shown')
   assert.match(main, /\.\.\.\(panelBounds \? KIOSK_WINDOW_LOCK : \{\}\),/, 'a kiosk window is locked, and only a kiosk window')
-  assert.doesNotMatch(main, /setAlwaysOnTop/, 'the desk is not topmost')
+  assert.doesNotMatch(main, /setAlwaysOnTop/, 'kiosk mode owns the display without a separate topmost flag')
+  const panel = read(RUNTIME, 'src/panel.js')
+  assert.match(panel, /win\.setKiosk\(true\)/, 'the Windows panel enters kiosk mode')
   assert.doesNotMatch(main, /kiosk: options\.kiosk/, 'kiosk is not requested from the constructor')
   assert.doesNotMatch(main, /fullscreen: options\.kiosk/, 'fullscreen is not requested from the constructor')
 
-  const panel = read(RUNTIME, 'src/panel.js')
   assert.match(panel, /if \(attemptsLeft > 1 && !coversDisplay\(win\.getBounds\(\), panelBounds\)\)/, 'a panel request the host drops is asked again')
   assert.match(panel, /win\.setBounds\(panelBounds\)/, 'the panel geometry is asked for as a window at the display bounds')
   assert.match(panel, /win\.setKiosk\(true\)/, 'the reference host still enters kiosk mode')
 })
 
-// The launcher that runs the panel must not take the taskbar away: this host runs
-// other applications, and hiding the shell would make them unreachable.
+// The launcher never manipulates the taskbar HWND itself. Kiosk mode, applied by
+// panel.js after the geometry settles, owns the display and hides the taskbar.
 test('the panel launcher leaves the host shell alone', () => {
   const launcher = read(RUNTIME, 'scripts/windows-kiosk.ps1')
 
-  assert.doesNotMatch(launcher, /Shell_TrayWnd/, 'the launcher must not hide or touch the taskbar')
-  assert.doesNotMatch(launcher, /ShowWindow/, 'the launcher must not show or hide shell windows')
+  assert.doesNotMatch(launcher, /Shell_TrayWnd/, 'the launcher does not manipulate the taskbar window')
+  assert.doesNotMatch(launcher, /ShowWindow/, 'the launcher does not show or hide shell windows')
   assert.match(launcher, /RestartDelaySeconds/, 'the panel restarts after the shell exits')
 })
