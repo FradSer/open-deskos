@@ -16,10 +16,13 @@ test('the Agent pane clips scrolling content without a flat fill', () => {
   assert.match(rule[1], /border-right:\s*1px solid/, 'the separating border stays')
 })
 
-test('the State Bar tightens without moving the Widget canvas', () => {
+test('the State Bar band ends where the desk begins', () => {
   const css = read('src/renderer/home-desk.css')
-  assert.match(css, /#status-bar\s*\{[^}]*height:\s*calc\(var\(--status-h\) - \d+px\)/,
-    'the visible band is shorter than the geometry status height')
+  assert.doesNotMatch(css, /#status-bar\s*\{[^}]*height:\s*calc\(var\(--status-h\) - \d+px\)/,
+    'no shorter band leaves a dead strip above the desk')
   assert.match(css, /#home-desk\s*\{[^}]*inset:\s*var\(--status-h\)/,
-    'the desk still starts at the geometry status height')
+    'the desk starts at the geometry status height')
+  const layout = read('src/renderer/layout.js')
+  assert.match(layout, /Math\.max\(56, Math\.min\(88, Math\.floor\(height \* 0\.06\)\)\)/,
+    'the widescreen State Bar band is shorter than before')
 })

@@ -286,8 +286,8 @@ app.whenReady().then(async () => {
     assert.equal(pad.summaryLine, pad.chipLine, `${theme}: chips share the same line height`)
     assert.ok(parseFloat(pad.chip[0]) >= parseFloat(pad.gapChip), `${theme}: chip text does not crowd its corners`)
     assert.equal(m.parts.composer.radius, bubble, `${theme}: composer and bubble share one surface radius`)
-    const controlToken = parseFloat(m.tokens.control) || (theme === 'pixel' ? 0 : m.parts.latest.radius)
-    assert.equal(m.parts.latest.radius, controlToken, `${theme}: the latest overlay keeps its own control radius`)
+    // Jump to latest is a capsule, independent of the concentric surface chain.
+    assert.equal(m.parts.latest.tl, theme === 'pixel' ? '0px' : '999px', `${theme}: the latest overlay keeps its pill shape`)
     // A field control inside the inset panel shares the panel radius so the control reads as
     // part of its container. The concentric surface chain stops at the panel.
     assert.equal(m.parts.select.radius, inset, `${theme}: a field control matches its inset panel (inset ${inset}, select ${m.parts.select.tl}, control ${control})`)
@@ -297,7 +297,7 @@ app.whenReady().then(async () => {
     } else {
       // No level may fall back to a pill or an unrelated fixed value.
       for (const [name, part] of Object.entries(m.parts)) {
-        if (!part || name === 'composerButton') continue
+        if (!part || name === 'composerButton' || name === 'latest') continue
         assert.ok(Number.isFinite(part.radius) && part.radius < 40, `${theme}/${name}: ${part.tl} is not part of the concentric scale`)
       }
       // A square icon control reads as a circle, so it is not part of the surface chain.

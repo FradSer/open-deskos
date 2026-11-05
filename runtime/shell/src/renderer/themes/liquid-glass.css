@@ -62,7 +62,7 @@ html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summar
   color: var(--odk-control-foreground, var(--odk-primary));
 }
 
-html[data-theme='liquid-glass'] #personal-agent :is(button, input, select, summary):not(.agent-session-open) {
+html[data-theme='liquid-glass'] #personal-agent :is(button, input, select, summary):not(:where(.agent-session-open, .agent-latest)) {
   border-radius: var(--agent-radius-control, var(--odk-radius-pill));
 }
 

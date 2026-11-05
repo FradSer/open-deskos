@@ -26,9 +26,11 @@
     const cols = isWidescreen ? 5 : Math.max(1, Math.min(3, Math.floor((width - gutter) / (200 + gutter))))
     // Compact windows scroll rather than shrinking eleven instruments below readable size.
     const rows = isWidescreen ? 3 : Math.ceil(widgetCount / cols)
+    // The State Bar holds one 44px control row. Keep a small band around it
+    // instead of a tall one that leaves dead space above the desk.
     const statusH = isWidescreen
-      ? Math.max(76, Math.min(104, Math.floor(height * 0.075)))
-      : Math.max(72, Math.min(88, Math.floor((REF.barIcon + 12) * fit + 8.5)))
+      ? Math.max(56, Math.min(88, Math.floor(height * 0.06)))
+      : Math.max(60, Math.min(76, Math.floor((REF.barIcon + 12) * fit + 8.5)))
     // Vertical budget available for grid rows below the State Bar.
     const availableV = height - statusH - 3 * gutter
     const maxCellH = Math.max(24, Math.floor((availableV - (rows - 1) * gutter) / rows))

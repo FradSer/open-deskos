@@ -15,7 +15,9 @@
 #personal-agent > .page { padding: 0; width: 100%; height: 100%; }
 /* The Overview keeps its own row above the paging track. Horizontal navigation
    only moves the 3x2 Widget pages below it; the briefing never follows a page. */
-#desk-content { display: grid; grid-template-rows: max-content minmax(0, 1fr) max-content 48px; min-width: 0; min-height: 0; }
+/* Overview, the paging track, and the Page Controller fill the pane. No fixed
+   empty row sits below the controller, so the Widget canvas gets its height. */
+#desk-content { display: grid; grid-template-rows: max-content minmax(0, 1fr) max-content; min-width: 0; min-height: 0; }
 #home-summary { grid-row: 1; container-type: inline-size; width: var(--grid-w); max-width: calc(100% - 2 * var(--desk-side-inset)); height: var(--cell-h); flex: none; margin-inline: auto; min-width: 0; min-height: 0; overflow-y: auto; border: 0; border-radius: 0; background: transparent; }
 #home-desk .home-canvas { gap: var(--widget-gap); }
 #home-summary > .page { height: auto; padding: 0; overflow: visible; }
@@ -47,8 +49,6 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   /* The avatar and identity sit directly below the State Bar, with no extra
      top inset between the panel edge and the header. */
   --agent-top-inset: 0px;
-  /* Only the identity moves up; the conversation and composer keep their inset. */
-  --agent-head-lift: -8px;
   --agent-pad-surface: 16px;
   --agent-pad-card: 12px;
   --agent-radius-surface: var(--odk-radius-card);
@@ -63,8 +63,10 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   --agent-text-heading: clamp(20px, calc(18px + 0.65cqw), 24px);
   --agent-text-body: 17px;
   --agent-text-label: 14px;
-  --agent-avatar-size: 112px; --agent-avatar-frame-height: calc(var(--agent-avatar-size) * 2 / 3); --agent-head-overlap: calc(var(--agent-avatar-frame-height) * 0.18); --agent-head-padding: 12px; --agent-capsule-top: max(8px, calc(var(--agent-head-overlap) + 6px)); --agent-head-space: calc(var(--agent-avatar-frame-height) - var(--agent-head-overlap) + var(--agent-capsule-top) + 60px + var(--agent-head-padding)); position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-auto-rows: auto; width: 100%; height: 100%; min-height: 0; padding: var(--agent-top-inset) 20px 20px; gap: 10px; }
-.agent-head { grid-area: 1 / 1; align-self: start; z-index: 2; pointer-events: none; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 0; flex: none; min-width: 0; padding-block: 0 12px; transform: translateY(var(--agent-head-lift)); }
+  --agent-avatar-size: 112px; --agent-avatar-frame-height: calc(var(--agent-avatar-size) * 2 / 3); --agent-head-overlap: calc(var(--agent-avatar-frame-height) * 0.18); --agent-head-padding: 12px; --agent-capsule-top: max(8px, calc(var(--agent-head-overlap) + 6px)); --agent-head-space: calc(var(--agent-avatar-frame-height) - var(--agent-head-overlap) + var(--agent-capsule-top) + 84px + var(--agent-head-padding)); position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-auto-rows: auto; width: 100%; height: 100%; min-height: 0; padding: var(--agent-top-inset) 20px 20px; gap: 10px; }
+/* The onee avatar is taller than its frame and overflows upward by design.
+   Give the header that space so the pane never clips the avatar. */
+.agent-head { grid-area: 1 / 1; align-self: start; z-index: 2; pointer-events: none; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 0; flex: none; min-width: 0; padding-block: 24px 12px; }
 .agent-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 64px; height: 64px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); }
 .agent-avatar svg { width: 32px; height: 32px; }
 .agent-name { margin: 0; min-width: 0; flex: 0 1 auto; font-size: var(--agent-text-heading); font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -129,11 +131,11 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   /* Keep the narrow desk at its original 70vh budget. The fixed Overview takes
      its height from the Widget row instead of adding a second tall row, so the
      Widget canvas stays inside the viewport as it did before the paging change. */
-  #desk-content { flex: none; height: 70vh; min-height: 0; grid-template-rows: max-content minmax(0, 1fr) max-content 48px; }
+  #desk-content { flex: none; height: auto; min-height: 70vh; grid-template-rows: max-content minmax(360px, 60vh) max-content; }
   #home-summary { width: 100%; height: auto; min-height: 112px; max-height: none; }
-  #home-summary .dash-head { column-gap: 8px; }
+  #home-summary .dash-head { column-gap: 8px; flex-wrap: nowrap; }
+  #home-summary .dash-date { font-size: clamp(13px, 4cqw, 18px); }
   #home-summary .dash-wd { font-size: clamp(24px, 9cqw, 38px); }
-  #home-summary .dash-date { font-size: 18px; }
 }
 
 [data-theme='border-beam'] #home-desk :is(.widget[data-interaction="display-only"], .dash)::after { content: none; }
@@ -174,7 +176,7 @@ html[data-theme='pixel'] #home-summary .dash {
 #desk-content { position: relative; }
 #desk-content > #app-view { inset: var(--widget-gap) var(--desk-side-inset) 56px; overflow: hidden; }
 @media (max-width: 639px) {
-  #desk-content:has(> #app-view:not([hidden])) { height: max(70vh, 408px); grid-template-rows: max-content minmax(0, 1fr) max-content 48px; }
+  #desk-content:has(> #app-view:not([hidden])) { height: max(70vh, 408px); grid-template-rows: max-content minmax(0, 1fr) max-content; }
 }
 #app-view .app-header { padding: 12px 20px; min-height: 64px; border-bottom: 0; }
 #app-view .app-header:has(#app-back[hidden]) { display: none; }
@@ -229,10 +231,9 @@ html[data-theme='pixel'] #home-summary .dash {
   backdrop-filter: blur(24px) saturate(120%);
   -webkit-backdrop-filter: blur(24px) saturate(120%);
 }
-/* The visible State Bar band is tighter than its geometry slot. The desk still
-   starts at --status-h, so the shared Widget canvas keeps its measured size. */
+/* The State Bar owns exactly --status-h. The desk starts at the same edge, so
+   there is no dead strip between them. */
 #status-bar {
-  height: calc(var(--status-h) - 12px);
   z-index: 25;
   background: transparent;
   backdrop-filter: none;

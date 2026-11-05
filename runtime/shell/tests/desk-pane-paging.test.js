@@ -52,13 +52,11 @@ test('the Overview is a persistent host outside the paging pages', () => {
     'Overview is not moved into one paging page')
 })
 
-test('the Agent avatar sits closer to the State Bar', () => {
+test('the Agent header keeps the avatar inside the pane', () => {
   const css = read('src/renderer/home-desk.css')
-  const lift = /--agent-head-lift:\s*(-?\d+)px/.exec(css)
-  assert.ok(lift, 'the header lift is declared')
-  assert.ok(Number(lift[1]) < 0, 'the avatar and identity move above the panel edge')
-  assert.match(css, /\.agent-head\s*\{[^}]*translateY\(var\(--agent-head-lift\)\)/,
-    'only the header moves, not the conversation or composer')
+  assert.doesNotMatch(css, /--agent-head-lift/, 'no negative lift clips the avatar')
+  assert.match(css, /\.agent-head\s*\{[^}]*padding-block:\s*24px 12px/,
+    'the header reserves space for the taller onee avatar')
   assert.match(css, /\.agent-identity \.agent-capsule\s*\{[^}]*border-radius:\s*var\(--agent-radius-surface\)/,
     'the framed capsule keeps its radius')
   assert.match(css, /\.agent-identity \.agent-capsule\s*\{[^}]*border:\s*1px solid/,
