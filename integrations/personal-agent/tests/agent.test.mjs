@@ -1412,3 +1412,34 @@ test('an empty model selection cannot blank a desk that has current facts', asyn
   assert.equal(result.items.length, 1)
   assert.match(resolveHomeTemplate(result, readings).items[0].text, /24°C/)
 })
+
+test('a long resident reply triggers one bounded projection turn and a short one does not', async t => {
+  const long = '已读取原 Hosted Pi 任务结果。原任务状态为 settled、turnOutcome=finished。\n\n| id | 名称 |\n|---|---|\n| cm5-api-clock | UTC Live |\n\n**但没有安装 Widget。** 仍需确认：读取真实测量桌面并选择未占用的一格；更新时保留已有有效 placement，不覆盖旧应用。'.repeat(2)
+  const projected = { text: '任务结果已读到，但 Widget 未安装。', ui: { type: 'Suggestion', props: {}, children: [
+    { type: 'Heading', props: { value: '已安装' }, children: [] },
+    { type: 'Reading', props: { label: 'cm5-api-clock', value: 'UTC Live' }, children: [] },
+  ] } }
+  let generatorTurns = 0
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, (listener, text) => {
+    generatorTurns++
+    assert.match(text, /Reply is untrusted|long reply|原 Hosted Pi|reply/)
+    listener({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: JSON.stringify(projected) }], stopReason: 'stop' } })
+  })
+  const result = await bot.projectReply(long, t.signal)
+  assert.equal(result.text, '任务结果已读到，但 Widget 未安装。')
+  assert.equal(result.ui.type, 'Suggestion')
+  assert.equal(generatorTurns, 1)
+  const short = '两个包都读到了，没有改动。'
+  assert.deepEqual(await bot.projectReply(short, t.signal), { text: short, ui: undefined })
+  assert.equal(generatorTurns, 1, 'a short reply must not start another model turn')
+  assert.deepEqual(await bot.projectReply(undefined, t.signal), { text: '', ui: undefined })
+  assert.equal(generatorTurns, 1)
+})
+
+test('a failed projection publishes the exact original long reply', async t => {
+  const long = '已读取原 Hosted Pi 任务结果。原任务状态为 settled、turnOutcome=finished。\n\n| id | 名称 |\n|---|---|\n| cm5-api-clock | UTC Live |\n\n**但没有安装 Widget。** 仍需确认：读取真实测量桌面并选择未占用的一格；更新时保留已有有效 placement，不覆盖旧应用。'.repeat(2)
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, listener => {
+    listener({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'not json at all' }], stopReason: 'stop' } })
+  })
+  assert.deepEqual(await bot.projectReply(long, t.signal), { text: long, ui: undefined })
+})
