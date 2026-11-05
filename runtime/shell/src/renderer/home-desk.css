@@ -3,7 +3,7 @@
 #status-bar [data-slot] { display: contents; }
 #sb-net { position: absolute; right: calc(var(--gutter) + var(--bar-icon) * 3.5); }
 .sb-network-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.sb-devices { appearance: none; display: inline-flex; align-items: center; gap: 12px; min-width: 44px; min-height: 44px; padding: 0 4px; border: 0; border-radius: var(--odk-radius-pill); background: transparent; color: var(--odk-primary); cursor: pointer; }
+.sb-devices { appearance: none; display: inline-flex; align-items: center; gap: 12px; min-width: 44px; min-height: 44px; padding: 0 4px; border: 0; border-radius: 0; background: transparent; color: var(--odk-primary); cursor: pointer; }
 .sb-devices:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 0; }
 .sb-peripheral { display: inline-flex; align-items: center; flex: none; color: var(--odk-secondary-strong); }
 .sb-peripheral svg { width: var(--bar-icon); height: var(--bar-icon); }
@@ -40,8 +40,6 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
      surface -> card -> inset/chip are strictly concentric. A control keeps one
      independent radius because a button is not a nested surface.
      Both paddings are declared here and reused by the owning rules below. */
-  /* Onee sits close to the State Bar. Moving the whole panel content up keeps
-     the avatar, capsule, and conversation on their shared top alignment. */
   --agent-top-inset: 6px;
   --agent-pad-surface: 16px;
   --agent-pad-card: 12px;
@@ -50,13 +48,10 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   --agent-radius-inset: max(0px, calc(var(--agent-radius-card) - var(--agent-pad-card)));
   --agent-radius-chip: var(--agent-radius-inset);
   --agent-radius-control: var(--agent-radius-inset);
-  /* One spacing rhythm for nested content. Blocks, inline chips and chip internals
-     step down together, so text never crowds a rounded corner. */
   --agent-gap-block: 10px;
   --agent-gap-inline: 8px;
   --agent-gap-chip: 6px;
   --agent-line-body: 1.5;
-  /* Three text sizes only, named like --odk-text-*: reading, in-card, label. */
   --agent-text-heading: clamp(20px, calc(18px + 0.65cqw), 24px);
   --agent-text-body: 17px;
   --agent-text-label: 14px;
@@ -138,7 +133,6 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 .agent-composer .agent-send:active:not(:disabled) { background: color-mix(in srgb, var(--odk-primary) 78%, var(--odk-bg)); color: var(--odk-bg); }
 .agent-composer .agent-send:disabled { opacity: 1; background: var(--odk-button); color: var(--odk-secondary-strong); }
 .agent-mic-label { display: none; font-size: var(--agent-text-label); color: inherit; }
-/* The voice button spans the field, so it keeps the pill shape instead of a circle. */
 .agent-composer[data-mode="voice"] .agent-mic { flex: 1; width: auto; min-width: 0; padding-inline: 8px; border-radius: var(--odk-radius-pill); color: var(--odk-primary); }
 .agent-composer[data-mode="voice"] .agent-mic-label { display: inline; }
 .agent-recording-feedback { flex: 1; min-width: 0; height: 46px; display: flex; align-items: center; justify-content: center; }
@@ -151,7 +145,6 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 .sb-peripheral { align-items: center; }
 
 
-/* The established State Bar keeps one row even on the reference canvas. */
 @media (max-width: 639px) {
   #status-bar { gap: 8px; }
   #sb-pi-status { max-width: calc(100% - 176px); min-width: 0; flex-shrink: 1; }

@@ -207,28 +207,34 @@ part of installation.
 
 ## Owner Overview preferences
 
-The resident agent reads one owner preference file. The default is
-`~/.config/odk/overview-preferences.json`. Set
-`ODK_OVERVIEW_PREFERENCES_FILE` to use another path. Keep the file at mode
-`0600`. Preferences select facts only. Displayed values stay bound to current
-local readings.
+The resident agent reads one owner Markdown file. The default is
+`~/.config/odk/overview-preferences.md`. Set
+`ODK_OVERVIEW_PREFERENCES_MD` to use another path. Keep the file at mode
+`0600`. The host compiles directives into validated source IDs. Owner prose
+never enters the model prompt. Displayed values stay bound to current local
+readings.
 
-```json
-{
-  "version": 1,
-  "mustShow": ["odk.service.futu-main"],
-  "privateSources": ["odk.app.pi-sessions"]
-}
+Write one directive per line. Precede each directive with its dated status.
+Use the closed vocabulary `holdings` or `Pi sessions`. The host ignores a
+superseded directive. The host rejects an unknown directive.
+
+```markdown
+<!-- observed: 2026-11-05 | status: active -->
+Always show: holdings
+
+<!-- observed: 2026-11-05 | status: active -->
+Never disclose: Pi sessions
 ```
 
-`mustShow` keeps one fact per listed source in Overview. `privateSources` stops
-a source from showing its contents. It still shows an aggregate count. Pi
-sessions are private by default, so Overview states how many sessions run rather
-than what a session works on. A missing or invalid file keeps this default.
-Restart the resident service after editing the file. Use the operator helper:
+`Always show` keeps one fact from that source in Overview. `Never disclose`
+stops a source from showing its contents. The source still shows an aggregate
+count. Pi sessions are private by default, so Overview states how many sessions
+run rather than what a session works on. A missing or invalid file keeps this
+default. Restart the resident service after editing the file. Use the operator
+helper:
 
 ```sh
 node integrations/personal-agent/scripts/set-overview-preferences.mjs --show
 node integrations/personal-agent/scripts/set-overview-preferences.mjs \
-  --must-show odk.service.futu-main --private-source odk.app.pi-sessions
+  --always-show holdings --never-disclose "Pi sessions"
 ```

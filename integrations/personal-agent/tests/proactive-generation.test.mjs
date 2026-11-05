@@ -3,12 +3,14 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ProactiveWatch, validateOwnerConfig } from '../src/proactive.mjs'
 import { generationKey, timeWindow } from '../src/proactive-lifecycle.mjs'
-import { generationInstructions, validateGeneratedBatch, generatedFormatCorrection, modelInput } from '../src/proactive-generation.mjs'
+import { validateGeneratedBatch, modelInput } from '../src/proactive-generation.mjs'
+import { generationSystemPrompt, openuiFormatCorrection, OPENUI_EXAMPLE } from '../src/openui-contract.mjs'
+import { componentNames, openuiSuggestion, uiTypes } from './openui-fixtures.test.mjs'
 
 const stamp = '2026-10-02T10:00:00.000Z'
 const approved = { id: 'inspect', label: 'Inspect the pending item.', tool: 'memory_update', params: { category: 'note', value: 'Inspect pending item' } }
 const config = () => ({ version: 2, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 60000, maxCandidates: 8, maxPush: 3, generationIntervalMs: 0, attentionCooldownMs: 0, suppressed: [], snoozed: {}, rules: [{ actions: [approved], id: 'deliveries', goal: '及时处理需要我领取的物品。', observations: [{ readingId: 'thirdparty.parcels', fields: ['ready', 'count'] }], delivery: 'immediate', urgent: false }] })
-const suggestion = (key, advice, evidenceIds = ['e0']) => ({ topicId: 'deliveries', key, advice, actionId: 'inspect', evidenceIds })
+const suggestion = (key, advice, evidenceIds = ['e0']) => openuiSuggestion({ topicId: 'deliveries', key, advice, actionId: 'inspect', evidenceIds })
 function fixture(overrides = {}) {
   const requests = [], frames = []
   let raw = { suggestions: [suggestion('collect', '领取待取物品。'), suggestion('count', '检查物品数量。'), suggestion('unsupported', '立即取消所有订单。')] }
@@ -33,6 +35,7 @@ test('generator emits multiple candidates; Jev chooses a probability-ordered sub
   const p = f.watch.list().filter(p => p.status === 'pending')
   assert.deepEqual(p.map(p => p.advice), ['检查物品数量。', '领取待取物品。'])
   assert(p.every(p => p.action?.tool === 'memory_update' && p.confirmation && p.nextStep && !Object.hasOwn(p, 'reason')))
+  assert(p.every(p => p.ui && uiTypes(p.ui).includes('Heading')), 'published proposals retain the full OpenUI tree')
   assert.equal(f.frames.at(-1).popup, true)
 })
 
@@ -269,7 +272,7 @@ test('Intent occurrence identity survives generated paraphrases and changed sema
     const intents = createIntentRuntime({ store, now: () => Date.parse(stamp), memory: async () => ({}), read: async () => null, judge: async () => ({ model: 'jev-test', status: 'true' }), previewRide: undefined })
     let attempt = 0
     const f = fixture({ config: { ...config(), rules: [] }, intents,
-      generate: async ({ topics }) => ({ suggestions: [{ topicId: topics[0].id, key: `generated-${++attempt}`, advice: `建议查看本轮情况${attempt}。`, nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: topics[0].evidence.map(e => e.id) }] }),
+      generate: async ({ topics }) => ({ suggestions: [openuiSuggestion({ topicId: topics[0].id, key: `generated-${++attempt}`, advice: `建议查看本轮情况。`, nextStep: 'Open the referenced source and inspect the pending item.', evidenceIds: topics[0].evidence.map(e => e.id) })] }),
       judge: async ({ candidates }) => ({ model: 'jev-test', answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.99, groundingProbability: 0.99, threshold: 0.8 }])) }) })
     await f.watch.tick(); const proposal = f.watch.list()[0]; await f.watch.presented([proposal.id]); await f.watch.tick()
     assert.equal(f.watch.list().length, 1); assert.equal(f.watch.list()[0].id, proposal.id); assert.equal(f.frames.at(-1).popup, false)
@@ -286,7 +289,7 @@ test('generated ordinary model judgments preserve relevance and grounding withou
 test('ordinary generated advice selects a supplied action identifier and rejects model authority', () => {
   const hash = 'a'.repeat(64)
   const topics = [{ id: 'deliveries', actions: [{ id: approved.id, label: approved.label }], evidence: [{ id: 'e0', readingId: 'source', field: 'sha256', value: hash }] }]
-  const candidate = { topicId: 'deliveries', key: 'inspect', advice: 'Check the changed export.', actionId: 'inspect', evidenceIds: ['e0'] }
+  const candidate = openuiSuggestion({ topicId: 'deliveries', key: 'inspect', advice: 'Check the changed export.', actionId: 'inspect', evidenceIds: ['e0'] })
   const [valid] = validateGeneratedBatch({ suggestions: [candidate] }, topics, 1)
   assert.equal(valid.nextStep, approved.label); assert.equal(valid.evidence[0].value, hash)
   const { actionId, ...missing } = candidate
@@ -296,7 +299,7 @@ test('ordinary generated advice selects a supplied action identifier and rejects
     { ...candidate, advice: '查'.repeat(401) }, { ...candidate, advice: `Inspect SHA256 ${hash}` }]) {
     assert.throws(() => validateGeneratedBatch({ suggestions: [invalid] }, topics, 1), /Invalid generated suggestion/)
   }
-  assert.match(generationInstructions, /actionId/); assert.doesNotMatch(generationInstructions, /"reason"/)
+  assert.match(generationSystemPrompt, /actionId/); assert.doesNotMatch(generationSystemPrompt, /preview\.items|"reason"/)
 })
 
 test('a legacy generation cache cannot suppress generation of the required next step', async () => {
@@ -311,34 +314,32 @@ test('a legacy generation cache cannot suppress generation of the required next 
 })
 
 
-test('suggestion schema correction identifies missing advice without disclosing private model errors', () => {
+test('OpenUI correction identifies missing advice without disclosing private model errors', () => {
   for (const intentPreview of [false, true]) {
     const topic = { id: 'topic-id', intentPreview, actions: [{ id: 'inspect', label: 'Inspect the current observation.' }], evidence: [{ id: 'e0' }] }
-    const candidate = { topicId: topic.id, key: 'stable-key', evidenceIds: ['e0'], ...(intentPreview ? { nextStep: 'Inspect the returned places.' } : { actionId: 'inspect' }) }
+    const base = openuiSuggestion({ topicId: topic.id, key: 'stable-key', advice: 'Review the current observation.',
+      evidenceIds: ['e0'], ...(intentPreview ? { nextStep: 'Inspect the returned places.' } : { actionId: 'inspect' }) })
+    const { advice, ...candidate } = base
     let error
     try { validateGeneratedBatch({ suggestions: [candidate] }, [topic], 1) } catch (caught) { error = caught }
     assert.equal(error?.code, 'advice_required')
     error.message = 'PRIVATE_MODEL_RESPONSE'
-    const correction = generatedFormatCorrection(error)
-    assert.match(correction, /Missing required field "advice"/)
-    assert.doesNotMatch(correction, /PRIVATE_MODEL_RESPONSE/)
+    const correction = openuiFormatCorrection(error)
+    assert.match(correction, /OpenUI Lang/i)
+    assert.match(correction, /root = Suggestions\(/)
+    assert.doesNotMatch(correction, /PRIVATE_MODEL_RESPONSE|Missing required field/)
     assert.equal(Object.hasOwn(candidate, 'advice'), false)
   }
   for (const error of [new SyntaxError('PRIVATE_MODEL_RESPONSE'), Object.assign(Error('PRIVATE_MODEL_RESPONSE'), { code: 'advice_required' })]) {
-    const correction = generatedFormatCorrection(error)
+    const correction = openuiFormatCorrection(error)
     assert.doesNotMatch(correction, /PRIVATE_MODEL_RESPONSE|Missing required field/)
-    for (const label of ['Ordinary example: ', 'Intent preview example: ']) {
-      const example = JSON.parse(correction.split('\n').find(line => line.startsWith(label)).slice(label.length))
-      const candidate = example.suggestions[0]
-      assert.equal(typeof candidate.advice, 'string')
-      assert.deepEqual(Object.keys(candidate).sort(), ['topicId', 'key', 'advice', label.startsWith('Intent') ? 'nextStep' : 'actionId', 'evidenceIds'].sort())
-    }
+    assert.ok(componentNames(correction).includes('Suggestions'), 'the correction supplies one valid OpenUI document')
   }
 })
 
 test('one batch judgment is final: no solo reconsideration and no repair round', async () => {
   const calls = { generate: 0, judge: [] }
-  const candidate = { topicId: 'deliveries', key: 'primary', advice: '领取待取物品。', actionId: 'inspect', evidenceIds: ['e0'] }
+  const candidate = openuiSuggestion({ topicId: 'deliveries', key: 'primary', advice: '领取待取物品。', actionId: 'inspect', evidenceIds: ['e0'] })
   const f = fixture({
     generate: async () => { calls.generate++; return { suggestions: [candidate] } },
     judge: async ({ candidates }) => {
@@ -364,21 +365,14 @@ test('a batch judgment with several candidates is not split into solo judgments'
   assert.deepEqual(calls.judge, [3], 'the whole batch is judged in one request')
 })
 
-test('the format correction reuses the contract instead of repeating it', () => {
-  const correction = generatedFormatCorrection(new SyntaxError('bad json'))
-  // The system prompt already carries the full contract. A retry only needs the
-  // failure, the schema skeleton and the two examples.
-  assert.ok(correction.length < 900, `correction is ${correction.length} chars; the contract must not be repeated`)
-  assert.doesNotMatch(correction, /one short, natural sentence/)
-  assert.doesNotMatch(correction, /The advice and the preview must complement each other/)
-  assert.doesNotMatch(correction, /Use proactive_judge at most once/)
-  for (const label of ['Ordinary example: ', 'Intent preview example: ']) {
-    const line = correction.split('\n').find(row => row.startsWith(label))
-    assert.ok(line, label)
-    assert.ok(JSON.parse(line.slice(label.length)).suggestions[0].advice)
-  }
-  assert.match(generationInstructions, /one short, natural sentence/)
-  assert.match(generationInstructions, /The advice and the preview must complement each other/)
+test('the OpenUI correction reuses the generated contract instead of repeating it', () => {
+  const correction = openuiFormatCorrection(new SyntaxError('bad json'))
+  assert.ok(correction.length < 2000, `correction is ${correction.length} chars; the contract must not be repeated`)
+  assert.doesNotMatch(correction, /one short, natural sentence|The advice and the preview must complement each other|Use proactive_judge at most once/)
+  assert.match(correction, /root = Suggestions\(/)
+  assert.ok(componentNames(correction).includes('Suggestions'))
+  assert.match(generationSystemPrompt, /openui-lang/i)
+  assert.match(generationSystemPrompt, /Only the host binds approved actions/)
 })
 
 test('model input carries each fact once and omits host bookkeeping', () => {
@@ -405,12 +399,12 @@ test('model input carries each fact once and omits host bookkeeping', () => {
   assert.equal(input.topics[0].evidence[0].ruleId, 't1')
 })
 
-test('the system contract leads with concise advice while remaining complete', () => {
-  for (const instructions of [generationInstructions]) {
-    assert.match(instructions, /one short, natural sentence/)
-    assert.match(instructions, /The advice and the preview must complement each other/)
-    assert.match(instructions, /cited observation/)
-  }
+test('OpenUI owns the generated contract while the host keeps advice bounds', () => {
+  assert.match(generationSystemPrompt, /openui-lang/i)
+  assert.match(generationSystemPrompt, /Advice is one short sentence/i)
+  assert.match(generationSystemPrompt, /Compose the card freely/i)
+  assert.doesNotMatch(generationSystemPrompt, /preview\.items/)
+  assert.ok(componentNames(OPENUI_EXAMPLE).length >= 6, 'the example uses composable primitives')
   const topics = [{ id: 'deliveries', actions: [approved], evidence: [{ id: 'e0' }] }]
   const retained = suggestion('retained', '查'.repeat(400))
   assert.equal(validateGeneratedBatch({ suggestions: [retained] }, topics, 1)[0].advice, retained.advice)

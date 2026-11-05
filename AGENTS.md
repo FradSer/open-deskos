@@ -24,6 +24,15 @@
 - Obtain authorization for deployment, activation, rollback, service installation, firmware flashing, and live camera or microphone capture.
 - A host-test pass does not prove device acceptance. Exclude credentials, tokens, diagnostic dumps, and temporary builds from commits.
 
+## Optimization work
+
+- Use subagents sparingly for optimization.
+- Prefer direct inspection when one file or one check answers the question.
+- Give parallel optimization subagents non-overlapping file scopes.
+- Use a new git worktree when an optimization changes files that another task owns.
+- Remove the new worktree after you verify the result.
+- Do not commit from an optimization worktree while the main worktree holds unfinished changes.
+
 ## Commits
 
 - Use the project commit workflow. Do not use raw `git add` or `git commit`. Use the scopes in `.git-agent/config.yml`.

@@ -3,7 +3,9 @@ Feature: Optional Liquid Glass theme
   Scenario: Interactive surfaces use the Widget glass frame
     Given Liquid Glass shows the resident Agent and a built-in App
     Then the composer uses the Widget glass material and rounded edge
-    And the composer, identity capsule, action buttons, and fields share the glass frame treatment
+    And the composer, action buttons, and fields share the glass frame treatment
+    And the Agent identity shows its name and status as plain text with no enclosing capsule frame
+    And the Agent name keeps a light display weight above the muted status line
     And integrated text input and microphone controls share the composer frame
     And Send retains its primary fill and readable disabled state
     And transparent Widget launch targets use their existing Widget frame

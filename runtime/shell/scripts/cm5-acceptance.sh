@@ -156,7 +156,11 @@ configuration_evidence() {
   # reason nothing names, so the report states whether the configured host actually answers.
   local pi_host=""
   if command -v systemctl >/dev/null 2>&1; then
-    pi_host="$(systemctl --user show -p Environment odk-shell.service 2>/dev/null | tr ' ' '\n' | sed -n 's/^ODK_PI_SSH_HOST=//p' | head -n1)"
+    pi_host="$(systemctl --user show -p Environment odk-shell.service 2>/dev/null | tr ' ' '\n' | sed -n 's/^Environment=//; s/^ODK_PI_SSH_HOST=//p' | head -n1)"
+  fi
+  # show -p Environment does not repeat EnvironmentFile= declarations.
+  if [ -z "$pi_host" ] && [ -r "$runtime_env" ]; then
+    pi_host="$(sed -n 's/^ODK_PI_SSH_HOST=//p' "$runtime_env" | tail -n1)"
   fi
   if [ -z "$pi_host" ]; then
     check "pi-sessions-remote-source" "false" "false" "peripheral" "no ODK_PI_SSH_HOST declared, so Pi Sessions has no remote source"
@@ -353,6 +357,17 @@ configuration_evidence
 MEM_TOTAL="$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"
 MEM_AVAIL="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"
 check "memory-mb" "true" "false" "informational" "total ${MEM_TOTAL:-unknown} MB, available ${MEM_AVAIL:-unknown} MB"
+
+# Report root headroom and retained artifacts. A full root blocks the next
+# release even when every service is healthy, so the count is explicit.
+DISK_ROOT="${ODK_RUNTIME_ROOT:-/opt/odk}"
+DISK_FREE_MB="$(df -Pk "$DISK_ROOT" | awk 'NR==2 { print int($4 / 1024) }' 2>/dev/null)"
+DISK_RELEASES="$(find "$DISK_ROOT/releases" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
+DISK_STATE_MB="$(du -sm "$DISK_ROOT/state" 2>/dev/null | awk '{ print $1 }')"
+DISK_MIN_MB="${ODK_STAGE_MIN_FREE_MB:-2500}"
+DISK_OK="true"
+if ! [[ "$DISK_FREE_MB" =~ ^[0-9]+$ ]] || [ "$DISK_FREE_MB" -lt "$DISK_MIN_MB" ]; then DISK_OK="false"; fi
+check "root-disk-headroom" "$DISK_OK" "false" "informational" "${DISK_FREE_MB:-unknown} MiB free, ${DISK_MIN_MB} MiB reserved, ${DISK_RELEASES:-0} releases, state ${DISK_STATE_MB:-unknown} MiB"
 
 printf '{\n  "generated_at": "%s",\n  "failures": %s,\n  "checks": [\n' \
   "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$FAILURES"

@@ -196,7 +196,7 @@ test('Hydra moisture status follows its main display bands at each boundary', as
   const home = plantHome(t, reading)
   for (const [value, status] of [[0, 'dry'], [19.9, 'dry'], [20, 'low'], [34.9, 'low'], [35, 'OK'], [59.9, 'OK'], [60, 'good'], [79.9, 'good'], [80, 'wet'], [100, 'wet']]) {
     soilPercent = value; home.invalidate(); await home.refresh()
-    assert.match(home.frame.items[0].text, new RegExp(`${status} at ${value}%`, 'i'))
+    assert.match(home.frame.items[0].text, new RegExp(`${status} at ${Math.round(value)}%`, 'i'))
   }
 })
 
@@ -209,7 +209,7 @@ test('Hydra selection excludes unreliable plant measurements and keeps healthy p
   const home = plantHome(t, reading)
   await home.refresh()
   plants[0].online = false; home.invalidate(); await home.refresh()
-  assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /Plant 1.*(?:54\.6%|OK|good)/i)
+  assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /Plant 1.*(?:55%|OK|good)/i)
   assert.ok(homeFactVariables([reading()]).some(fact => fact.factId.endsWith(':plants.1.soilPercent')))
   assert.ok(!homeFactVariables([reading()]).some(fact => fact.factId.endsWith(':plants.0.soilPercent') && fact.displayable !== false))
   plants[0].online = true; plants[0].stale = true
@@ -229,12 +229,12 @@ test('fresh node heartbeats cannot make an old soil measurement current', async 
     }, publish() {} })
   t.after(() => home.close())
   await home.refresh()
-  assert.match(home.frame.items[0].text, /OK at 54\.6%/)
+  assert.match(home.frame.items[0].text, /OK at 55%/)
   plant.measuredAt = new Date(now - 60 * 60000).toISOString(); home.invalidate(); await home.refresh()
-  assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /OK at 54\.6%/)
+  assert.doesNotMatch(home.frame.items.map(item => item.text).join(' '), /OK at 55%/)
   assert.match(home.frame.items.map(item => item.text).join(' '), /Plant 1.*(?:soil|moisture).*(?:stale|unavailable)/i)
   plant.measuredAt = new Date(now).toISOString(); home.invalidate(); await home.refresh()
-  assert.match(home.frame.items.map(item => item.text).join(' '), /OK at 54\.6%/)
+  assert.match(home.frame.items.map(item => item.text).join(' '), /OK at 55%/)
 })
 
 test('returning to the original soil value updates the displayed status', async t => {
@@ -267,7 +267,7 @@ test('invalid soil recovers within the generation cooldown', async t => {
   soilPercent = 101; home.invalidate(); await home.refresh()
   assert.match(home.frame.items[0].text, /moisture unavailable/)
   soilPercent = 54.6; home.invalidate(); await home.refresh()
-  assert.match(home.frame.items[0].text, /OK at 54\.6%/)
+  assert.match(home.frame.items[0].text, /OK at 55%/)
   assert.equal(calls, 1)
 })
 
@@ -514,11 +514,11 @@ test('selected plant and Weather both remain visible across offline and recovery
     }, publish() {} })
   t.after(() => home.close())
   await home.refresh()
-  assert.match(home.frame.items[0].text, /Plant 1 Soil moisture is OK at 54\.6%.*24°C/)
+  assert.match(home.frame.items[0].text, /Plant 1 Soil moisture is OK at 55%.*24°C/)
   plant.online = false; home.invalidate(); await home.refresh()
   assert.match(home.frame.items[0].text, /Plant 1 moisture unavailable.*24°C/)
   plant.online = true; home.invalidate(); await home.refresh()
-  assert.match(home.frame.items[0].text, /Plant 1 Soil moisture is OK at 54\.6%.*24°C/)
+  assert.match(home.frame.items[0].text, /Plant 1 Soil moisture is OK at 55%.*24°C/)
   assert.equal(calls, 1)
 })
 
@@ -578,7 +578,7 @@ test('invalid soil during generation cannot start a failure cooldown', async t =
   assert.match(home.frame.items[0].text, /moisture unavailable/)
   plant.soilPercent = 54.6; home.invalidate(); await home.refresh()
   assert.equal(home.frame.state, 'live')
-  assert.match(home.frame.items[0].text, /OK at 54\.6%/)
+  assert.match(home.frame.items[0].text, /OK at 55%/)
 })
 
 test('a pending Hydra selection expiring during generation binds current unrelated facts', async t => {
@@ -598,7 +598,7 @@ test('a pending Hydra selection expiring during generation binds current unrelat
   assert.match(home.frame.items.map(item => item.text).join(' '), /moisture unavailable/)
   assert.match(home.frame.items.map(item => item.text).join(' '), /24°C/)
   plant.measuredAt = new Date(now).toISOString(); home.invalidate(); await home.refresh()
-  assert.match(home.frame.items.map(item => item.text).join(' '), /OK at 54\.6%/)
+  assert.match(home.frame.items.map(item => item.text).join(' '), /OK at 55%/)
   assert.match(home.frame.items.map(item => item.text).join(' '), /24°C/)
 })
 
@@ -680,11 +680,11 @@ test('count and percent changes update the template without another generation',
   const segments = [{ text: '{{pi|@label|text}} {{pi|count|integer}} sessions', icon: 'sessions' }, { text: ', ' }, { text: '{{futu|@label|text}} {{futu|todayChangePercent|signedPercent}} today.', icon: 'portfolio' }]
   const home = new HomeBriefing({ preferences: OPEN_PREFERENCES, requireBindings: true, list: async () => readings(), read: async id => readings().find(r => r.id === id), generate: async () => { calls++; return { items: [{ text: segments.map(s => s.text).join(''), segments, readingIds: ['pi', 'futu'] }] } }, publish: () => {} })
   await home.refresh()
-  assert.equal(home.frame.items[0].text, 'pi 4 sessions, futu -0.82% today.')
+  assert.equal(home.frame.items[0].text, 'pi 4 sessions, futu -1% today.')
   count = 9; percent = 1.25
   home.invalidate()
   await home.refresh()
-  assert.equal(home.frame.items[0].text, 'pi 9 sessions, futu +1.25% today.')
+  assert.equal(home.frame.items[0].text, 'pi 9 sessions, futu +1% today.')
   assert.equal(home.frame.state, 'live')
   assert.equal(calls, 1)
   home.close()
@@ -761,7 +761,7 @@ test('ordinary numbers retain their format across fraction and integer changes',
   }, publish: () => {} })
   for (usage of [1.5, 2, 2.75]) {
     await home.refresh()
-    assert.equal(home.frame.items[0].text, `quota usage ${usage}.`)
+    assert.equal(home.frame.items[0].text, `quota usage ${Math.sign(usage) * Math.round(Math.abs(usage)) || 0}.`)
   }
   assert.equal(calls, 1)
   home.close()
@@ -800,7 +800,7 @@ test('finite selections compile captured identities and preserve current source 
   const raw = compileHomeSelection({ items: [{ sources: [1, 0] }] }, catalog)
   const output = resolveHomeTemplate(raw, readings)
   assert.deepEqual(raw.items[0].readingIds, ['futu', 'weather'])
-  assert.equal(output.items[0].text, 'Today change is -0.82% and Taipei is 27°C and overcast.')
+  assert.equal(output.items[0].text, 'Today change is -1% and Taipei is 27°C and overcast.')
   assert.equal(output.items[0].segments[0].icon, 'portfolio')
   assert.equal(output.items[0].segments[1].icon, 'weather')
   assert.throws(() => resolveHomeTemplate(raw, [readings[0]]), /Uncited/)
@@ -881,7 +881,7 @@ test('compiled facts preserve the actual Shell icon and first-label token groupi
   }
   assert.deepEqual(output.items[0].segments.map(segment => segment.icon), ['portfolio', 'weather'])
   assert.equal(output.items[0].segments[0].text.endsWith(' and '), true)
-  assert.equal(output.items[0].text, 'Today change is -0.82% and Temperature is 25°C.')
+  assert.equal(output.items[0].text, 'Today change is -1% and Temperature is 25°C.')
   assert.equal(output.items[0].segments.length, 2)
 })
 
@@ -986,7 +986,7 @@ test('plant, weather and holdings copy states the fact without repeating the sou
   const weather = facts.findIndex(fact => fact.factId === 'weather:@summary')
   const holdings = facts.findIndex(fact => fact.factId === 'futu:@summary')
   const text = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [soil, weather, holdings] }] }, facts), readings, now).items[0].text
-  assert.equal(text, 'Plant 1 Soil moisture is dry at 8%, Hangzhou is 24°C and Sunny and Today change is +6.40%.')
+  assert.equal(text, 'Plant 1 Soil moisture is dry at 8%, Hangzhou is 24°C and Sunny and Today change is +6%.')
 })
 
 test('a report that already ends a sentence does not gain a second period', async () => {
@@ -1003,7 +1003,7 @@ test('local fallback keeps several services when idle sessions score highest', a
     source('weather', 'weather', { temperatureC: 24, condition: 'clear', place: 'Shenzhen' }),
   ]
   const text = resolveHomeTemplate(fallbackHomeSelection(readings, Date.now(), OPEN_PREFERENCES), readings).items[0].text
-  assert.match(text, /Today change is \+2\.37%/)
+  assert.match(text, /Today change is \+2%/)
   assert.match(text, /Shenzhen is 24°C and clear/)
 })
 
@@ -1035,7 +1035,7 @@ test('a greenhouse percentage states its unit once', () => {
   const facts = homeFactVariables(readings)
   const index = facts.findIndex(fact => fact.factId.endsWith('humidityPercent'))
   const text = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [index] }] }, facts), readings).items[0].text
-  assert.equal(text, 'Humidity is 66.3%.')
+  assert.equal(text, 'Humidity is 66%.')
 })
 
 test('Pi sessions are summarized by count and state instead of repeated per-session lines', () => {
@@ -1127,4 +1127,56 @@ test('a multi-value source without a subject field keeps two values in one claus
   assert.equal((text.match(/ is /g) || []).length, 1)
   assert.equal(text, 'Temperature is 26°C and overcast.')
   assert.doesNotMatch(text, /71/, 'a third bare value does not become a list')
+})
+
+test('an ISO deadline is analysis context, never prose in the compiled Overview', () => {
+  const deadline = '2026-11-05T10:30:00Z'
+  const readings = [
+    source('calendar', 'calendar', { nextEvent: 'Standup', due: deadline }),
+    source('futu', 'portfolio', { todayChangePercent: -0.63 }),
+  ]
+  const facts = homeFactVariables(readings, Date.parse(deadline) - 60000, OPEN_PREFERENCES)
+  const due = facts.find(fact => fact.factId.endsWith(':due'))
+  assert.ok(due, 'the deadline remains available for attention scoring')
+  assert.equal(due.displayable, false, 'a raw timestamp is not a human-readable fact')
+  assert.throws(() => compileHomeSelection({ items: [{ sources: [facts.indexOf(due)] }] }, facts), /analysis-only/i)
+  const text = resolveHomeTemplate(fallbackHomeSelection(readings, Date.parse(deadline) - 60000, OPEN_PREFERENCES), readings, Date.parse(deadline) - 60000)
+    .items.map(item => item.text).join(' ')
+  assert.doesNotMatch(text, /2026-11-05T10:30:00Z|10:30/, 'Overview prose never carries the raw timestamp')
+  assert.match(text, /-1%/, 'the current daily change stays visible')
+})
+
+test('common timestamp field names never reach Overview prose', () => {
+  const stamp = '2026-11-05T10:30:00Z'
+  const fields = { startsAt: stamp, endsAt: stamp, timestamp: stamp, createdAt: stamp, time: stamp, at: stamp }
+  const readings = [source('events', 'calendar', { ...fields, title: 'Standup' })]
+  const facts = homeFactVariables(readings, Date.parse(stamp) - 60000, OPEN_PREFERENCES)
+  const timeFacts = facts.filter(fact => Object.keys(fields).some(name => fact.factId.endsWith(`:${name}`)))
+  assert.ok(timeFacts.length > 0, 'timestamp fields are still inspected for attention')
+  assert.ok(timeFacts.every(fact => fact.displayable === false), 'every timestamp field stays analysis context')
+  const text = resolveHomeTemplate(fallbackHomeSelection(readings, Date.parse(stamp) - 60000, OPEN_PREFERENCES), readings, Date.parse(stamp) - 60000)
+    .items.map(item => item.text).join(' ')
+  assert.doesNotMatch(text, /2026-11-05T10:30:00Z/)
+})
+
+test('Overview states whole numbers and keeps signed percentages honest', () => {
+  const readings = [
+    source('quota', 'quota', { remainingPercent: 12.345678901234567 }),
+    source('weather', 'weather', { humidityPercent: 71.42857142857143, temperatureC: 26.333333333333332 }),
+    source('hydra', 'plants', { soilPercent: 54.600000000000001 }),
+  ]
+  const text = resolveHomeTemplate(fallbackHomeSelection(readings, Date.now(), OPEN_PREFERENCES), readings, Date.now())
+    .items.map(item => item.text).join(' ')
+  assert.match(text, /12%/, 'a long percentage becomes a whole number')
+  assert.match(text, /71%/, 'a repeating float becomes a whole number')
+  assert.match(text, /55%/, 'binary noise rounds to the nearest whole number')
+  assert.doesNotMatch(text, /\d\.\d/, 'no displayed number keeps a decimal point')
+  const warm = [source('weather', 'weather', { temperatureC: 26.333333333333332 })]
+  const warmText = resolveHomeTemplate(fallbackHomeSelection(warm, Date.now(), OPEN_PREFERENCES), warm, Date.now()).items.map(item => item.text).join(' ')
+  assert.match(warmText, /26°C/, 'temperature keeps its unit without a decimal')
+  for (const [value, expected] of [[1.25, '+1%'], [-0.63, '-1%'], [0, '0%']]) {
+    const only = [source('futu', 'portfolio', { todayChangePercent: value })]
+    const out = resolveHomeTemplate(fallbackHomeSelection(only, Date.now(), OPEN_PREFERENCES), only, Date.now())
+    assert.match(out.items.map(item => item.text).join(' '), new RegExp(expected.replace(/[+]/g, '\\+')))
+  }
 })

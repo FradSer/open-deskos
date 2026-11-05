@@ -552,7 +552,7 @@ body.kiosk {
 .dash-markdown table { border-collapse: collapse; font: inherit; }
 .dash-markdown :is(th, td) { padding-inline-end: 0.5em; }
 [data-theme='pixel'] .dash-markdown :is(strong, em, th) { font-weight: 400; font-style: normal; }
-.dash-context { color: var(--odk-secondary-strong); }
+.dash-context { color: var(--odk-secondary); }
 .dash-fact { color: var(--odk-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
 .dash-icon { display: inline; color: color-mix(in srgb, var(--odk-accent-green) 60%, var(--odk-primary)); }
 .dash-icon:is([data-kind="weather"], [data-kind="mail"]) {
@@ -1185,10 +1185,6 @@ body.kiosk {
   overflow: hidden;
 }
 
-/* The dial owns a lane of its own, and that lane is its size container: the ring takes
-   the smaller of its width share and the lane's whole height, so a stated word never
-   pushes the dial out of the card, and the countdown inside the ring stays bounded by
-   the space the card actually gives it. */
 .pomodoro-lane {
   --pomodoro-ring: min(92cqi, 100cqb);
   --pomodoro-time-size: max(14px, calc(var(--pomodoro-ring) * 0.25));
@@ -1465,9 +1461,6 @@ body.kiosk {
   color: var(--odk-primary);
 }
 
-/* The Session Filter shares the page title's line: the tabs belong to the title
-   row rather than to a band of their own between the title and its subtitle.
-   The track keeps its touch height, so the title's line is built around it. */
 .pi-title-row {
   display: flex;
   align-items: center;
@@ -1482,8 +1475,6 @@ body.kiosk {
   flex-direction: column;
   gap: var(--odk-space-2);
   min-width: 0;
-  /* The heading owns the title row now that the filter sits in it, so it takes
-     the line the facts do not need instead of shrinking to its own text. */
   flex: 1 1 auto;
 }
 
@@ -2337,10 +2328,6 @@ body.kiosk {
   color: var(--odk-primary);
 }
 
-/* The prompt is the card's own statement, so it keeps the lines the person wrote
-   rather than one line, and stops at four with the ellipsis the clamp draws rather
-   than growing the card past its lane's reading rhythm. The activity below stays a
-   single short line, because it answers what the session is doing right now. */
 .pi-overview-goal {
   font-size: var(--odk-text-body);
   line-height: 1.5;
@@ -2831,9 +2818,6 @@ body.kiosk {
 }
 
 .hydra-env-label {
-  /* The label is a caption above its reading, so it takes its own height: a share
-     of the row would space the pair apart in a column and let the two themes
-     disagree about where the reading sits. */
   flex: none;
   color: var(--odk-secondary-strong);
   font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
@@ -2872,8 +2856,6 @@ body.kiosk {
   display: flex;
   flex-direction: column;
   gap: 2.5cqi;
-  /* The plants are what the tile is for, so the band that carries them is stated
-     as its own band: one rule, then the pairs, with the environment stack above. */
   padding-block-start: 2.5cqi;
   border-top: 1px solid var(--odk-stroke);
 }
@@ -2997,13 +2979,6 @@ body.kiosk {
   opacity: 1;
 }
 
-/* Hydra composes from the cell it is drawn in, so the shapes below are chosen by
-   the tile from its own box rather than by the width of the window: the tall slot
-   stacks the environment readings, a square cell pairs them two to a row, a short
-   cell keeps the plants and says what it is not showing, and a cell below every
-   one of those says it cannot draw the readings at all. */
-/* The full Desk canvas is one instrument: plants above, environment below.
-   The measured wide shape keeps plant pairs above the environment strip. */
 .widget.w-hydra:has(.hydra-body[data-shape='wide']) {
   align-self: start;
   height: auto;

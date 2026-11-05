@@ -73,7 +73,13 @@ app.whenReady().then(async () => {
   }
   // Recommendations share the actual conversation scroll view.
   const showComposer = () => run(`(() => { document.querySelector('.personal-agent-proposal-advice')?.scrollIntoView({block:'center', inline:'nearest'}); return document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) })()`)
-  const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry-soil', status: 'pending', offered: true, presented: false, reason: 'A current soil reading is below the selected threshold.', nextStep: '保存检查盆土备忘', advice: '<script>untrusted reading</script> 检查盆土。', action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土' } }, confirmation: '记住 watering：检查盆土', evidence: [{ readingId: 'odk.tile.hydra', field: 'plants.0.soilPercent', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z', ruleId: 'dry-soil' }] }
+  // A small composable OpenUI tree with short neutral values. Derived ride fixtures
+  // clear it so their stored ridePreview still drives the generic preview card.
+  const baseUi = { type: 'Suggestion', props: { children: [
+    { type: 'Heading', props: { value: '当前读数' } },
+    { type: 'Reading', props: { label: '土壤湿度', value: '10' } },
+  ] } }
+  const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry-soil', status: 'pending', offered: true, presented: false, reason: 'A current soil reading is below the selected threshold.', nextStep: '保存检查盆土备忘', advice: '<script>untrusted reading</script> 检查盆土。', ui: baseUi, action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土' } }, confirmation: '记住 watering：检查盆土', evidence: [{ readingId: 'odk.tile.hydra', field: 'plants.0.soilPercent', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z', ruleId: 'dry-soil' }] }
   async function longAdviceVisibility() {
     await viewport(320, 480)
     const long = { ...p, id: 'b311a280-c0b9-4411-96cd-4e1e92385349', advice: '检查当前读数并决定下一步。'.repeat(100).slice(0, 1000) }
@@ -145,7 +151,7 @@ app.whenReady().then(async () => {
   assert.equal(await run(`!!document.querySelector('[data-proposal-action="execute"]')?.disabled`), true)
   assert.equal(commands.filter(c => c.type === 'proposal_respond').length, commandCount)
   rejectResponse = false
-  const ride = { ...p, id: 'a2f9fed5-8a7a-458e-bfbf-d5650c5edf40', action: null, confirmation: '',
+  const ride = { ...p, id: 'a2f9fed5-8a7a-458e-bfbf-d5650c5edf40', action: null, confirmation: '', ui: undefined,
     ridePreview: { handle: '11111111-1111-4111-8111-111111111111', status: 'choose_places', sandbox: true, measuredAt: new Date().toISOString(), expiresAt: Date.now() + 120000,
       from: [{ handle: '22222222-2222-4222-8222-222222222222', name: '<script>测试起点甲</script>', city: '测试市', address: '测试街道' }, { handle: '33333333-3333-4333-8333-333333333333', name: '测试起点乙', city: '测试市' }],
       to: [{ handle: '44444444-4444-4444-8444-444444444444', name: '测试终点', city: '测试市' }], items: [{ productName: '测试车型', productCategory: '1', priceText: '20元' }] } }

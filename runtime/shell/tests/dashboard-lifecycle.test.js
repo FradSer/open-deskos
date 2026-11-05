@@ -278,3 +278,11 @@ test('the first word stays whole with its icon instead of breaking across lines'
   assert.match(token.textContent, /^Temperature$/, 'the whole word stays with the icon')
   assert.equal(f.nodes.get('#dash-narrative').textContent, item.text)
 })
+
+test('Overview connectors use the subdued secondary tier, not the strong tier', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../src/renderer/shell.css'), 'utf8')
+  const rule = css.match(/\.dash-context\s*\{[^}]*color:\s*([^;]+);/)
+  assert.ok(rule, 'the connector has an explicit color rule')
+  assert.match(rule[1], /var\(--odk-secondary\)/)
+  assert.doesNotMatch(rule[1], /--odk-secondary-strong/)
+})

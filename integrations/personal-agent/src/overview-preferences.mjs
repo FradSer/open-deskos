@@ -17,12 +17,54 @@ const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const MAX_RULES = 32
 const MAX_FILE_BYTES = 8192
 
-export function overviewPreferencesPath(env = process.env, platform = process.platform) {
-  if (env.ODK_OVERVIEW_PREFERENCES_FILE) return env.ODK_OVERVIEW_PREFERENCES_FILE
+// The owner writes prose. The host compiles only these closed directives into
+// validated source IDs. Nothing else can become a rule, a prompt, or a tool.
+const OWNER_DIRECTIVES = new Map([
+  ['holdings', 'odk.service.futu-main'],
+  ['pi sessions', 'odk.app.pi-sessions'],
+])
+const DIRECTIVE_LINE = /^\s*(Always show|Never disclose):\s*([^\r\n]+?)\s*$/i
+const METADATA_LINE = /^\s*<!--\s*observed:\s*\d{4}-\d{2}-\d{2}\s*\|\s*status:\s*(active|superseded)\s*-->\s*$/i
+
+/** Compile owner Markdown into validated rules. Prose is untrusted data only. */
+export function compileOwnerMarkdown(body) {
+  const mustShow = [], privateSources = [...DEFAULT_OVERVIEW_PREFERENCES.privateSources], unapplied = []
+  if (typeof body !== 'string' || Buffer.byteLength(body) > MAX_FILE_BYTES) {
+    return { mustShow, privateSources, unapplied: ['invalid owner file'] }
+  }
+  let active = true
+  for (const line of body.split(/\r?\n/)) {
+    if (!line.trim()) continue
+    const meta = line.match(METADATA_LINE)
+    if (meta) { active = meta[1].toLowerCase() === 'active'; continue }
+    const directive = line.match(DIRECTIVE_LINE)
+    if (!directive) { unapplied.push(line.trim()); continue }
+    if (!active) { unapplied.push(line.trim()); continue }
+    const target = OWNER_DIRECTIVES.get(directive[2].trim().toLowerCase())
+    if (!target) { unapplied.push(line.trim()); continue }
+    const list = directive[1].toLowerCase() === 'always show' ? mustShow : privateSources
+    if (!list.includes(target)) list.push(target)
+  }
+  return { mustShow: [...new Set(mustShow)].slice(0, MAX_RULES), privateSources: [...new Set(privateSources)].slice(0, MAX_RULES), unapplied }
+}
+
+/** A missing or invalid owner Markdown file keeps the privacy-safe default. */
+export async function loadOwnerMarkdownPreferences({ env = process.env, platform = process.platform, read = readFile } = {}) {
+  const fallback = { version: 1, mustShow: [...DEFAULT_OVERVIEW_PREFERENCES.mustShow], privateSources: [...DEFAULT_OVERVIEW_PREFERENCES.privateSources] }
+  try {
+    const body = await read(ownerMarkdownPath(env, platform), 'utf8')
+    if (typeof body !== 'string' || Buffer.byteLength(body) > MAX_FILE_BYTES) return fallback
+    const compiled = compileOwnerMarkdown(body)
+    return normalizeOverviewPreferences({ version: 1, mustShow: compiled.mustShow, privateSources: compiled.privateSources })
+  } catch { return fallback }
+}
+
+export function ownerMarkdownPath(env = process.env, platform = process.platform) {
+  if (env.ODK_OVERVIEW_PREFERENCES_MD) return env.ODK_OVERVIEW_PREFERENCES_MD
   const root = platform === 'win32'
     ? join(env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'odk')
     : join(env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'odk')
-  return join(root, 'overview-preferences.json')
+  return join(root, 'overview-preferences.md')
 }
 
 function ids(value, name) {
@@ -37,23 +79,28 @@ export function normalizeOverviewPreferences(raw) {
   return Object.freeze({ version: 1, mustShow: ids(raw.mustShow, 'mustShow'), privateSources: ids(raw.privateSources, 'privateSources') })
 }
 
-/** A missing or invalid file keeps the privacy-safe default policy. */
-export async function loadOverviewPreferences({ env = process.env, platform = process.platform, read = readFile } = {}) {
-  try {
-    const body = await read(overviewPreferencesPath(env, platform), 'utf8')
-    if (Buffer.byteLength(body) > MAX_FILE_BYTES) return DEFAULT_OVERVIEW_PREFERENCES
-    return normalizeOverviewPreferences(JSON.parse(body))
-  } catch { return DEFAULT_OVERVIEW_PREFERENCES }
-}
-
-/** Write one owner preference file with private mode. */
-export async function writeOverviewPreferences(preferences, { env = process.env, platform = process.platform, write = writeFile } = {}) {
-  const normalized = normalizeOverviewPreferences(preferences)
-  const path = overviewPreferencesPath(env, platform)
-  await mkdir(dirname(path), { recursive: true })
-  await write(path, `${JSON.stringify(normalized, null, 2)}\n`, { mode: 0o600 })
-  await chmod(path, 0o600)
-  return { path, preferences: normalized }
+/** Write the owner Markdown file with private mode. Unknown terms are refused. */
+export async function writeOwnerMarkdown({ alwaysShow = [], neverDisclose = [] }, { env = process.env, platform = process.platform, write = writeFile, makeDirectory = mkdir, setMode = chmod, observed = new Date().toISOString().slice(0, 10) } = {}) {
+  const termFor = new Map([...OWNER_DIRECTIVES].map(([term, id]) => [id, term === 'pi sessions' ? 'Pi sessions' : term]))
+  const directives = []
+  for (const term of alwaysShow) {
+    if (!OWNER_DIRECTIVES.has(term.trim().toLowerCase())) throw Error(`Unknown Overview term: ${term}`)
+    directives.push({ kind: 'Always show', term: term.trim() })
+  }
+  for (const term of neverDisclose) {
+    if (!OWNER_DIRECTIVES.has(term.trim().toLowerCase())) throw Error(`Unknown Overview term: ${term}`)
+    directives.push({ kind: 'Never disclose', term: term.trim() })
+  }
+  for (const id of DEFAULT_OVERVIEW_PREFERENCES.privateSources) {
+    const term = termFor.get(id)
+    if (term && !neverDisclose.some(value => value.trim().toLowerCase() === term)) directives.push({ kind: 'Never disclose', term })
+  }
+  const body = directives.map(({ kind, term }) => `<!-- observed: ${observed} | status: active -->\n${kind}: ${term}`).join('\n\n') + '\n'
+  const path = ownerMarkdownPath(env, platform)
+  await makeDirectory(dirname(path), { recursive: true })
+  await write(path, body, { mode: 0o600 })
+  await setMode(path, 0o600)
+  return { path, directives }
 }
 
 /** A source in this set may contribute only its aggregate count. */

@@ -4,6 +4,120 @@
   // Reservations survive page replacement until the resident reports an outcome.
   const executionAttempts = new Map()
   const rideRequests = new Map()
+  const rendererWaiters = new Set()
+  const globalDocument = typeof document !== 'undefined' ? document : null
+  const rendererScriptBase = globalDocument?.currentScript?.src ?? ''
+  let rendererScriptRequested = false
+
+  function currentRenderer() {
+    const api = root.odkOpenUIDOM ?? root.odkOpenUI ?? (typeof globalThis === 'object' ? globalThis.odkOpenUIDOM : undefined)
+    if (typeof api?.renderOpenUI === 'function' && typeof api?.isOpenUINode === 'function') return api
+    if (typeof module === 'object' && typeof require === 'function') {
+      try {
+        const loaded = require('./openui-dom.js')
+        if (typeof loaded?.renderOpenUI === 'function' && typeof loaded?.isOpenUINode === 'function') {
+          root.odkOpenUIDOM ||= loaded
+          return loaded
+        }
+      } catch { /* The browser loads the renderer as a classic script. */ }
+    }
+    return null
+  }
+
+  function notifyRendererReady() {
+    const api = currentRenderer()
+    if (!api) return
+    for (const waiter of [...rendererWaiters]) {
+      rendererWaiters.delete(waiter)
+      try { waiter(api) } catch { /* One mounted surface cannot block another. */ }
+    }
+  }
+  if (typeof root.addEventListener === 'function') root.addEventListener('odk-openui-dom-ready', notifyRendererReady)
+
+  function requestRenderer(onReady) {
+    const api = currentRenderer()
+    if (api) return api
+    if (typeof onReady === 'function') rendererWaiters.add(onReady)
+    if (!rendererScriptRequested) {
+      const doc = root.document ?? globalDocument
+      const head = doc?.head ?? (typeof doc?.querySelector === 'function' ? doc.querySelector('head') : null)
+      if (doc && typeof doc.createElement === 'function' && head && typeof head.appendChild === 'function') {
+        const script = doc.createElement('script')
+        const current = rendererScriptBase || (typeof doc.baseURI === 'string' ? doc.baseURI : '')
+        const relative = rendererScriptBase ? 'openui-dom.js' : 'core/openui-dom.js'
+        const URLImpl = root.URL ?? (typeof URL === 'function' ? URL : null)
+        if (script && typeof script.addEventListener === 'function') {
+          try { script.src = current && URLImpl ? new URLImpl(relative, current).href : relative } catch { script.src = relative }
+          script.async = false
+          script.addEventListener('load', notifyRendererReady)
+          script.addEventListener('error', () => { rendererScriptRequested = false })
+          try { head.appendChild(script); rendererScriptRequested = true } catch { /* The host may already load the script. */ }
+        }
+      }
+    }
+    return null
+  }
+
+  // Stored records keep their old summary/items/place shape. Convert them to the
+  // same generic component tree; the component renderer owns all DOM output.
+  // A stored summary that restates the advice is redundant: the bubble already
+  // draws that sentence. Only a distinct route/place line earns a card Heading.
+  function distinctSummary(summary, advice) {
+    const text = typeof summary === 'string' ? summary.trim() : ''
+    if (!text) return ''
+    const normalize = value => value.normalize('NFKC').replace(/[\p{P}\p{Z}\s]/gu, '').toLowerCase()
+    const line = normalize(text), sentence = normalize(typeof advice === 'string' ? advice : '')
+    if (line.length >= 4 && sentence.length >= 4 && (line === sentence || sentence.includes(line) || line.includes(sentence))) return ''
+    return text
+  }
+  function legacyPlaceLabel(place) {
+    if (!place || typeof place !== 'object') return ''
+    return [place.name, place.city, place.address].filter(value => typeof value === 'string' && value.trim()).join(' — ')
+  }
+  function legacyOptionSet(key, places) {
+    if (!Array.isArray(places) || !places.length) return null
+    return {
+      type: 'OptionSet',
+      props: {
+        label: key === 'from' ? 'From' : 'To',
+        children: places.slice(0, 8).map(place => ({
+          type: 'Option',
+          props: { label: legacyPlaceLabel(place), value: typeof place?.handle === 'string' ? place.handle : '' },
+        })),
+      },
+    }
+  }
+  function legacyPreviewUI(proposal) {
+    const preview = proposal.preview || proposal.ridePreview
+    if (!preview || typeof preview !== 'object') return null
+    const children = []
+    let summary = distinctSummary(preview.summary, proposal.advice)
+    if (!summary && Array.isArray(preview.from) && Array.isArray(preview.to) && preview.from.length === 1 && preview.to.length === 1) {
+      const from = legacyPlaceLabel(preview.from[0]), to = legacyPlaceLabel(preview.to[0])
+      if (from && to) summary = distinctSummary(`${from} → ${to}`, proposal.advice)
+    }
+    if (summary) children.push({ type: 'Heading', props: { value: summary } })
+    for (const item of Array.isArray(preview.items) ? preview.items.slice(0, 3) : []) {
+      if (!item || typeof item !== 'object') continue
+      const label = item.label ?? item.productName ?? item.name ?? ''
+      const value = item.value ?? item.priceText ?? item.text ?? ''
+      const tone = ['warn', 'good', 'neutral'].includes(item.tone) ? item.tone : undefined
+      if (!label && !value) continue
+      children.push({ type: 'Reading', props: { label, value, ...(tone ? { tone } : {}) } })
+    }
+    for (const key of ['from', 'to']) {
+      const options = legacyOptionSet(key, preview[key])
+      if (options) children.push(options)
+    }
+    return children.length ? { type: 'Suggestion', props: { children } } : null
+  }
+
+  // Stored Intent previews have no OpenUI tree. Their historical controller is
+  // kept only until a stored record is replaced by a generated candidate.
+  function storedRidePreview(proposal) {
+    const candidate = proposal.ridePreview ?? (proposal.preview && typeof proposal.preview.handle === 'string' ? proposal.preview : null)
+    return candidate && typeof candidate === 'object' ? candidate : null
+  }
 
   // The conversation owns placement; the resident owns proposal state and authority.
   root.odkPersonalAgentSuggestions = {
@@ -21,8 +135,8 @@
         return { article, body }
       })
       const remove = removeMessage ?? (article => article.remove())
-      const rideQuotePrefix = '\u67e5\u770b\u62a5\u4ef7'
-      const rideRefreshPrefix = '\u5237\u65b0\u884c\u7a0b'
+      const rideQuotePrefix = '查看报价'
+      const rideRefreshPrefix = '刷新行程'
       let closed = false
       let consumerUnavailable = false
       let consumerId
@@ -49,6 +163,13 @@
       const uncertainActionWarning = 'Response was not delivered. Check the personal agent service; do not repeat an uncertain action.'
       let feedbackFocus
       let proposalEpoch = 0
+      let lastStatus = null
+      const refreshOpenUI = () => {
+        if (closed || !lastStatus) return
+        for (const entry of messages.values()) entry.snapshot = ''
+        renderProposals(lastStatus)
+      }
+      requestRenderer(refreshOpenUI)
       let suggestionCapabilities = { read: true, respond: true, acknowledge: true }
       // A transport receipt does not prove that the resident saved its visibility state.
       const visibilityAttempts = new Map()
@@ -151,9 +272,19 @@
         node.addEventListener('click', callback)
         return node
       }
-      function structuredPreview(article, proposal, canRespond = true) {
-        const preview = proposal.preview || proposal.ridePreview
-        if (!preview || typeof preview !== 'object') return
+      function appendRendered(article, rendered) {
+        if (!rendered) return false
+        const isCard = typeof rendered.className === 'string' && rendered.className.split(/\s+/).includes('personal-agent-preview-card')
+        if (isCard) { article.append(rendered); return true }
+        const dom = root.document ?? globalDocument
+        const card = dom.createElement('div')
+        card.className = 'personal-agent-preview-card'
+        card.append(rendered)
+        article.append(card)
+        return true
+      }
+      function renderLegacyRidePreview(article, proposal, preview, canRespond) {
+        const dom = root.document ?? globalDocument
         let requests = rideRequests.get(proposal.id)
         if (preview.handle && requests?.handle !== preview.handle) {
           requests = { handle: preview.handle, quote: false, refresh: false }
@@ -162,35 +293,32 @@
         const hasExpiry = Number.isFinite(preview.expiresAt)
         const expired = hasExpiry && preview.expiresAt <= Date.now()
         const current = () => proposal.status === 'pending' && (!hasExpiry || !expired)
-        const card = document.createElement('div')
+        const card = dom.createElement('div')
         card.className = 'personal-agent-preview-card personal-agent-ride-card'
-
-        const summaryText = preview.summary || (preview.from && preview.to ? [preview.from, preview.to].map(places => Array.isArray(places) && places.length === 1 ? String(places[0].name ?? '').slice(0, 256) : 'Choose a place').join(' → ') : '')
+        const summaryText = distinctSummary(preview.summary || (preview.from && preview.to ? [preview.from, preview.to].map(places => Array.isArray(places) && places.length === 1 ? String(places[0].name ?? '').slice(0, 256) : 'Choose a place').join(' → ') : ''), proposal.advice)
         if (summaryText) {
-          const summary = document.createElement('p')
+          const summary = dom.createElement('p')
           summary.className = 'personal-agent-preview-summary personal-agent-ride-route-display'
           summary.textContent = summaryText
           card.append(summary)
         }
-
-        const items = document.createElement('div')
+        const items = dom.createElement('div')
         items.className = 'personal-agent-preview-chips personal-agent-ride-items'
         for (const item of Array.isArray(preview.items) ? preview.items.slice(0, 16) : []) {
-          const line = document.createElement('span')
+          const line = dom.createElement('span')
           line.className = 'personal-agent-preview-chip personal-agent-ride-item'
           if (item.tone === 'warn' || item.tone === 'good') line.dataset.tone = item.tone
-          const name = document.createElement('span')
+          const name = dom.createElement('span')
           name.className = 'personal-agent-preview-label personal-agent-ride-product'
           name.textContent = String(item.productName || item.label || '').slice(0, 256)
-          const price = document.createElement('span')
+          const price = dom.createElement('span')
           price.className = 'personal-agent-preview-value personal-agent-ride-price'
           price.textContent = `${String(item.priceText || item.value || '').slice(0, 256)}`
           line.append(name, price)
           items.append(line)
         }
         if (items.children.length) card.append(items)
-
-        const note = document.createElement('p')
+        const note = dom.createElement('p')
         note.className = 'personal-agent-preview-notice personal-agent-ride-note'
         if (preview.sandbox === true) note.textContent = 'Sandbox preview, so no real trip.'
         else if (hasExpiry && expired) note.textContent = 'Estimate expired.'
@@ -199,22 +327,22 @@
         const hasSelectors = Boolean(preview.from && preview.to)
         let panel, selectors = []
         if (hasSelectors) {
-          panel = document.createElement('section')
+          panel = dom.createElement('section')
           panel.className = 'personal-agent-preview-fields personal-agent-ride-route'
           panel.id = `ride-route-${proposal.id}`
           panel.setAttribute('aria-label', 'Ride route')
           panel.hidden = true
           for (const [key, caption] of [['from', 'Pickup'], ['to', 'Destination']]) {
-            const label = document.createElement('label')
+            const label = dom.createElement('label')
             label.textContent = caption
-            const select = document.createElement('select')
+            const select = dom.createElement('select')
             select.setAttribute('aria-label', caption)
             const choices = Array.isArray(preview[key]) ? preview[key].slice(0, 8) : []
-            const blank = document.createElement('option')
+            const blank = dom.createElement('option')
             blank.value = ''; blank.textContent = `Choose ${caption.toLowerCase()}`
             select.append(blank)
             for (const place of choices) {
-              const option = document.createElement('option')
+              const option = dom.createElement('option')
               option.value = typeof place.handle === 'string' ? place.handle : ''
               option.textContent = `${String(place.name ?? '').slice(0, 256)} — ${String(place.city ?? '').slice(0, 80)} ${String(place.address ?? '').slice(0, 256)}`
               select.append(option)
@@ -223,9 +351,9 @@
             label.append(select); panel.append(label); selectors.push(select)
           }
         }
-        const actions = document.createElement('div')
+        const actions = dom.createElement('div')
         actions.className = 'personal-agent-proposal-actions personal-agent-ride-actions'
-        const requestStatus = document.createElement('p')
+        const requestStatus = dom.createElement('p')
         requestStatus.className = 'personal-agent-proposal-request-status'
         requestStatus.setAttribute('role', 'status')
         requestStatus.textContent = requests?.message ?? ''
@@ -289,7 +417,25 @@
         if (panel) article.append(panel)
         return actions.children.length > 0
       }
+      function renderProposalUI(article, p) {
+        const renderer = currentRenderer() ?? requestRenderer(refreshOpenUI)
+        if (renderer && typeof renderer.isOpenUINode === 'function' && renderer.isOpenUINode(p.ui)) {
+          const rendered = renderer.renderOpenUI(p.ui, { button, document: root.document ?? globalDocument })
+          if (appendRendered(article, rendered)) return
+        }
+        const ride = storedRidePreview(p)
+        if (ride) {
+          renderLegacyRidePreview(article, p, ride, suggestionCapabilities.respond && typeof api.sendText === 'function')
+          return
+        }
+        if (!renderer) return
+        const ui = legacyPreviewUI(p)
+        if (!ui || !renderer.isOpenUINode?.(ui)) return
+        const rendered = renderer.renderOpenUI(ui, { button, document: root.document ?? globalDocument })
+        appendRendered(article, rendered)
+      }
       function renderProposals(status) {
+        lastStatus = status
         if (status.state === 'unavailable' || status.proposalCapabilities?.read === false) {
           proposalEpoch++
           renderedProposalIds.clear()
@@ -354,7 +500,10 @@
             const executableAction = Boolean(p.action && typeof p.confirmation === 'string' && p.confirmation.trim())
             const nextStep = typeof p.nextStep === 'string' && p.nextStep.length <= 240 && !/[\x00-\x1f\x7f]/.test(p.nextStep) && !technicalNext ? p.nextStep.trim() : ''
             const readOnlyStep = !suggestionCapabilities.respond && Boolean(nextStep)
-            advice.textContent = technicalAdvice ? 'This message is no longer available. Ask again.' : p.advice
+            // Advice is model text. Use the shared safe Markdown renderer so
+            // strong/code/list emphasis shows, while HTML stays literal and
+            // plain text still goes through textContent.
+            root.odkPersonalAgentReply.render(advice, technicalAdvice ? 'This message is no longer available. Ask again.' : p.advice)
             if (!technicalAdvice && p.advice.length > 180) {
               advice.dataset.long = 'true'
               advice.setAttribute('tabindex', '0')
@@ -381,7 +530,7 @@
               next.append(step)
               article.append(next)
             }
-            if (p.preview || p.ridePreview) structuredPreview(article, p, suggestionCapabilities.respond && typeof api.sendText === 'function')
+            if (p.ui || p.preview || p.ridePreview) renderProposalUI(article, p)
             if (current && suggestionCapabilities.respond) {
               const actions = document.createElement('div')
               actions.className = 'personal-agent-proposal-actions'
@@ -492,11 +641,13 @@
         async destroy() {
           if (closed) return
           closed = true
+          rendererWaiters.delete(refreshOpenUI)
           proposalEpoch++
           actionConfirmations.clear()
           renderedProposalIds.clear()
           visibility?.disconnect()
           for (const id of messages.keys()) removeEntry(id)
+          rideStatusNodes.clear()
           observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear()
           document.removeEventListener('visibilitychange', recheckVisibility)
           document.removeEventListener('visibilitychange', consumerVisibilityChanged)

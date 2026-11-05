@@ -32,6 +32,19 @@ STAGING_ROOT="${STAGING_DIR}/repo"
 
 validate_service_runtime_source "${ROOT}/integrations"
 
+# A release needs room for its staged source, its dependencies, and the sealed
+# immutable copy. Refuse the transfer before a full root filesystem can leave a
+# partial candidate. Keep this check before any SSH directory or rsync work.
+MIN_FREE_MB="${ODK_STAGE_MIN_FREE_MB:-2500}"
+FREE_MB="$(ssh "${TARGET}" "df -Pk '${REMOTE_ROOT}' | awk 'NR==2 { print int(\$4 / 1024) }'")" || {
+  echo "Could not measure free space on ${TARGET}:${REMOTE_ROOT}" >&2
+  exit 1
+}
+if ! [[ "${FREE_MB}" =~ ^[0-9]+$ ]] || [ "${FREE_MB}" -lt "${MIN_FREE_MB}" ]; then
+  echo "Insufficient root space on ${TARGET}: ${FREE_MB} MiB available, ${MIN_FREE_MB} MiB reserved for a release. Clean old releases or state backups before staging." >&2
+  exit 1
+fi
+
 cleanup() {
   ssh "${TARGET}" "rm -rf -- '${STAGING_DIR}'" >/dev/null 2>&1 || true
 }

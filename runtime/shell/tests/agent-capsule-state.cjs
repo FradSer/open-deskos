@@ -26,6 +26,13 @@ const base = extra => ({
   preview: { summary: '通勤时长对比', items: [
     { label: '当前通勤（分钟）', value: '52', tone: 'warn' },
     { label: '平时通勤（分钟）', value: '24' } ] },
+  // A small composable OpenUI tree that mirrors the legacy preview, so the ui path
+  // renders the same neutral card and keeps bubble text at one 17px reading size.
+  ui: { type: 'Suggestion', props: { children: [
+    { type: 'Heading', props: { value: '通勤时长对比' } },
+    { type: 'Reading', props: { label: '当前通勤（分钟）', value: '52', tone: 'warn' } },
+    { type: 'Reading', props: { label: '平时通勤（分钟）', value: '24' } },
+  ] } },
   nextStep: '打开计划', action: { tool: 'memory_update', params: { category: 'note', value: 'opened' } },
   confirmation: '记住 note：opened', createdAt: stamp(),
   evidence: [{ readingId: 'fixture', field: 'value', value: 1, state: 'live', measuredAt: stamp() }],

@@ -102,6 +102,14 @@ Feature: Android Shell Host renders the shared Personal Agent
     Then every script, style, font and image loads from that origin
     And the app adds no script source
 
+  Scenario: The Android frame carries the OpenUI component tree
+    Given a proposal carries a bounded OpenUI component tree
+    When the desk projects the Personal Agent frame for the Android host
+    Then the projected proposal keeps the full component tree with every node
+    And the tree stays within the same depth and byte bounds as the service state
+    And an oversized, cyclic or untyped tree degrades to an unreadable frame
+    And private action parameters and tool results never cross the link
+
   Scenario: Both ends agree on the frame contract
     Given the shared Personal Agent frame fixtures
     When the desk and the Android client encode and decode each fixture

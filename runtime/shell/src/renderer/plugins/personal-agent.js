@@ -360,7 +360,10 @@
           article.setAttribute('aria-label', identity.name)
         } else article.innerHTML = '<div class="agent-message-body"></div>'
         const body = article.querySelector('.agent-message-body')
-        body.textContent = text
+        // Conversation text is model or owner content. Render it through the
+        // shared safe Markdown renderer so plain text stays literal and emphasis
+        // shows without executing raw HTML.
+        root.odkPersonalAgentReply.render(body, text)
         conversation.append(article)
         root.odkIcons?.apply?.(article)
         return body
@@ -619,10 +622,36 @@
           for (const source of item.sources || []) details.append(sessionLabel(source, item, recordKey))
           body.append(details)
         }
+        bindRecommendationFooters(frame)
         updateReplyChoices()
         renderReplies()
         orderTimeline()
         showThread(selectedThread)
+      }
+
+      // The host owns the session footer. It reuses the frame's remote source and
+      // sessionLabel() so Reply keeps its real replyTo target; the model never
+      // generates a source, timestamp, metadata or a control.
+      function bindRecommendationFooters(frame) {
+        const items = Array.isArray(frame?.messages) ? frame.messages : []
+        if (!items.length) return
+        for (const article of conversation.querySelectorAll('.agent-recommendation')) {
+          const body = article.querySelector('.agent-message-body')
+          if (!body || body.querySelector('.agent-recommendation-footer')) continue
+          // Bind one footer per recommendation using the frame's first remote
+          // source; the Reply reference stays that remote message, not the proposal.
+          const record = items.find(item => Array.isArray(item.sources) && item.sources.length === 1)
+          if (!record) continue
+          const recordKey = remoteKey(record)
+          const stored = remoteRecords.get(recordKey)
+          const source = stored?.sources?.[0] || record.sources[0]
+          const group = document.createElement('div')
+          group.className = 'agent-message-actions agent-update-sources agent-recommendation-footer'
+          group.setAttribute('role', 'group')
+          group.setAttribute('aria-label', 'Related tasks')
+          group.append(sessionLabel(source, stored || record, recordKey))
+          body.append(group)
+        }
       }
 
       function readinessCaption(value, judgment) {

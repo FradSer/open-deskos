@@ -59,6 +59,13 @@ Feature: Open DeskOS 跨平台 Display Shell
     And it receives another ArrowRight key press after the prior navigation completes
     Then it displays the third page
 
+  Scenario: Peripheral icons stay frameless in every theme while Pi keeps its capsule
+    Given the Shell renders its State Bar in Instrument, Pixel, Border Beam, and Liquid Glass
+    When the peripheral button and the Pi status are both present
+    Then the peripheral button has no border, background, shadow, blur, or rounded edge
+    And it keeps one reachable 44-pixel touch target for both icons
+    And the Pi status keeps its framed capsule in every theme
+
   Scenario: Shell network status remains concise
     Given the Shell is running
     Then the State Bar shows only a network reachability indicator

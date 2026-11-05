@@ -1,6 +1,5 @@
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
-import { boundedPreview } from './proactive-generation.mjs'
 
 const MAX_READS = 8
 const MAX_JUDGMENTS = 3
@@ -9,8 +8,7 @@ const result = value => ({ content: [{ type: /** @type {const} */ ('text'), text
 
 /**
  * Map one model draft onto the judgment candidate shape. The draft is a claim to
- * check, never authority: only host-issued evidence ids resolve, and a preview
- * must already satisfy the bounded generic shape.
+ * check, never authority: only host-issued evidence ids resolve.
  */
 function draftCandidate(draft, topics, id) {
   const topic = topics.find(t => t.id === draft.topicId)
@@ -22,11 +20,6 @@ function draftCandidate(draft, topics, id) {
     if (!found) throw Error(`Draft evidence ${String(evidenceId)} does not belong to ${topic.id}`)
     return found
   })
-  let preview
-  if (draft.preview !== undefined) {
-    preview = boundedPreview(draft.preview)
-    if (preview === null) throw Error('Draft preview does not match the bounded generic shape')
-  }
   const intent = topic.intentPreview === true
   let nextStep
   if (intent) nextStep = draft.nextStep
@@ -36,7 +29,7 @@ function draftCandidate(draft, topics, id) {
     nextStep = action.label
   }
   return { id, topicId: topic.id, ...(typeof draft.key === 'string' ? { key: draft.key } : {}), advice: draft.advice,
-    ...(nextStep !== undefined ? { nextStep } : {}), ...(preview ? { preview } : {}), evidence, goal: topic.goal,
+    ...(nextStep !== undefined ? { nextStep } : {}), evidence, goal: topic.goal,
     generated: true, ...(topic.urgent !== undefined ? { urgent: topic.urgent } : {}), ...(topic.delivery ? { delivery: topic.delivery } : {}) }
 }
 
@@ -68,12 +61,11 @@ export function createProactiveInvestigationTools({ input, judge, read }) {
       name: 'proactive_judge', label: 'Judge draft suggestions', exposure: 'direct',
       namespace: { name: 'personal_agent', description: 'Typed judgments on this round\'s drafts; never action permission.' },
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-      description: 'Submit all drafts for the round in one call and receive typed judgments for each: probability (worth attention now) and groundingProbability (factual support). Use the answers only to reword a claim that is unsupported; never drop a topic from the response. The host independently qualifies every returned candidate, so this check decides nothing.',
+      description: 'Submit all drafts for the round in one call and receive a usefulness probability for each (worth attention now). The host binds every factual value to cited observations and independently qualifies usefulness, so this self-check decides nothing and grants no permission. Never drop a topic from the response.',
       parameters: Type.Object({ suggestions: Type.Array(Type.Object({
         topicId: Type.String({ minLength: 1, maxLength: 128 }),
         advice: Type.String({ minLength: 1, maxLength: 400 }),
         evidenceIds: Type.Array(Type.String({ minLength: 1, maxLength: 8 }), { minItems: 1, maxItems: 8 }),
-        preview: Type.Optional(Type.Unknown()),
         actionId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
         nextStep: Type.Optional(Type.String({ minLength: 1, maxLength: 240 })),
         key: Type.Optional(Type.String({ minLength: 1, maxLength: 80 })),

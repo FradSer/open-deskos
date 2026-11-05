@@ -22,6 +22,17 @@ const proposal = {
     { label: '今天', value: '52 分钟', tone: 'warn' },
     { label: '平时', value: '24 分钟' },
     { label: '多出', value: '28 分钟', tone: 'warn' } ] },
+  // A small composable OpenUI tree. It mirrors the legacy preview so the ui path
+  // renders the same generic card, chips, labels and values as the preview fallback.
+  ui: { type: 'Suggestion', props: { children: [
+    { type: 'Badge', props: { value: '通勤变化', tone: 'warn' } },
+    { type: 'Divider', props: {} },
+    { type: 'Heading', props: { value: '路上的时间' } },
+    { type: 'Reading', props: { label: '今天', value: '52 分钟', tone: 'warn' } },
+    { type: 'Reading', props: { label: '平时', value: '24 分钟' } },
+    { type: 'Reading', props: { label: '多出', value: '28 分钟', tone: 'warn' } },
+    { type: 'Divider', props: {} },
+  ] } },
   action: { tool: 'memory_update', params: { category: 'note', value: 'opened' } },
   confirmation: '记住 note：opened', nextStep: '打开计划',
   createdAt: new Date().toISOString(),
@@ -99,7 +110,26 @@ app.whenReady().then(async () => {
               chipClipped: [...bubble.querySelectorAll('.personal-agent-preview-chip')].some(n => n.scrollWidth > n.clientWidth + 1)
             }
           })(),
-          token: parseFloat(getComputedStyle(bubble).getPropertyValue('--agent-text-body')) || parseFloat(getComputedStyle(document.querySelector('.agent-panel')).getPropertyValue('--agent-text-body'))
+          token: parseFloat(getComputedStyle(bubble).getPropertyValue('--agent-text-body')) || parseFloat(getComputedStyle(document.querySelector('.agent-panel')).getPropertyValue('--agent-text-body')),
+          divider: (() => {
+            const card = bubble.querySelector('.personal-agent-preview-card')
+            const kids = card ? [...card.children] : []
+            const dividers = kids.filter(n => n.classList.contains('openui-divider'))
+            const cs = n => getComputedStyle(n)
+            const r = n => n.getBoundingClientRect()
+            // Gap between every adjacent pair of visible primitives.
+            const visible = kids.filter(n => cs(n).display !== 'none')
+            const gaps = []
+            for (let i = 1; i < visible.length; i++) gaps.push(+(r(visible[i]).top - r(visible[i - 1]).bottom).toFixed(1))
+            return {
+              count: dividers.length,
+              margins: dividers.map(n => [parseFloat(cs(n).marginTop), parseFloat(cs(n).marginBottom)]),
+              gap: card ? parseFloat(cs(card).rowGap) : null,
+              gaps,
+              trailingHidden: dividers.length ? cs(dividers.at(-1)).display === 'none' : null,
+              trailingIsLast: dividers.length ? dividers.at(-1) === kids.at(-1) : null,
+            }
+          })(),
         }
       })()`)
       assert.ok(!measured.error, `${theme}/${width}: ${measured.error}`)
@@ -128,6 +158,16 @@ app.whenReady().then(async () => {
         assert.ok(measured.adviceWeight > measured.summaryWeight, `${theme}/${width}: advice leads the card summary`)
       }
       else assert.equal(measured.adviceWeight, 400, 'pixel keeps one weight and does not synthesize emphasis')
+      // Divider spacing comes only from the card's named gap. No doubled margins,
+      // and a trailing divider draws no orphan line.
+      const d = measured.divider
+      assert.ok(d.count >= 2, `${theme}/${width}: the composed card needs dividers to test spacing` )
+      assert.ok(d.margins.every(([top, bottom]) => top === 0 && bottom === 0),
+        `${theme}/${width}: a divider added margin that doubles the gap: ${JSON.stringify(d.margins)}`)
+      assert.ok(d.gaps.every(gap => Math.abs(gap - d.gap) <= 1),
+        `${theme}/${width}: every primitive gap must equal the named card gap ${d.gap}, got ${JSON.stringify(d.gaps)}`)
+      assert.equal(d.trailingIsLast, true, `${theme}/${width}: the test tree ends with a divider`)
+      assert.equal(d.trailingHidden, true, `${theme}/${width}: a trailing divider must not draw an orphan line`)
     }
   }
   console.log('PASS: one reading size across 4 themes x 3 sizes')

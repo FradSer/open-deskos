@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url'
 import { createPersonalAgent, sessionAdapter } from '../src/agent.mjs'
 import { createIntentTurn, guardIntentTools } from '../src/intent-routing.mjs'
 import { assistant, fixtureModel, visibleTools } from './helpers/pi-fixture.mjs'
+import { EMPTY_DOCUMENT, openuiDocument } from './openui-fixtures.test.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
 import { ProactiveWatch } from '../src/proactive.mjs'
 import { proposalStateStore } from '../src/proactive-state.mjs'
@@ -131,7 +132,7 @@ test('production proactive advice uses scoped tools while briefing and phrasing 
       `unexpected model tools: ${JSON.stringify(names)}`)
     assert(!context.messages.some(message => message.role === 'user' && message.content.includes('resident private fixture')))
     if (JSON.stringify(context.messages).includes('Organize the owner-approved')) return assistant('[0,1]')
-    if (JSON.stringify(context.messages).includes('Generate useful, concise proactive')) return assistant('{"suggestions":[]}')
+    if (/openui-lang/i.test(JSON.stringify(context.messages))) return assistant(EMPTY_DOCUMENT)
     return assistant('{"items":[{"sources":[0]}]}')
   })
   const bot = await createPersonalAgent(config, { createRuntime: async () => modelRuntime, createIntentRouter: () => async () => ({ intent: 'conversation' }) })
@@ -142,7 +143,7 @@ test('production proactive advice uses scoped tools while briefing and phrasing 
   assert.deepEqual(briefing.items[0].readingIds, ['mail'])
   assert.equal(await bot.phraseProposal({ advice: '观察读数。检查来源。' }), '观察读数。检查来源。')
   assert.equal(requests.length, 3)
-  const generation = requests.find(context => JSON.stringify(context.messages).includes('Generate useful, concise proactive'))
+  const generation = requests.find(context => /openui-lang/i.test(JSON.stringify(context.messages)))
   assert.deepEqual(visibleTools(generation).map(tool => tool.name).sort(), ['proactive_judge', 'proactive_read'],
     'the generation session exposes both scoped tools')
 })
@@ -177,7 +178,7 @@ test('a proactive heartbeat uses production Durable generation and preserves ded
     const request = JSON.parse(context.messages.findLast(message => message.role === 'user').content.split('Personal Agent request:\n')[1])
     generations++
     const evidenceIds = request.topics[0].evidence.map(item => item.id)
-    return assistant(JSON.stringify({ suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '有待领取的物品，可以安排领取。', actionId: 'save-collection', evidenceIds }] }))
+    return assistant(openuiDocument({ topicId: 'deliveries', key: 'collect', advice: '有待领取的物品，可以安排领取。', actionId: 'save-collection', evidenceIds }))
   })
   const owner = { version: 2, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 60000, maxCandidates: 4, maxPush: 2,
     suppressed: [], snoozed: {}, rules: [{ id: 'deliveries', goal: '及时领取待取物品。',

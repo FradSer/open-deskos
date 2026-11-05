@@ -150,7 +150,7 @@ async function assertAllSourceOverview() {
       const plantBound = resolveHomeTemplate(plantRaw, [plant])
       await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: plantBound.items.map(item => ({ text: item.text, segments: item.segments, sources: [{ id: plant.id, label: plant.label, state: plant.state }] })) })
       const plantRender = await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');return {text:n.textContent,overflow:n.scrollWidth>n.clientWidth+1}})()`)
-      assert.match(plantRender.text, /Plant 1 Soil moisture is OK at 54\.6%/, theme)
+      assert.match(plantRender.text, /Plant 1 Soil moisture is OK at 55%/, theme)
       assert.equal(plantRender.overflow, false, theme)
       if (theme === 'instrument') {
         await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: [{ text: 'API quota Main 6% remaining, Spare account 88% remaining, Plant 1 dry at 8%, Plant 2 OK at 54%, Plant 3 wet at 85%, Plant 4 low at 25%, Greenhouse humidity percent: 71%, Greenhouse humidity percent: 50%, +1.20% today.',
@@ -1374,7 +1374,7 @@ app.whenReady().then(async () => {
           const head=document.querySelector('.agent-head'),headStyle=getComputedStyle(head),headBounds=head.getBoundingClientRect();
           const onee=document.querySelector('.agent-avatar .bs-avatar svg'),pillStyle=getComputedStyle(identity.querySelector('.agent-capsule'));
           const bounds=onee.getBBox(),matrix=onee.getScreenCTM(),artTop=new DOMPoint(bounds.x,bounds.y).matrixTransform(matrix).y,artBottom=new DOMPoint(bounds.x,bounds.y+bounds.height).matrixTransform(matrix).y;
-          return {visibleTop:Math.abs(artTop-conversation.top)<=6,artSize:Math.abs(onee.getBoundingClientRect().height-avatar.width)<1,unclipped:getComputedStyle(document.querySelector('.agent-avatar')).overflow==='visible',visibleOverlap:artBottom>pill.top&&artBottom-pill.top<avatar.height*0.25,onee:!!onee&&onee.getAttribute('viewBox')==='-150 -150 300 300'&&onee.querySelectorAll('path[d]').length>=4,sharedCapsule:(pillStyle.backgroundColor!=='rgba(0, 0, 0, 0)'||pillStyle.backgroundImage!=='none')&&pillStyle.borderTopWidth==='1px'&&identity.querySelector('.agent-capsule').contains(document.querySelector('.agent-state')), centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,topAligned:Math.abs(avatar.top-conversation.top)<1,overlap:avatar.bottom-pill.top>=avatar.height*0.12&&avatar.bottom-pill.top<=avatar.height*0.2,transparent:headStyle.backgroundColor==='rgba(0, 0, 0, 0)'&&headStyle.backgroundImage==='none'&&headStyle.backdropFilter==='none',underlay:conversation.top<=headBounds.top&&conversation.bottom>headBounds.bottom,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&inputRow.width>=panel.width-45&&composer.width>=panel.width-45&&noToggle,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
+          return {visibleTop:Math.abs(artTop-conversation.top)<=6,artSize:Math.abs(onee.getBoundingClientRect().height-avatar.width)<1,unclipped:getComputedStyle(document.querySelector('.agent-avatar')).overflow==='visible',visibleOverlap:artBottom>pill.top&&artBottom-pill.top<avatar.height*0.25,onee:!!onee&&onee.getAttribute('viewBox')==='-150 -150 300 300'&&onee.querySelectorAll('path[d]').length>=4,sharedCapsule:(document.documentElement.dataset.theme==='liquid-glass'?(['rgba(0, 0, 0, 0)','transparent'].includes(pillStyle.borderTopColor)&&pillStyle.backgroundImage==='none'&&pillStyle.boxShadow==='none'):(pillStyle.backgroundColor!=='rgba(0, 0, 0, 0)'||pillStyle.backgroundImage!=='none')&&pillStyle.borderTopWidth==='1px')&&identity.querySelector('.agent-capsule').contains(document.querySelector('.agent-state')), centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,topAligned:Math.abs(avatar.top-conversation.top)<1,overlap:avatar.bottom-pill.top>=avatar.height*0.12&&avatar.bottom-pill.top<=avatar.height*0.2,transparent:headStyle.backgroundColor==='rgba(0, 0, 0, 0)'&&headStyle.backgroundImage==='none'&&headStyle.backdropFilter==='none',underlay:conversation.top<=headBounds.top&&conversation.bottom>headBounds.bottom,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&inputRow.width>=panel.width-45&&composer.width>=panel.width-45&&noToggle,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
         })()`)
         for(const [name,ok] of Object.entries(layout))if(!ok)failures.push(theme+' '+width+': '+name)
       }
@@ -1499,7 +1499,7 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('.dash-foot, .dash-provenance, #dash-agent-status, #dash-source-list')`), null)
   assert.ok(await evaluate(`(() => { const n=document.querySelector('#dash-narrative'), d=document.querySelector('.dash'), c=getComputedStyle(d); return Math.abs(n.getBoundingClientRect().width-(d.clientWidth-parseFloat(c.paddingLeft)-parseFloat(c.paddingRight))) < 2 })()`), 'home uses full content width')
 
-  for (const [change, direction] of [['+1.23%', 'up'], ['-0.63%', 'down'], ['-100.00%', 'down'], ['0.00%', undefined]]) {
+  for (const [change, direction] of [['+1.23%', 'up'], ['-0.63%', 'down'], ['-100.00%', 'down'], ['0.00%', undefined], ['+1%', 'up'], ['-1%', 'down'], ['0%', undefined]]) {
     const text = `${change} Futu holdings today.`
     const frame = { ...compact, items: [{ text, segments: [{ text, icon: 'portfolio' }], sources: [{ id: 'futu', label: 'Futu holdings', state: 'live' }] }] }
     await send(frame)
@@ -1651,6 +1651,9 @@ app.whenReady().then(async () => {
       assert.equal(sentence.attached, true, 'icons stay with their text')
       assert.equal(sentence.overflow, false)
       assert.ok(sentence.facts.every(color => color !== sentence.context))
+      const luminance = color => color.match(/\d+/g).slice(0, 3).map(Number).reduce((sum, channel) => sum + channel, 0) / 3
+      assert.ok(luminance(sentence.context) < luminance(sentence.facts[0]),
+        theme + ' ' + width + ' connectors stay below the primary fact tier: ' + JSON.stringify({ context: sentence.context, fact: sentence.facts[0] }))
       if (width >= 960) assert.equal(sentence.fits, true, theme + ' ' + width + ' compact sentence fits')
       assert.equal(sentence.pixel, theme === 'pixel')
       await send({ ...compact, state: 'loading' })

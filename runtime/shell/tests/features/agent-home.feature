@@ -1,5 +1,12 @@
 Feature: Personal Agent home briefing
 
+  Scenario: Overview prose separates its connectors from its facts
+    Given a live briefing joins two facts with the word and
+    When Today renders the Overview sentence
+    Then the connector uses the subdued secondary tier
+    And each fact keeps the primary reading tier
+    And the connector and facts remain distinct colors
+
   Scenario: Overview explains fresh plant moisture and updates its status
     Given Hydra reports a fresh online plant with a valid soil moisture reading
     When Overview selects that reading

@@ -14,6 +14,7 @@ import { PersonalAgentService } from '../src/service.mjs'
 import { loadCapabilities } from '../src/capabilities.mjs'
 import { agentOptions, validateWorkspace, createPersonalAgent, createResourceLoader, sessionAdapter } from '../src/agent.mjs'
 import { resolveHomeTemplate } from '../src/home-template.mjs'
+import { uiTypes } from './openui-fixtures.test.mjs'
 
 async function proposalExecutionFixture(t, { route, helperSource, capabilitySource } = {}) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'odk-proposal-execution-')))
@@ -804,36 +805,41 @@ test('invalid fact selections retry without restoring required source coverage',
 
 test('Intent generation repairs an omitted advice field through the actual isolated session prompt', async t => {
   const topic = { id: 'intent-ride', intentPreview: true, evidence: [{ id: 'e0', value: 'Read-only ride preview available' }] }
-  const missing = { topicId: topic.id, key: 'ride-preview', nextStep: '查看行程候选并选择起终点。', evidenceIds: ['e0'] }
-  const repaired = { ...missing, advice: '查看当前行程方案。' }
+  // OpenUI Lang documents: the first omits the Advice node, the second has it.
+  const missing = `root = Suggestions([s1])
+s1 = Suggestion([n1],"${topic.id}","ride-preview",["e0"])
+n1 = OwnerStep("查看行程候选并选择起终点。")`
+  const repairedDoc = `root = Suggestions([s1])
+s1 = Suggestion([a1, n1],"${topic.id}","ride-preview",["e0"])
+a1 = Advice("查看当前行程方案。")
+n1 = OwnerStep("查看行程候选并选择起终点。")`
+  const repaired = { topicId: topic.id, key: 'ride-preview', advice: '查看当前行程方案。', evidenceIds: ['e0'], nextStep: '查看行程候选并选择起终点。' }
   let calls = 0, instructions = ''
   const bot = await generationFixture(t, {}, async (emit, text) => {
     const input = JSON.parse(text.slice(text.indexOf('{')))
     if (++calls === 2) {
-      assert.match(input.formatCorrection, /Missing required field "advice"/)
-      for (const label of ['Ordinary example: ', 'Intent preview example: ']) {
-        const line = input.formatCorrection.split('\n').find(row => row.startsWith(label))
-        assert.ok(line, label)
-        const example = JSON.parse(line.slice(label.length)).suggestions[0]
-        assert.equal(typeof example.advice, 'string')
-        assert.ok(Array.isArray(example.evidenceIds))
-        assert.equal(Object.hasOwn(example, 'reason'), false)
-        assert.equal(Object.hasOwn(example, 'why'), false)
-        assert.equal(Object.hasOwn(example, label.startsWith('Intent') ? 'nextStep' : 'actionId'), true)
-      }
+      assert.match(input.formatCorrection, /OpenUI Lang/)
+      assert.match(input.formatCorrection, /root = Suggestions/)
+      assert.equal(Object.hasOwn(input.formatCorrection, 'reason'), false)
       assert.deepEqual(input.topics, [topic])
     }
-    emit({ type: 'message_end', message: assistant(JSON.stringify({ suggestions: [calls === 1 ? missing : repaired] })) })
+    emit({ type: 'message_end', message: assistant(calls === 1 ? missing : repairedDoc) })
   }, options => {
     instructions = options.resourceLoader.getSystemPrompt()
     assert.deepEqual(options.tools, [])
     // The generation session carries only the two scoped investigation tools.
     assert.deepEqual(options.customTools.map(tool => tool.name), ['proactive_read', 'proactive_judge'])
   })
-  assert.deepEqual(await bot.generateProposals({ topics: [topic], maxCandidates: 1 }), { suggestions: [repaired] })
+  const result = await bot.generateProposals({ topics: [topic], maxCandidates: 1 })
+  assert.equal(result.suggestions.length, 1)
+  const { ui, ...candidate } = result.suggestions[0]
+  assert.deepEqual(candidate, repaired)
+  assert.deepEqual([...new Set(uiTypes(ui))].sort(), ['Advice', 'OwnerStep', 'Suggestion'].sort())
+  assert.deepEqual(JSON.parse(JSON.stringify(ui)), ui, 'the repaired candidate keeps a serialisable UI tree')
   assert.equal(calls, 2)
-  assert.match(instructions, /Every candidate, including an Intent preview, must include advice/)
-  assert.equal(Object.hasOwn(missing, 'advice'), false)
+  assert.match(instructions, /\bAdvice\b/)
+  assert.match(instructions, /\bSuggestions\b/)
+  assert.ok(!missing.includes('Advice('))
 })
 
 test('suggestion generation investigates through scoped tools inside the ephemeral session', async t => {
@@ -848,7 +854,7 @@ test('suggestion generation investigates through scoped tools inside the ephemer
       emit({ type: 'message_end', message: assistant(JSON.stringify({ answers })) })
       return
     }
-    emit({ type: 'message_end', message: assistant('{"suggestions":[]}') })
+    emit({ type: 'message_end', message: assistant('root = Suggestions([])') })
   }, options => { tools = options.customTools })
   await bot.generateProposals({ topics: [topic], maxCandidates: 1 })
   assert.deepEqual(tools.map(tool => tool.name), ['proactive_read', 'proactive_judge'])
@@ -864,7 +870,9 @@ test('Intent generation cannot substitute a next step for advice after its one c
   const topic = { id: 'intent-ride', intentPreview: true, evidence: [{ id: 'e0', value: 'Read-only preview' }] }
   const bot = await generationFixture(t, {}, async emit => {
     calls++
-    emit({ type: 'message_end', message: assistant(JSON.stringify({ suggestions: [{ topicId: topic.id, key: 'ride-preview', nextStep: '查看行程候选。', evidenceIds: ['e0'] }] })) })
+    emit({ type: 'message_end', message: assistant(`root = Suggestions([s1])
+s1 = Suggestion([n1],"${topic.id}","ride-preview",["e0"])
+n1 = OwnerStep("查看行程候选。")`) })
   })
   await assert.rejects(bot.generateProposals({ topics: [topic], maxCandidates: 1 }), error => error.code === 'advice_required')
   assert.equal(calls, 2)
@@ -889,7 +897,7 @@ test('Given an isolated service environment When the process environment is inva
     else process.env.ODK_PROACTIVE_GENERATION_TIMEOUT_MS = previous
   })
   const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only' }, async emit => {
-    emit?.({ type: 'message_end', message: assistant('{"suggestions":[]}') })
+    emit?.({ type: 'message_end', message: assistant('root = Suggestions([])') })
   })
   assert.deepEqual(await bot.generateProposals({ topics: [], maxCandidates: 1 }), { suggestions: [] })
 })

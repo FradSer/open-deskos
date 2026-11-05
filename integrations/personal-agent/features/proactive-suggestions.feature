@@ -175,6 +175,13 @@ Feature: Owner controlled proactive Personal Agent proposals
     And the safety boundary remains in force exactly once
     And the generated output still validates against the same contract
 
+  Scenario: The host rejects unresolved template markers in a semantic key
+    Given a generated candidate names its semantic key
+    When the host validates the batch
+    Then a key containing braces or template markers is refused
+    And a missing or non-string key is refused
+    And a plain key that matches the host allowlist is accepted
+
   Scenario: A preview carries only the readings behind the advice
     Given a topic exposes more observations than the advice needs
     When the generator builds the preview
@@ -683,3 +690,116 @@ Feature: Owner controlled proactive Personal Agent proposals
     And the completed action, receipt, handled occurrence, and owner configuration stay unchanged
     And repeated feedback does not repeat learning or execute the action
     And failed learning can retry without reopening the completed action
+
+  # --- OpenUI integration -------------------------------------------------
+  Scenario: The output contract comes from the OpenUI component library
+    Given the host owns a library of generic UI primitives
+    When it builds a generation session
+    Then the system prompt is generated from that library, not written by hand
+    And the prompt lists only the registered primitives and their typed props
+    And the host authority rules stay outside the generated prompt
+
+  Scenario: The model emits OpenUI Lang and the host parses it
+    Given the generation session uses the OpenUI Lang contract
+    When the Agent returns a streamed OpenUI Lang document
+    Then the host parses it with the OpenUI parser before any judgment
+    And an unparsable document is corrected once against the same contract
+    And a parsed document maps to the generic preview primitives only
+
+  Scenario: Replacing the generation contract preserves host authority
+    Given OpenUI owns prompt generation, output syntax and parsing
+    When a candidate reaches qualification
+    Then an ordinary model judges usefulness without a Jev classifier
+    And the host still binds approved actions, evidence and freshness
+    And no generated UI component can grant execution permission
+
+  Scenario: A malformed OpenUI document cannot reach the renderer
+    Given the parser rejects an unknown component or a dangling reference
+    When generation returns that document
+    Then the round produces no candidate and leaves other topics usable
+    And the renderer receives no unvalidated structure
+
+  # --- OpenUI full replacement (pipeline contract) ------------------------
+  Scenario: The full parsed component tree reaches the renderer
+    Given the parser returns a ui tree holding every emitted component node
+    When the host admits a candidate and publishes it
+    Then the proposal carries the full ui tree over IPC
+    And the renderer receives the tree without projection or node loss
+    And no generation code rebuilds the tree into preview items
+
+  Scenario: An unknown primitive is not dropped by the renderer
+    Given a published ui tree holds a type outside the renderer vocabulary
+    When the renderer mounts that tree
+    Then the unknown type renders as plain text
+    And every other component node still reaches the shared DOM
+    And the unknown node never disappears silently
+
+  Scenario: OpenUI needs no React runtime or remote asset
+    Given the Shell is a framework-free DOM renderer with a strict CSP
+    When the renderer builds the generic OpenUI structure
+    Then each type maps to an existing shared primitive class
+    And no React runtime, inline style, inline script or remote asset loads
+    And every text value is written with textContent
+
+  Scenario: Host authority survives the OpenUI contract
+    Given OpenUI owns prompt generation, wire syntax, parsing and component structure
+    When the host qualifies a returned candidate
+    Then an ordinary model judges usefulness without a Jev classifier
+    And the host still binds approved actions, evidence and freshness
+    And no generated component grants execution permission or invents a fact
+    And the host independently judges every candidate
+
+  Scenario: A composed card keeps its own structure and honest numbers
+    Given a generated candidate carries advice and a freely composed OpenUI tree
+    When the host validates that candidate before qualification
+    Then a prose sentence that restates the advice is refused
+    And a repeated reading or metric pair is refused
+    And every number the owner can see resolves to a host-issued observation value
+    And headings, prose, badges, stacks and option sets remain available to the model
+
+  Scenario: The shipped examples show visibly different generic compositions
+    Given the generation contract supplies several example documents
+    When the host parses those examples
+    Then each example cites host-issued evidence and an approved action
+    And no two examples use the same component shape
+    And the host rules ask for varied compositions rather than one fixed form
+
+  # --- Model owns composition, host owns facts ------------------------------
+  Scenario: The proactive chain uses no Jev classifier
+    Given the resident starts the proactive suggestion chain
+    When it builds the host watch judge and the generation investigation judge
+    Then both use an ordinary-model judgment client with the Jev provider disabled
+    And no Jev classifier request or Jev model identity enters those judgments
+    And intent routing keeps its own Jev-enabled client unchanged
+    And stored proposals with an older judgment record still load
+
+  Scenario: Qualification asks one narrow usefulness question
+    Given a generated candidate carries advice, a next step and a composed UI tree
+    When the host requests qualification
+    Then the judgment asks whether the advice is useful to bring to the owner now
+    And the judgment does not ask grounded or unsupported questions about card strings
+    And the returned probability still meets the owner threshold
+    And the candidate judgment record keeps its validated shape
+
+  Scenario: The host binds every card fact mechanically
+    Given the model composes a tree with headings, badges, stacks and readings
+    When the host validates that tree
+    Then every number in advice, headings, prose, badges, labels, values and options resolves to a host-issued observation value
+    And a number no observation supplies is refused
+    And card text enters no factual-support judgment because the host binds it mechanically
+    And the model remains free to choose order, nesting and prose
+
+  Scenario: The model composes varied generic trees
+    Given the generation contract supplies several example documents
+    When the model writes suggestions for different topics
+    Then the examples show distinct compositions of the shared primitives
+    And no rule caps the card at one sentence plus a flat chip list
+    And every example still cites host-issued evidence and an approved action
+
+  Scenario: Each shared primitive has a distinct rendered shape
+    Given a composed tree holds Heading, Text, Badge, Reading, Metric, Stack, Row and Divider
+    When the Shell renders that tree
+    Then each primitive produces its own DOM class and visual treatment
+    And Reading and Metric no longer share one identical chip
+    And every visible text keeps the single 17-pixel reading size
+    And the tree still renders exactly one card surface without concentric frames

@@ -970,6 +970,11 @@ The declaration accepts no prose prompts, arbitrary styles, or execution permiss
 Sources without metadata also participate.
 New visible sources need no category-specific Overview registration.
 
+The owner Markdown preference file reserves display slots. It does not change
+the declared `mode` or `priority` of a source. The host compiles owner
+directives into validated source IDs. Owner prose stays untrusted data and
+never enters the selection prompt.
+
 The Agent reads every visible entry returned by the source inventory.
 Four readers run concurrently, with a ten-second deadline for each read.
 Invalid or oversized values become bounded unavailable or error readings.
@@ -1066,6 +1071,9 @@ Unknown selectors, duplicate selections, unsupported formats, and incomplete fac
 
 References use `{{sourceId|field.path|format}}`.
 Formats are `text`, `number`, `integer`, `celsius`, `percent`, and `signedPercent`.
+The host binds numeric formats to whole numbers with no decimal point.
+`signedPercent` keeps its plus or minus sign so the renderer can color the change.
+A zero value carries no sign.
 `@label`, `@state`, and `@availability` bind source metadata.
 The host accepts only supplied references and their formats.
 Other references bind declared fields from live sources.

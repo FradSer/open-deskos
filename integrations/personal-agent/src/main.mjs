@@ -20,13 +20,14 @@ import { proposalStateStore } from './proactive-state.mjs'
 import { checkJevAuthentication } from './jev-client.mjs'
 import { ProactiveWatch, loadProactiveConfig, ownerConfigWriter } from './proactive.mjs'
 import { createJevJudge } from './proactive-jev.mjs'
+import { createProactiveJudge } from './proactive-qualification.mjs'
 import { odkDataRequest } from './odk-data.mjs'
 import { loadTargets, taskRequest } from './task-client.mjs'
 import { createRideNotifier } from './ride-notification.mjs'
 import { attachRemoteConversation } from './remote-pi-reader.mjs'
 import { HomeBriefing } from './home-briefing.mjs'
 import { createTaskReadings, createRemoteReadings, createHydraReadings as createHydraProjectionReadings } from './producer-readings.mjs'
-import { loadOverviewPreferences } from './overview-preferences.mjs'
+import { loadOwnerMarkdownPreferences } from './overview-preferences.mjs'
 
 async function initialize(env, report, onRideUpdate, platform = process.platform, getWatch = undefined, signal = undefined, onAgentUpdate = undefined, onRemoteUpdate = undefined) {
   signal?.throwIfAborted()
@@ -243,7 +244,7 @@ async function main() {
     createRemoteReadings: runtime => createRemoteReadings(runtime.remote),
     createHydraReadings: () => createHydraProjectionReadings({ read: (id, signal) => odkDataRequest('read', { id, signal, env, platform }).then(result => result.reading) }),
     async createHome(_runtime, _service) {
-      const preferences = await loadOverviewPreferences({ env, platform })
+      const preferences = await loadOwnerMarkdownPreferences({ env, platform })
       home = new HomeBriefing({
         requireBindings: true,
         preferences,
@@ -269,7 +270,7 @@ async function main() {
         refineFeedbackMemory: runtime.agent.refineFeedbackMemory,
         feedbackMemoryEnabled: runtime.agent.feedbackMemoryEnabled === true,
         onGeneration: record => console.info(JSON.stringify({ event: 'proactive_generation', model: runtime.agent.generationModel, ...record })),
-        judge: createJevJudge({ env, request: runtime.agent.judge }),
+        judge: createProactiveJudge({ env, generate: runtime.agent.judgeOrdinary, model: () => runtime.agent.generationModel }),
         onJudgment: record => console.info(JSON.stringify({ event: 'proactive_judgment', ...record })),
         ...{ onFeedback: record => console.info(JSON.stringify({ event: 'proactive_feedback', ...record })) },
         read: async (id, signal) => (await odkDataRequest('read', { id, signal, env, platform })).reading,

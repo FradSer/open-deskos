@@ -2,6 +2,19 @@ Feature: Immutable runtime release deployment
   Device preflight must validate a staged candidate exactly as the kiosk
   session will run it, without depending on ambient installer environment.
 
+  Scenario: CM5 staging refuses a root filesystem without reserved space
+    Given the CM5 root filesystem has less free space than the release reserve
+    When the operator stages a candidate release
+    Then staging fails before it transfers any source
+    And it reports the measured free space and the required reserve
+    And it leaves no new staging directory behind
+
+  Scenario: Every staged release cleans up its own staging directory
+    Given staging creates one isolated directory under the runtime root
+    When staging succeeds, fails, or stops early
+    Then the cleanup trap removes that exact directory
+    And it never deletes an unrelated staging directory
+
   Scenario: All dry-run entry points use one read-only planner
     Given a runtime snapshot and a publication capacity request
     When the unified CLI or a legacy entry point receives --dry-run

@@ -1,6 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createProactiveInvestigationTools } from '../src/proactive-investigation.mjs'
+import { validateGeneratedBatch } from '../src/proactive-generation.mjs'
+import { openuiSuggestion, uiTypes } from './openui-fixtures.test.mjs'
 
 const stamp = '2026-11-02T09:40:00.000Z'
 const action = { id: 'open', label: 'Open the plan' }
@@ -13,7 +15,6 @@ const topic = () => ({
 const draft = {
   topicId: 'commute-anomaly', key: 'primary', advice: '通勤延误 28 分钟。',
   actionId: action.id, evidenceIds: ['e0', 'e1', 'e2'],
-  preview: { summary: '通勤时长对比', items: [{ label: '预计耗时', value: '52 分钟', tone: 'warn' }, { label: '基准耗时', value: '24 分钟' }] },
 }
 const fixture = ({ judge = async () => ({ model: 'jev-fixture', answers: {} }), read = async () => ({ reading: { id: 'commute.traffic', state: 'live', label: '通勤', value: { minutes: 52 } } }) } = {}) => {
   const input = { trigger: { kind: 'heartbeat', readingIds: [] }, context: { now: stamp }, topics: [topic()], recent: [], maxCandidates: 8 }
@@ -69,7 +70,7 @@ test('a draft judgment maps the exact draft with its topic evidence and goal', a
   assert.equal(candidate.goal, topic().goal)
   assert.equal(candidate.generated, true)
   assert.deepEqual(candidate.evidence, topic().evidence)
-  assert.deepEqual(candidate.preview.items, draft.preview.items)
+  assert.equal(Object.hasOwn(candidate, 'preview'), false, 'the investigation tool maps host claims, not OpenUI presentation')
   assert.equal(outcome.structuredContent.answers.d0.probability, 0.9)
   assert.equal(outcome.structuredContent.answers.d0.groundingProbability, 0.85)
 })
@@ -80,10 +81,26 @@ test('a draft with unresolvable evidence is refused with model-usable feedback',
   assert.deepEqual(calls.judge, [])
 })
 
-test('a draft with a malformed preview is refused before judgment', async () => {
-  const { investigation, calls } = fixture()
-  await assert.rejects(investigation.tools[1].execute('t0', { suggestions: [{ ...draft, preview: { items: [{ label: 'a', value: 'b', tone: 'alarm' }] } }] }), /preview/)
-  assert.deepEqual(calls.judge, [])
+test('the host ignores OpenUI draft presentation but still refuses forged authority', async () => {
+  const ui = openuiSuggestion({
+    topicId: draft.topicId, key: draft.key, advice: draft.advice,
+    actionId: draft.actionId, evidenceIds: draft.evidenceIds,
+  }).ui
+  const withUi = { ...draft, ui }
+  const judge = async ({ candidates }) => ({ model: 'jev-fixture',
+    answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.9, groundingProbability: 0.9, threshold: 0.8 }])) })
+  const { investigation, calls } = fixture({ judge })
+  const outcome = await investigation.tools[1].execute('t0', { suggestions: [withUi] })
+  const candidate = calls.judge[0].candidates[0]
+  assert.equal(Object.hasOwn(candidate, 'ui'), false, 'the judgment draft ignores OpenUI presentation')
+  assert.equal(Object.hasOwn(candidate, 'preview'), false)
+  assert.equal(outcome.structuredContent.answers.d0.probability, 0.9)
+  const [validated] = validateGeneratedBatch({ suggestions: [withUi] }, [topic()], 8)
+  assert.deepEqual(validated.ui, ui, 'the host passes the OpenUI-owned tree through unchanged')
+  assert.ok(uiTypes(validated.ui).includes('Badge'), 'the full tree survives host validation')
+  await assert.rejects(investigation.tools[1].execute('t0', { suggestions: [{ ...draft, actionId: 'deploy-everything' }] }), /not approved/)
+  await assert.rejects(investigation.tools[1].execute('t0', { suggestions: [{ ...draft, evidenceIds: ['e9'] }] }), /evidence/)
+  assert.equal(calls.judge.length, 1, 'unapproved actions and forged evidence never reach judgment')
 })
 
 test('judgments stay within the bounded budget', async () => {

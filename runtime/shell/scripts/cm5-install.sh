@@ -159,6 +159,14 @@ EOF
 install_p4_camera_mic
 
 echo "== installing node modules (downloads linux-arm64 Electron) =="
+# Staging checks free space before the transfer. Re-check on the device: another
+# job can consume the root filesystem between stage and dependency install.
+INSTALL_MIN_FREE_MB="${ODK_STAGE_MIN_FREE_MB:-2500}"
+FREE_MB="$(df -Pk "${PWD}" | awk 'NR==2 { print int($4 / 1024) }')"
+if ! [[ "${FREE_MB}" =~ ^[0-9]+$ ]] || [ "${FREE_MB}" -lt "${INSTALL_MIN_FREE_MB}" ]; then
+  echo "Insufficient root space for dependency install: ${FREE_MB} MiB available, ${INSTALL_MIN_FREE_MB} MiB reserved." >&2
+  exit 1
+fi
 $SUDO chown -R "${TARGET_UID}:${TARGET_GID}" "${DIR}"
 if [ -x "${COREPACK_PNPM}" ]; then
   run_as_target_user pnpm install --frozen-lockfile
@@ -207,6 +215,15 @@ RUNTIME_ROOT="${ODK_RUNTIME_ROOT:-/opt/odk}"
 RELEASES_DIR="${RUNTIME_ROOT}/releases"
 RELEASE_ID="$(date -u '+%Y%m%dT%H%M%SZ')-$$"
 RELEASE_DIR="${RELEASES_DIR}/${RELEASE_ID}"
+# A failed build must not leave an 869 MiB partial candidate on the root
+# filesystem. Activation clears this duty once the transaction succeeds.
+RELEASE_ACTIVATED=0
+cleanup_partial_release() {
+  if [ "${RELEASE_ACTIVATED:-0}" != 1 ] && [ -d "${RELEASE_DIR}" ]; then
+    $SUDO rm -rf -- "${RELEASE_DIR}"
+  fi
+}
+trap cleanup_partial_release EXIT
 $SUDO install -d -o "${TARGET_UID}" -g "${TARGET_GID}" -m 0755 "${RELEASE_DIR}"
 if [ "$(CDPATH= cd -- "${DIR}" >/dev/null && pwd -P)" != "$(CDPATH= cd -- "${RELEASE_DIR}" >/dev/null && pwd -P)" ]; then
   copy_release_input "${DIR}/." "${RELEASE_DIR}/"
@@ -321,6 +338,9 @@ else
   $SUDO chmod -R u+rX,g+rX,o-rwx,a-w "${RELEASE_DIR}"
   $SUDO ln -sfn "${RELEASE_DIR}" "${RUNTIME_ROOT}/current"
 fi
+# The release is now a protected rollback target. Keep it even if a later
+# installer step fails; cleanup now belongs to the release-control process.
+RELEASE_ACTIVATED=1
 run_as_target_user env ODK_RUNTIME_ROOT="${RUNTIME_ROOT}" ODK_KIOSK_USER="${TARGET_USER}" \
   node "${RUNTIME_ROOT}/current/scripts/migrate-runtime.js"
 

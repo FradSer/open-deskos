@@ -55,6 +55,31 @@ Feature: Independent resident Personal Agent
     And text line height is uniform across the advice, card summary and chips
     And no surface overflows the bubble or clips its text
 
+  Scenario: A recommendation with a session source keeps one concentric footer
+    Given a status frame supplies a recommendation and one session source
+    When the Shell renders the recommendation message across all themes
+    Then the host appends one session footer row at the bottom of the message capsule
+    And the footer shows the session source on the left and a Reply control on the right
+    And the Reply control shares the card radius with the action button and the card
+    And the footer uses the recommendation's one reading size
+    And the bubble keeps its surface padding on all four sides
+    And the footer spacing comes from the named block gap
+    And the icon and source text keep one horizontal centre line
+    And the source group takes a small optical nudge below the Reply centre
+    And the source row grows its left inset to match the larger gap below its small text
+    And the source keeps its full touch target without moving the Reply control
+    And the Pixel theme collapses the whole scale to zero
+    And a plain conversation message without a generated card keeps the same footer geometry
+
+  Scenario: A message without a generated card shares the recommendation footer
+    Given a status frame supplies a plain remote message and a recommendation with a card
+    When the Shell renders both messages across all themes
+    Then both session footers use the one reading size and the named block gap
+    And both source rows carry the same left inset and optical nudge
+    And both Reply controls share the card radius and keep their full touch target
+    And neither footer depends on the presence of a generated card
+    And the two footer groups stay on one horizontal centre line
+
   Scenario: Card text keeps a readable hierarchy and intact pairs
     Given a recommendation message shows advice, a preview summary and attribute chips
     When the owner reads the card across themes and compact widths
@@ -62,6 +87,40 @@ Feature: Independent resident Personal Agent
     And a chip keeps its label and value on one line with a readable gap
     And no chip label or value wraps, clips or overflows its card
     And the card text uses one reading size from the shared scale
+
+  Scenario: An OpenUI message states its advice once and nests one card
+    Given a recommendation message renders a composed OpenUI tree
+    When the owner reads the bubble
+    Then the advice sentence appears exactly once in the bubble
+    And the preview has one card surface, not a card inside another card
+    And every reading is still visible with its label and value
+    And the mounted DOM harness counts the whole sentence once across the bubble
+    And a restated sentence in a card Heading is refused before publication
+
+  Scenario: Generated advice and conversation messages render safe Markdown
+    Given a recommendation advice and a remote conversation message contain strong text and a code span
+    When the Shell renders the recommendation and the plain-text conversation message
+    Then both render their semantic Markdown through the maintained safe renderer
+    And the advice keeps its single reading size and visual priority
+    And raw HTML stays literal and links stay inert text with readable URLs
+    And plain messages with no Markdown keep their exact original text
+    And the same rendering holds across Instrument, Pixel, Border Beam and Liquid Glass themes
+
+  Scenario: A conversation message without a generated card stays visually consistent
+    Given a remote conversation message shows owner text with a session source footer
+    When the Shell renders it beside a recommendation that has a generated card
+    Then the plain message keeps its text-and-footer surface without a fabricated card
+    And its bubble padding, reading size and footer match the recommendation bubble
+    And its text renders through the same safe Markdown as generated advice
+    And the two messages share one spacing rhythm in the conversation
+
+  Scenario: The generated card owns one spacing rhythm and no orphan divider
+    Given a recommendation card composes a badge, a divider, a heading, prose and a stack
+    When the Shell renders the card across themes and compact widths
+    Then divider spacing comes only from the card's named block gap
+    And a divider carries no extra margin that doubles the surrounding space
+    And a trailing divider inside a stack draws no orphan line near the card edge
+    And every gap between adjacent primitives follows the same named scale
 
   Scenario: One message bubble uses one reading size for its text and card
     Given a recommendation message shows advice above a generic preview card
@@ -639,3 +698,41 @@ Feature: Independent resident Personal Agent
     Then the recorded result stays visible
     And execution, confirmation, postponement, rating, and category controls are absent
     And the draft and the completed result remain unchanged
+
+  Scenario: OpenUI primitives render through the shared DOM adapter
+    Given a parsed OpenUI document contains text, chips, badges and buttons
+    When the renderer mounts it in a recommendation message
+    Then every node maps to an existing shared primitive and no domain-specific card appears
+    And the concentric radius scale, one reading size and capsule state ownership are unchanged
+    And no React runtime, inline style, inline script or remote asset is required
+
+  # --- OpenUI full component tree (renderer contract) ----------------------
+  Scenario: The full OpenUI component tree reaches the renderer
+    Given a parsed candidate carries a ui tree with nested generic primitives
+    When the host publishes the candidate to the Shell
+    Then the renderer receives every component node in that ui tree
+    And no node is projected into a flat preview item list
+    And nested children render in the order the model emitted them
+
+  Scenario: An unknown OpenUI primitive is rendered and never dropped
+    Given a ui tree holds one type the renderer does not register
+    When the renderer mounts the tree in a recommendation message
+    Then the unknown type appears as a plain text node
+    And its siblings and children still render
+    And the tree never loses the unknown node silently
+
+  Scenario: OpenUI rendering uses only shared DOM primitives
+    Given a composable OpenUI tree holds text, badges, metrics and option selectors
+    When the renderer maps each type to a concentric shared primitive class
+    Then rendered text uses textContent and never innerHTML
+    And no React runtime, inline style, inline script or remote asset is required
+    And the concentric radius scale and one 17-pixel reading size stay unchanged
+
+  Scenario: Host authority survives the OpenUI renderer
+    Given OpenUI owns the component vocabulary and the rendered structure
+    When a candidate with an approved action reaches the renderer
+    Then only the host binds the approved action label and tool
+    And evidence provenance, freshness and lifecycle receipts stay with the host
+    And Jev still judges the candidate before publication
+    And the identity capsule keeps all authoritative state
+

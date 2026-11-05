@@ -52,6 +52,17 @@ test('Liquid Glass keeps Widgets visible while SDK clip paths are prepared', () 
   assert.match(css, /html\[data-theme='liquid-glass'\] #home-desk :is\(\.widget, #app-view\)\.lg-surface\s*\{[^}]*visibility:\s*inherit;/)
 })
 
+test('Liquid Glass states the Agent identity without a capsule frame', () => {
+  const css = fs.readFileSync(path.join(renderer, 'themes/liquid-glass.css'), 'utf8')
+  assert.match(css, /html\[data-theme='liquid-glass'\] #personal-agent \.agent-capsule\s*\{[^}]*border:\s*1px solid transparent;/)
+  assert.match(css, /html\[data-theme='liquid-glass'\] #personal-agent \.agent-capsule\s*\{[^}]*background:\s*none;/)
+  assert.match(css, /html\[data-theme='liquid-glass'\] #personal-agent \.agent-capsule\s*\{[^}]*backdrop-filter:\s*none;/)
+  assert.match(css, /html\[data-theme='liquid-glass'\] #personal-agent \.agent-capsule\s*\{[^}]*border-radius:\s*0;/)
+  assert.match(css, /html\[data-theme='liquid-glass'\] #personal-agent \.agent-capsule > \.agent-name\s*\{[^}]*font-weight:\s*300;/)
+  assert.match(css, /html\[data-theme='liquid-glass'\] #personal-agent \.agent-capsule > \.agent-state\s*\{[^}]*color:\s*var\(--odk-secondary\);/)
+  assert.doesNotMatch(css, /:is\([^)]*\.agent-capsule[^)]*\)\s*:not\(:where\([^)]*\)\)\s*\{/)
+})
+
 function fakeElement(id, box, inViewport = false) {
   const classes = new Set()
   const children = []

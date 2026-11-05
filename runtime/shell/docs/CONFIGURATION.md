@@ -71,6 +71,7 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `ODK_TEST_FAST_CONCURRENCY` | Test | Test process | runtime/shell/scripts/test-tiers.cjs | Host default | Fast-tier worker count. Use a positive integer. The CM5 reference host defaults to four. Other hosts default to eight. |
 | `ODK_SURFACE_MATRIX` | Test | Full-matrix gate | runtime/shell/tests/helpers/surface-matrix.js | Representative combination | Set `full` to render every Cell, theme, size, and reading state. Revision acceptance uses one representative combination by default. |
 | `ODK_SURFACE_MATRIX_CI` | Test | Nightly CI runner | runtime/shell/tests/helpers/hydra-surface-selection.js | Unset | Set `1` to give software-rendered CI runners the CM5 reference-host rendering budget. |
+| `ODK_STAGE_MIN_FREE_MB` | L2 install | Deployment | runtime/shell/scripts/cm5-stage-release.sh, runtime/shell/scripts/cm5-install.sh | 2500 | Minimum free root space in MiB before staging or installing a CM5 release. Both scripts fail closed when the measured value is lower. |
 | `ODK_SKIP_GPU_USERSPACE` | L2 install | Installer override | runtime/shell/scripts/cm5-install.sh | 0 | Skip the Mali userspace install. |
 | `ODK_SMOKE_RESULT_FILE` | Test | Smoke run | runtime/shell/src/main.js | — | Smoke result file. |
 | `ODK_TAILSCALE_BIN` | L3 device | Operator | runtime/shell/scripts/provision-tailscale.sh | /usr/bin/tailscale | Override a nonstandard Tailscale executable path. Reuse an existing host installation. |
@@ -191,7 +192,7 @@ The [child contract](../../../integrations/personal-agent/docs/AGENT_TASKS.md) o
 | Variable | Layer | Default | Consumer | Kind | Note |
 | --- | --- | --- | --- | --- | --- |
 | `XDG_CONFIG_HOME` | device | `~/.config` | integrations/personal-agent/src/overview-preferences.mjs | config | Root for the default Overview preference file on Unix hosts |
-| `ODK_OVERVIEW_PREFERENCES_FILE` | device | `~/.config/odk/overview-preferences.json` | integrations/personal-agent/src/overview-preferences.mjs | config | Owner rules for required sources and private sources; mode `0600` |
+| `ODK_OVERVIEW_PREFERENCES_MD` | device | `~/.config/odk/overview-preferences.md` | integrations/personal-agent/src/overview-preferences.mjs | config | Owner Markdown directives for required and private sources; mode `0600` |
 | `ODK_MODEL_CLIENT_NAME` | device | Open deskOS | integrations/personal-agent/src/model-client-identity.mjs | config | Shared client name for gateway requests; its spaces are escaped for Usage |
 | `ODK_JEV_PROVIDER` | device | typesafe | integrations/personal-agent/src/jev-client.mjs | config | Select typesafe or opencode; disabled uses ordinary model judgment |
 | `OPENCODE_API_KEY` | device | none | External consumer: Pi ModelRuntime | config | Native Pi OpenCode environment credential; stored credentials take precedence |

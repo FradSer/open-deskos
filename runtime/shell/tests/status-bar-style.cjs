@@ -81,13 +81,20 @@ app.whenReady().then(async () => {
         const widget=document.querySelector('.widget');
         const devices = bar.querySelector('button[aria-label="Open Devices"]');
         const devicesRect = devices.getBoundingClientRect();
+        const devicesStyle = getComputedStyle(devices);
+        const piStyle = getComputedStyle(pi);
+        const framelessPeripherals = devicesStyle.borderTopWidth==='0px' && devicesStyle.backgroundImage==='none'
+          && devicesStyle.backgroundColor==='rgba(0, 0, 0, 0)' && devicesStyle.boxShadow==='none'
+          && devicesStyle.backdropFilter==='none' && devicesStyle.borderTopLeftRadius==='0px';
+        const piCapsule = piStyle.borderTopWidth==='1px' && piStyle.borderTopStyle==='solid'
+          && (piStyle.backgroundColor!=='rgba(0, 0, 0, 0)' || piStyle.backgroundImage!=='none' || piStyle.backdropFilter!=='none');
         const remoteGlyph = devices.querySelector('.sb-remote svg[data-tabler]')?.dataset.tabler || null;
         const remoteDeviceGlyphs = [...devices.querySelectorAll('svg[data-tabler^="device-"]')].length;
         const gamepadGlyphs = [...bar.querySelectorAll('svg[data-tabler="device-gamepad-2"]')].filter(svg=>!svg.closest('[hidden]')&&svg.getClientRects().length).length;
         const cornerMarkers = [...bar.querySelectorAll('#sb-net, .sb-peripheral, #sb-pad')].flatMap(node=>['::before','::after'].flatMap(pseudo=>{const content=getComputedStyle(node,pseudo).content;return ['none','normal'].includes(content)?[]:[{target:node.id||node.className,pseudo,content}]}));
         const labels = {remote:bar.querySelector('.sb-remote')?.getAttribute('aria-label'),camera:bar.querySelector('.sb-camera')?.getAttribute('aria-label'),network:bar.querySelector('#sb-net')?.getAttribute('aria-label')};
         const controls = [...bar.querySelectorAll('#sb-pad, .sb-devices, #sb-pi-status, #sb-net, .sb-time')].filter(node=>node.getClientRects().length);
-        return { viewport:[innerWidth,innerHeight,devicePixelRatio], theme:document.documentElement.dataset.theme, barBottom:rect.bottom, remoteGlyph, remoteDeviceGlyphs, gamepadGlyphs, cornerMarkers, labels,
+        return { viewport:[innerWidth,innerHeight,devicePixelRatio], theme:document.documentElement.dataset.theme, barBottom:rect.bottom, remoteGlyph, remoteDeviceGlyphs, gamepadGlyphs, cornerMarkers, labels, framelessPeripherals, piCapsule,
           material: {
             borders:[material.borderTopWidth,material.borderRightWidth,material.borderBottomWidth,material.borderLeftWidth],
             radius:material.borderTopLeftRadius,background:material.backgroundImage,shadow:material.boxShadow,
@@ -111,6 +118,8 @@ app.whenReady().then(async () => {
       assert.deepEqual(state.viewport, [width,height,1])
       assert.equal(state.theme, theme)
       assert.equal(state.devicesTarget, true, 'Devices retains a reachable touch target')
+      assert.equal(state.framelessPeripherals, true, theme + ' ' + width + ': peripheral icons have no enclosing capsule')
+      assert.equal(state.piCapsule, true, theme + ' ' + width + ': Pi status keeps its designed capsule')
       assert.equal(state.remoteGlyph, 'server', 'Remote Control must use the service glyph')
       assert.equal(state.remoteDeviceGlyphs, 0, 'Remote Control must not use a device glyph')
       assert.equal(state.gamepadGlyphs, 1, 'A connected gamepad must show one gamepad glyph')

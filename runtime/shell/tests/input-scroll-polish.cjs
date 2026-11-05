@@ -48,12 +48,14 @@ async function glassControls() {
       await js(`polishUntil(()=>{const n=document.querySelector('.agent-composer'),s=getComputedStyle(n);return s.backgroundImage!=='none'||n.classList.contains('lg-surface')&&document.documentElement.dataset.liquidGlass==='sdk'})`).catch(async error=>{console.error(await js(`(()=>{const n=document.querySelector('.agent-mic'),s=getComputedStyle(n);return {width:innerWidth,style:n.style.cssText,classes:n.className,mode:document.documentElement.dataset.liquidGlass,background:s.background,material:s.getPropertyValue('--odk-glass-control-material'),media:matchMedia('(prefers-contrast: more)').matches}})()`));throw error})
       const result=await js(`(()=>{
         const widget=document.querySelector('.widget[data-interaction="display-only"]'),edge=getComputedStyle(widget).borderTopColor;
-        return [...document.querySelectorAll('button,input,textarea,select,summary,[role="button"],.agent-composer,.agent-capsule')].filter(n=>n.getClientRects().length && !n.matches('.widget-launch,.dot,.agent-session-open,.agent-composer textarea,.agent-composer button,input[type="checkbox"],input[type="radio"],input[type="range"]')).map(n=>{const s=getComputedStyle(n);return {name:n.className||n.id||n.tagName,border:s.borderTopWidth,style:s.borderTopStyle,color:s.borderTopColor,edge,image:s.backgroundImage,shadow:s.boxShadow,foreground:s.color,radius:s.borderTopLeftRadius,sdk:n.classList.contains('lg-surface')&&document.documentElement.dataset.liquidGlass==='sdk'}})
+        return [...document.querySelectorAll('button,input,textarea,select,summary,[role="button"],.agent-composer')].filter(n=>n.getClientRects().length && !n.matches('.widget-launch,.dot,.agent-session-open,.agent-composer textarea,.agent-composer button,.sb-devices,input[type="checkbox"],input[type="radio"],input[type="range"]')).map(n=>{const s=getComputedStyle(n);return {name:n.className||n.id||n.tagName,border:s.borderTopWidth,style:s.borderTopStyle,color:s.borderTopColor,edge,image:s.backgroundImage,shadow:s.boxShadow,foreground:s.color,radius:s.borderTopLeftRadius,sdk:n.classList.contains('lg-surface')&&document.documentElement.dataset.liquidGlass==='sdk'}})
       })()`)
       for (const row of result) {
         check(`${width} ${label}: ${row.name} glass frame`,row.border==='1px'&&row.style==='solid'&&(row.image!=='none'||row.sdk)&&row.shadow.includes('inset'))
       }
-      report.push({width,height,label,controls:result})
+      const identity = await js(`(()=>{const n=document.querySelector('.agent-identity .agent-capsule');for(const a of n.getAnimations())a.finish();const s=getComputedStyle(n);return {color:s.borderTopColor,background:s.backgroundColor,image:s.backgroundImage,shadow:s.boxShadow,filter:s.backdropFilter,radius:s.borderTopLeftRadius,height:n.getBoundingClientRect().height}})()`)
+      check(`${width} ${label}: Agent identity is frameless text`, /rgba\(0, 0, 0, 0\)|transparent/.test(identity.color)&&identity.image==='none'&&identity.shadow==='none'&&identity.filter==='none'&&identity.radius==='0px'&&identity.height>=44)
+      report.push({width,height,label,controls:result,identity})
     }
     await inspect('voice')
     await capture('glass-voice-'+width)
@@ -125,8 +127,10 @@ async function glassControls() {
     const value=feature==='prefers-contrast'?'more':feature==='forced-colors'?'active':'reduce'
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:feature,value}]})
     await js(`polishUntil(()=>matchMedia('(${feature}: ${value})').matches&&document.documentElement.dataset.liquidGlass==='fallback')`)
-    const readable=await js(`(()=>{return [...document.querySelectorAll('.agent-composer,.agent-composer button,.agent-identity .agent-capsule')].filter(n=>n.getClientRects().length).every(n=>{const s=getComputedStyle(n);return s.backdropFilter==='none'&&s.boxShadow==='none'&&s.backgroundImage==='none'&&(n.matches('.agent-composer button')||s.borderTopWidth==='1px'&&s.backgroundColor!=='rgba(0, 0, 0, 0)')})})()`)
+    const readable=await js(`(()=>{return [...document.querySelectorAll('.agent-composer,.agent-composer button')].filter(n=>n.getClientRects().length).every(n=>{const s=getComputedStyle(n);return s.backdropFilter==='none'&&s.boxShadow==='none'&&s.backgroundImage==='none'&&(n.matches('.agent-composer button')||s.borderTopWidth==='1px'&&s.backgroundColor!=='rgba(0, 0, 0, 0)')})})()`)
     check(feature+': controls have opaque accessible frames',readable)
+    const identity=await js(`(()=>{const n=document.querySelector('.agent-identity .agent-capsule'),s=getComputedStyle(n);return {edge:['rgba(0, 0, 0, 0)','transparent'].includes(s.borderTopColor)||${JSON.stringify(feature)}==='forced-colors',plain:s.backgroundImage==='none'&&s.boxShadow==='none',height:n.getBoundingClientRect().height>=44}})()`)
+    check(feature+': Agent identity stays readable frameless text',identity.edge&&identity.plain&&identity.height)
     await capture('glass-'+feature)
   }
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]})
@@ -168,7 +172,7 @@ app.whenReady().then(async () => {
       await js(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));await polishUntil(()=>innerWidth===${width}&&innerHeight===${height});await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));document.querySelector('.agent-composer .agent-mic').focus()})()`)
       check(where + ': microphone control keeps its own focus ring', await js(`(()=>{const field=document.querySelector('.agent-composer .agent-mic'),s=getComputedStyle(field);return field.matches(':focus-visible')&&s.outlineStyle==='solid'&&s.outlineWidth==='2px'})()`))
       await js(`(async()=>{const box=document.querySelector('.agent-composer');if(box.dataset.mode==='voice')document.querySelector('.agent-keys').click();await polishUntil(()=>box.dataset.mode==='keyboard');document.querySelector('.agent-composer textarea').focus()})()`)
-      const identity = await js(`(()=>{const name=document.querySelector('.agent-name'),pill=document.querySelector('.agent-identity .agent-capsule');return {height:pill.getBoundingClientRect().height,nameHeight:name.getBoundingClientRect().height,nameLine:parseFloat(getComputedStyle(name).lineHeight),nameWhole:name.scrollWidth<=name.clientWidth+1}})()`)
+      const identity = await js(`(()=>{const name=document.querySelector('.agent-name'),pill=document.querySelector('.agent-identity .agent-capsule');for(const a of pill.getAnimations())a.finish();return {height:pill.getBoundingClientRect().height,nameHeight:name.getBoundingClientRect().height,nameLine:parseFloat(getComputedStyle(name).lineHeight),nameWhole:name.scrollWidth<=name.clientWidth+1}})()`)
       check(where + ': default name is whole on one line', identity.nameHeight <= identity.nameLine + 1 && identity.nameWhole)
       check(where + ': identity capsule keeps control height', identity.height >= 44 && identity.height <= 84)
       // The composer shares the Agent surface radius, so every theme keeps one concentric scale.

@@ -15,6 +15,7 @@ import { createPersonalAgentComposition, personalAgentManifest, BOT_PORTS } from
 import { loadPersonalAgentReplacements } from '../src/development-plugins.mjs'
 import { PersonalAgentService } from '../src/service.mjs'
 import { protectProactivePath } from '../src/proactive-private.mjs'
+import { openuiBatch, openuiDocument, openuiDocuments } from './openui-fixtures.test.mjs'
 
 const stamp = '2026-10-02T10:00:00.000Z'
 const config = () => ({ version: 1, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 3600000, rules: [{ id: 'dry', urgent: true, delivery: 'immediate', advice: '检查盆土。考虑浇水。', conditions: [{ readingId: 'plant', field: 'soil', op: 'lt', value: 20 }], action: { tool: 'memory_update', params: { category: 'watering', value: '检查盆土后浇水' } } }], suppressed: [], snoozed: {} })
@@ -27,7 +28,9 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-selected-proactive-')))
   t.after(() => rm(root, { recursive: true, force: true }))
   await isolateAgentDirectory(t, root)
-  const generated = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }] }
+  const fields = { topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }
+  const generated = openuiDocument(fields)
+  const generatedCandidates = openuiBatch([fields])
   for (const version of [1, 2]) {
     const reports = []
     for (const external of [false, true]) {
@@ -44,7 +47,7 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
           canExecuteProposal(action) { return action.tool === 'memory_update' },
           async generateProposals() {
             if (runtime.fail) throw Error('private proactive provider detail')
-            return ${JSON.stringify(generated)}
+            return ${JSON.stringify(generatedCandidates)}
           },
           async phraseProposal({ advice }) {
             if (runtime.fail) throw Error('private proactive provider detail')
@@ -81,10 +84,15 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
           const agent = await createPersonalAgent({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile }, getWatch: () => watch, env: {} }, {
             createIntentRouter: fixtureIntentRouter,
             createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel }),
-            createSession: async options => ({ session: (await offlineSession({ ...options, agentDir: join(root, 'agent') }, () => {
-              if (runtime.fail) throw Error('private proactive provider detail')
-              return assistant(version === 1 ? '[1,0]' : JSON.stringify(generated))
-            })).session }),
+            createSession: async options => {
+              // The phrasing session still expects a JSON index array; only the
+              // generation session speaks OpenUI Lang.
+              const phrasing = /Organize the owner-approved advice sentences/.test(options.resourceLoader?.getSystemPrompt?.() ?? '')
+              return { session: (await offlineSession({ ...options, agentDir: join(root, 'agent') }, () => {
+                if (runtime.fail) throw Error('private proactive provider detail')
+                return assistant(phrasing || version === 1 ? '[1,0]' : generated)
+              })).session }
+            },
           })
           return Object.assign(runtime, { agent })
         },
@@ -180,7 +188,9 @@ test('default and selected Agent disable cancel pending proactive consumers and 
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-proactive-cancel-')))
   t.after(() => rm(root, { recursive: true, force: true }))
   await isolateAgentDirectory(t, root)
-  const batch = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }] }
+  const batchFields = { topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }
+  const batch = openuiBatch([batchFields])
+  const batchDocument = openuiDocument(batchFields)
   for (const stage of ['phrasing', 'generation']) {
     const reports = []
     for (const external of [false, true]) {
@@ -227,7 +237,7 @@ test('default and selected Agent disable cancel pending proactive consumers and 
           const hold = ++instances === 1
           let enter, rejectWork, captured, disposed = 0, cancelled = false, sessions = 0
           const ready = new Promise(resolve => { enter = resolve })
-          const raw = stage === 'generation' ? JSON.stringify(batch) : '[0,1]'
+          const raw = stage === 'generation' ? batchDocument : '[0,1]'
           const event = () => ({ type: 'message_end', message: assistant(raw) })
           const agent = await createPersonalAgent({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') }, env: {} }, {
             createIntentRouter: fixtureIntentRouter,
@@ -342,17 +352,20 @@ test('real SDK generator carries only scoped investigation tools and no skills, 
   await isolateAgentDirectory(t, dir)
   const optionsSeen = [], requests = []
   await writeFile(join(dir, 'memory.json'), JSON.stringify({ private: 'MUST_NOT_ENTER_GENERATION' }))
-  const suggestions = [1, 2].map(i => ({ topicId: 'packages', key: `item-${i}`, advice: `待取物品 ${i} 件已到。`, actionId: 'inspect-package', evidenceIds: ['e0'] }))
+  const suggestionsDoc = openuiDocuments([
+    { topicId: 'packages', key: 'item-1', advice: '待取物品 1 件已到。', actionId: 'inspect-package', evidenceIds: ['e0'] },
+    { topicId: 'packages', key: 'item-2', advice: '待取物品 2 件已到。', actionId: 'inspect-package', evidenceIds: ['e0'] },
+  ])
   const agent = await createPersonalAgent({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') } }, {
     createIntentRouter: fixtureIntentRouter,
     createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel }),
     createSession: async options => {
       optionsSeen.push(options)
-      return { session: (await offlineSession({ ...options, agentDir: join(dir, 'agent') }, context => { requests.push(context); return assistant(JSON.stringify({ suggestions })) })).session }
+      return { session: (await offlineSession({ ...options, agentDir: join(dir, 'agent') }, context => { requests.push(context); return assistant(suggestionsDoc) })).session }
     },
   })
   t.after(() => agent.close())
-  const result = await agent.generateProposals({ topics: [{ id: 'packages', goal: '领取物品', actions: [{ id: 'inspect-package', label: '检查物品' }], evidence: [{ id: 'e0', value: 2 }] }], maxCandidates: 8 })
+  const result = await agent.generateProposals({ topics: [{ id: 'packages', goal: '领取物品', actions: [{ id: 'inspect-package', label: '检查物品' }], evidence: [{ id: 'e0', value: 2 }, { id: 'e1', value: 1 }] }], maxCandidates: 8 })
   assert.equal(result.suggestions.length, 2)
   assert.deepEqual(optionsSeen[1].tools, [])
   assert.deepEqual(optionsSeen[1].customTools.map(tool => tool.name), ['proactive_read', 'proactive_judge'])

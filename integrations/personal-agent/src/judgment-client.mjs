@@ -62,7 +62,7 @@ export function validateOrdinaryJudgmentAnswers(value, questions) {
 }
 
 /** Host-derived compatibility values, never provider probabilities or calibrated evidence. */
-function normalizeOrdinaryAnswers(value, questions) {
+export function normalizeOrdinaryAnswers(value, questions) {
   const answers = Object.fromEntries(Object.entries(questions).map(([id, question]) => {
     const answer = value.answers[id]
     if (question.type !== 'choice') return [id, answer]

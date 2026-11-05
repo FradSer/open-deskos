@@ -121,11 +121,11 @@ function formatValue(value, format) {
     return value < 20 ? 'dry' : value < 35 ? 'low' : value < 60 ? 'OK' : value < 80 ? 'good' : 'wet'
   }
   if (format === 'integer' && !Number.isSafeInteger(value)) throw Error('Invalid home integer variable')
-  if (format === 'signedPercent') {
-    const rounded = Number(value.toFixed(2))
-    return `${rounded > 0 ? '+' : ''}${rounded.toFixed(2)}%`
-  }
-  return `${value}${format === 'celsius' ? '°C' : format === 'percent' ? '%' : ''}`
+  // Overview is prose for a person. State whole numbers and keep signed
+  // percentages honest: a small negative reading rounds to -1, never +0.
+  const whole = Math.sign(value) * Math.round(Math.abs(value)) || 0
+  if (format === 'signedPercent') return `${whole > 0 ? '+' : ''}${whole}%`
+  return `${whole}${format === 'celsius' ? '°C' : format === 'percent' ? '%' : ''}`
 }
 
 /** Bind only declared, cited plugin fields; the model never owns displayed values. */
@@ -341,6 +341,11 @@ export function homeTemplateVariables(readings, now = Date.now()) {
 const atPath = (value, path) => path.split('.').reduce((node, key) => node?.[key], value)
 const fieldLabel = path => path.split('.').filter(key => !/^\d+$/.test(key)).join(' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').toLowerCase()
 const analysisMetadata = /(?:^|\.)(?:verification(?:\.status)?|execution)$/
+// A timestamp is machine data. Keep it for attention scoring, never compile it
+// into prose meant to be read by a person.
+const TIMESTAMP_FIELD = /(?:^|\.)(?:at|time|timestamp|startsAt|endsAt|due|deadline|createdAt|publishedAt|updatedAt|measuredAt|asOf)$/i
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/
+const isTimestampValue = value => typeof value === 'string' && ISO_TIMESTAMP.test(value.trim()) && Number.isFinite(Date.parse(value))
 // A window label such as "Weekly Limit Remaining" repeats the measurement the
 // fact already states. The icon names the service, so keep only one subject.
 const MEASUREMENT_LABEL = /\b(?:remaining|limit|percent|quota|usage|used|available|allowance)\b/i
@@ -410,6 +415,7 @@ export function homeFactVariables(readings, now = Date.now(), preferences = DEFA
       const repeatedRecordState = /^\d+$/.test(parts.at(-2) ?? '') && Array.isArray(records) && records.length > 2
         && ['state', 'status', 'activity', 'project'].includes(parts.at(-1))
       const analysisOnly = analysisMetadata.test(path) || repeatedRecordState
+        || TIMESTAMP_FIELD.test(path) && isTimestampValue(value)
         || privateSource && path !== '@summary'
         || /(?:^|\.)label$/.test(path) && typeof value === 'string' && MEASUREMENT_LABEL.test(value)
       facts.push({ id: source.id, serviceId: variable.serviceId, icon, factId: `${source.id}:${path}`, example, attention, entities,

@@ -201,3 +201,75 @@ test('CM5 acceptance accepts legacy Personal Agent upgrade configuration', t => 
   assert.equal(endpoint.ok, false)
   assert.match(endpoint.detail, /19999.*17840/)
 })
+
+// `show -p Environment` does not repeat EnvironmentFile= declarations. The report must inspect
+// the same host the kiosk process receives.
+test('CM5 acceptance checks a Pi Sessions host declared in runtime.env', t => {
+  const home = fixture(t, {
+    '.config/odk/runtime.env': 'ODK_WORKSPACE=/home/kiosk/Developer/odk\nODK_PI_SSH_HOST=fixture-host\n',
+    'bin/systemctl': '#!/bin/sh\ncase "$*" in\n  *show*Environment*) printf "Environment=ODK_RUNTIME_ROOT=/fixture\\n" ;;\n  *) printf "active\\n" ;;\nesac\n',
+    'bin/ssh': '#!/bin/sh\ncase " $* " in\n  *" fixture-host true "*) exit 0 ;;\n  *) exit 1 ;;\nesac\n',
+  })
+  const check = acceptance(home)('pi-sessions-remote-source')
+  assert.equal(check.ok, true)
+  assert.equal(check.required, false)
+  assert.match(check.detail, /fixture-host answered SSH/)
+})
+
+test('CM5 acceptance reports an unreachable Pi Sessions host without claiming a source', t => {
+  const home = fixture(t, {
+    '.config/odk/runtime.env': 'ODK_WORKSPACE=/home/kiosk/Developer/odk\nODK_PI_SSH_HOST=fixture-host\n',
+    'bin/systemctl': '#!/bin/sh\ncase "$*" in\n  *show*Environment*) printf "Environment=ODK_RUNTIME_ROOT=/fixture\\n" ;;\n  *) printf "active\\n" ;;\nesac\n',
+    'bin/ssh': '#!/bin/sh\nexit 1\n',
+  })
+  const check = acceptance(home)('pi-sessions-remote-source')
+  assert.equal(check.ok, false)
+  assert.equal(check.required, false)
+  assert.match(check.detail, /fixture-host did not answer SSH/)
+})
+
+test('CM5 acceptance prefers an explicit systemd Pi Sessions host over runtime.env', t => {
+  const home = fixture(t, {
+    '.config/odk/runtime.env': 'ODK_WORKSPACE=/home/kiosk/Developer/odk\nODK_PI_SSH_HOST=runtime-host\n',
+    'bin/systemctl': '#!/bin/sh\ncase "$*" in\n  *show*Environment*) printf "Environment=ODK_PI_SSH_HOST=systemd-host\\n" ;;\n  *) printf "active\\n" ;;\nesac\n',
+    'bin/ssh': '#!/bin/sh\ncase " $* " in\n  *" systemd-host true "*) exit 0 ;;\n  *) exit 1 ;;\nesac\n',
+  })
+  const check = acceptance(home)('pi-sessions-remote-source')
+  assert.equal(check.ok, true)
+  assert.match(check.detail, /systemd-host answered SSH/)
+})
+
+test('CM5 staging gates on reserved root space and always cleans its own staging directory', () => {
+  const stage = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-stage-release.sh'), 'utf8')
+  assert.match(stage, /ODK_STAGE_MIN_FREE_MB/, 'staging declares a configurable free-space floor')
+  assert.match(stage, /df -Pk|--output=avail|awk.*avail/, 'staging measures available root space on the device')
+  assert.match(stage, /insufficient|Insufficient|reserve/i, 'staging reports an honest insufficient-space failure')
+  assert.match(stage, /trap cleanup EXIT/, 'staging keeps the cleanup trap')
+  assert.match(stage, /rm -rf -- '\$\{STAGING_DIR\}'/, 'cleanup removes only this run\'s staging directory')
+  // The space check must run before any source transfer.
+  assert.ok(stage.indexOf('ODK_STAGE_MIN_FREE_MB') < stage.indexOf('rsync -a'), 'space check precedes rsync')
+})
+
+test('the device installer rechecks free space before dependency install', () => {
+  const install = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-install.sh'), 'utf8')
+  assert.match(install, /ODK_STAGE_MIN_FREE_MB/, 'the installer uses the same reserve floor')
+  assert.match(install, /df -Pk/, 'the installer measures free space again on the device')
+  assert.match(install, /Insufficient root space for dependency install/, 'the installer fails honestly before a partial install')
+  assert.ok(install.indexOf('Insufficient root space for dependency install') < install.indexOf('pnpm install'), 'the check precedes pnpm install')
+})
+
+test('CM5 acceptance reports root headroom and retained release count', () => {
+  assert.match(script, /root-disk-headroom/)
+  assert.match(script, /ODK_STAGE_MIN_FREE_MB/)
+  assert.match(script, /find "\$DISK_ROOT\/releases"/)
+  assert.match(script, /du -sm "\$DISK_ROOT\/state"/)
+})
+
+test('the device installer removes only a partial, unactivated release on failure', () => {
+  const install = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-install.sh'), 'utf8')
+  assert.match(install, /trap cleanup_partial_release EXIT/)
+  assert.match(install, /RELEASE_ACTIVATED=0/)
+  assert.match(install, /RELEASE_ACTIVATED=1/, 'activation protects the release from cleanup')
+  assert.match(install, /"\$\{RELEASE_ACTIVATED:-0\}" != 1/, 'cleanup refuses an activated release')
+  assert.ok(install.indexOf('RELEASE_ACTIVATED=1') > install.indexOf('update-runtime.js'), 'activation clears the cleanup duty only after the transaction')
+})
