@@ -9,9 +9,9 @@
 .sb-peripheral svg { width: var(--bar-icon); height: var(--bar-icon); }
 .sb-peripheral:is([data-state="usb"], [data-state="wireless"], [data-state="live"]) { color: var(--odk-primary); }
 #home-desk { position: absolute; inset: var(--status-h) 0 0; display: grid; grid-template-columns: minmax(320px, 1fr) minmax(0, var(--desk-pane-w, 67%)); }
-/* The Agent pane owns its own column. A scrolling Widget page in the right
-   column must never show through it. */
-#personal-agent { position: relative; z-index: 1; container-type: inline-size; min-width: 0; min-height: 0; overflow: hidden; background: var(--odk-bg); border-right: 1px solid var(--odk-stroke); }
+/* The Agent pane owns its own column. The right pane clips its own Widget
+   pages, and this pane clips and stacks above them; no flat fill is needed. */
+#personal-agent { position: relative; z-index: 1; container-type: inline-size; min-width: 0; min-height: 0; overflow: hidden; background: transparent; border-right: 1px solid var(--odk-stroke); }
 #personal-agent > .page { padding: 0; width: 100%; height: 100%; }
 /* The Overview keeps its own row above the paging track. Horizontal navigation
    only moves the 3x2 Widget pages below it; the briefing never follows a page. */
@@ -182,7 +182,9 @@ html[data-theme='pixel'] #home-summary .dash {
 #app-view :is(.pi-app-wrapper, .futu-app) { flex: 1 1 auto; min-height: 0; height: 100%; }
 #app-view .app-body:has(.pi-app-wrapper) { overflow: hidden; }
 #app-view .pi-app-wrapper:has(.pi-overview:not([hidden])) .pi-detail { visibility: hidden; }
-#desk-content:has(> #app-view:not([hidden])) > #pages-viewport { visibility: hidden; }
+/* An open Widget App owns the whole right pane: neither the fixed Overview nor
+   the paging track stays visible behind it. */
+#desk-content:has(> #app-view:not([hidden])) > :is(#home-summary, #pages-viewport) { visibility: hidden; }
 #app-view .pi-overview { background: transparent; padding: 0; }
 #app-view .pi-app-wrapper:has(.pi-overview:not([hidden])) .pi-app-header { padding-bottom: 0; }
 #app-view :is(.pi-view-subtitle, .pi-view-facts):empty { display: none; }
@@ -224,7 +226,10 @@ html[data-theme='pixel'] #home-summary .dash {
   backdrop-filter: blur(24px) saturate(120%);
   -webkit-backdrop-filter: blur(24px) saturate(120%);
 }
+/* The visible State Bar band is tighter than its geometry slot. The desk still
+   starts at --status-h, so the shared Widget canvas keeps its measured size. */
 #status-bar {
+  height: calc(var(--status-h) - 12px);
   z-index: 25;
   background: transparent;
   backdrop-filter: none;

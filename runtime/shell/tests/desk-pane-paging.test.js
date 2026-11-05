@@ -65,12 +65,19 @@ test('the Agent avatar sits closer to the State Bar', () => {
     'the framed capsule keeps its border')
 })
 
-test('the Agent pane is opaque and clips a scrolling right pane', () => {
+test('the Agent pane clips a scrolling right pane without a flat fill', () => {
   const css = read('src/renderer/home-desk.css')
   assert.match(css, /#personal-agent\s*\{[^}]*overflow:\s*hidden/, 'the left pane clips its content')
-  assert.match(css, /#personal-agent\s*\{[^}]*background:\s*var\(--odk-bg\)/, 'the left pane has an opaque surface')
+  assert.doesNotMatch(css, /#personal-agent\s*\{[^}]*background:\s*var\(--odk-bg\)/, 'no solid fill')
+  assert.match(css, /#personal-agent\s*\{[^}]*background:\s*transparent/, 'the pane stays transparent')
   assert.match(css, /#personal-agent\s*\{[^}]*z-index:\s*[1-9]/, 'the left pane owns its stacking layer')
   assert.match(css, /#personal-agent\s*\{[^}]*position:\s*relative/, 'the stacking layer is local')
+})
+
+test('the Overview hides while a Widget App is open', () => {
+  const css = read('src/renderer/home-desk.css')
+  assert.match(css, /#desk-content:has\(> #app-view:not\(\[hidden\]\)\) > :is\(#home-summary, #pages-viewport\)\s*\{[^}]*visibility:\s*hidden/,
+    'the fixed Overview is hidden with the paging track')
 })
 
 test('Jump to latest keeps the pill shape', () => {
