@@ -27,6 +27,19 @@ typography:
     fontFamily: "Montserrat, sans-serif"
     fontSize: "52px"
     fontWeight: 700
+  scale:
+    caption-floor: "12px"
+    data-floor: "14px"
+    label: "16px"
+    body: "20px"
+    heading: "24px"
+    numeral-compact: "28px"
+    weekday: "32px"
+    date-wide: "40px"
+    narrative-wide: "48px"
+    display: "96px"
+    year-min: "64px"
+    year-max: "180px"
 rounded:
   card: "36px"
   pill: "999px"
@@ -50,6 +63,7 @@ Use a quiet black field, charcoal surfaces, outlined instruments, and heavy tabu
 - White carries primary reading. Red, green, and blue mark a specific state or focal action; inactive surfaces stay neutral.
 - `stroke` separates Widgets; `stroke-focus` marks keyboard focus. Depth uses tone and outlines, without drop shadows or glow.
 - Montserrat Bold carries numerals/compact labels; Noto Sans SC Regular carries body text. Supporting text on charcoal uses `secondary-strong`; `secondary` is for subdued non-text indicators.
+- `typography.scale` names the fixed steps. Fluid `clamp()` values use two named steps as their endpoints.
 - Widget supporting text is at least 12px. Compact layouts retain readable square cells and scroll vertically.
 - Widget visual content targets 62% of the inner frame (54–70% accepted). Measure text line boxes, SVG visual frames, and meters, excluding empty wrappers. Rectangle union must exceed 20%; no full-width empty vertical band may exceed 28%. Wide dates and 100% values remain contained.
 - App interiors share heading/body/label roles, controls at least 44px, visible search labels, and wrapping metadata. Desktop footprints align with the Home grid; compact Apps fit within page margins.
