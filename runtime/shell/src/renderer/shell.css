@@ -554,6 +554,8 @@ body.kiosk {
 [data-theme='pixel'] .dash-markdown :is(strong, em, th) { font-weight: 400; font-style: normal; }
 .dash-context { color: var(--odk-secondary); }
 .dash-fact { color: var(--odk-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Source icons keep their restrained category colors. They identify a source,
+   not a value, so they are separate from the Widget value accents. */
 .dash-icon { display: inline; color: color-mix(in srgb, var(--odk-accent-green) 60%, var(--odk-primary)); }
 .dash-icon:is([data-kind="weather"], [data-kind="mail"]) {
   color: color-mix(in srgb, color-mix(in oklch, var(--odk-accent-red) 50%, var(--odk-accent-green)) 55%, var(--odk-primary));
@@ -570,24 +572,24 @@ body.kiosk {
 .dash-unit-degree { display: inline-block; font-size: 0.85em; vertical-align: 0.22em; margin-inline-end: -0.04em; }
 [data-theme="pixel"] .dash-unit { font-family: "Zpix", "Noto Sans SC", monospace !important; font-weight: inherit !important; font-size: 1em !important; display: inline-block; position: relative; padding-left: 0.36em; letter-spacing: normal; }
 [data-theme="pixel"] .dash-unit-degree { position: absolute; top: 0.12em; left: 0; width: 0.28em; height: 0.28em; border: 0.08em solid currentColor; box-sizing: border-box; text-indent: -9999px; overflow: hidden; flex: none; font-size: inherit; vertical-align: baseline; margin-inline-end: 0; }
-.dash-change[data-direction="up"] { color: var(--odk-status-healthy); }
-.dash-change[data-direction="down"] { color: var(--odk-status-critical); }
+.dash-change[data-direction="up"] { color: var(--odk-accent-green); }
+.dash-change[data-direction="down"] { color: var(--odk-accent-red); }
 .dash-soil { white-space: nowrap; }
-.dash-soil[data-status="dry"] { color: var(--odk-status-critical); }
-.dash-soil[data-status="low"] { color: var(--odk-status-warning); }
-.dash-soil:is([data-status="ok"], [data-status="good"], [data-status="wet"]) { color: var(--odk-status-healthy); }
-.dash-remaining[data-level="critical"] { color: var(--odk-status-critical); }
-.dash-remaining[data-level="low"] { color: var(--odk-status-warning); }
-.dash-remaining[data-level="ok"] { color: var(--odk-status-healthy); }
+.dash-soil[data-status="dry"] { color: var(--odk-accent-red); }
+.dash-soil[data-status="low"] { color: var(--odk-accent-red); }
+.dash-soil:is([data-status="ok"], [data-status="good"], [data-status="wet"]) { color: var(--odk-accent-green); }
+.dash-remaining[data-level="critical"] { color: var(--odk-accent-red); }
+.dash-remaining[data-level="low"] { color: var(--odk-accent-red); }
+.dash-remaining[data-level="ok"] { color: var(--odk-accent-green); }
 .dash-soil-value { white-space: nowrap; }
-.dash-soil-value[data-status="dry"] { color: var(--odk-status-critical); }
-.dash-soil-value[data-status="low"] { color: var(--odk-status-warning); }
-.dash-soil-value:is([data-status="ok"], [data-status="good"], [data-status="wet"]) { color: var(--odk-status-healthy); }
-.dash-humidity[data-level="low"] { color: var(--odk-status-critical); }
-.dash-humidity:is([data-level="ok"], [data-level="high"]) { color: var(--odk-status-healthy); }
-.dash-state[data-level="critical"] { color: var(--odk-status-critical); }
-.dash-state[data-level="warning"] { color: var(--odk-status-warning); }
-.dash-state[data-level="healthy"] { color: var(--odk-status-healthy); }
+.dash-soil-value[data-status="dry"] { color: var(--odk-accent-red); }
+.dash-soil-value[data-status="low"] { color: var(--odk-accent-red); }
+.dash-soil-value:is([data-status="ok"], [data-status="good"], [data-status="wet"]) { color: var(--odk-accent-green); }
+.dash-humidity[data-level="low"] { color: var(--odk-accent-red); }
+.dash-humidity:is([data-level="ok"], [data-level="high"]) { color: var(--odk-accent-green); }
+.dash-state[data-level="critical"] { color: var(--odk-accent-red); }
+.dash-state[data-level="warning"] { color: var(--odk-accent-red); }
+.dash-state[data-level="healthy"] { color: var(--odk-accent-green); }
 .dash-token { display: inline-block; white-space: nowrap; }
 /* One authoritative icon size. The generic narrative rule below must not
    override it: a narrower selector with equal specificity later in this file
