@@ -84,7 +84,9 @@ function createDataSourcePlugins() {
     }),
     sourcePlugin({
       id: 'hydra', createReadings: createHydraReadings, health: getHydraHealth, name: 'Hydra plants', port: DATA_PORTS.hydra,
-      optionalRequires: [DATA_PORTS.deviceGateway],
+      // ctx.get throws for undeclared ports. Declare the status-channel port so
+      // a display-only host can read the resident Hydra projection.
+      optionalRequires: [DATA_PORTS.deviceGateway, SYSTEM_PORTS.personalAgent],
       construct: (config, ctx) => (config.options?.source !== 'mqtt' && config.createDefault)
         ? config.createDefault({ ...config.options, deviceGateway: ctx.get(DATA_PORTS.deviceGateway) })
         : config.create(config.options),
