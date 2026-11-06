@@ -150,7 +150,7 @@ async function assertAllSourceOverview() {
       const plantBound = resolveHomeTemplate(plantRaw, [plant])
       await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: plantBound.items.map(item => ({ text: item.text, segments: item.segments, sources: [{ id: plant.id, label: plant.label, state: plant.state }] })) })
       const plantRender = await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');return {text:n.textContent,overflow:n.scrollWidth>n.clientWidth+1}})()`)
-      assert.match(plantRender.text, /Plant 1 Soil moisture is OK at 54\.6%/, theme)
+      assert.match(plantRender.text, /Plant 1 Soil moisture is OK at 55%/, theme)
       assert.equal(plantRender.overflow, false, theme)
       if (theme === 'instrument') {
         await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: [{ text: 'API quota Main 6% remaining, Spare account 88% remaining, Plant 1 dry at 8%, Plant 2 OK at 54%, Plant 3 wet at 85%, Plant 4 low at 25%, Greenhouse humidity percent: 71%, Greenhouse humidity percent: 50%, +1.20% today.',
@@ -192,21 +192,23 @@ async function assertAllSourceOverview() {
         assert.equal(colors.wet, colors.okSoil, 'wet soil must not use a separate blue')
         assert.equal(colors.high, colors.okHumidity, 'high humidity must not use a separate blue')
         const tokens = await evaluate(`(()=>{const doc=document;
-          const probe=name=>{const s=doc.createElement('span');s.style.color='var(--odk-accent-'+name+')';doc.body.append(s);const c=getComputedStyle(s).color;s.remove();return c};
+          const probe=name=>{const s=doc.createElement('span');s.style.color='var(--odk-status-'+name+')';doc.body.append(s);const c=getComputedStyle(s).color;s.remove();return c};
           const n=doc.querySelector('#dash-narrative');
-          return {red:probe('red'), green:probe('green'), blue:probe('blue'),
+          return {critical:probe('critical'), warning:probe('warning'), healthy:probe('healthy'), info:probe('info'),
             dry:getComputedStyle(n.querySelector('.dash-soil[data-status="dry"]')).color,
             low:getComputedStyle(n.querySelector('.dash-soil[data-status="low"]')).color,
             ok:getComputedStyle(n.querySelector('.dash-soil[data-status="ok"]')).color,
             wet:getComputedStyle(n.querySelector('.dash-soil[data-status="wet"]')).color,
             high:getComputedStyle(n.querySelector('.dash-humidity[data-level="high"]')).color}})()`)
-        assert.notEqual(tokens.red, tokens.green, 'the Widget red and green accents stay distinct')
-        assert.equal(tokens.dry, tokens.red, 'dry resolves from the Widget red accent')
-        assert.equal(tokens.low, tokens.red, 'low resolves from the Widget red accent')
-        assert.equal(tokens.ok, tokens.green, 'OK resolves from the Widget green accent')
-        assert.equal(tokens.wet, tokens.green, 'wet stays on the Widget green accent')
-        assert.equal(tokens.high, tokens.green, 'high humidity stays on the Widget green accent')
-        assert.notEqual(tokens.wet, tokens.blue, 'Overview values do not apply the blue accent')
+        assert.notEqual(tokens.critical, tokens.healthy, 'a critical status token must exist')
+        assert.notEqual(tokens.warning, tokens.healthy, 'a warning status token must exist')
+        assert.notEqual(tokens.info, tokens.healthy, 'an info status token must exist')
+        assert.equal(tokens.dry, tokens.critical, 'dry resolves from the critical token')
+        assert.equal(tokens.low, tokens.warning, 'low resolves from the warning token')
+        assert.equal(tokens.ok, tokens.healthy, 'OK resolves from the healthy token')
+        assert.equal(tokens.wet, tokens.healthy, 'wet stays on the healthy token')
+        assert.equal(tokens.high, tokens.healthy, 'high humidity stays on the healthy token')
+        assert.notEqual(tokens.wet, tokens.info, 'Overview does not apply the blue token')
         assert.equal(await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');return n.scrollWidth>n.clientWidth+1})()`), false)
       }
     }
@@ -841,8 +843,7 @@ app.whenReady().then(async () => {
   await evaluate('document.fonts.ready')
   assert.equal(await evaluate(`!!document.querySelector('#personal-agent textarea')`), true, 'resident Agent has a composer')
   assert.equal(await evaluate(`document.querySelector('[data-page-id="today"]').parentElement.id`), 'home-summary', 'briefing retains its plugin host')
-  assert.equal(await evaluate(`document.querySelector('#home-summary').parentElement.id`), 'desk-content', 'Overview is fixed above the paging track')
-  assert.equal(await evaluate(`document.querySelector('#home-summary').closest('#pages-track')`), null, 'Overview does not follow a paged canvas')
+  assert.equal(await evaluate(`document.querySelector('#home-summary').closest('[data-page-id="home"]')?.parentElement.id`), 'pages-track', 'Overview belongs to the first paged canvas')
   assert.equal(await evaluate(`document.querySelector('#dots').closest('#status-bar')`), null, 'dots stay below Widgets')
   assert.equal(await evaluate(`document.querySelectorAll('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]').length`), 0, 'separate time and date Widgets are removed')
   if (process.argv.includes('--composer-capture-only')) { await captureComposerInputs();finish(0);return }
@@ -1373,7 +1374,7 @@ app.whenReady().then(async () => {
           const head=document.querySelector('.agent-head'),headStyle=getComputedStyle(head),headBounds=head.getBoundingClientRect();
           const onee=document.querySelector('.agent-avatar .bs-avatar svg'),pillStyle=getComputedStyle(identity.querySelector('.agent-capsule'));
           const bounds=onee.getBBox(),matrix=onee.getScreenCTM(),artTop=new DOMPoint(bounds.x,bounds.y).matrixTransform(matrix).y,artBottom=new DOMPoint(bounds.x,bounds.y+bounds.height).matrixTransform(matrix).y;
-          return {visibleTop:Math.abs(artTop-conversation.top)<=6,artSize:Math.abs(onee.getBoundingClientRect().height-avatar.width)<1,unclipped:getComputedStyle(document.querySelector('.agent-avatar')).overflow==='visible',visibleOverlap:artBottom>pill.top&&artBottom-pill.top<avatar.height*0.25,onee:!!onee&&onee.getAttribute('viewBox')==='-150 -150 300 300'&&onee.querySelectorAll('path[d]').length>=4,sharedCapsule:pillStyle.borderTopWidth==='1px'&&pillStyle.borderTopStyle==='solid'&&(pillStyle.backgroundColor!=='rgba(0, 0, 0, 0)'||pillStyle.backgroundImage!=='none')&&identity.querySelector('.agent-capsule').contains(document.querySelector('.agent-state')), centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,topAligned:Math.abs(avatar.top-conversation.top)<1,overlap:avatar.bottom-pill.top>=avatar.height*0.12&&avatar.bottom-pill.top<=avatar.height*0.2,transparent:headStyle.backgroundColor==='rgba(0, 0, 0, 0)'&&headStyle.backgroundImage==='none'&&headStyle.backdropFilter==='none',underlay:conversation.top<=headBounds.top&&conversation.bottom>headBounds.bottom,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&inputRow.width>=panel.width-45&&composer.width>=panel.width-45&&noToggle,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
+          return {visibleTop:Math.abs(artTop-conversation.top)<=6,artSize:Math.abs(onee.getBoundingClientRect().height-avatar.width)<1,unclipped:getComputedStyle(document.querySelector('.agent-avatar')).overflow==='visible',visibleOverlap:artBottom>pill.top&&artBottom-pill.top<avatar.height*0.25,onee:!!onee&&onee.getAttribute('viewBox')==='-150 -150 300 300'&&onee.querySelectorAll('path[d]').length>=4,sharedCapsule:(document.documentElement.dataset.theme==='liquid-glass'?(['rgba(0, 0, 0, 0)','transparent'].includes(pillStyle.borderTopColor)&&pillStyle.backgroundImage==='none'&&pillStyle.boxShadow==='none'):(pillStyle.backgroundColor!=='rgba(0, 0, 0, 0)'||pillStyle.backgroundImage!=='none')&&pillStyle.borderTopWidth==='1px')&&identity.querySelector('.agent-capsule').contains(document.querySelector('.agent-state')), centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,topAligned:Math.abs(avatar.top-conversation.top)<1,overlap:avatar.bottom-pill.top>=avatar.height*0.12&&avatar.bottom-pill.top<=avatar.height*0.2,transparent:headStyle.backgroundColor==='rgba(0, 0, 0, 0)'&&headStyle.backgroundImage==='none'&&headStyle.backdropFilter==='none',underlay:conversation.top<=headBounds.top&&conversation.bottom>headBounds.bottom,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&inputRow.width>=panel.width-45&&composer.width>=panel.width-45&&noToggle,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
         })()`)
         for(const [name,ok] of Object.entries(layout))if(!ok)failures.push(theme+' '+width+': '+name)
       }
@@ -1555,8 +1556,8 @@ app.whenReady().then(async () => {
         })()`)
         assert.ok(fit.agentWidth >= width * 0.35 && fit.agentWidth < width * 0.6, 'Agent uses spare width beside the square canvas: ' + JSON.stringify(fit))
         if (width === 1920) assert.ok(Math.abs(fit.leftMargin - 32) <= 1 && Math.abs(fit.rightMargin - 32) <= 1, 'square canvas has balanced 32 pixel side margins: ' + JSON.stringify(fit))
-        if (width === 1920) assert.ok(fit.bottomMargin >= 16 && fit.bottomMargin < geometry.unit, 'the last Widget row stays inside the paging viewport: ' + JSON.stringify(fit))
-        assert.equal(fit.topMargin, fit.gap, 'the Widget canvas starts one gap inside its paging viewport')
+        if (width === 1920) assert.ok(fit.bottomMargin >= 16 && fit.bottomMargin < 19, 'reference canvas leaves one margin plus integer-cell rounding: ' + JSON.stringify(fit))
+        assert.equal(fit.topMargin, geometry.unit + 32, 'Overview occupies the first row with one gap before Widgets')
         assert.equal(fit.gap, 16, 'Widget grid uses consistent expanded spacing')
         assert.ok(Math.abs(fit.overviewLeft - fit.gridLeft) <= 1 && Math.abs(fit.overviewRight - fit.gridRight) <= 1, 'Overview spans the same three columns as Widgets: ' + JSON.stringify(fit))
         if (width === 1920 && height === 1280) {
@@ -1575,7 +1576,7 @@ app.whenReady().then(async () => {
         assert.equal(geometry.columns, 3, 'wide right pane uses at most three columns')
         assert.ok(geometry.unit >= 186, 'home uses readable square units')
         assert.equal(await evaluate(`window.__odkGrid.rows`), 2, 'Widget region has two rows')
-        assert.ok(await evaluate(`(() => { const h = document.querySelector('#pages-viewport').clientHeight; const u = window.__odkGrid.cellDim; return h >= 2 * u && h < 3 * u + 16; })()`), 'two Widget rows fit the paging viewport below the fixed Overview')
+        assert.ok(await evaluate(`document.querySelector('#pages-viewport').clientHeight >= 3 * window.__odkGrid.cellDim + 64 && document.querySelector('#pages-viewport').clientHeight < 3 * window.__odkGrid.cellDim + 67`), 'Overview and two Widget rows fit the three-row canvas')
         assert.deepEqual(geometry.spans, ['kept', 'kept'], 'original instrument proportions survive')
         if (width === 1920) assert.ok(await evaluate(`Array.from(document.querySelectorAll('.widget')).every(tile => tile.getBoundingClientRect().bottom <= tile.closest('.page').getBoundingClientRect().bottom)`), 'reference panel shows complete Widget pages')
       }
@@ -1710,31 +1711,20 @@ app.whenReady().then(async () => {
   await evaluate(`window.dispatchEvent(new Event('resize')); new Promise(r => setTimeout(r, 100))`)
   await send(compact)
   const firstCard = await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return { x: r.x, height: r.height, unit: window.__odkGrid.cellDim, border: parseFloat(getComputedStyle(document.querySelector('#home-summary')).borderTopWidth) } })()` )
-  assert.ok(firstCard.height >= firstCard.unit && firstCard.height < firstCard.unit + 2 * 16,
-    'Overview is at least one grid row high and absorbs only the spare pane height')
-  const spacing = await evaluate(`(() => {
-    const tiles = [...document.querySelectorAll('[data-page-id="home"] .widget')].map(e => e.getBoundingClientRect())
-    const viewport = document.querySelector('#pages-viewport').getBoundingClientRect()
-    const dots = document.querySelector('#dots').getBoundingClientRect()
-    return { belowWidgets: +(viewport.bottom - Math.max(...tiles.map(r => r.bottom))).toFixed(1),
-      aboveController: +(dots.top - viewport.bottom).toFixed(1) }
-  })()`)
-  assert.ok(spacing.belowWidgets <= 16 && spacing.aboveController <= 1,
-    'no tall empty band separates the Widgets from the Page Controller: ' + JSON.stringify(spacing))
+  assert.equal(firstCard.height, firstCard.unit, 'Overview is exactly one grid row high')
   assert.equal(firstCard.border, 0, 'Overview stays borderless')
-  const overviewBefore = await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return { x: r.x, y: r.y } })()`)
-  const swipe = await evaluate(`(() => { const r = document.querySelector('#pages-viewport').getBoundingClientRect(); const y = Math.round(r.top + r.height / 2); return { x: Math.round(r.right - 40), y, end: Math.round(r.left + 40) } })()`)
+  const swipe = await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return { x: Math.round(r.right - 30), y: Math.round(r.top + 24), end: Math.round(r.left + 30) } })()`)
   win.webContents.sendInputEvent({ type: 'mouseDown', x: swipe.x, y: swipe.y, button: 'left', clickCount: 1 })
   win.webContents.sendInputEvent({ type: 'mouseMove', x: swipe.end, y: swipe.y, button: 'left' })
   win.webContents.sendInputEvent({ type: 'mouseUp', x: swipe.end, y: swipe.y, button: 'left', clickCount: 1 })
   await evaluate(`new Promise(r => setTimeout(r, 280))`)
-  assert.equal(await evaluate(`document.querySelectorAll('.dot')[1].classList.contains('active')`), true, 'swiping the Widget area changes the paging page')
-  assert.equal(await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return r.x === ${overviewBefore.x} && r.y === ${overviewBefore.y}; })()`), true, 'the fixed Overview stays in place when the page changes')
-  assert.equal(await evaluate(`document.querySelectorAll('#pages-track #home-summary').length`), 0, 'Overview is not a member of any paging page')
+  assert.equal(await evaluate(`document.querySelectorAll('.dot')[1].classList.contains('active')`), true, 'swiping Overview changes the whole Home page')
+  assert.ok(await evaluate(`document.querySelector('#home-summary').getBoundingClientRect().right <= document.querySelector('#pages-viewport').getBoundingClientRect().left`), 'next page excludes Overview')
+  assert.equal(await evaluate(`document.querySelectorAll('#pages-track > .page:not([data-page-id="home"]) #home-summary').length`), 0)
   await evaluate(`document.querySelectorAll('.dot')[0].click(); new Promise(r => setTimeout(r, 280))`)
-  assert.equal(await evaluate(`document.querySelector('#home-summary').getBoundingClientRect().x`), firstCard.x, 'the fixed Overview stays at its original position')
+  assert.equal(await evaluate(`document.querySelector('#home-summary').getBoundingClientRect().x`), firstCard.x, 'Overview returns with Home')
   assert.equal(await evaluate(`document.querySelector('#home-summary details, #home-summary summary')`), null, 'paging never restores source controls')
-  assert.equal(await evaluate(`document.querySelectorAll('#home-summary [data-plugin="odk.page.dashboard"]').length`), 1)
+  assert.equal(await evaluate(`document.querySelectorAll('#pages-track [data-plugin="odk.page.dashboard"]').length`), 1)
   const widgetSurface = await evaluate(`(() => {
     const tile = document.querySelector('.widget[data-interaction="display-only"]')
     const probe = document.createElement('span')
