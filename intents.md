@@ -691,6 +691,41 @@ touch, microphone, GPU color, and screen-reader gates stay open.
 CM5 remains on `20261106T002855Z-1363179` (`62991f8f`) and was not part of this
 authorization. The Widget expansion animation remains a TODO-only item.
 
+### Hydra showed Unconfigured on Windows despite live resident data
+
+The owner reported that the Hydra Widget showed no readings. A Desk-page
+screenshot on Windows showed `Unconfigured` and empty `--` values. Evidence
+gathered on the device: the `odk-personal-agent` briefing frame carried a full
+live Hydra projection (humidity about 70, two plants about 59 and 52); an
+independent `personal-agent-client` connected to the same pipe had that
+projection in `snapshot().hydra`; and a mock of the `odk-hydra-status` handler
+returned the projection correctly. So the data, normalization, and renderer
+were all healthy.
+
+Root cause: `plugin-host.js` throws `undeclared port` when a plugin calls
+`ctx.get()` for a port absent from its manifest. The Hydra source declared only
+`DATA_PORTS.deviceGateway` as an optional dependency, but its IPC handler reads
+`SYSTEM_PORTS.personalAgent`. That read threw inside a try/catch and was
+swallowed, so the status projection was always null. The handler then fell
+through to the producer channel, which has no Hydra reading on a display-only
+host, and returned the unconfigured local snapshot.
+
+Fix `8f0769cf`: declare `SYSTEM_PORTS.personalAgent` as an optional dependency
+of the Hydra source. Add a BDD scenario and two regression tests, including a
+strict host that reproduces the undeclared-port throw. Validation: fast tier
+2710/2706 pass/0 fail/4 skipped; `hydra-central-projection.test.js` 5/5;
+`plugin-composition.test.js` 15/15.
+
+This commit is NOT deployed. Windows remains on `20261105-main-4424ab85` and
+CM5 on `20261106T002855Z-1363179`. Deployment needs a fresh authorization.
+CM5 has local Hydra hardware, so it was never affected by this projection bug;
+only display-only hosts such as Windows need the fix.
+
+A concurrent task advanced `main` with documentation and memory commits while
+this fix was being prepared. The fix was rebased onto that tip
+(`110ece1d`) rather than overwriting it; `110ece1d` is an ancestor of
+`8f0769cf`.
+
 ## Rules for using this file
 
 - Start from the newest intent. Follow the `Supersedes` and `Amends` links.

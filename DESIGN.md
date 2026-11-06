@@ -36,9 +36,12 @@ typography:
     numeral-compact: "28px"
     weekday: "32px"
     date-wide: "40px"
+    year-standard-min: "44px"
     narrative-wide: "48px"
     display: "96px"
     year-min: "64px"
+    quota-max: "112px"
+    year-wide-max: "148px"
     year-max: "180px"
 rounded:
   card: "36px"
@@ -102,7 +105,9 @@ New installations use Pixel; explicit local selection survives restart. There is
 - Put session status/goals before PID/command disclosures. Refresh preserves expansion, focus, and scroll. Usage refresh actions stay beside provider state before optional metric details.
 - A not-started focus dial is neutral; Today has no decorative active dot.
 
-The resident Agent centers Onee above an identity group that states its name and status. A small header top inset keeps Onee close to the State Bar. The transparent header floats above scrolling messages. The identity group only displays the Agent name and status. It has no arrow, edit action, or keyboard stop. Liquid Glass states the group as plain text with no enclosing frame. Other themes keep the framed capsule. Its animation follows input, service work, replies, completion, and failures. Reduced motion uses static poses. Hidden and released pages stop animation work. Messages use rounded bubbles. One conversation region scrolls above the fixed composer. Show actual messages and service states. Do not copy sample questions from design references.
+The resident Agent centers Onee above an identity group that states its name and status. A small header top inset keeps Onee close to the State Bar. The transparent header floats above scrolling messages. The identity group only displays the Agent name and status. It has no arrow, edit action, or keyboard stop. Every theme keeps the framed identity capsule. Its animation follows input, service work, replies, completion, and failures. Reduced motion uses static poses. Hidden and released pages stop animation work. Messages use rounded bubbles. One conversation region scrolls above the fixed composer. Show actual messages and service states. Do not copy sample questions from design references.
+
+Liquid Glass owns its glass material gradients and backdrop colors. These use translucent blues and purples. They sit outside the semantic color palette. The WeRead book cover uses a 3px radius. This is a small image corner, not a card or pill shape. Both are intentional theme materials. Keep them out of the semantic color and radius scales. Record their exact values in `.impeccable/design.json` as theme tonal ramps, not as semantic tokens.
 
 Each related task uses one two-column Grid row for its label and Reply button. The row owns alignment and spacing. Single-task and multiple-task messages use the same structure. Long labels wrap inside the available column.
 Task references use a small icon and gray text without a frame or fill. They retain readable contrast, keyboard focus, and 44-pixel targets.
