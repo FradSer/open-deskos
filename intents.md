@@ -83,6 +83,8 @@ Status: superseded by I8. Do not restore two-decimal display.
 
 ### I8. Remove all decimal places from Overview numbers
 
+Superseded by the later Overview-number decision: values now keep up to two decimal places, and integers stay clean. See the current `home-template.mjs` formatter and `home-briefing.mjs` grounding check.
+
 Supersedes: I7. Requested: "小数点后面不用保留".
 
 Result: done in the working tree. Numbers are whole numbers only, rounded to
@@ -328,6 +330,366 @@ is not built; the read-only planner and the new preflight cover the risk.
 Any future bulk deletion needs a fresh reference check.
 
 Status: done.
+
+### I18. Merge openui-integration and deploy to CM5 and Windows
+
+Requested: "合并 openui-integration 分支，部署到 cm5 和 win".
+
+Clarified: include this session's in-flight changes in the commit before
+deploying. Concurrent work in the shared tree was NOT staged. Other agents'
+renderer plugin comment removals, `.memory/` notes, `TODO.md`, and the
+`DSH_SUPERAGENT_COMPARISON.md` draft remain uncommitted in the main worktree.
+
+Result: done. `main` is merge commit `fff7918` with parents `6b1e97c5`
+(previous main) and `c0a5d2a2` (openui-integration). The merge kept both
+proactive judge imports, both test helpers, and the OpenUI test bodies. It
+resolved five conflicts, updated the frozen `index.html` fixture pin, and
+added a precise exception to `renderer-localization.test.js` for the two
+Chinese Personal Agent protocol phrases that `intents.mjs` matches exactly.
+`@openuidev/lang-core` 1.0.2 was already declared in the branch's
+`package.json` and lockfile.
+
+Verification before deployment: fast tier 2689 tests / 2685 pass / 0 fail /
+4 skipped; personal-agent full suite 1742 tests / 1731 pass / 0 fail /
+11 skipped with `PI_ODK_PACKAGE` set to the external fixture checkout;
+`node --check` on every changed JS file; `pnpm install --frozen-lockfile`
+resolved `@openuidev/lang-core` and both modules imported successfully. A
+workflow independently confirmed the four-block test conflict resolution.
+
+CM5: release `20261105T033232Z-1334485` is active. The previous release
+`20261104T130608Z-1281163` is the rollback target. Host receipt
+`9628e20f...` passed. Activation returned `ok:true`, `pruned: []`, and a
+passing smoke. Four user services are active, the kiosk runs from the new
+release, the renderer answers on the debug port, `@openuidev/lang-core` is
+present, and the root filesystem has 8.2 GiB free at 69 percent.
+
+Windows: release `20261105-main-fff7918` is active with
+`sourceCommit: fff7918`. Hash-gated staging verified 1669 files. Prepare,
+validate, and activation all passed. Three tasks are running. The new
+personal-agent dependency was installed, the pnpm symlink repair restored
+`markdown-it`, and the Electron binary was restored after pnpm removed its
+dist directory. The `openui-contract.mjs` module loaded successfully on the
+device.
+
+Status: done. Both hosts run the same merged content. A Windows panel
+geometry check in the interactive session was not repeated. Physical touch,
+microphone, GPU, and screen-reader acceptance remain separate.
+
+### I19. Windows shows no OpenUI effect after the deployment
+
+Reported: "win 上的版本没有看到 openui 的效果！".
+
+Diagnosis: the deployed code was correct. `openui-dom.js` is present in the
+active release, `index.html` loads it, and an isolated Electron window on the
+device confirmed `odkOpenUIDOM.renderOpenUI` exists and renders
+(`ok:true, rendered:true`). The local merged tree also passed 91 OpenUI
+contract tests.
+
+The real cause was TWO stale processes from the previous release
+`20261104-main-d9102db5` that the activation task failed to stop:
+- Its `display-client.mjs` (PID 9000) kept the `\\.\pipe\odk-personal-agent`
+  named pipe. The new display client failed every 10 seconds with
+  `another service is already listening`, so the Personal Agent relay and its
+  proposal cards never appeared. OpenUI cards are driven by that relay.
+- Its `odk-link-service.js` (PID 25116) kept TCP `100.82.50.70:8765`. The new
+  Link service failed with `EADDRINUSE` on the same restart loop.
+
+Fix: stopped `OdkPersonalAgent` and `OdkDeskLink`, killed only the two stale
+process trees that named the old release path, and restarted both tasks.
+The display client (PID 20924), Link service (PID 9464), and kiosk now run
+from `20261105-main-fff7918`. Link logs `listening on 100.82.50.70:8765`;
+personal-agent logs show no further startup failure. Zero old-release node
+processes remain, and all three production tasks are running. Diagnostic
+scheduled tasks and probe files were removed.
+
+Cause of the stale processes: the activation script captured 0 old processes
+because it matched only the immediately previous release path. A service
+wrapper can respawn its child from an older release path. Any future Windows
+activation must capture the whole owned process tree by pipe/port ownership,
+not by one release path.
+
+Status: fixed on the device. The activation script itself was not changed;
+that remains a follow-up. Physical touch, microphone, GPU, and screen-reader
+acceptance remain separate.
+
+### I20. Reduce the Reply button right padding
+
+Requested: "fix：reply 按钮的距离右边的 padding 需要减小一点，和下方的 padding 保持一致。"
+
+Result: done in the release worktree. `.agent-session-reply` used
+`padding: 10px 14px`; the 14px horizontal padding is now `10px`, so the right
+padding equals the bottom padding. Added a BDD step in
+`personal-agent.feature` and two symmetric measurements in `agent-radius.cjs`
+(`replyPaddingRight` / `replyPaddingBottom`) that fail before the change.
+Verification: `agent-radius.cjs` PASS across four themes,
+`agent-type-scale.cjs` PASS, fast tier 2689 tests / 2685 pass / 0 fail /
+4 skipped.
+
+Version note: the active Windows release and `main` are byte-identical for all
+three renderer files (`personal-agent.js`, `personal-agent-status.css`,
+`home-desk.css`). The earlier "Reply radius is not the latest version" report
+was caused by stale kiosk processes, not by stale CSS; see I19. This padding
+change is NOT deployed yet.
+
+### I21. Windows desktop should fill the screen like a game
+
+Requested: "这个服务在 Windows 应该是类似游戏的那样的全屏".
+
+Finding: the panel already covers the full 1280x800 display, and `panel.js`
+calls `setFullScreen(true)` on Windows. A captured screenshot shows a separate
+Windows Terminal window covering the panel and the taskbar visible at the
+bottom. That was ADR-0034 behavior: the panel was not topmost, did not hide
+the taskbar, and another foreground application regained host control because
+the machine runs other applications.
+
+Superseded by I22. The owner clarified "「类似游戏的全屏」是底部不要看到Windows
+任务栏，并且也不能用触控触发", which overturned ADR-0034's "not topmost,
+taskbar visible" clause. Status: decided and implemented in `10abe398`.
+
+### I22. Windows game-like fullscreen: hide the taskbar, block touch edges
+
+Decides I21. Requested: "「类似游戏的全屏」是底部不要看到Windows 任务栏，并且也不能用触控触发".
+
+Product decision: overturn the ADR-0034 "not topmost, taskbar visible"
+clause. Once the panel geometry covers the display, `enterPanel` asks for
+kiosk mode on every attempt and sets `setAlwaysOnTop(true, 'screen-saver')`.
+Kiosk hides the taskbar, owns the display and suppresses Windows touch edge
+gestures; taps on the desk's own controls still reach the desk. Updated
+ADR-0034, `WINDOWS_HOST.md`, `DESIGN.md`, `windows-kiosk.ps1`,
+`windows-shell-host.feature`, `kiosk-panel.test.js`,
+`kiosk-window-order.test.js` and `windows-host.test.js`. BDD scenario and a
+failing regression came first.
+
+Verification: fast tier 2690 tests / 2686 pass / 0 fail / 4 skipped;
+kiosk-related Node contracts 24 pass / 0 fail; `agent-radius.cjs`,
+`agent-home.cjs`, `input-scroll-polish.cjs` all PASS.
+
+### I23. Restore the Agent capsule and lift the header
+
+Requested: "fix：现在 win 上的版本，personal agent 的名称的外面的胶囊消失了。注意还原之前的样式。implement：personal agnet 的 avatar 以及名称应该向上一些，可以顶到 status bar 的下方。"
+
+Root cause of the missing capsule: I5 removed the Liquid Glass capsule frame.
+The device uses Liquid Glass, so the name appeared as bare text. Restored:
+deleted the Liquid Glass override and put `.agent-capsule` back in the
+blanket glass control rule, so every theme uses the shared framed capsule.
+Set `--agent-top-inset: 0px` so the avatar and identity sit directly below
+the State Bar. Updated `DESIGN.md`, `liquid-glass-theme.feature`,
+`liquid-glass-theme.test.js`, `agent-home.cjs` and
+`input-scroll-polish.cjs`. BDD scenario and failing gates came first.
+
+Result: done on both hosts. `main` is `c209ade1`. CM5 active release
+`20261105T102237Z-1345880` (`pruned: []`, four services active, Electron
+43.8.1). Windows release `20261105-main-c209ade1` is active:
+`VALIDATE_OK` with `SOURCE_STABLE_OK changed=0`, `ACTIVATE_OK` with
+`CAPTURED 9` / `NEW_PROCESSES 9` and no old-release process left. All three
+OdkDesk/OdkDeskLink/OdkPersonalAgent tasks are Running from the new release;
+`kiosk.log`, `personal-agent.log` and `odk-link.log` show one clean start each
+at 19:49:28-29, and Link listens on 8765 in its expected report-only mode.
+
+The Windows host went offline after prepare, before validate. The owner later
+asked to deploy again; `100.82.50.70:22` answered, so validate and activate
+resumed from the existing staged candidate. No package was rebuilt.
+
+An interactive-session screenshot (`/tmp/odk-shots/c209ade1-panel.png`) shows
+the framed "Personal Agent" capsule restored, the avatar and identity directly
+under the State Bar, colored holdings (-0.09% red, +0.40% green), the Reply
+buttons with the tightened padding, and the panel covering the full
+`0,0 1280x800` display with no visible taskbar or terminal window. That proves
+presentation, not native window state: a separate probe found the foreground
+window could still be ChatGPT or WindowsTerminal and `Shell_TrayWnd` still
+`visible=True`. `setAlwaysOnTop(true, 'screen-saver')` keeps the panel above
+those windows in the captured frame; Windows taskbar auto-hide and foreground
+ownership were not independently asserted. Physical touch edge gestures,
+microphone, GPU color and screen-reader acceptance remain separate gates.
+
+Status: complete for this release. One-time screenshot and probe tasks
+OdkC2Shot/OdkC2Kiosk/OdkC2Clean were deleted; the three production tasks
+remain.
+
+### Device-side runtime faults diagnosed during the paging and Agent polish batch
+
+These three faults are configuration or device state, not Shell source defects.
+They need separate operator authorization before a production change.
+
+**Gmail proactive generation and proactive suggestions.** The CM5
+resident agent starts `createWatch` only when `ODK_PROACTIVE_CONFIG`,
+`ODK_PRIVATE_RECOMMENDATIONS_FILE`, or the `intent` plugin is selected. The
+`intent` plugin is enabled, but with no owner rule file the watch runs on an
+empty `rules: []` and produces no `proactive_generation` events. The Gmail
+private source additionally requires `mcp` plus a private recommendations
+file. None of these two environment variables is present in
+`~/.config/odk/perosnal-agent.env`. A valid version-2 owner rule file with
+four rules still exists at
+`~/.config/open-deskos/proactive/owner-20261002.json`; the current release
+loads it successfully as the `orangepi` user. The old systemd drop-in used the
+retired `ODESK_` prefix and now sits in `systemd/user.disabled-backup`. The
+Gmail MCP service is `inactive` and no private recommendations file exists.
+Restoring proactive work therefore needs an authorized production change: wire
+the two `ODK_` variables into the private env, create the Gmail source
+selection file, and start the Gmail service. No credentials were read or
+written.
+
+**Windows microphone.** `ODK_PERSONAL_AGENT_AUDIO_DEVICE` in
+`%LOCALAPPDATA%\odk\perosnal-agent.env` is present but empty. The launch
+contract refuses an empty or `default` device name, so the display client
+reports "Microphone unavailable". ffmpeg is installed. The fix needs the exact
+DirectShow device name from the operator, then a private env update and an
+interactive-session check. Live capture remains a separate gate.
+
+**Renderer capsule change.** The renderer change that stopped terminal proposal words
+from becoming the capsule caption does not touch proposal rendering, the
+visible set, or the backend. It cannot cause the Gmail or proactive-suggestion faults.
+
+### CM5 deployment of the paging, Agent polish, and decimal batch
+
+Deployed 2026-11-06 from the detached worktree `/tmp/odk-release-merge` at
+`554f6025`. The operator authorized "部署到 CM5" and asked to remember the
+commits. Six commits from `c209ade1` to `554f6025` were made in that worktree,
+which kept the main checkout's in-flight files byte-for-byte untouched.
+
+`node runtime/shell/scripts/release-host-preflight.js --run` produced the
+content-addressed receipt `a5514f4e221b9093fb30d7c7b35ef1308fd3ee660705bba247f241384d3b885a`
+(808 files, 0 failures). `bash runtime/shell/scripts/cm5-stage-release.sh`
+then staged, installed, and activated release `20261105T164224Z-1356285`:
+`pruned: []`, rollback `20261105T102237Z-1345880`, `lastUpdate.ok: true`,
+activation smoke `{"ok":true,"width":1919,"height":1279}`. Three user services
+are active; the device keeps six releases and 5.6 GiB free.
+
+Two Electron contracts needed updates for the 3x2 grid before the receipt
+could pass: the installed-App bootstrap now seeds two App pages instead of a
+free cell in the retired three-row Desk grid, and the WeRead Electron hit test
+scrolls a below-the-fold Widget into view. Hydra and WeRead own the first row
+of the 3x2 canvas, which preserves the measured wide-short Hydra composition.
+The signed WeRead stylesheet snapshot was synchronized. These are contract
+updates, not relaxations.
+
+Windows stays on `20261105-main-8f1949fc` and therefore still shows the
+earlier two-row-spanning Widget layout. It was not part of this authorization.
+
+A host receipt proves the contract suite passed once for that `runtime/shell`
+content. It does not prove CM5 device presentation, touch, Remote, GPU color,
+microphone, or provider accuracy. Those gates stay open.
+
+### State Bar, avatar, Widget canvas, and the second openui-integration merge
+
+Owner reported that the State Bar top and bottom padding was too tall and
+clipped the Agent avatar, that the gap below the Page Controller was too large,
+and that Widgets were clipped. A live geometry probe at 1280 by 800 showed the
+causes: a 76px `--status-h` with a 64px visible band left a 12px dead strip;
+the `--agent-head-lift: -8px` pushed the onee avatar (which already overflows
+its frame upward) above the clipped pane; a fixed 48px empty grid row sat below
+the Page Controller while the paging viewport was 11px too short for the second
+Widget row.
+
+The fix gives the State Bar one short band that ends exactly where the desk
+begins, reserves 24px at the top of the Agent header instead of lifting it,
+removes the empty row so the Widget canvas fits, and keeps the narrow desk tall
+enough to scroll to its last Widget. Measured after: `statusBar.bottom` equals
+`homeDesk.top`, `avatarClip` is inside the pane, `tileOverflow` is negative at
+1920 by 1280 and 1280 by 776, and `gapBelowDots` is 0. Jump to latest also
+became a real pill under Liquid Glass, which the earlier capsule change missed.
+
+The Electron geometry, density, paging, and radius contracts were synchronized
+with the fixed Overview and the two-row canvas. These are contract updates, not
+relaxations: `agent-home.cjs` now asserts that the fixed Overview does not move
+when the Widget area is swiped.
+
+The owner then asked to merge `openui-integration` again. It carried one commit
+(`60c145bc`, bounded reply projection). Merge commit `165f2b08` has both
+parents. The only conflict, `agent.test.mjs`, was resolved by keeping both the
+current Overview selection tests and the two reply-projection tests. A follow-up
+commit `62991f8f` updated the startup wiring test for the multiline projected
+prompt wrapper. The merged content is in `main`: both merge parents
+(`60c145bc`, `0c243bff`) and the merge commit `165f2b08` are ancestors of
+`62991f8f`. The local `openui-integration` ref was later advanced to
+`b942fe63` by another task, so that branch tip is no longer an ancestor;
+this does not remove the already-merged content.
+
+Validation: fast tier 2706/2702 pass/0 fail/4 skipped; `agent-home.cjs` 6 sizes
+by 4 themes PASS; `status-bar-style.cjs`, `page-indicator.cjs`,
+`agent-radius.cjs`, `input-scroll-polish.cjs`, and both new reply Electron
+fixtures PASS. The personal-agent suite has one environment-only failure:
+`native-pi-handoff.test.mjs` needs `pi-packages`, absent from this worktree.
+
+The owner then authorized "部署到 cm5". A fresh host preflight receipt
+`7fe1ef95387d50ab04538b8ef329df7ecd4a874b09bd90af6a4af257bd05325d` (812 files,
+0 failures) was produced and `--require` passed. `cm5-stage-release.sh`
+activated release `20261106T002855Z-1363179`: `pruned: []`, rollback
+`20261105T164224Z-1356285`, `lastUpdate.ok: true`, smoke
+`{"ok":true,"width":1919,"height":1279}`. Three user services are active and
+`odk-personal-agent.service` restarted at 08:29:47 so the merged `main.mjs`
+takes effect. The device keeps seven releases and 4.8 GiB free.
+
+A physical CM5 screenshot at 1920 by 1280 confirms the full onee avatar, the
+complete second Widget row, and no empty band below the Page Controller. The
+device release carries `reply-projection.mjs`, the projected prompt wrapper,
+and all geometry fixes. Electron test fixtures are intentionally absent from
+the immutable release; `cm5-install.sh` packs only runtime files.
+
+An independent workflow precheck confirmed the deployed bytes match the merge
+tree and flagged two boundaries worth keeping. First, the host receipt covers
+only `runtime/shell/{src,tests,scripts}` plus three root files; it does not
+certify `integrations/personal-agent/` (including `reply-projection.mjs`) even
+though the stage rsync transfers those files. The personal-agent suite was run
+separately. Second, the primary checkout has its own in-flight edits and
+staged deletions, and its digest has no receipt: deployment commands must run
+from `/tmp/odk-release-merge`, never from the primary checkout. The workflow
+also confirmed `cm5-stage-release.sh` does not call `cm5-acceptance.sh`; that
+is a separate manual device step. The screenshot and service checks here are
+deployment evidence, not full hardware acceptance.
+
+The owner then authorized "部署到 win 上". The package carried 1680 files
+(1674 from the prior release plus 6 new openui and geometry-contract files),
+passed the SHA256 gate and every per-file MD5 check, and activated release
+`20261105-main-62991f8f`. `VALIDATE_OK` reported `SOURCE_STABLE_OK changed=0`;
+`ACTIVATE_OK` reported `CAPTURED 0` / `NEW_PROCESSES 9` after an explicit old
+process preclear (6 to 0). All three production tasks are Running from the new
+release. As with earlier Windows deployments, the dependency validator first
+failed on the pnpm symlink `mdurl`; `odk-shell-deps.ps1` restored it and the
+electron binary before validate passed.
+
+An interactive-session screenshot at 1280 by 800 confirms the full onee avatar,
+the framed identity capsule, the tighter State Bar, the complete 3x2 Widget
+rows, no empty band below the Page Controller, the Jump-to-latest pill, and
+two-decimal Overview values. CM5 and Windows now run the same `62991f8f`
+content. These are deployment and presentation checks, not physical touch,
+microphone, GPU color, or screen-reader acceptance.
+
+### WeRead 3x2 and the tightened paging gap on Windows
+
+The owner then asked to give WeRead the full 3x2 page and to remove the wasted
+band above the Page Controller. A geometry probe found 36px of spare height in
+the paging viewport: the square Widget Cell is width-bound, so a `1fr` viewport
+row could not fill it. The Overview row now absorbs that spare height while the
+paging track and controller take only their content height. Measured at
+1280x800, 1920x1280, and 1280x776 the gap below the Widgets is the single 16px
+page padding and the controller sits flush below the viewport. WeRead spans
+`1 / 4` by `1 / 3` and measured 632 by 416 in the renderer, with no overflow.
+Hydra keeps its one-row Desk placement. The Overview briefing stays
+top-aligned: centering it made the refresh spinner move between states.
+
+The layout harness golden values were updated for the shorter State Bar band,
+and the placement, density, and BDD contracts follow the two-row WeRead span.
+Validation: fast tier 2708/2704 pass/0 fail/4 skipped; layout-harness PASS 8
+sizes; agent-home.cjs 6 sizes by 4 themes PASS; weread-surface-electron 2/2
+PASS. Commit `4424ab85`.
+
+The owner authorized "部署到 win 上!". The 1681-file package passed the SHA256
+gate and every per-file MD5 check, then activated release
+`20261105-main-4424ab85` with `DEPLOY_OK`, `PREPARE_OK`, `VALIDATE_OK`
+(`SOURCE_STABLE_OK changed=0`), and `ACTIVATE_OK` (`CAPTURED 0` /
+`NEW_PROCESSES 9` after a 6-to-0 process preclear). The pnpm `mdurl` symlink
+needed the usual `odk-shell-deps.ps1` repair before validate. All three
+production tasks are Running from the new release.
+
+An interactive 1280x800 home-page screenshot confirms the tightened gap and all
+prior fixes. A pointer attempt to open the Reading page did not switch pages in
+the kiosk session, so the WeRead 3x2 composition was verified in the renderer
+and the deployed `desktop_layout.js`, not in a device screenshot. Physical
+touch, microphone, GPU color, and screen-reader gates stay open.
+
+CM5 remains on `20261106T002855Z-1363179` (`62991f8f`) and was not part of this
+authorization. The Widget expansion animation remains a TODO-only item.
 
 ## Rules for using this file
 

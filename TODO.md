@@ -40,6 +40,93 @@
 
 ## Not Started
 
+- [ ] **Implement voice-created plugin compositions**
+  - Architecture and planned BDD were recorded on 2026-11-06. Runtime implementation has not started in this work.
+  - [ADR-0041](runtime/shell/docs/ARCHITECTURE.md#bdd-first-delivery-and-authorization) owns the stage order, contracts, and authorization gates.
+  - [Planned scenarios](integrations/service-runtime/features/generated-plugins.feature) need failing public-interface tests before each implementation stage.
+  - Keep the existing NAS Docker OpenD and current poller deployment unchanged.
+  - Preserve the separate `cm5-linux-sandbox` worktree's unfinished trusted-Python hardening. It does not establish sandbox enforcement.
+
 - [ ] **设计 Personal Agent 虚拟机接入方案**
   - No commits found related to VM/sandbox/container isolation
   - Likely still in design phase
+
+- [ ] **Add a Widget expansion animation**
+  - Recorded 2026-11-05. Owner request: add an animation for expanding a Widget into its App.
+  - Status: TODO only. Do not implement. Define Given/When/Then scenarios and a failing test before any behavior change.
+
+## Proposed follow-ups from the dsh-superagent comparison
+
+Added 2026-11-03. Status: proposed. This section authorizes no code change.
+New entries use English. Earlier sections keep their original text.
+Read the [comparison note](integrations/personal-agent/docs/DSH_SUPERAGENT_COMPARISON.md) for evidence and citations.
+This section records design work. It does not come from commit history.
+The basis is document reading and a source spot-check. No runtime was built or run.
+Relative paths in this section start at `integrations/personal-agent/`.
+Start with Priority 1 if only one item is funded.
+The working tree has in-flight proactive work owned by another session.
+Resolve ownership before Priority 1 or Priority 3 starts.
+
+### Priority 1: share one admission and receipt mechanism
+
+- [ ] Extract a shared `Reservation` / `Receipt` module.
+  - Keep all socket frames, tool names, and private file formats unchanged.
+  - Let each domain declare whether its action can safely replay.
+  - Keep the existing per-domain stores as adapters.
+  - Basis: `src/proactive-state.mjs:60`, `src/task-service.mjs:44`, `src/service.mjs:237`, `docs/CONTRACT.md:365-371`, `docs/INTENTS.md:49-54`, `docs/AGENT_CATALOG.md:140`.
+  - Comparison: the upstream prototype uses one Effects queue and one Outbox. See the note, "Durability and recovery".
+  - Acceptance: each migrated domain passes its existing feature tests. No status frame or tool contract changes.
+  - Dependency: `features/proactive-suggestions.feature` and `src/proactive-generation.mjs` are in flight.
+
+### Priority 2: record admitted work across turns
+
+- [ ] Add an immutable record for each admitted work item.
+  - Store the target, project, original intent, admitting turn, configuration version, and expiry condition.
+  - Let later turns reference that record. Revalidate the version before resume.
+  - Do not add a Mandate, Policy, admission table, or cross-Source identity mapping.
+  - Basis: `docs/CONTRACT.md:355-362`, `docs/CONTRACT.md:425-435`, `features/intent-routing.feature`.
+  - Acceptance: a continuation turn resolves the same record without a second intent guess. A stale version refuses resume.
+
+### Priority 3: add an `observe` delivery mode
+
+- [ ] Generate, judge, and record a proposal without presenting it.
+  - Do not consume an attention budget in this mode.
+  - Keep `silent` unchanged. Silent waits for an owner query. See `docs/CONTRACT.md:729` and `docs/CONTRACT.md:734`.
+  - Run a new goal in `observe` before switching it to `immediate`.
+  - Basis: the upstream default records "would accept". See the note, "Proactivity".
+  - Acceptance: a configured goal writes receipts and publishes no proposal. `pnpm test:proactive:evaluate` covers the new mode.
+  - Dependency: the same in-flight proactive work as Priority 1.
+
+### Priority 4: default `autoLearn` to false
+
+- [ ] Change the default in `src/agent-plugins/selection.mjs:11`.
+  - Keep the `completion` plugin and `experience` retrieval.
+  - Enable automatic learning only for task families with independent grading.
+  - Basis: `docs/PERSONAL_AGENT_IMPLEMENTATION.md:168` reports `not_established`. `docs/AGENT_PLUGINS.md:57` already skips receipt-free conversation.
+  - Acceptance: a fresh configuration writes no lesson. An explicit `autoLearn: true` still writes one.
+
+### Priority 5: version non-authorizing behaviour text
+
+- [ ] Move advice wording, priority rules, and silence rules into versioned text.
+  - Keep all `ODK_*` bounds, `docs/CONTRACT.md:714-735`, tool descriptions, notices, and cards in code.
+  - Show a diff against the shipped default after an upgrade.
+  - Basis: upstream prompt versions. See the note, "Prompts, settings, and authority".
+  - Acceptance: an operator changes quietness wording without a code change. The safety bounds stay read-only.
+
+### Guardrails
+
+Do not add a Mandate, Policy, admission table, or cross-Source identity mapping.
+Do not merge the 22 intent rows into four routing decisions. See `docs/CONTRACT.md:318-340`.
+Do not copy `danger-full-access`, unbounded storage, or the missing long-term memory.
+Do not split `CONTRACT.md` into parallel documents.
+Do not deploy, activate, or run device acceptance for these items.
+
+### Before each item
+
+Write Given/When/Then scenarios in the applicable feature file before the behavior change.
+Reproduce the change with a failing regression test.
+Affected feature files: `features/proactive-suggestions.feature`, `features/intent-routing.feature`, `features/agent-plugins.feature`, `features/agent-tasks.feature`.
+Run `node --test --test-timeout=120000 --test-concurrency=4 tests/*.test.mjs` in `integrations/personal-agent/`.
+Run `pnpm typecheck` in `integrations/personal-agent/`.
+Run the affected Shell checks.
+Update `CONTRACT.md` and `UNIFIED_ARCHITECTURE.md` when a contract changes.

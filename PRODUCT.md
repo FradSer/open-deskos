@@ -31,6 +31,7 @@ The Shell remains useful when peripherals, providers, or experimental services f
 | ESP32-P4 SC2336 Camera | Generic UVC webcam and UAC microphone; no recognition, expression analysis, or identity storage |
 | Pluggable peripherals / C6 Gateway | Accepted development direction: host-owned device access, firmware development, and Widget/App interaction; NanoC6 provides the first USB-to-ESP-NOW gateway target |
 | Local user Widgets/Apps | Self-contained HTML packages with independent draft, verify, install, update, rollback, and removal |
+| Generated plugins | Target design: one user-facing composition of verified HTML, independent Services, and declared data; see [ADR-0041](runtime/shell/docs/ARCHITECTURE.md#adr-0041) |
 
 The S3 Remote and P4 Camera are CM5 components with separate hardware gates. Neither blocks base-shell operation.
 Pluggable peripherals have separate host, firmware, radio, and application acceptance gates.
@@ -56,5 +57,5 @@ The semantic palette and interaction rules are owned by [DESIGN.md](DESIGN.md).
 4. **Explicit peripheral selection.** Pluggable ESP32 devices are part of the product direction. Device access and firmware installation require explicit selection.
 5. **Research stays historical.** Preserve experiments without inheriting their product constraints.
 6. **Escape is guaranteed.** Back restores the source context; direct input survives unavailable links.
-7. **Bounded user packages.** Verified HTML Widgets/Apps do not imply a marketplace, native extensions, background services, or network permissions.
+7. **Bounded user packages.** Verified HTML Widgets/Apps have no direct network access and cannot start background processes. HTML verification grants no Service execution, secret access, or destination access. A separate Service revision requires operator-approved execution and private bindings. This design grants no marketplace or native extension capability. [ADR-0041](runtime/shell/docs/ARCHITECTURE.md#adr-0041) defines the target and implementation gates.
 8. **One peripheral model.** Direct USB devices and devices behind a gateway use host-owned adapters. Widgets display state; Apps request declared actions.
