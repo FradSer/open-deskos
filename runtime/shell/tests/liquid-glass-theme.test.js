@@ -62,12 +62,11 @@ test('Liquid Glass keeps the shared framed Agent capsule', () => {
   assert.match(shared, /\.agent-identity \.agent-capsule\s*\{[^}]*border-radius:\s*var\(--agent-radius-surface\)/)
 })
 
-test('the Agent header keeps the onee avatar inside the pane', () => {
+test('the Agent avatar and identity sit directly below the State Bar', () => {
   const shared = fs.readFileSync(path.join(renderer, 'home-desk.css'), 'utf8')
   assert.match(shared, /--agent-top-inset:\s*0px/, 'no extra inset between the panel edge and the header')
   assert.match(shared, /#home-desk\s*\{[^}]*inset:\s*var\(--status-h\)/, 'the panel starts below the State Bar')
-  assert.match(shared, /\.agent-head\s*\{[^}]*padding-block:\s*24px 12px/, 'the header reserves space for the taller onee avatar')
-  assert.doesNotMatch(shared, /--agent-head-lift/, 'no negative lift clips the avatar at the pane edge')
+  assert.match(shared, /\.agent-head\s*\{[^}]*padding-block:\s*0 12px/, 'the header has no top padding')
 })
 
 function fakeElement(id, box, inViewport = false) {

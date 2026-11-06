@@ -35,8 +35,7 @@ test('Hydra and WeRead occupy one reachable paging page each', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(reading.widgets.map(widget => widget.id))), ['odk.tile.weread'])
   for (const widget of [...desk.widgets, ...reading.widgets]) {
     assert.equal(widget.col, '1 / 4', `${widget.id} spans the shared area`)
-    assert.equal(widget.row, widget.id === 'odk.tile.hydra' ? '1' : '1 / 3',
-      `${widget.id} keeps its declared place in the shared grid`)
+    assert.equal(widget.row, '1', `${widget.id} occupies the first row of the shared grid`)
     assert.ok(widget.opensApp, `${widget.id} keeps its App entry`)
   }
   assert.equal(pages.filter(page => !page.persistent && page.kind === 'grid').length, 3,
@@ -53,11 +52,13 @@ test('the Overview is a persistent host outside the paging pages', () => {
     'Overview is not moved into one paging page')
 })
 
-test('the Agent header keeps the avatar inside the pane', () => {
+test('the Agent avatar sits closer to the State Bar', () => {
   const css = read('src/renderer/home-desk.css')
-  assert.doesNotMatch(css, /--agent-head-lift/, 'no negative lift clips the avatar')
-  assert.match(css, /\.agent-head\s*\{[^}]*padding-block:\s*24px 12px/,
-    'the header reserves space for the taller onee avatar')
+  const lift = /--agent-head-lift:\s*(-?\d+)px/.exec(css)
+  assert.ok(lift, 'the header lift is declared')
+  assert.ok(Number(lift[1]) < 0, 'the avatar and identity move above the panel edge')
+  assert.match(css, /\.agent-head\s*\{[^}]*translateY\(var\(--agent-head-lift\)\)/,
+    'only the header moves, not the conversation or composer')
   assert.match(css, /\.agent-identity \.agent-capsule\s*\{[^}]*border-radius:\s*var\(--agent-radius-surface\)/,
     'the framed capsule keeps its radius')
   assert.match(css, /\.agent-identity \.agent-capsule\s*\{[^}]*border:\s*1px solid/,

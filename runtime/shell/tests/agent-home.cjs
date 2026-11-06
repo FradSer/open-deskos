@@ -150,7 +150,7 @@ async function assertAllSourceOverview() {
       const plantBound = resolveHomeTemplate(plantRaw, [plant])
       await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: plantBound.items.map(item => ({ text: item.text, segments: item.segments, sources: [{ id: plant.id, label: plant.label, state: plant.state }] })) })
       const plantRender = await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');return {text:n.textContent,overflow:n.scrollWidth>n.clientWidth+1}})()`)
-      assert.match(plantRender.text, /Plant 1 Soil moisture is OK at 54\.6%/, theme)
+      assert.match(plantRender.text, /Plant 1 Soil moisture is OK at 55%/, theme)
       assert.equal(plantRender.overflow, false, theme)
       if (theme === 'instrument') {
         await send({ state: 'live', generatedAt: Date.now(), omittedSources: 0, items: [{ text: 'API quota Main 6% remaining, Spare account 88% remaining, Plant 1 dry at 8%, Plant 2 OK at 54%, Plant 3 wet at 85%, Plant 4 low at 25%, Greenhouse humidity percent: 71%, Greenhouse humidity percent: 50%, +1.20% today.',
@@ -843,8 +843,7 @@ app.whenReady().then(async () => {
   await evaluate('document.fonts.ready')
   assert.equal(await evaluate(`!!document.querySelector('#personal-agent textarea')`), true, 'resident Agent has a composer')
   assert.equal(await evaluate(`document.querySelector('[data-page-id="today"]').parentElement.id`), 'home-summary', 'briefing retains its plugin host')
-  assert.equal(await evaluate(`document.querySelector('#home-summary').parentElement.id`), 'desk-content', 'Overview is fixed above the paging track')
-  assert.equal(await evaluate(`document.querySelector('#home-summary').closest('#pages-track')`), null, 'Overview does not follow a paged canvas')
+  assert.equal(await evaluate(`document.querySelector('#home-summary').closest('[data-page-id="home"]')?.parentElement.id`), 'pages-track', 'Overview belongs to the first paged canvas')
   assert.equal(await evaluate(`document.querySelector('#dots').closest('#status-bar')`), null, 'dots stay below Widgets')
   assert.equal(await evaluate(`document.querySelectorAll('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]').length`), 0, 'separate time and date Widgets are removed')
   if (process.argv.includes('--composer-capture-only')) { await captureComposerInputs();finish(0);return }
@@ -1557,8 +1556,8 @@ app.whenReady().then(async () => {
         })()`)
         assert.ok(fit.agentWidth >= width * 0.35 && fit.agentWidth < width * 0.6, 'Agent uses spare width beside the square canvas: ' + JSON.stringify(fit))
         if (width === 1920) assert.ok(Math.abs(fit.leftMargin - 32) <= 1 && Math.abs(fit.rightMargin - 32) <= 1, 'square canvas has balanced 32 pixel side margins: ' + JSON.stringify(fit))
-        if (width === 1920) assert.ok(fit.bottomMargin >= 16 && fit.bottomMargin < geometry.unit, 'the last Widget row stays inside the paging viewport: ' + JSON.stringify(fit))
-        assert.equal(fit.topMargin, fit.gap, 'the Widget canvas starts one gap inside its paging viewport')
+        if (width === 1920) assert.ok(fit.bottomMargin >= 16 && fit.bottomMargin < 19, 'reference canvas leaves one margin plus integer-cell rounding: ' + JSON.stringify(fit))
+        assert.equal(fit.topMargin, geometry.unit + 32, 'Overview occupies the first row with one gap before Widgets')
         assert.equal(fit.gap, 16, 'Widget grid uses consistent expanded spacing')
         assert.ok(Math.abs(fit.overviewLeft - fit.gridLeft) <= 1 && Math.abs(fit.overviewRight - fit.gridRight) <= 1, 'Overview spans the same three columns as Widgets: ' + JSON.stringify(fit))
         if (width === 1920 && height === 1280) {
@@ -1577,7 +1576,7 @@ app.whenReady().then(async () => {
         assert.equal(geometry.columns, 3, 'wide right pane uses at most three columns')
         assert.ok(geometry.unit >= 186, 'home uses readable square units')
         assert.equal(await evaluate(`window.__odkGrid.rows`), 2, 'Widget region has two rows')
-        assert.ok(await evaluate(`(() => { const h = document.querySelector('#pages-viewport').clientHeight; const u = window.__odkGrid.cellDim; return h >= 2 * u && h < 3 * u + 16; })()`), 'two Widget rows fit the paging viewport below the fixed Overview')
+        assert.ok(await evaluate(`document.querySelector('#pages-viewport').clientHeight >= 3 * window.__odkGrid.cellDim + 64 && document.querySelector('#pages-viewport').clientHeight < 3 * window.__odkGrid.cellDim + 67`), 'Overview and two Widget rows fit the three-row canvas')
         assert.deepEqual(geometry.spans, ['kept', 'kept'], 'original instrument proportions survive')
         if (width === 1920) assert.ok(await evaluate(`Array.from(document.querySelectorAll('.widget')).every(tile => tile.getBoundingClientRect().bottom <= tile.closest('.page').getBoundingClientRect().bottom)`), 'reference panel shows complete Widget pages')
       }
@@ -1712,31 +1711,20 @@ app.whenReady().then(async () => {
   await evaluate(`window.dispatchEvent(new Event('resize')); new Promise(r => setTimeout(r, 100))`)
   await send(compact)
   const firstCard = await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return { x: r.x, height: r.height, unit: window.__odkGrid.cellDim, border: parseFloat(getComputedStyle(document.querySelector('#home-summary')).borderTopWidth) } })()` )
-  assert.ok(firstCard.height >= firstCard.unit && firstCard.height < firstCard.unit + 2 * 16,
-    'Overview is at least one grid row high and absorbs only the spare pane height')
-  const spacing = await evaluate(`(() => {
-    const tiles = [...document.querySelectorAll('[data-page-id="home"] .widget')].map(e => e.getBoundingClientRect())
-    const viewport = document.querySelector('#pages-viewport').getBoundingClientRect()
-    const dots = document.querySelector('#dots').getBoundingClientRect()
-    return { belowWidgets: +(viewport.bottom - Math.max(...tiles.map(r => r.bottom))).toFixed(1),
-      aboveController: +(dots.top - viewport.bottom).toFixed(1) }
-  })()`)
-  assert.ok(spacing.belowWidgets <= 16 && spacing.aboveController <= 1,
-    'no tall empty band separates the Widgets from the Page Controller: ' + JSON.stringify(spacing))
+  assert.equal(firstCard.height, firstCard.unit, 'Overview is exactly one grid row high')
   assert.equal(firstCard.border, 0, 'Overview stays borderless')
-  const overviewBefore = await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return { x: r.x, y: r.y } })()`)
-  const swipe = await evaluate(`(() => { const r = document.querySelector('#pages-viewport').getBoundingClientRect(); const y = Math.round(r.top + r.height / 2); return { x: Math.round(r.right - 40), y, end: Math.round(r.left + 40) } })()`)
+  const swipe = await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return { x: Math.round(r.right - 30), y: Math.round(r.top + 24), end: Math.round(r.left + 30) } })()`)
   win.webContents.sendInputEvent({ type: 'mouseDown', x: swipe.x, y: swipe.y, button: 'left', clickCount: 1 })
   win.webContents.sendInputEvent({ type: 'mouseMove', x: swipe.end, y: swipe.y, button: 'left' })
   win.webContents.sendInputEvent({ type: 'mouseUp', x: swipe.end, y: swipe.y, button: 'left', clickCount: 1 })
   await evaluate(`new Promise(r => setTimeout(r, 280))`)
-  assert.equal(await evaluate(`document.querySelectorAll('.dot')[1].classList.contains('active')`), true, 'swiping the Widget area changes the paging page')
-  assert.equal(await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return r.x === ${overviewBefore.x} && r.y === ${overviewBefore.y}; })()`), true, 'the fixed Overview stays in place when the page changes')
-  assert.equal(await evaluate(`document.querySelectorAll('#pages-track #home-summary').length`), 0, 'Overview is not a member of any paging page')
+  assert.equal(await evaluate(`document.querySelectorAll('.dot')[1].classList.contains('active')`), true, 'swiping Overview changes the whole Home page')
+  assert.ok(await evaluate(`document.querySelector('#home-summary').getBoundingClientRect().right <= document.querySelector('#pages-viewport').getBoundingClientRect().left`), 'next page excludes Overview')
+  assert.equal(await evaluate(`document.querySelectorAll('#pages-track > .page:not([data-page-id="home"]) #home-summary').length`), 0)
   await evaluate(`document.querySelectorAll('.dot')[0].click(); new Promise(r => setTimeout(r, 280))`)
-  assert.equal(await evaluate(`document.querySelector('#home-summary').getBoundingClientRect().x`), firstCard.x, 'the fixed Overview stays at its original position')
+  assert.equal(await evaluate(`document.querySelector('#home-summary').getBoundingClientRect().x`), firstCard.x, 'Overview returns with Home')
   assert.equal(await evaluate(`document.querySelector('#home-summary details, #home-summary summary')`), null, 'paging never restores source controls')
-  assert.equal(await evaluate(`document.querySelectorAll('#home-summary [data-plugin="odk.page.dashboard"]').length`), 1)
+  assert.equal(await evaluate(`document.querySelectorAll('#pages-track [data-plugin="odk.page.dashboard"]').length`), 1)
   const widgetSurface = await evaluate(`(() => {
     const tile = document.querySelector('.widget[data-interaction="display-only"]')
     const probe = document.createElement('span')

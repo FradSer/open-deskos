@@ -15,11 +15,8 @@
 #personal-agent > .page { padding: 0; width: 100%; height: 100%; }
 /* The Overview keeps its own row above the paging track. Horizontal navigation
    only moves the 3x2 Widget pages below it; the briefing never follows a page. */
-/* The Overview absorbs the spare height. The paging track and the Page
-   Controller take only their content height, so no empty band sits between the
-   Widgets and the controller. */
-#desk-content { display: grid; grid-template-rows: minmax(0, 1fr) max-content max-content; min-width: 0; min-height: 0; }
-#home-summary { grid-row: 1; container-type: inline-size; width: var(--grid-w); max-width: calc(100% - 2 * var(--desk-side-inset)); min-height: var(--cell-h); flex: none; margin-inline: auto; min-width: 0; overflow-y: auto; border: 0; border-radius: 0; background: transparent; }
+#desk-content { display: grid; grid-template-rows: max-content minmax(0, 1fr) max-content 48px; min-width: 0; min-height: 0; }
+#home-summary { grid-row: 1; container-type: inline-size; width: var(--grid-w); max-width: calc(100% - 2 * var(--desk-side-inset)); height: var(--cell-h); flex: none; margin-inline: auto; min-width: 0; min-height: 0; overflow-y: auto; border: 0; border-radius: 0; background: transparent; }
 #home-desk .home-canvas { gap: var(--widget-gap); }
 #home-summary > .page { height: auto; padding: 0; overflow: visible; }
 #home-summary .dash { width: 100%; height: auto; max-height: none; margin: 0; padding: 16px clamp(16px, calc(var(--cell-dim) * 0.06), 24px) 8px; gap: 12px; border: 0; border-radius: 0; background: transparent; overflow: visible; }
@@ -50,6 +47,8 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   /* The avatar and identity sit directly below the State Bar, with no extra
      top inset between the panel edge and the header. */
   --agent-top-inset: 0px;
+  /* Only the identity moves up; the conversation and composer keep their inset. */
+  --agent-head-lift: -8px;
   --agent-pad-surface: 16px;
   --agent-pad-card: 12px;
   --agent-radius-surface: var(--odk-radius-card);
@@ -64,10 +63,8 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   --agent-text-heading: clamp(20px, calc(18px + 0.65cqw), 24px);
   --agent-text-body: 17px;
   --agent-text-label: 14px;
-  --agent-avatar-size: 112px; --agent-avatar-frame-height: calc(var(--agent-avatar-size) * 2 / 3); --agent-head-overlap: calc(var(--agent-avatar-frame-height) * 0.18); --agent-head-padding: 12px; --agent-capsule-top: max(8px, calc(var(--agent-head-overlap) + 6px)); --agent-head-space: calc(var(--agent-avatar-frame-height) - var(--agent-head-overlap) + var(--agent-capsule-top) + 84px + var(--agent-head-padding)); position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-auto-rows: auto; width: 100%; height: 100%; min-height: 0; padding: var(--agent-top-inset) 20px 20px; gap: 10px; }
-/* The onee avatar is taller than its frame and overflows upward by design.
-   Give the header that space so the pane never clips the avatar. */
-.agent-head { grid-area: 1 / 1; align-self: start; z-index: 2; pointer-events: none; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 0; flex: none; min-width: 0; padding-block: 24px 12px; }
+  --agent-avatar-size: 112px; --agent-avatar-frame-height: calc(var(--agent-avatar-size) * 2 / 3); --agent-head-overlap: calc(var(--agent-avatar-frame-height) * 0.18); --agent-head-padding: 12px; --agent-capsule-top: max(8px, calc(var(--agent-head-overlap) + 6px)); --agent-head-space: calc(var(--agent-avatar-frame-height) - var(--agent-head-overlap) + var(--agent-capsule-top) + 60px + var(--agent-head-padding)); position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-auto-rows: auto; width: 100%; height: 100%; min-height: 0; padding: var(--agent-top-inset) 20px 20px; gap: 10px; }
+.agent-head { grid-area: 1 / 1; align-self: start; z-index: 2; pointer-events: none; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 0; flex: none; min-width: 0; padding-block: 0 12px; transform: translateY(var(--agent-head-lift)); }
 .agent-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 64px; height: 64px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); }
 .agent-avatar svg { width: 32px; height: 32px; }
 .agent-name { margin: 0; min-width: 0; flex: 0 1 auto; font-size: var(--agent-text-heading); font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -91,16 +88,8 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 .agent-child-details { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
 .agent-child-name { font-size: var(--agent-text-label); line-height: 1.5; color: var(--odk-primary); }
 .agent-child-state { font-size: var(--agent-text-label); line-height: 1.5; }
-/* Every assistant reply shares one width. A short reply must not leave a narrow
-   card beside a longer one; owner messages keep their own narrower alignment. */
-.agent-message-bubble { width: 100%; max-width: 96%; min-width: 0; padding: var(--agent-pad-surface) 20px; background: var(--odk-surface); border-radius: var(--agent-radius-surface); }
+.agent-message-bubble { width: fit-content; min-width: 0; max-width: 96%; padding: var(--agent-pad-surface) 20px; background: var(--odk-surface); border-radius: var(--agent-radius-surface); }
 .agent-message-body { white-space: pre-wrap; }
-/* Safe Markdown renders paragraphs. Its source newlines must not become extra
-   preformatted lines, and consecutive paragraphs keep the named Agent rhythm. */
-.agent-message-body.personal-agent-status-markdown { white-space: normal; }
-.agent-message-body.personal-agent-status-markdown > p { margin: 0; }
-.agent-message-body.personal-agent-status-markdown > p + p { margin-block-start: var(--agent-gap-block); }
-.agent-message-body.personal-agent-status-markdown > :last-child { margin-bottom: 0; }
 .agent-message-body p { margin: 0 0 12px; }
 .agent-message-body details { white-space: normal; overflow-wrap: anywhere; }
 .agent-message-body details > summary { min-height: 44px; display: flex; align-items: center; color: var(--odk-secondary-strong); cursor: pointer; font-size: var(--agent-text-label); }
@@ -140,11 +129,11 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
   /* Keep the narrow desk at its original 70vh budget. The fixed Overview takes
      its height from the Widget row instead of adding a second tall row, so the
      Widget canvas stays inside the viewport as it did before the paging change. */
-  #desk-content { flex: none; height: auto; min-height: 70vh; grid-template-rows: max-content minmax(360px, 60vh) max-content; }
+  #desk-content { flex: none; height: 70vh; min-height: 0; grid-template-rows: max-content minmax(0, 1fr) max-content 48px; }
   #home-summary { width: 100%; height: auto; min-height: 112px; max-height: none; }
-  #home-summary .dash-head { column-gap: 8px; flex-wrap: nowrap; }
-  #home-summary .dash-date { font-size: clamp(13px, 4cqw, 18px); }
+  #home-summary .dash-head { column-gap: 8px; }
   #home-summary .dash-wd { font-size: clamp(24px, 9cqw, 38px); }
+  #home-summary .dash-date { font-size: 18px; }
 }
 
 [data-theme='border-beam'] #home-desk :is(.widget[data-interaction="display-only"], .dash)::after { content: none; }
@@ -185,7 +174,7 @@ html[data-theme='pixel'] #home-summary .dash {
 #desk-content { position: relative; }
 #desk-content > #app-view { inset: var(--widget-gap) var(--desk-side-inset) 56px; overflow: hidden; }
 @media (max-width: 639px) {
-  #desk-content:has(> #app-view:not([hidden])) { height: max(70vh, 408px); grid-template-rows: max-content minmax(0, 1fr) max-content; }
+  #desk-content:has(> #app-view:not([hidden])) { height: max(70vh, 408px); grid-template-rows: max-content minmax(0, 1fr) max-content 48px; }
 }
 #app-view .app-header { padding: 12px 20px; min-height: 64px; border-bottom: 0; }
 #app-view .app-header:has(#app-back[hidden]) { display: none; }
@@ -240,9 +229,10 @@ html[data-theme='pixel'] #home-summary .dash {
   backdrop-filter: blur(24px) saturate(120%);
   -webkit-backdrop-filter: blur(24px) saturate(120%);
 }
-/* The State Bar owns exactly --status-h. The desk starts at the same edge, so
-   there is no dead strip between them. */
+/* The visible State Bar band is tighter than its geometry slot. The desk still
+   starts at --status-h, so the shared Widget canvas keeps its measured size. */
 #status-bar {
+  height: calc(var(--status-h) - 12px);
   z-index: 25;
   background: transparent;
   backdrop-filter: none;
@@ -301,50 +291,6 @@ html[data-theme='pixel'] #home-summary .dash {
 /* Task names stay below messages; technical provenance stays outside the timeline. */
 .agent-message-actions { display: grid; gap: 8px; margin-block-start: 8px; white-space: normal; }
 .agent-update-sources { width: 100%; min-width: 0; }
-.agent-remote-detail { position: relative; margin-block-start: var(--agent-gap-block); white-space: normal; min-width: 0; }
-.agent-remote-detail > .personal-agent-preview-card { margin-block-start: 0; }
-/* A very long card keeps its card surface. Its lower rows fade out and the
-   expand control sits over the fade, so no extra frame or list appears. */
-.agent-remote-detail-clipped > .personal-agent-preview-card {
-  max-block-size: 15rem;
-  overflow: hidden;
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 88px), transparent);
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 88px), transparent);
-}
-.agent-remote-detail-expanded > .personal-agent-preview-card {
-  max-block-size: none;
-  mask-image: none;
-  -webkit-mask-image: none;
-}
-.agent-remote-detail-expand {
-  position: absolute;
-  inset-block-end: 0;
-  inset-inline: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  min-height: 88px;
-  padding: 0 0 var(--agent-gap-block);
-  border: 0;
-  background: linear-gradient(to bottom, transparent, var(--odk-surface));
-  color: var(--odk-primary);
-  font: inherit;
-  font-size: var(--agent-text-label);
-  cursor: pointer;
-}
-.agent-remote-detail-expand:hover { text-decoration: underline; }
-.agent-remote-detail-expand:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: -2px; }
-/* Once revealed, the card is whole. The collapse control returns to normal
-   flow below the card instead of overlaying its text. */
-.agent-remote-detail-expanded > .agent-remote-detail-expand {
-  position: static;
-  min-height: 44px;
-  padding: var(--agent-gap-block) 0 0;
-  background: transparent;
-}
-@media (forced-colors: active) {
-  .agent-remote-detail-clipped > .personal-agent-preview-card { mask-image: none; -webkit-mask-image: none; }
-}
 .agent-reply-details { min-width: 0; }
 .agent-panel .agent-reply-status[hidden], .agent-panel .agent-state[hidden] { display: none; }
 .agent-identity > .agent-capsule { color: var(--odk-primary); }

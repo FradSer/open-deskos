@@ -25,8 +25,6 @@ export class PersonalAgentService {
   constructor(dependencies) {
     this.dependencies = dependencies
     this.status = { proposalCapabilities: { read: false, respond: false, acknowledge: false }, replyInput: true, textInput: true, v: 1, type: 'status', state: 'idle', message: '', transcript: '', level: 0 }
-    /** @type {object | undefined} Host-projected read-only detail for the last reply. */
-    this.replyUi = undefined
     this.listeners = new Set()
     this.closed = false
     this.terminated = false
@@ -73,9 +71,6 @@ export class PersonalAgentService {
     this.publishJev(health)
     return health
   }
-
-  /** The host stores a read-only detail card for the projected reply. */
-  setReplyUi(ui) { this.replyUi = ui && typeof ui === 'object' ? ui : undefined }
 
   publishJev(jev) {
     this.jev = jev
@@ -188,7 +183,6 @@ export class PersonalAgentService {
     this.status = {
       ...(judgment ? {judgment} : {}), proposalCapabilities: { read: Boolean(this.watch), respond: Boolean(this.watch), acknowledge: Boolean(this.watch) }, ...this.proposalFrame, ...this.replyFrame, ...(this.jev ? { jev: this.jev } : {}), agents: this.agentFrame, ...(this.remoteFrame ? { remote: this.remoteFrame } : {}), ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), replyInput: true, textInput: true, v: 1, type: 'status', state, level: 0, ...(state === 'recording' ? {cancelInput:true} : {}),
       message: reply, ...(state === 'error' && ['microphone','timeout','unavailable','protocol','invalid_audio','cleanup'].includes(voiceFailure) ? {voiceFailure} : {}), ...(notifications.length ? { notifications } : {}),
-      ...(state === 'idle' && this.replyUi ? { replyUi: this.replyUi } : {}),
       transcript: boundedText(transcript, 4096, 'Transcript'),
     }
     for (const listener of this.listeners) listener(this.status)
