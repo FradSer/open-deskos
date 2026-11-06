@@ -10,41 +10,6 @@ import { readProactiveFile, checkProactivePath, createProactiveDirectory, openPr
 
 const LIMIT = 2 * 1024 * 1024
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const UI_MAX_BYTES = 16384
-const UI_MAX_DEPTH = 8
-const plainObject = value => {
-  const prototype = Object.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
-}
-
-/** A proposal may carry one OpenUI tree: typed plain JSON, no functions, at most eight nested nodes. */
-function validOpenUITree(node) {
-  if (!node || typeof node !== 'object' || Array.isArray(node) || !plainObject(node) || typeof node.type !== 'string' || !node.type) return false
-  let serialized
-  try { serialized = JSON.stringify(node) } catch { return false }
-  if (typeof serialized !== 'string' || Buffer.byteLength(serialized) > UI_MAX_BYTES) return false
-  // Iterative: props objects and children arrays are transparent, so depth counts
-  // nested component nodes. Cycles and non-JSON values fail the checks above.
-  const stack = [[node, 1]]
-  while (stack.length) {
-    const [value, depth] = stack.pop()
-    const kind = typeof value
-    if (['function', 'symbol', 'bigint', 'undefined'].includes(kind)) return false
-    if (value === null) continue
-    if (kind === 'number') { if (!Number.isFinite(value)) return false; continue }
-    if (kind !== 'object') { if (kind !== 'string' && kind !== 'boolean') return false; continue }
-    const isNode = !Array.isArray(value) && typeof value.type === 'string'
-    if (!Array.isArray(value) && !plainObject(value)) return false
-    if (isNode && depth > UI_MAX_DEPTH) return false
-    // The Shell frame applies the same structural bounds; keep both ends in step.
-    if (isNode && Object.hasOwn(value, 'children')) {
-      if (!Array.isArray(value.children) || value.children.some(child => !child || typeof child !== 'object' || Array.isArray(child) || typeof child.type !== 'string')) return false
-    }
-    if (isNode && value.props !== undefined && value.props !== null && (typeof value.props !== 'object' || Array.isArray(value.props) || !plainObject(value.props))) return false
-    for (const child of Object.values(value)) stack.push([child, isNode ? depth + 1 : depth])
-  }
-  return true
-}
 
 function validate(state) {
   if (!state || state.version !== 1 || !Array.isArray(state.proposals) || state.proposals.length > 64 || new Set(state.proposals.map(p => p.id)).size !== state.proposals.length) throw Error('Invalid private proposal state')
@@ -66,7 +31,6 @@ function validate(state) {
   if (state.intentArchive !== undefined && (!state.intentArchive || Object.keys(state.intentArchive).sort().join(',') !== 'byStatus,count' || !Number.isSafeInteger(state.intentArchive.count) || state.intentArchive.count < 0 || !state.intentArchive.byStatus || typeof state.intentArchive.byStatus !== 'object' || Array.isArray(state.intentArchive.byStatus) || !Object.entries(state.intentArchive.byStatus).every(([status, count]) => INTENT_OUTCOMES.includes(status) && Number.isSafeInteger(count) && count >= 0) || Object.values(state.intentArchive.byStatus).reduce((sum, n) => sum + n, 0) !== state.intentArchive.count)) throw Error('Invalid Intent archive summary')
   for (const p of state.proposals) {
     if (p.feedbackLearning !== undefined) validateFeedbackLearning(p.feedbackLearning)
-    if (p.ui !== undefined && !validOpenUITree(p.ui)) throw Error('Invalid proposal OpenUI tree')
     if (['needKey', 'observationKey', 'occurrenceKey'].some(key => p[key] !== undefined && !/^[0-9a-f]{64}$/.test(p[key]))
       || (p.reason !== undefined && (typeof p.reason !== 'string' || p.reason.length > 600 || /[\x00-\x08]/.test(p.reason)))
       || (p.nextStep !== undefined && (typeof p.nextStep !== 'string' || !p.nextStep.trim() || p.nextStep.length > 240 || /[\x00-\x1f\x7f]/.test(p.nextStep)))

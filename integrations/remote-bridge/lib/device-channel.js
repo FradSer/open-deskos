@@ -27,4 +27,4 @@ function respondDeviceRequest(socket, record, adapter) {
     .finally(() => inflight.set(socket, (inflight.get(socket) || 1) - 1))
   return true
 }
-module.exports = { MAX_LINE, UUID, unavailable, writeDeviceRecord, deviceSnapshot, respondDeviceRequest }
+module.exports = { UUID, unavailable, writeDeviceRecord, deviceSnapshot, respondDeviceRequest }

@@ -158,7 +158,6 @@ test('a hand-written capability can omit description and its pending action rece
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'odk-intent-extension-close-')))
   t.after(() => rm(dir, { recursive: true, force: true }))
   await isolateAgentDirectory(t, dir)
-  const { writeFile } = await import('node:fs/promises')
   const { pathToFileURL } = await import('node:url')
   const modulePath = join(dir, 'capability.mjs')
   await writeFile(modulePath, `export let signal;

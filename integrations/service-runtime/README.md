@@ -4,6 +4,17 @@ This operator-owned runtime manages independent Service Plugin revisions.
 [Futu](../futu-poller/README.md#external-service-package) is the first packaged service.
 The Shell and Personal Bot continue to consume the existing Open DeskOS Data interfaces.
 
+## Generated plugin target
+
+[ADR-0041](../../runtime/shell/docs/ARCHITECTURE.md#adr-0041) defines the target composition and its staged execution gates.
+The [planned BDD scenarios](features/generated-plugins.feature) have no executable step bindings yet.
+They do not change this runtime's implemented `python` and `docker` contracts.
+Native operator Python remains trusted execution, not a user-code sandbox.
+The current Docker backend still lacks enforced destination restrictions, a credential vault, and verified source-to-image provenance.
+Those gaps block arbitrary generated Service activation.
+An existing OpenD is a private provider dependency, not a resource owned by plugin installation or removal.
+This architecture work leaves the current NAS Docker OpenD and existing poller deployment unchanged.
+
 ## Host requirements
 
 The manager uses Python 3.10 or later and the Python standard library.

@@ -1,22 +1,25 @@
 # External service runtime handoff
 
-Updated: 2026-10-25.
+Updated: 2026-11-06 for architecture work. Deployment sections below retain historical evidence.
 
-## Work
+## Architecture handoff
 
-The user requested a separate worktree, a generic external service layer, and Futu as the first service.
-The user then authorized deployment and live lifecycle acceptance on CM5.
-The [runtime contract](README.md) owns commands, package inputs, lifecycle, and trust limits.
-The [Futu guide](../futu-poller/README.md#external-service-package) owns worker configuration and packaging.
+The owner requested repository architecture, BDD scenarios, and a staged route for voice-created plugins.
+[ADR-0041](../../runtime/shell/docs/ARCHITECTURE.md#adr-0041) owns that target and its implementation gates.
+[Planned scenarios](features/generated-plugins.feature) have no executable step bindings yet.
+This work changes no runtime code, deployment, credential, or running service.
+The existing NAS Docker OpenD remains external to plugin lifecycle ownership.
+The separate `cm5-linux-sandbox` worktree contains unfinished Python unit hardening; preserve its uncommitted work.
+It does not prove isolation of preparation, workers, probes, private files, or egress.
+Next work starts with Stage 1 and failing public-interface tests. Operational authorization remains separate.
+Last verification: local references, sentence limits, Gherkin syntax, and the existing documentation consumer check passed. The 26 planned scenarios were not executed.
+The official STE Issue 9 PDF returned HTTP 403. Full dictionary and word-meaning compliance remains unverified.
 
-Worktree: `/Users/FradSer/.codex/worktrees/external-service-runtime/open-deskos`.
-Branch: `codex/external-service-runtime`.
-Base: `75ee6abf574997f526ff1faf0cb8386e5e9ef962`.
-The original checkout and its unrelated changes remain untouched.
-Changes are local and uncommitted.
-No pull request was created.
+## Prior service work
 
-## Implementation
+The [runtime contract](README.md) owns implemented commands and trust limits.
+The [Futu guide](../futu-poller/README.md#external-service-package) owns worker configuration.
+Original worktree: `/Users/FradSer/.codex/worktrees/external-service-runtime/open-deskos`; branch: `codex/external-service-runtime`; base: `75ee6abf574997f526ff1faf0cb8386e5e9ef962`.
 
 - `odk_service_runtime/` owns private revision storage, lifecycle transactions, backends, and the Python command entry.
 - `runtime/shell/scripts/odk-plugin-cli.js` delegates `odk plugin service` commands.
@@ -25,10 +28,7 @@ No pull request was created.
 - `integrations/futu-poller/build_package.py` builds exact source inventories for both backends.
 - Futu pins Python 3.12.11 and `futu-api==10.2.6208` with a complete uv lock.
 
-The manager saves resource ownership before creation and commits version selection with activation state.
-Damaged executable files cannot prevent cleanup of an independently verified runtime handle.
-Unconfirmed Docker creation remains pending, even when its reserved container is absent.
-The runtime contract explains this conservative operator-recovery limit.
+The manager saves resource ownership before creation and commits version selection with activation state. Damaged executable files cannot prevent cleanup of an independently verified runtime handle. Unconfirmed Docker creation remains pending, even when its reserved container is absent; the runtime contract explains this recovery limit.
 
 ## CM5 deployment
 

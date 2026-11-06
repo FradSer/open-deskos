@@ -97,8 +97,6 @@ function isRecord(value) {
 }
 
 module.exports = {
-  LINK_STATES,
-  NAVIGATION_DIRECTIONS,
   REMOTE_INPUTS,
   PROTOCOL_VERSION,
   createLinkState,

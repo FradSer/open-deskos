@@ -406,6 +406,29 @@ Ambiguity asks for clarification.
 Cancel/close aborts inference and suppresses late results.
 Intent selection never replaces confirmation, identity, installation, or unknown-outcome checks.
 
+## Generated plugin creation target
+
+[ADR-0041](../../../runtime/shell/docs/ARCHITECTURE.md#adr-0041) owns the future composition, private authority, and staged implementation contract.
+Voice and text use the existing `widget_create` and `app_create` workflow direction.
+Current tools still support HTML drafting, verification, placement, and their existing lifecycle only.
+No service-runtime mutation tool or new provider-specific intent is implemented by this target.
+
+The future coordinator resolves an existing plugin and its configured target before Hosted Pi drafts a candidate.
+It reuses reviewed Service templates and reports missing capabilities without inventing endpoints or credentials.
+Candidate identity includes exact UI, Service, and data contract revisions.
+Owner-facing status distinguishes drafted, verified, awaiting operator trust, installed, active, unavailable, and unknown outcomes.
+These are workflow distinctions, not new wire values added to current status frames.
+
+The coordinator returns the admitted work receipt and follows the existing later-turn status workflow.
+A finished Hosted Pi answer does not establish independent verification or activation.
+`needs-operator-trust` identifies missing exact execution or private grants; it cannot create them.
+Credential collection uses a system-owned path, never a spoken reply or generated form.
+Direct CLI calls and Hosted Pi retain the same runtime enforcement and operational authorization requirements.
+Uncertain mutations require reconciliation, never automatic replay.
+
+The [planned scenarios](../../service-runtime/features/generated-plugins.feature) precede new lifecycle tools or intent allowlist changes.
+Their stage gates require local tests, then separately authorized provider and device acceptance.
+
 ## Durable runtime
 
 [durable-agent-session.mjs](../src/durable-agent-session.mjs) implements the resident session port through the Pi Durable Harness.

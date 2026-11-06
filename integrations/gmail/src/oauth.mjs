@@ -8,7 +8,7 @@ const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
 class GmailOAuthError extends Error {}
 
 /** Open Google authorization in the operating system browser. */
-export async function openSystemBrowser(url) {
+async function openSystemBrowser(url) {
   const command = process.platform === 'win32' ? 'rundll32' : process.platform === 'darwin' ? 'open' : 'xdg-open'
   const args = process.platform === 'win32' ? ['url.dll,FileProtocolHandler', url] : [url]
   await new Promise((resolve, reject) => {

@@ -3,6 +3,9 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { createTaskComposition, hostedPiManifest, TASK_PORTS } from '../src/task-composition.mjs'
 import { createTaskService } from '../src/task-service.mjs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 for (const selected of [false, true]) {
   test(`${selected ? 'selected' : 'default'} task engine cancels and retains records across service disable and enable`, { timeout: 10000 }, async t => {
@@ -152,9 +155,6 @@ test('failed endpoint withdrawal retains its service until cleanup can retry', a
 })
 
 test('service disable disconnects attached Consoles while retaining its accepting listener', { skip: process.platform === 'win32' }, async t => {
-  const { mkdtemp, rm } = await import('node:fs/promises')
-  const { tmpdir } = await import('node:os')
-  const { join } = await import('node:path')
   const { createConnection } = await import('node:net')
   const { once } = await import('node:events')
   const { serveTasks, requestTask } = await import('../src/task-protocol.mjs')
@@ -208,9 +208,6 @@ test('legacy listeners refuse partial service operations before graph mutation',
 for (const wholeShutdown of [false, true]) {
 for (const selected of [false, true]) {
 test(`${selected ? 'selected' : 'default'} service retries failed asynchronous disconnect before close during ${wholeShutdown ? 'shutdown' : 'partial disable'}`, { skip: process.platform === 'win32' }, async t => {
-  const { mkdtemp, rm } = await import('node:fs/promises')
-  const { tmpdir } = await import('node:os')
-  const { join } = await import('node:path')
   const { serveTasks, requestTask } = await import('../src/task-protocol.mjs')
   const root = await mkdtemp(join(tmpdir(), 'task-disconnect-'))
   const socket = join(root, 'task.sock')

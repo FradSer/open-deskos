@@ -3,7 +3,7 @@ import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { admittedProject, atomicRecord, loadRecords, privateDirectory, RECORD_LIMIT, serializeRecord, validText, validateConfig, within, resumeSessionHeader } from './task-store.mjs'
 
-export const TASK_TEXT_LIMIT = 16 * 1024
+const TASK_TEXT_LIMIT = 16 * 1024
 const INCOMPLETE_RESPONSE = '任务执行未正常完成，请检查本机会话记录'
 const HOST_CAP = 4
 const DEFAULT_IDLE_MS = 30 * 60 * 1000

@@ -360,7 +360,6 @@ test('private socket preserves jobs across helper exit and rejects oversized fra
 
 test('SDK adapter uses persistent isolated resources and waits for final stop reason', async t => {
   const { runTask } = await import('../src/task-agent.mjs')
-  const { writeFile } = await import('node:fs/promises')
   const f = await fixture(t)
   await writeFile(join(f.root, 'AGENTS.md'), 'Managed test context')
   const controller = new AbortController()

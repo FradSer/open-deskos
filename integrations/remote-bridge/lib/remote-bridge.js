@@ -278,8 +278,6 @@ function closeServer(server) {
 
 module.exports = {
   RemoteBridge,
-  SOCKET_DIRECTORY,
-  SOCKET_NAME,
   closeServer,
   createAdapterState,
   listen,

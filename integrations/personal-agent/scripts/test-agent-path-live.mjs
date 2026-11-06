@@ -13,7 +13,7 @@ import { join } from 'node:path'
 import { createPersonalAgent } from '../src/agent.mjs'
 import { createDurableAgentSession } from '../src/durable-agent-session.mjs'
 import { ProactiveWatch } from '../src/proactive.mjs'
-import { createProactiveJudge } from '../src/proactive-qualification.mjs'
+import { createJevJudge } from '../src/proactive-jev.mjs'
 
 const roundIndex = process.argv.indexOf('--rounds')
 const rounds = Number(roundIndex > -1 ? process.argv[roundIndex + 1] : 2)
@@ -110,7 +110,7 @@ try {
       canExecute: () => true,
       read: async id => ({ id, state: 'live', value: readings[id] }),
       generate: bot.generateProposals,
-      judge: createProactiveJudge({ env, generate: bot.judgeOrdinary, model: () => bot.generationModel }),
+      judge: createJevJudge({ env }),
       onGeneration: record => note(`  phase=${record.phase} candidates=${record.candidates}`),
       publish: () => {},
       save: async () => {}, saveState: () => {}, execute: async () => 'done', phrase: async ({ advice }) => advice,
@@ -118,7 +118,7 @@ try {
     try {
       await watch.tick()
       const proposals = watch.list().filter(p => p.status === 'pending').map(p => ({
-        run: item.round, topic: p.ruleId, advice: p.advice, preview: p.preview ?? null, ui: p.ui ?? null, nextStep: p.nextStep,
+        run: item.round, topic: p.ruleId, advice: p.advice, preview: p.preview ?? null, nextStep: p.nextStep,
         probability: p.judgment.probability, grounding: p.judgment.groundingProbability,
         threshold: p.judgment.threshold, pass: true,
       }))

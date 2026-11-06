@@ -7,7 +7,7 @@ import { privateDirectory } from './task-store.mjs'
 
 export const REQUEST_LIMIT = 64 * 1024
 export const RESPONSE_LIMIT = 256 * 1024
-export const REQUEST_TIMEOUT = 8000
+const REQUEST_TIMEOUT = 8000
 
 /** Read exactly one JSONL frame. Kept for one-shot clients and stdin helpers. */
 export function readFrame(stream, limit, timeout = REQUEST_TIMEOUT) {

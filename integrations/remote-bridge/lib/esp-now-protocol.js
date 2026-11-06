@@ -42,4 +42,4 @@ function statePayload(record) {
   if (payload.length > MAX) throw Error('unsupported-remote-state')
   return payload
 }
-module.exports = { HEADER, CHUNK, MAX, TYPES, frames, decode, statePayload }
+module.exports = { HEADER, TYPES, frames, decode, statePayload }

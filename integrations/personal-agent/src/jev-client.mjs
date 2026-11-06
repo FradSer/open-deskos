@@ -1,7 +1,7 @@
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
 import { withOpenDeskOSClient } from './model-client-identity.mjs'
 
-export const isJevModel = value => typeof value === 'string' && /^jev-[a-zA-Z0-9_.-]{1,60}$/.test(value)
+const isJevModel = value => typeof value === 'string' && /^jev-[a-zA-Z0-9_.-]{1,60}$/.test(value)
 
 // Only fixed codes cross the resident status boundary; never retain upstream bodies or credentials.
 class JevRequestError extends Error {

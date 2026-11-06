@@ -113,6 +113,18 @@ The renderer displays saved name, packaged avatar, and actual active state.
 Unavailable transport produces an unavailable status rather than an inferred completion.
 Rendered activity evidence does not prove physical input or task quality.
 
+## Generated plugin compositions
+
+The accepted [composition target](../../../runtime/shell/docs/ARCHITECTURE.md#adr-0041) extends creation without adding another runtime layer.
+Personal Agent coordinates one owner request; Hosted Pi drafts exact artifacts through the configured target.
+The existing catalog, service manager, and data registry retain their separate ownership.
+Provider deployment is independent of Service execution and HTML presentation.
+The current OpenD stays in its NAS Docker deployment.
+
+The [resident contract](CONTRACT.md#generated-plugin-creation-target) defines workflow integration and evidence requirements.
+No Service lifecycle tool, sandbox enforcement, or private grant follows from this architecture text.
+The initial path uses reviewed Service templates after the implementation gates pass.
+
 ## Two Skill audiences
 
 | Audience | Source | Purpose |

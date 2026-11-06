@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import { ProactiveWatch } from '../src/proactive.mjs'
 import { validateFeedbackResult, validateFeedbackState } from '../src/proactive-feedback-memory.mjs'
 import { proposalStateStore } from '../src/proactive-state.mjs'
-import { openuiSuggestion } from './openui-fixtures.test.mjs'
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -19,7 +18,7 @@ function fixture(refineFeedbackMemory, overrides = {}) {
     read: async id => ({ id, state: 'live', value: { count, measured_at: new Date(now).toISOString() } }), now: () => now,
     canExecute: () => true, execute: async () => { throw Error('Feedback must not execute') }, save: async () => {}, publish: () => {},
     feedbackMemoryEnabled: true, loadState: () => structuredClone(saved), saveState: state => { saved = structuredClone(state) }, refineFeedbackMemory,
-    generate: async input => { generation.push(structuredClone({ ...input, signal: undefined })); return { suggestions: [openuiSuggestion({ topicId: 'work', key: 'inspect', advice: 'Review pending work.', actionId: 'inspect', evidenceIds: ['e0'] })] } },
+    generate: async input => { generation.push(structuredClone({ ...input, signal: undefined })); return { suggestions: [{ topicId: 'work', key: 'inspect', advice: 'Review pending work.', actionId: 'inspect', evidenceIds: ['e0'] }] } },
     judge: async ({ candidates }) => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(p => [p.id, { probability: .99, groundingProbability: .99, threshold: .8 }])) }), ...overrides }
   const watch = new ProactiveWatch(options)
   return { watch, options, saved: () => saved, generation, count: n => { count = n } }

@@ -8,6 +8,7 @@ import { createPersonalAgent } from '../src/agent.mjs'
 import { loadPersonalConfig } from '../src/personal-config.mjs'
 import { assistant, offlineRuntime as offline, visibleTools } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
+import { RemoteConversation } from '../src/remote-conversation.mjs'
 
 async function fixture(t) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'odk-agent-plugin-integration-')))
@@ -325,7 +326,6 @@ test('remote faithfulness review holds unsupported numeric, execution, and evide
    ownerCalls++;assert.fail('Unrequested provider context')
   })
   const bot=await createPersonalAgent(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('Received reports cannot create owner turns')})
-  const {RemoteConversation}=await import('../src/remote-conversation.mjs')
   const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote.json'),read:async cursor=>({ok:true,records:cursor?[]:records,total:2,omitted:1,nextCursor:'next'}),synthesize:input=>bot.summarizeRemote(input),publish(){}})
   try{
    await remote.poll();await remote.poll()
@@ -391,7 +391,6 @@ test('a real zero-tool remote reviewer can hold swapped assignments and unreadab
    return assistant(JSON.stringify({status:'needs_review',reason:'文本的任务归属或助理表达不符合要求。',citations}))
   })
   const bot=await createPersonalAgent(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
-  const {RemoteConversation}=await import('../src/remote-conversation.mjs')
   const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote.json'),read:async()=>({ok:true,records,total:2,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
   try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,0);assert.equal(remote.snapshot().heldCount,2);assert.equal(summaries,1);assert.equal(reviews,1)}finally{await remote.close();await bot.close()}
  })
@@ -418,7 +417,6 @@ test('actual zero-tool remote providers preserve conditional acceptance scope',a
   return assistant(JSON.stringify({status:'needs_review',reason:'来源说明验收条件，摘要却声称已完成比对并通过。',citations}))
  })
  const bot=await createPersonalAgent(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
- const {RemoteConversation}=await import('../src/remote-conversation.mjs')
  const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
  try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,0);assert.equal(remote.snapshot().heldCount,1);assert.equal(summaries,1);assert.equal(reviews,1)}finally{await remote.close();await bot.close()}
 })
@@ -473,7 +471,6 @@ test('actual zero-tool remote providers preserve the scope of unavailable eviden
   return assistant(JSON.stringify({status:'needs_review',reason:'本次没有取得证据不能说明全局没有执行。',citations}))
  })
  const bot=await createPersonalAgent(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
- const {RemoteConversation}=await import('../src/remote-conversation.mjs')
  const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote-scope.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
  try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,0);assert.equal(remote.snapshot().heldCount,1);assert.equal(summaries,1);assert.equal(reviews,1);assert.equal(contexts.length,2)}finally{await remote.close();await bot.close()}
 })
@@ -501,7 +498,6 @@ test('actual zero-tool remote providers keep missing evidence within its visible
    return assistant(JSON.stringify({status,reason:status==='passed'?'只说明本次读取不能确立验收，不推断外部记录不存在。':'摘要删掉了来源限定的本会话证据访问范围。',citations}))
   })
   const bot=await createPersonalAgent(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
-  const {RemoteConversation}=await import('../src/remote-conversation.mjs')
   const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote-local-scope.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
   try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,status==='passed'?1:0);assert.equal(remote.snapshot().heldCount,status==='passed'?0:1);assert.equal(summaries,1);assert.equal(reviews,1)}finally{await remote.close();await bot.close()}
  })
@@ -538,7 +534,6 @@ test('actual zero-tool remote providers preserve material literal deliverables',
    return assistant(JSON.stringify({status,reason:status==='passed'?'保留必要的字面结果与本次只读边界，没有执行或承诺。':'翻译或改写省略了理解与使用所需的字面交付结果。',citations}))
   })
   const bot=await createPersonalAgent(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
-  const {RemoteConversation}=await import('../src/remote-conversation.mjs')
   const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote-literal-result.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
   try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,status==='passed'?1:0);assert.equal(remote.snapshot().heldCount,status==='passed'?0:1);assert.equal(summaries,1);assert.equal(reviews,1)}finally{await remote.close();await bot.close()}
  })

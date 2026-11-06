@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 /** @typedef {{id:string, replyTo:ReplyTo, threadId:string, text:string, source:{key:string,revision:string,machine:string,project:string,sessionId:string,control:string,target?:string,taskId?:string,taskRevision?:string}}} BoundSessionReply */
 /** @typedef {{host:{name:string,platform:string}, request:(command:string, params:object, signal?:AbortSignal)=>Promise<any>}} OriginatingApplications */
 /** @typedef {{id:string, bind:(reply:BoundSessionReply)=>void, requireDeliveryAcknowledgement?:()=>void, applications?:OriginatingApplications}} OwnerTurn */
-export const replyStatuses = ['queued','dispatching','delivered','unknown','answered','failed']
+const replyStatuses = ['queued','dispatching','delivered','unknown','answered','failed']
 export function validReplyTo(value) {
  return value && typeof value==='object' && !Array.isArray(value) && Object.keys(value).length===3 && Object.keys(value).every(key=>['messageId','sourceKey','sourceRevision'].includes(key))
   && /^[a-f0-9]{64}$/.test(value.messageId) && /^[a-f0-9]{64}$/.test(value.sourceRevision)

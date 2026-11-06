@@ -14,6 +14,8 @@ import { proposalStateStore } from '../src/proactive-state.mjs'
 import { protectProactivePath } from '../src/proactive-private.mjs'
 import { fixtureJudge } from './helpers/proactive-judge.mjs'
 import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
+import { spawn } from 'node:child_process'
 
 async function selection(t, name, source) {
   const dir = await mkdtemp(join(tmpdir(), 'bot-plugins-'))
@@ -290,7 +292,6 @@ test('independent selected Home preserves service pushes, unavailable readings, 
   const providerFile = join(selected.dir, 'readings.cjs')
   await writeFile(providerFile, `const fs = require('node:fs/promises')
     exports.read = async signal => JSON.parse(await fs.readFile(__dirname + '/readings.json', { encoding: 'utf8', signal }))`)
-  const { createRequire } = await import('node:module')
   const provider = createRequire(import.meta.url)(providerFile)
   const read = provider.read
   const reading = (count, state = 'live') => ({ id: 'pi', label: 'Pi', state, updatedAt: 1000,
@@ -1226,7 +1227,6 @@ test('actual resident inspection validates without executing entries or requirin
   const { promisify } = await import('node:util')
   const selected = await selection(t, 'home', "throw Error('private entry must not execute')")
   const entry = new URL('../src/main.mjs', import.meta.url)
-  const { fileURLToPath } = await import('node:url')
   const result = await promisify(execFile)(process.execPath, [fileURLToPath(entry), '--plugin-selection', selected.config, '--trust-plugins', '--plugins', 'validate'], {
     timeout: 10000, env: { PATH: process.env.PATH, ODK_CONFIG_DIR: selected.dir },
   })
@@ -1237,8 +1237,6 @@ test('actual resident inspection validates without executing entries or requirin
 })
 
 test('actual resident startup preserves disabled Jev health without starting a provider', { skip: process.platform === 'win32', timeout: 15000 }, async t => {
-  const { spawn } = await import('node:child_process')
-  const { fileURLToPath } = await import('node:url')
   const selected = await selection(t, 'runtime', "exports.create = () => ({ agent: { abort() {}, close() {} } })")
   const home = join(selected.dir, 'home-disabled.cjs')
   await writeFile(home, "exports.create = ({ get }) => ({ start() { const service = get('odk:personal-agent/service/v1'); setTimeout(() => console.log('jev.status:' + service.jev.status), 100) }, close() {} })")
@@ -1262,8 +1260,6 @@ test('actual resident startup preserves disabled Jev health without starting a p
 })
 
 test('actual resident startup uses external runtime and home then closes them on termination', { skip: process.platform === 'win32', timeout: 15000 }, async t => {
-  const { spawn } = await import('node:child_process')
-  const { fileURLToPath } = await import('node:url')
   const selected = await selection(t, 'runtime', "exports.create = () => ({ agent: { abort() { console.log('agent.aborted') }, close() { console.log('agent.closed') } } })")
   const home = join(selected.dir, 'home.cjs')
   await writeFile(home, "exports.create = () => ({ start() { console.log('home.started') }, close() { console.log('home.closed') } })")
@@ -1337,7 +1333,6 @@ test('failed external home initialization cleans allocations and preserves the r
 
 for (const invalid of ['host', 'kind', 'permissions', 'requires', 'duplicate', 'schema', 'extra', 'relative', 'extension', 'inactive']) {
   test(`invalid ${invalid} selection fails before entries execute`, async t => {
-    const { readFile } = await import('node:fs/promises')
     const selected = await selection(t, invalid === 'inactive' ? 'watch' : 'home', "throw Error('entry executed')")
     const config = JSON.parse(await readFile(selected.config, 'utf8'))
     const definition = config.replacements[0]
