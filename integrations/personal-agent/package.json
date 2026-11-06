@@ -30,7 +30,7 @@
     "@earendil-works/pi-durable": "1.4.0",
     "@earendil-works/pi-env": "1.4.0",
     "@echogarden/fvad-wasm": "0.2.0",
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "koffi": "3.3.3",
     "minimatch": "10.2.6",
     "opencc-js": "1.4.2",
