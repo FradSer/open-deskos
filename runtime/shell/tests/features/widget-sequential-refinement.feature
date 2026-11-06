@@ -117,7 +117,7 @@ Feature: Independent instrument refinement
   Scenario: Reading follows Hydra in a three-column three-row area
     Given the default desktop shows Home and Hydra
     When the user moves to the page after Hydra
-    Then WeRead occupies three columns and one row
+    Then WeRead occupies three columns and two rows
     And Overview keeps its own row above the Widget pages
 
   Scenario: Retired views have no installed entry

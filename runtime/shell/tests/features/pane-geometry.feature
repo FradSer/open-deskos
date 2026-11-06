@@ -19,3 +19,14 @@ Feature: The State Bar, Agent header, and Widget canvas share one tight geometry
     Given the right pane shows a 3x2 Widget page
     Then the last Widget row stays inside the paging viewport
     And the Page Controller sits below the viewport without a tall empty row
+
+  Scenario: The Page Controller sits directly below the Widget canvas
+    Given the right pane shows a 3x2 Widget page
+    Then the Widget canvas has no tall empty band above the Page Controller
+    And the Overview absorbs the spare height instead
+    And the Widget Cell stays square
+
+  Scenario: WeRead fills the shared 3x2 page
+    Given the Reading page uses the shared three-column by two-row canvas
+    Then the WeRead Widget spans both Widget rows
+    And Hydra keeps its own Desk page placement

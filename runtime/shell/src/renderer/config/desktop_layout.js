@@ -30,7 +30,7 @@
         { id: 'odk.tile.hydra', opensApp: 'hydra', col: '1 / 4', row: '1' },
       ] },
       { id: 'reading', name: 'Reading', kind: 'grid', surface: 'display', gridRows: 2, widgets: [
-        { id: 'odk.tile.weread', opensApp: 'weread', col: '1 / 4', row: '1' },
+        { id: 'odk.tile.weread', opensApp: 'weread', col: '1 / 4', row: '1 / 3' },
       ] },
     ],
   }

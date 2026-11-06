@@ -1712,7 +1712,17 @@ app.whenReady().then(async () => {
   await evaluate(`window.dispatchEvent(new Event('resize')); new Promise(r => setTimeout(r, 100))`)
   await send(compact)
   const firstCard = await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return { x: r.x, height: r.height, unit: window.__odkGrid.cellDim, border: parseFloat(getComputedStyle(document.querySelector('#home-summary')).borderTopWidth) } })()` )
-  assert.equal(firstCard.height, firstCard.unit, 'Overview is exactly one grid row high')
+  assert.ok(firstCard.height >= firstCard.unit && firstCard.height < firstCard.unit + 2 * 16,
+    'Overview is at least one grid row high and absorbs only the spare pane height')
+  const spacing = await evaluate(`(() => {
+    const tiles = [...document.querySelectorAll('[data-page-id="home"] .widget')].map(e => e.getBoundingClientRect())
+    const viewport = document.querySelector('#pages-viewport').getBoundingClientRect()
+    const dots = document.querySelector('#dots').getBoundingClientRect()
+    return { belowWidgets: +(viewport.bottom - Math.max(...tiles.map(r => r.bottom))).toFixed(1),
+      aboveController: +(dots.top - viewport.bottom).toFixed(1) }
+  })()`)
+  assert.ok(spacing.belowWidgets <= 16 && spacing.aboveController <= 1,
+    'no tall empty band separates the Widgets from the Page Controller: ' + JSON.stringify(spacing))
   assert.equal(firstCard.border, 0, 'Overview stays borderless')
   const overviewBefore = await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return { x: r.x, y: r.y } })()`)
   const swipe = await evaluate(`(() => { const r = document.querySelector('#pages-viewport').getBoundingClientRect(); const y = Math.round(r.top + r.height / 2); return { x: Math.round(r.right - 40), y, end: Math.round(r.left + 40) } })()`)

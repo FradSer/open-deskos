@@ -42,7 +42,7 @@ Feature: Widget continuations in the right desk pane
   Scenario: Reading canvas and consistent outlines
     Given three square columns fit the right pane
     When the Reading page opens
-    Then WeRead occupies three columns and one row
+    Then WeRead occupies three columns and two rows
     And the Pre-order Widget remains reachable on Desk
     And every Widget has an outline in every supported theme
     And Overview has no outline

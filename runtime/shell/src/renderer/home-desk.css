@@ -15,10 +15,11 @@
 #personal-agent > .page { padding: 0; width: 100%; height: 100%; }
 /* The Overview keeps its own row above the paging track. Horizontal navigation
    only moves the 3x2 Widget pages below it; the briefing never follows a page. */
-/* Overview, the paging track, and the Page Controller fill the pane. No fixed
-   empty row sits below the controller, so the Widget canvas gets its height. */
-#desk-content { display: grid; grid-template-rows: max-content minmax(0, 1fr) max-content; min-width: 0; min-height: 0; }
-#home-summary { grid-row: 1; container-type: inline-size; width: var(--grid-w); max-width: calc(100% - 2 * var(--desk-side-inset)); height: var(--cell-h); flex: none; margin-inline: auto; min-width: 0; min-height: 0; overflow-y: auto; border: 0; border-radius: 0; background: transparent; }
+/* The Overview absorbs the spare height. The paging track and the Page
+   Controller take only their content height, so no empty band sits between the
+   Widgets and the controller. */
+#desk-content { display: grid; grid-template-rows: minmax(0, 1fr) max-content max-content; min-width: 0; min-height: 0; }
+#home-summary { grid-row: 1; container-type: inline-size; width: var(--grid-w); max-width: calc(100% - 2 * var(--desk-side-inset)); min-height: var(--cell-h); flex: none; margin-inline: auto; min-width: 0; overflow-y: auto; border: 0; border-radius: 0; background: transparent; }
 #home-desk .home-canvas { gap: var(--widget-gap); }
 #home-summary > .page { height: auto; padding: 0; overflow: visible; }
 #home-summary .dash { width: 100%; height: auto; max-height: none; margin: 0; padding: 16px clamp(16px, calc(var(--cell-dim) * 0.06), 24px) 8px; gap: 12px; border: 0; border-radius: 0; background: transparent; overflow: visible; }

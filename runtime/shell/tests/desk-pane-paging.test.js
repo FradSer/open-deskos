@@ -35,7 +35,8 @@ test('Hydra and WeRead occupy one reachable paging page each', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(reading.widgets.map(widget => widget.id))), ['odk.tile.weread'])
   for (const widget of [...desk.widgets, ...reading.widgets]) {
     assert.equal(widget.col, '1 / 4', `${widget.id} spans the shared area`)
-    assert.equal(widget.row, '1', `${widget.id} occupies the first row of the shared grid`)
+    assert.equal(widget.row, widget.id === 'odk.tile.hydra' ? '1' : '1 / 3',
+      `${widget.id} keeps its declared place in the shared grid`)
     assert.ok(widget.opensApp, `${widget.id} keeps its App entry`)
   }
   assert.equal(pages.filter(page => !page.persistent && page.kind === 'grid').length, 3,

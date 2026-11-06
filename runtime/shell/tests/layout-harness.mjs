@@ -22,8 +22,9 @@ const SIZES = [
 
 // Golden values pinning the target-panel geometry against accidental drift.
 const GOLDEN = {
-  '1920x1280': { cellW: 348, cellH: 348, cellDim: 348, gutter: 28, statusH: 96, cols: 5, rows: 3 },
-  '1920x1080': { cellW: 286, cellH: 286, cellDim: 286, gutter: 28, statusH: 81, cols: 5, rows: 3 },
+  // The shorter State Bar band gives the canvas more vertical room.
+  '1920x1280': { cellW: 354, cellH: 354, cellDim: 354, gutter: 28, statusH: 76, cols: 5, rows: 3 },
+  '1920x1080': { cellW: 292, cellH: 292, cellDim: 292, gutter: 28, statusH: 64, cols: 5, rows: 3 },
 }
 
 let failures = 0
@@ -83,7 +84,7 @@ for (const page of DESKTOP_LAYOUT.pages.filter((p) => p.kind === 'grid' && p.wid
 const readingPage = DESKTOP_LAYOUT.pages.find((p) => p.id === 'reading')
 check('reading page exists as a display grid', Boolean(readingPage) && readingPage.kind === 'grid' && readingPage.surface === 'display')
 check('reading page retains the shared three-by-two grid', readingPage?.gridRows === 2 && readingPage?.widgets?.length === 1 && readingPage.widgets[0].id === 'odk.tile.weread', JSON.stringify(readingPage?.widgets))
-check('weread spans three columns and one row', readingPage?.widgets?.[0]?.col === '1 / 4' && readingPage?.widgets?.[0]?.row === '1')
+check('weread spans three columns and two rows', readingPage?.widgets?.[0]?.col === '1 / 4' && readingPage?.widgets?.[0]?.row === '1 / 3')
 const deskHydra = DESKTOP_LAYOUT.pages.find(page => page.id === 'desk')?.widgets?.find(tile => tile.id === 'odk.tile.hydra')
 check('hydra keeps its three-column by one-row Desk card', deskHydra?.col === '1 / 4' && deskHydra?.row === '1')
 const placements = DESKTOP_LAYOUT.pages.flatMap(page => page.widgets ?? []).map(widget => widget.id)
