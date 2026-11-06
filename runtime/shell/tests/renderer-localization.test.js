@@ -21,13 +21,7 @@ test('renderer UI source and end-to-end expectations are English-only', () => {
     APP_CATALOG,
     path.join(__dirname, 'e2e.js'),
   ]
-  const AGENT_PROTOCOL_PHRASES = ["查看报价", "刷新行程"]
-  const localizedFiles = files.filter((file) => {
-    const source = fs.readFileSync(file, "utf8")
-    if (!file.endsWith("core/personal-agent-suggestions.js")) return HAN_CHARACTERS.test(source)
-    const remaining = AGENT_PROTOCOL_PHRASES.reduce((text, phrase) => text.split(phrase).join(""), source)
-    return HAN_CHARACTERS.test(remaining)
-  })
+  const localizedFiles = files.filter((file) => HAN_CHARACTERS.test(fs.readFileSync(file, 'utf8')))
 
   assert.deepEqual(localizedFiles, [])
 })

@@ -62,9 +62,6 @@
     const symbol = shortCode(position.code)
     const price = formatPrice(position.price)
     const change = formatRatio(position.dayRatio)
-    // A narrow cell drops the price from the row to keep the symbol whole, so the
-    // row states all three values in its accessible name: nothing is dropped
-    // silently.
     return `<li class="futu-holding" aria-label="${escapeAttr(`${symbol}, price ${price}, today ${change}`)}">`
       + `<span class="futu-sym">${escapeAttr(symbol)}</span>`
       + `<span class="futu-price">${escapeAttr(price)}</span>`
@@ -83,9 +80,6 @@
     return el.dataset?.expanded === 'true' ? Infinity : 3
   }
 
-  // A tile that draws a subset says so. A shortened list that looks like the whole
-  // list is the one way a glanceable instrument can be quietly wrong, so the count
-  // of what it is not showing belongs in the tile's own text.
   function shownCountLabel(reading, shown) {
     const held = Array.isArray(reading?.snapshot?.positions) ? reading.snapshot.positions.length : 0
     return held <= shown ? '' : ` · ${held - shown} more`
@@ -113,10 +107,6 @@
     return Number.isFinite(size) ? size : null
   }
 
-  // Symbol, price, and change share one line wherever the cell can hold them, and
-  // collapse to symbol and change where it cannot. The choice is measured from the
-  // rendered row, so it follows the cell it is drawn in rather than any host
-  // identity, and it holds for a narrow font as well as a wide one.
   function fitRows(list) {
     const rows = [...list.querySelectorAll('.futu-holding')]
     for (const row of rows) row.style.fontSize = ''
@@ -129,9 +119,6 @@
     const expanded = rows.every((row) => naturalRowWidth(row) <= available)
     list.classList.toggle('is-compact', !expanded)
     if (expanded) return
-    // A font wider than the collapsed row expects still steps the type down to the
-    // readable data floor instead of clipping a symbol into an ellipsis. The symbol
-    // is the row's only flexible column, so it is where a shortage shows up.
     for (const row of rows) {
       const symbol = row.querySelector('.futu-sym')
       if (!symbol || !isClipped(symbol)) continue
@@ -204,8 +191,6 @@
       return
     }
     refs.rows.innerHTML = ''
-    // Captions stay short enough to render whole in the narrowest cell the Shell
-    // computes, so a state is never announced as an ellipsis.
     if (state === 'unconfigured') writeText(refs.detail, 'Connect Futu')
     else if (state === 'needs-auth') writeText(refs.detail, 'Check access')
     else if (state === 'unavailable' || state === 'live') writeText(refs.detail, el.dataset.expanded === 'true' ? 'Select Refresh to try again' : 'Open to refresh')

@@ -96,6 +96,13 @@ Private owner configuration owns thresholds, combinations, quiet hours, cooldown
 
 The registry adds no binary readings, provider credentials, history, scheduling or remote-desk sharing. Reads still obey source refresh policy.
 
+## Generated Service data target
+
+[ADR-0041](ARCHITECTURE.md#one-data-path) defines future Service producers, bounded collections, scoped frame reads, and activation generation checks.
+Those interfaces are not supplied by current package `data.fields` or trusted Main factory ports.
+The [planned scenarios](../../../integrations/service-runtime/features/generated-plugins.feature) require executable tests before implementation.
+Keep current IDs, publication validation, refresh ownership, and the read-only `odk_data` contract compatible during that work.
+
 ## Verification
 
 Test dispatch and publication at the control boundary. Test `odk_data` over a real local channel for list/read, unknown IDs, unavailable channels and bounds. Drive tile IPC and registry from one source to prove shared readings. Keep source tests for Hydra/weather/WeRead/Futu and host endpoint tests. Assertions concern returned values, state and trust labels, not private storage.

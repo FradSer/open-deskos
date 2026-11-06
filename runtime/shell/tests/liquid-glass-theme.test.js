@@ -52,21 +52,15 @@ test('Liquid Glass keeps Widgets visible while SDK clip paths are prepared', () 
   assert.match(css, /html\[data-theme='liquid-glass'\] #home-desk :is\(\.widget, #app-view\)\.lg-surface\s*\{[^}]*visibility:\s*inherit;/)
 })
 
-test('Liquid Glass keeps the shared framed Agent capsule', () => {
+test('Liquid Glass states the Agent identity without a capsule frame', () => {
   const css = fs.readFileSync(path.join(renderer, 'themes/liquid-glass.css'), 'utf8')
-  assert.doesNotMatch(css, /html\[data-theme='liquid-glass'\] #personal-agent \.agent-capsule\s*\{/, 'no theme-specific capsule override')
-  assert.match(css, /:is\([^)]*\.agent-capsule[^)]*\)\s*:not\(:where\([^)]*\)\)\s*\{/, 'the blanket control rule gives the capsule its glass material')
-  const shared = fs.readFileSync(path.join(renderer, 'home-desk.css'), 'utf8')
-  assert.match(shared, /\.agent-identity \.agent-capsule\s*\{[^}]*border:\s*1px solid/)
-  assert.match(shared, /\.agent-identity \.agent-capsule\s*\{[^}]*background:\s*var\(--odk-surface\)/)
-  assert.match(shared, /\.agent-identity \.agent-capsule\s*\{[^}]*border-radius:\s*var\(--agent-radius-surface\)/)
-})
-
-test('the Agent avatar and identity sit directly below the State Bar', () => {
-  const shared = fs.readFileSync(path.join(renderer, 'home-desk.css'), 'utf8')
-  assert.match(shared, /--agent-top-inset:\s*0px/, 'no extra inset between the panel edge and the header')
-  assert.match(shared, /#home-desk\s*\{[^}]*inset:\s*var\(--status-h\)/, 'the panel starts below the State Bar')
-  assert.match(shared, /\.agent-head\s*\{[^}]*padding-block:\s*0 12px/, 'the header has no top padding')
+  assert.match(css, /html\[data-theme='liquid-glass'\] #personal-agent \.agent-capsule\s*\{[^}]*border:\s*1px solid transparent;/)
+  assert.match(css, /html\[data-theme='liquid-glass'\] #personal-agent \.agent-capsule\s*\{[^}]*background:\s*none;/)
+  assert.match(css, /html\[data-theme='liquid-glass'\] #personal-agent \.agent-capsule\s*\{[^}]*backdrop-filter:\s*none;/)
+  assert.match(css, /html\[data-theme='liquid-glass'\] #personal-agent \.agent-capsule\s*\{[^}]*border-radius:\s*0;/)
+  assert.match(css, /html\[data-theme='liquid-glass'\] #personal-agent \.agent-capsule > \.agent-name\s*\{[^}]*font-weight:\s*300;/)
+  assert.match(css, /html\[data-theme='liquid-glass'\] #personal-agent \.agent-capsule > \.agent-state\s*\{[^}]*color:\s*var\(--odk-secondary\);/)
+  assert.doesNotMatch(css, /:is\([^)]*\.agent-capsule[^)]*\)\s*:not\(:where\([^)]*\)\)\s*\{/)
 })
 
 function fakeElement(id, box, inViewport = false) {

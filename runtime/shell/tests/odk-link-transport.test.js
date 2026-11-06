@@ -5,6 +5,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const { createOdkLinkTransport } = require('../src/odk-link-client')
+const net = require('node:net'), os = require('node:os')
 
 test('Open DeskOS Link exposes raw transport without constructing a client', async () => {
   const requests = []
@@ -36,7 +37,6 @@ test('Main grants raw Open DeskOS Link transport alongside the default construct
 })
 
 test('completion subscription rejects malformed hints and abort joins its only socket', {skip:require('./not-ported').posixOnlyReason('unix-socket'),timeout:3000}, async t=>{
-  const net=require('node:net'),os=require('node:os')
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'odk-completion-abort-')),endpoint=path.join(root,'s.sock')
   const peers=new Set(),requests=[],hints=[]
   const server=net.createServer(peer=>{peers.add(peer);peer.on('error',()=>{});peer.once('close',()=>peers.delete(peer));peer.on('data',chunk=>{requests.push(JSON.parse(chunk));peer.write('{"v":1,"type":"completion","text":"private"}\nnot-json\n'+JSON.stringify({v:2,type:'completion'})+'\n'+JSON.stringify({v:1,type:'completion',body:'x'.repeat(300)})+'\n')})})
@@ -56,7 +56,6 @@ test('completion subscription rejects malformed hints and abort joins its only s
 })
 
 test('a connected legacy runtime cannot leave completion notification availability pending forever', {skip:require('./not-ported').posixOnlyReason('unix-socket'),timeout:3000}, async t=>{
-  const net=require('node:net'),os=require('node:os')
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'odk-completion-legacy-')),endpoint=path.join(root,'s.sock'),peers=new Set(),requests=[]
   const server=net.createServer(peer=>{peers.add(peer);peer.on('error',()=>{});peer.once('close',()=>peers.delete(peer));peer.on('data',chunk=>requests.push(JSON.parse(chunk)))})
   server.listen(endpoint);await new Promise(r=>server.once('listening',r))

@@ -245,8 +245,6 @@ module.exports = {
   currentRelease,
   migrateUser,
   preflightRelease,
-  planRetainedReleases,
   readRuntimeState,
-  validateMetadata,
   validateRuntimeComposition,
 }

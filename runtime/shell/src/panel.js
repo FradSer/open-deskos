@@ -66,21 +66,12 @@ function enterPanel(win, panelBounds, platform = process.platform, schedule = se
     if (attemptsLeft > 1 && !coversDisplay(win.getBounds(), panelBounds)) {
       schedule(() => attempt(attemptsLeft - 1), PANEL_RETRY_MS)
     }
-    // A game-like desk owns the display: kiosk keeps the taskbar hidden and
-    // stops Windows touch edge gestures from revealing it or switching apps.
-    // Ask on every attempt: a logon race can drop one kiosk request, and a
-    // window that already covers the display still needs to own it.
-    win.setKiosk(true)
-    win.setAlwaysOnTop(true, 'screen-saver')
   }
   schedule(() => attempt(PANEL_ATTEMPTS), PANEL_SETTLE_MS)
 }
 
 module.exports = {
   KIOSK_WINDOW_LOCK,
-  PANEL_ATTEMPTS,
-  PANEL_RETRY_MS,
-  PANEL_SETTLE_MS,
   coversDisplay,
   enterPanel,
   resolvePanelBounds,

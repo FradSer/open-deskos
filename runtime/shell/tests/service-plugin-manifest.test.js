@@ -23,6 +23,12 @@ async function draftService(workspace, id, service) {
   await fs.writeFile(path.join(dir, 'manifest.json'), JSON.stringify(manifest))
   await fs.writeFile(path.join(dir, 'index.html'), '<p>one</p>')
 }
+async function storeFixture() {
+  const f = await fixture()
+  const store = createUserAppStore({ ...f, verify: () => true })
+  return { f, store }
+}
+
 const validService = () => ({
   id: 'futu-poller',
   exec: 'service/poller.py',
@@ -33,8 +39,7 @@ const validService = () => ({
 })
 
 test('rejects a service exec entry outside the package', async () => {
-  const f = await fixture()
-  const store = createUserAppStore({ ...f, verify: () => true })
+  const { f, store } = await storeFixture()
   await draftService(f.workspace, 'evil', { ...validService(), exec: '/bin/poller' })
   assert.equal((await store.install('evil')).error, 'invalid-manifest')
   await draftService(f.workspace, 'evil', { ...validService(), exec: '../escape.py' })
@@ -42,8 +47,7 @@ test('rejects a service exec entry outside the package', async () => {
 })
 
 test('rejects a service without a version, with an empty allowlist, or smuggling a secret value', async () => {
-  const f = await fixture()
-  const store = createUserAppStore({ ...f, verify: () => true })
+  const { f, store } = await storeFixture()
   await draftService(f.workspace, 'bad', { ...validService(), version: '' })
   assert.equal((await store.install('bad')).error, 'invalid-manifest')
   await draftService(f.workspace, 'bad', { ...validService(), egress: [] })
@@ -55,8 +59,7 @@ test('rejects a service without a version, with an empty allowlist, or smuggling
 })
 
 test('a failed service candidate leaves the installed revision untouched', async () => {
-  const f = await fixture()
-  const store = createUserAppStore({ ...f, verify: () => true })
+  const { f, store } = await storeFixture()
   await draftService(f.workspace, 'futu', validService())
   assert.equal((await store.install('futu')).ok, true)
   await draftService(f.workspace, 'futu', { ...validService(), exec: '/bin/evil' })
@@ -66,8 +69,7 @@ test('a failed service candidate leaves the installed revision untouched', async
 })
 
 test('installs a valid service declaration and carries it on the revision', async () => {
-  const f = await fixture()
-  const store = createUserAppStore({ ...f, verify: () => true })
+  const { f, store } = await storeFixture()
   await draftService(f.workspace, 'futu', validService())
   const installed = await store.install('futu')
   assert.equal(installed.ok, true)

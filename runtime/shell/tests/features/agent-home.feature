@@ -586,9 +586,9 @@ Feature: Personal Agent home briefing
     Given Overview stays above the Widget pages
     When the right pane changes width
     Then the grid derives its columns and square unit size from that pane
-    And the right side has three columns and two Widget rows
-    And Overview keeps its own row above those two Widget rows
-    And the reference panel shows six Home Widgets across the two Widget rows
+    And the right side has three columns and three rows
+    And Overview spans the three columns in the first row
+    And the reference panel shows six home Widgets in the remaining two rows
     And each Widget unit remains square and at least 200 pixels on the target panel
     And Pi sessions and Pomodoro each use one square unit
     And Hydra retains two rows for its plant readings on the next page
@@ -615,8 +615,8 @@ Feature: Personal Agent home briefing
     Given the reference panel has room for three square columns and two Widget rows
     When Home renders in Instrument, Pixel, or Border Beam
     Then Overview spans the same left and right edges as the Widget grid
-    And the Widgets use the largest three-column by two-row square canvas that fits the pane
-    And Overview keeps its own height above the Widget canvas
+    And Overview and Widgets use the largest three-row square canvas that fits the pane
+    And Overview occupies one square unit of height across all three columns
     And six complete Widgets and pagination remain visible on the reference panel
     And handheld panels fit all six Widgets without vertical canvas scrolling
     And every handheld Widget remains square and uses its compact composition

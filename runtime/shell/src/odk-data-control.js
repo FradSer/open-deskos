@@ -62,4 +62,4 @@ async function listenOdkData({ endpoint, control, channelToken = '', stateDir = 
   })
 }
 
-module.exports = { createOdkDataControl, listenOdkData, MAX_REQUEST_BYTES }
+module.exports = { createOdkDataControl, listenOdkData }

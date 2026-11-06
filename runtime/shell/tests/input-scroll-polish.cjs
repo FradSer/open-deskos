@@ -54,7 +54,7 @@ async function glassControls() {
         check(`${width} ${label}: ${row.name} glass frame`,row.border==='1px'&&row.style==='solid'&&(row.image!=='none'||row.sdk)&&row.shadow.includes('inset'))
       }
       const identity = await js(`(()=>{const n=document.querySelector('.agent-identity .agent-capsule');for(const a of n.getAnimations())a.finish();const s=getComputedStyle(n);return {color:s.borderTopColor,background:s.backgroundColor,image:s.backgroundImage,shadow:s.boxShadow,filter:s.backdropFilter,radius:s.borderTopLeftRadius,height:n.getBoundingClientRect().height}})()`)
-      check(`${width} ${label}: Agent identity keeps the framed capsule`, !/rgba\(0, 0, 0, 0\)|transparent/.test(identity.color)&&identity.image!=='none'&&identity.radius!=='0px'&&identity.height>=44)
+      check(`${width} ${label}: Agent identity is frameless text`, /rgba\(0, 0, 0, 0\)|transparent/.test(identity.color)&&identity.image==='none'&&identity.shadow==='none'&&identity.filter==='none'&&identity.radius==='0px'&&identity.height>=44)
       report.push({width,height,label,controls:result,identity})
     }
     await inspect('voice')
@@ -129,8 +129,8 @@ async function glassControls() {
     await js(`polishUntil(()=>matchMedia('(${feature}: ${value})').matches&&document.documentElement.dataset.liquidGlass==='fallback')`)
     const readable=await js(`(()=>{return [...document.querySelectorAll('.agent-composer,.agent-composer button')].filter(n=>n.getClientRects().length).every(n=>{const s=getComputedStyle(n);return s.backdropFilter==='none'&&s.boxShadow==='none'&&s.backgroundImage==='none'&&(n.matches('.agent-composer button')||s.borderTopWidth==='1px'&&s.backgroundColor!=='rgba(0, 0, 0, 0)')})})()`)
     check(feature+': controls have opaque accessible frames',readable)
-    const identity=await js(`(()=>{const n=document.querySelector('.agent-identity .agent-capsule'),s=getComputedStyle(n);return {edge:!['rgba(0, 0, 0, 0)','transparent'].includes(s.borderTopColor)||${JSON.stringify(feature)}==='forced-colors',plain:s.backgroundImage==='none'||s.backdropFilter!=='none'||s.backgroundColor!=='rgba(0, 0, 0, 0)',height:n.getBoundingClientRect().height>=44}})()`)
-    check(feature+': Agent identity keeps its readable capsule',identity.edge&&identity.plain&&identity.height)
+    const identity=await js(`(()=>{const n=document.querySelector('.agent-identity .agent-capsule'),s=getComputedStyle(n);return {edge:['rgba(0, 0, 0, 0)','transparent'].includes(s.borderTopColor)||${JSON.stringify(feature)}==='forced-colors',plain:s.backgroundImage==='none'&&s.boxShadow==='none',height:n.getBoundingClientRect().height>=44}})()`)
+    check(feature+': Agent identity stays readable frameless text',identity.edge&&identity.plain&&identity.height)
     await capture('glass-'+feature)
   }
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]})

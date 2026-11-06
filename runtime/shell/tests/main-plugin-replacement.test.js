@@ -7,6 +7,7 @@ const { createPluginHost } = require('../src/plugin-host')
 const { DATA_PORTS } = require('../src/plugins/data-sources')
 const { DESK_PORTS } = require('../src/plugins/desk-runtime')
 const { createShellOdkData } = require('../src/odk-data')
+const { createNativeRuntimeActivator } = require('../src/native-runtime-activation')
 
 function weatherReplacement() {
   const original = createMainPlugins().find(plugin => plugin.manifest.id === 'odk.source.weather')
@@ -176,7 +177,6 @@ test('default capture retains dynamic extension contracts without capturing repl
 })
 
 test('restoration selects actual Camera default after a supported legacy startup contract', async () => {
-  const { createNativeRuntimeActivator } = require('../src/native-runtime-activation')
   const camera = createMainPlugins().find(plugin => plugin.manifest.id === 'odk.source.camera')
   const legacy = { manifest: { ...camera.manifest, provides: [{ interface: DATA_PORTS.camera }], permissions: [] },
     create: () => ({ ports: { [DATA_PORTS.camera]: { legacy: true } } }) }
@@ -198,7 +198,6 @@ test('restoration selects actual Camera default after a supported legacy startup
 })
 
 test('restoration selects actual Weather default after a startup replacement adds dependencies', async () => {
-  const { createNativeRuntimeActivator } = require('../src/native-runtime-activation')
   const dependency = 'odk:replacement-provider/v1'
   const replacement = weatherReplacement().plugin
   replacement.manifest.requires = [{ interface: dependency }]

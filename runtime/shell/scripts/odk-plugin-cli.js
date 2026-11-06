@@ -346,7 +346,6 @@ if (require.main === module) {
 
 module.exports = {
   main,
-  manageService,
   readConfig,
   resolveConfigPath,
   validateManifest,

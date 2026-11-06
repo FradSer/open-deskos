@@ -82,8 +82,8 @@ for (const page of DESKTOP_LAYOUT.pages.filter((p) => p.kind === 'grid' && p.wid
 }
 const readingPage = DESKTOP_LAYOUT.pages.find((p) => p.id === 'reading')
 check('reading page exists as a display grid', Boolean(readingPage) && readingPage.kind === 'grid' && readingPage.surface === 'display')
-check('reading page retains the shared three-by-two grid', readingPage?.gridRows === 2 && readingPage?.widgets?.length === 1 && readingPage.widgets[0].id === 'odk.tile.weread', JSON.stringify(readingPage?.widgets))
-check('weread spans three columns and one row', readingPage?.widgets?.[0]?.col === '1 / 4' && readingPage?.widgets?.[0]?.row === '1')
+check('reading page retains the three-by-three grid', readingPage?.gridRows === 3 && readingPage?.widgets?.length === 1 && readingPage.widgets[0].id === 'odk.tile.weread', JSON.stringify(readingPage?.widgets))
+check('weread spans three columns and three rows', readingPage?.widgets?.[0]?.col === '1 / 4' && readingPage?.widgets?.[0]?.row === '1 / 4')
 const deskHydra = DESKTOP_LAYOUT.pages.find(page => page.id === 'desk')?.widgets?.find(tile => tile.id === 'odk.tile.hydra')
 check('hydra keeps its three-column by one-row Desk card', deskHydra?.col === '1 / 4' && deskHydra?.row === '1')
 const placements = DESKTOP_LAYOUT.pages.flatMap(page => page.widgets ?? []).map(widget => widget.id)

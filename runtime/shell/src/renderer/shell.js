@@ -35,9 +35,7 @@ function applyGeometry() {
   let m = odkLayout.computeDesk(window.innerWidth, window.innerHeight,
     paneBudget, desk?.clientHeight || window.innerHeight, count, content?.clientHeight, minCell)
   if (grids.length) {
-    // Overview owns its own row outside the paging track, but it still takes
-    // one Cell of height. Home therefore reserves that row on top of the shared
-    // 3x2 Widget canvas; the other paging pages use the same canvas without it.
+    // Pages share one canvas; only Home reserves a row for Overview.
     const canvasRows = Math.max(...grids.map(grid => {
       const pageId = grid.closest('.page')?.dataset.pageId
       const declaredRows = effectiveLayout.pages.find(page => page.id === pageId)?.gridRows || 0
@@ -409,13 +407,13 @@ async function main() {
     openInfoView(
       'App unavailable',
       `Cannot start ${appId}.`,
-      `Runtime returned ${reason || 'an unknown error'}. The foreground App was not changed.`,
+      `Runtime returned ${reason || 'an unknown error'}.`,
       false,
       retry ? {
         label: 'Retry',
         onClick: retry,
-        status: 'You can try starting it again.',
-        statusAfter: (result) => result ? 'The start request was resubmitted.' : 'Retry failed.',
+        status: 'Retry the start request.',
+        statusAfter: (result) => result ? 'App started.' : 'Retry failed.',
       } : null,
     )
   }
@@ -430,8 +428,8 @@ async function main() {
       retry ? {
         label: 'Retry',
         onClick: retry,
-        status: 'You can try this action again.',
-        statusAfter: (result) => result ? 'Action completed.' : 'Retry failed.',
+        status: 'Retry the action.',
+        statusAfter: (result) => result ? 'Action accepted.' : 'Retry failed.',
       } : null,
     )
   }
@@ -445,7 +443,7 @@ async function main() {
       appAction.disabled = true
       try {
         const result = await retry()
-        appActionStatus.textContent = result ? 'Action completed.' : 'Retry failed.'
+        appActionStatus.textContent = result ? 'Action accepted.' : 'Retry failed.'
         if (result && appView.dataset.infoView === 'active-error') closeInfoView()
       } catch (error) {
         appActionStatus.textContent = error.message || 'Action failed'
@@ -546,6 +544,7 @@ async function main() {
   odkComposer.build(effectiveLayout, document.getElementById('pages-track'), uiCtx)
   const homePage = document.querySelector('#pages-track > [data-page-id="home"]')
   homePage.classList.add('home-canvas')
+  homePage.prepend(document.getElementById('home-summary'))
   const deskObserver = new ResizeObserver(() => {
     applyGeometry()
     odkComposer.placeGridTiles(document.getElementById('pages-track'))
@@ -641,8 +640,6 @@ async function main() {
     }
     document.getElementById('page-context').textContent = `${name} · ${page}/${pageNames.length}`
     publishPageState()
-    // Entering a page is the moment its state matters most, so the page itself
-    // is told it is showing now instead of waiting for its next poll.
     track.children[index]?.dispatchEvent(new CustomEvent('odk-page-shown', { bubbles: true }))
   }
 
@@ -1008,8 +1005,6 @@ async function main() {
     },
   })
 
-  // The browser watches for pads itself and says when one arrives, which is what
-  // starts the reading above.
   window.addEventListener('gamepadconnected', () => gamepad.poll())
   window.addEventListener('gamepaddisconnected', () => gamepad.poll())
   watchGamepad({ connected: false })

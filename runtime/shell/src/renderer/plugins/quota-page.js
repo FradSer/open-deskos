@@ -286,8 +286,6 @@
       const text = (node, value) => {
         if (node && node.textContent !== value) node.textContent = value
       }
-      // The short window owns its own meter. An unavailable one keeps no
-      // accessible reading and no filled width, like the primary meter.
       const setShortMeter = (quota, label) => {
         if (!shortMeterNode) return
         const known = !!quota && isPercent(quota.remainingPct)
@@ -313,9 +311,6 @@
           if (shortFillNode.classList.contains('is-low') !== low) shortFillNode.classList.toggle('is-low', low)
         }
       }
-      // A window that produced a finite percentage is the only thing this Widget
-      // may draw as a meter. Every other reading states itself in words and hides
-      // the meter, so an unavailable window is never presented as 0 or 100.
       const showWindow = (state, window, percent, service, shortQuota, shortLabel) => {
         text(headingNode, service)
         text(stateNode, state)
@@ -347,7 +342,6 @@
         text(valueNode, value)
         text(contextNode, context)
         if (meterNode) {
-          // A hidden meter keeps no accessible reading and no window name.
           meterNode.removeAttribute('aria-valuenow')
           meterNode.removeAttribute('aria-valuetext')
           meterNode.removeAttribute('aria-label')

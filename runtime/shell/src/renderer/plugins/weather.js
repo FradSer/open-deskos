@@ -14,8 +14,6 @@
     'weather-unavailable': '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5m0 3.5h.01"/>',
   }
 
-  // Successful weather needs no status label. Waiting and degraded readings keep
-  // short notices so a cached reading or missing source cannot look current.
   const STATES = {
     waiting: { badge: 'Waiting', tone: 'is-muted', condition: 'No reading yet', detail: '' },
     live: { badge: '', tone: 'is-muted', condition: null, detail: null },
@@ -94,8 +92,6 @@
         svg.setAttribute('stroke-width', '2')
         svg.setAttribute('stroke-linecap', 'round')
         svg.setAttribute('stroke-linejoin', 'round')
-        // A sky this tile does not draw falls back to the neutral cloud rather than an
-        // empty box, so a stale feed can never leave the hero row blank.
         svg.innerHTML = GLYPHS[name] || GLYPHS['weather-cloud']
         refs.slot.replaceChildren(svg)
         root.odkIcons?.apply?.(el)
@@ -105,8 +101,6 @@
         if (!active()) return
         const reported = Object.prototype.hasOwnProperty.call(STATES, snapshot?.status) ? snapshot.status : 'unavailable'
         const reading = snapshot?.current || null
-        // A snapshot that claims a reading it does not carry is not live, and no reply yet
-        // is not a failure: the tile never shows a state word the payload cannot back.
         const status = !snapshot ? 'waiting' : (reported === 'live' && !reading ? 'unavailable' : reported)
         const state = STATES[status]
         const daily = snapshot?.daily || null
@@ -118,12 +112,9 @@
         refs.badge.hidden = !state.badge
         refs.badge.className = `widget-glance-badge w-weather-badge ${state.tone}`
         refs.number.textContent = reading ? String(reading.temperature) : '--'
-        // The unit belongs to the instrument, not to the reading: `-- °C` still reads as a
-        // temperature surface, the way the Hydra cells show `-- °C` for a missing value.
         refs.unit.textContent = reading ? reading.unit : (snapshot?.unit || '')
         refs.condition.textContent = reading ? reading.condition : state.condition
         refs.detail.textContent = state.detail || ''
-        // Both halves of the range are one kind of datum, so only the labels recede.
         refs.high.textContent = daily ? `${daily.high}°` : '--'
         refs.low.textContent = daily ? `${daily.low}°` : '--'
         const signalled = `${status}|${snapshot?.place || ''}|${snapshot?.updatedAt || ''}`
@@ -144,8 +135,6 @@
       }
 
       render(null)
-      // Whatever the desk already knows first, then the provider: chained so a slower
-      // reply can never overwrite a newer reading with an older one.
       void refresh(false).then(() => refresh(true))
       let ticks = 0
       ctx.onTick(() => {

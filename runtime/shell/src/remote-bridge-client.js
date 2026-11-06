@@ -303,8 +303,6 @@ function validDeviceEvent(event) { return event && typeof event.peer === 'string
 function validDeviceSnapshot(snapshot) { return snapshot && ['live', 'disconnected'].includes(snapshot.status) && snapshot.gateway && snapshot.remote && ['disconnected', 'syncing', 'ready'].includes(snapshot.remote.status)
   && Array.isArray(snapshot.peers) && snapshot.peers.length <= 7 && Array.isArray(snapshot.events) && snapshot.events.length <= 2 && snapshot.events.every(validDeviceEvent) }
 module.exports = {
-  REMOTE_LINK_STATES,
-  REMOTE_NAVIGATION_DIRECTIONS,
   REMOTE_INPUTS,
   createRemoteBridgeClient,
   resolveRemoteBridgeSocketPath,

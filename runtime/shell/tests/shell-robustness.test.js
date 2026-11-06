@@ -5,6 +5,7 @@ const path = require('node:path')
 const vm = require('node:vm')
 
 const RENDERER_DIR = path.join(__dirname, '..', 'src', 'renderer')
+const pluginHost = require('../src/plugin-host')
 
 function loadSource(relative, root) {
   const source = fs.readFileSync(path.join(RENDERER_DIR, relative), 'utf8')
@@ -12,7 +13,7 @@ function loadSource(relative, root) {
 }
 
 function createShellRoot() {
-  const root = { odkPluginHost: require('../src/plugin-host') }
+  const root = { odkPluginHost: pluginHost }
   loadSource('core/registry.js', root)
   return root
 }
@@ -61,7 +62,7 @@ test('a throwing unmount reports failed release and still runs cleanups', async 
 
 test('one widget throwing in the shared tick does not starve the others', (t) => {
   t.mock.timers.enable({ apis: ['setInterval'] })
-  const root = { odkPluginHost: require('../src/plugin-host') }
+  const root = { odkPluginHost: pluginHost }
   vm.runInContext(
     fs.readFileSync(path.join(RENDERER_DIR, 'core/services.js'), 'utf8'),
     vm.createContext({

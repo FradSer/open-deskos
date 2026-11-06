@@ -4,8 +4,6 @@
 
   root.odkPlugins.register({
     id: 'odk.tile.weread',
-    // Reads at the smallest cell the desk promises, so a span above one cell
-    // is only refused below that.
     manifest: { schemaVersion: 1, minCell: 186 },
     kind: 'tile',
     css: 'plugins/weread.css',
@@ -129,9 +127,6 @@
           const naturalH = img.naturalHeight || 346
           const ratio = naturalW / naturalH
           coverWrap.hidden = false
-          // Fit the bitmap to the rail width by ratio: the cover keeps its
-          // original aspect and the canvas box matches, so neither the
-          // bitmap draw nor the CSS box distorts it.
           const targetW = Math.max(1, Math.round(coverWrap.clientWidth || 168))
           const targetH = Math.max(1, Math.round(targetW / ratio))
           cover.width = targetW

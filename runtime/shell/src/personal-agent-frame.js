@@ -22,43 +22,6 @@ const PERSONAL_AGENT_STATES = new Set([
   'error',
 ])
 
-// Same bounds as the service-side proposal state (proactive-state.mjs). The Shell
-// frame is CJS and cannot import the ESM service module, so the contract is
-// mirrored here; both ends must agree on what a renderable OpenUI tree is.
-const UI_MAX_BYTES = 16384
-const UI_MAX_DEPTH = 8
-const plainObject = value => {
-  const prototype = Object.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
-}
-
-/** Bounded plain-JSON component tree; props/children containers do not add depth. */
-function validOpenUITree(node) {
-  if (!node || typeof node !== 'object' || Array.isArray(node) || !plainObject(node) || typeof node.type !== 'string' || !node.type) return false
-  let serialized
-  try { serialized = JSON.stringify(node) } catch { return false }
-  if (typeof serialized !== 'string' || Buffer.byteLength(serialized, 'utf8') > UI_MAX_BYTES) return false
-  const stack = [[node, 1]]
-  while (stack.length) {
-    const [value, depth] = stack.pop()
-    const kind = typeof value
-    if (['function', 'symbol', 'bigint', 'undefined'].includes(kind)) return false
-    if (value === null) continue
-    if (kind === 'number') { if (!Number.isFinite(value)) return false; continue }
-    if (kind !== 'object') { if (kind !== 'string' && kind !== 'boolean') return false; continue }
-    const isNode = !Array.isArray(value) && typeof value.type === 'string'
-    if (!Array.isArray(value) && !plainObject(value)) return false
-    if (isNode && depth > UI_MAX_DEPTH) return false
-    // A component's children container must be an array of nodes, not a scalar.
-    if (isNode && Object.hasOwn(value, 'children')) {
-      if (!Array.isArray(value.children) || value.children.some(child => !child || typeof child !== 'object' || Array.isArray(child) || typeof child.type !== 'string')) return false
-    }
-    if (isNode && value.props !== undefined && value.props !== null && (typeof value.props !== 'object' || Array.isArray(value.props) || !plainObject(value.props))) return false
-    for (const child of Object.values(value)) stack.push([child, isNode ? depth + 1 : depth])
-  }
-  return true
-}
-
 const VOICE_FAILURES = new Set(['microphone','timeout','unavailable','protocol','invalid_audio','cleanup'])
 function parseVoiceFailure(status) {
   return status.state === 'error' && VOICE_FAILURES.has(status.voiceFailure) ? status.voiceFailure : undefined
@@ -91,12 +54,6 @@ function readableProposals(value) {
       row.feedbackLearning = { revision: learning.revision, decision: learning.decision, status: learning.status }
     }
     if (Number.isFinite(p.snoozedUntil) && p.snoozedUntil >= 0) row.snoozedUntil = p.snoozedUntil
-    // The Android host renders the same OpenUI tree as the desk Shell. Reject a
-    // malformed tree rather than projecting a proposal it cannot compose.
-    if (p.ui !== undefined) {
-      if (!validOpenUITree(p.ui)) return null
-      row.ui = p.ui
-    }
     row.evidence = []
     if (!Array.isArray(p.evidence) || p.evidence.length > 8) return null
     for (const e of p.evidence) {

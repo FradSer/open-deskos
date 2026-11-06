@@ -94,4 +94,4 @@ function main(args = process.argv.slice(2), { root = path.resolve(__dirname, '..
 
 if (require.main === module) process.exitCode = main()
 
-module.exports = { contentDigest, receiptPath, readReceipt, recordReceipt, main }
+module.exports = { contentDigest, receiptPath, recordReceipt, main }

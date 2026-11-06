@@ -4,6 +4,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 const { spawnSync } = require('node:child_process')
+const os = require('node:os')
 
 const updater = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'update-runtime.js'), 'utf8')
 const migrator = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'migrate-runtime.js'), 'utf8')
@@ -177,7 +178,6 @@ function gnuTimeoutUnavailableReason() {
 test('stalled verifier fails, rolls back, and releases its lock without leaving its child running', {
   skip: require('./not-ported').posixOnlyReason('cm5-tooling') || gnuTimeoutUnavailableReason(),
 }, async () => {
-  const os = require('node:os')
   const { activateRelease, readRuntimeState } = require('../scripts/lib/runtime-release')
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-bounded-verify-'))
   const context = vm.createContext({ fs, path, process, spawnSync })
@@ -248,7 +248,6 @@ test('release command supervision encloses runuser and fails closed when timeout
 
 
 test('sealing makes owner-private dependencies readable without granting write or new execute access', { skip: process.platform === 'win32' }, () => {
-  const os = require('node:os')
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-seal-permissions-'))
   const nested = path.join(temporary, 'node_modules', 'electron')
   const moduleFile = path.join(nested, 'index.js')

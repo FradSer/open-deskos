@@ -57,7 +57,6 @@ const READ = `(() => { try {
   const visible = (node) => { const r = node.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.top < innerHeight && r.bottom > 0 && r.left < innerWidth && r.right > 0 }
   const label = (node) => { const widget = node.closest('[data-widget]'); if (widget) return widget.dataset.widget; const app = node.closest('.page-app'); return app ? 'app-surface' : 'page-chrome' }
   const screenReaderOnly = (node) => { for (let at = node; at; at = at.parentElement) if (at.classList && at.classList.contains('sr-only')) return true; return false }
-  const scrollable = (node) => { const s = getComputedStyle(node); return ['auto', 'scroll'].includes(s.overflowY) || ['auto', 'scroll'].includes(s.overflowX) }
   const ellipsized = (node) => getComputedStyle(node).textOverflow === 'ellipsis'
   const clipped = []
   const belowFloor = []

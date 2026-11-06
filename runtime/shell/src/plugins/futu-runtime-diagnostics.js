@@ -21,4 +21,4 @@ function createFutuRuntimeDiagnosticsPlugin() {
   }
 }
 
-module.exports = { createFutuRuntimeDiagnosticsPlugin, FUTU_RUNTIME_PORT }
+module.exports = { createFutuRuntimeDiagnosticsPlugin }

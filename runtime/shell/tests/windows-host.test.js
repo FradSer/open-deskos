@@ -82,13 +82,13 @@ test('the Windows runbook states which surfaces are ported and which are not', (
   // established them, so a reader can tell a rule from a guess.
   assert.match(runbook, /panel covers the display, not the work area/)
   assert.match(runbook, /WS_THICKFRAME/)
-  assert.match(runbook, /[Kk]iosk mode hides the taskbar/)
+  assert.match(runbook, /not topmost/)
 })
 
 test('the panel decision is recorded where a reader looks for it', () => {
   const adr = readDecision('0034')
   assert.match(adr, /fullscreen is geometry/)
-  assert.match(adr, /[Kk]iosk mode hides the taskbar/)
+  assert.match(adr, /not topmost/)
   assert.match(adr, /WS_THICKFRAME/)
 })
 

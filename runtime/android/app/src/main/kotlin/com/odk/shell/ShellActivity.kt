@@ -2,15 +2,18 @@ package com.odk.shell
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.ViewGroup
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
+import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.core.view.WindowCompat
@@ -40,6 +43,7 @@ class ShellActivity : Activity() {
     private lateinit var shell: WebView
     private var link: PersonalAgentLink? = null
     private var developmentLabel: TextView? = null
+    private var homeSettings: Button? = null
     private var bridge: PersonalAgentBridge? = null
     private var documentEpoch = 0L
 
@@ -122,9 +126,31 @@ class ShellActivity : Activity() {
         val root = FrameLayout(this)
         root.addView(shell, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         root.addView(developmentLabel, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START))
+        // A default Home app must keep a way back. Offer the system Home
+        // Settings only when the Shell actually started through HOME, so an
+        // ordinary launcher start keeps the measured renderer untouched.
+        homeSettings = homeSettingsButton()
+        root.addView(homeSettings)
+        syncHomeSettings(intent)
         setContentView(root)
 
         shell.loadUrl(SHELL_URL)
+    }
+
+    /**
+     * singleTask reuses this instance when HOME fires again. onCreate does not
+     * rerun, so the way-back control follows the current intent here as well.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        syncHomeSettings(intent)
+    }
+
+    private fun syncHomeSettings(current: Intent?) {
+        homeSettings?.visibility = if (
+            current?.categories?.contains(Intent.CATEGORY_HOME) == true
+        ) Button.VISIBLE else Button.GONE
     }
 
     /**
@@ -156,6 +182,30 @@ class ShellActivity : Activity() {
         setPadding(28, 10, 28, 10)
         textSize = 12f
         visibility = TextView.GONE
+    }
+
+    /**
+     * The system owns default Home selection. This control only opens its
+     * settings, so the owner can restore another Home app without root or a
+     * device wipe. It is host chrome; the renderer neither draws nor reads it.
+     */
+    private fun homeSettingsButton(): Button = Button(this).apply {
+        setText(R.string.home_settings)
+        textSize = 12f
+        isAllCaps = false
+        alpha = 0.8f
+        layoutParams = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.END,
+        )
+        setOnClickListener {
+            try {
+                startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+            } catch (error: Exception) {
+                Log.w(TAG, "system Home Settings unavailable", error)
+            }
+        }
     }
 
     private fun createLink(): PersonalAgentLink? {

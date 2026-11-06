@@ -26,4 +26,4 @@ function createNativeProcessReader({ modulePath = DEFAULT_MODULE_PATH, requireIm
   return { reader: loaded, reason: '' }
 }
 
-module.exports = { createNativeProcessReader, DEFAULT_MODULE_PATH }
+module.exports = { createNativeProcessReader }

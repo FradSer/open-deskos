@@ -50,4 +50,4 @@ function pick(source, keys) {
 const measured = (state, value) => (state === 'unavailable' || state === 'unconfigured' ? null : value)
 
 
-module.exports = { stateFrom, READING_LIMIT, TEXT_LIMIT, GOAL_LIMIT, isoTime, text, omit, pick, measured }
+module.exports = { stateFrom, READING_LIMIT, GOAL_LIMIT, isoTime, text, omit, pick, measured }

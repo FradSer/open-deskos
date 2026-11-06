@@ -1,6 +1,4 @@
-/* WeRead tile styles (scoped plugin stylesheet).
-   Loaded by the registry style seam via css: 'plugins/weread.css' in
-   plugins/weread.js — after shell.css, before themes/*. Only --odk-* tokens. */
+/* WeRead tile styles. Use only --odk-* tokens. */
 
 /* The excerpt centers above a compact source row. The cover keeps its
    original aspect to the right of the title, author, and date. */
@@ -62,10 +60,7 @@
 
 .w-weread .weread-text[tabindex='0'] {
   position: relative;
-  /* A shortened 3x2 tile can overflow. The scrollable excerpt must stay above
-     the full-tile App launcher, or a pointer cannot reach the scroll region. */
-  z-index: 5;
-  pointer-events: auto;
+  z-index: 3;
   scrollbar-width: thin;
   scrollbar-color: var(--odk-secondary-strong) transparent;
   overscroll-behavior: contain;

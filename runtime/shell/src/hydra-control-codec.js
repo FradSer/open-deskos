@@ -90,4 +90,4 @@ function planBody(plan) {
   return body
 }
 
-module.exports = { TYPES, PACKET_BYTES, encodeControlFrame, decodeControlFrame, waterBody, planBody }
+module.exports = { TYPES, encodeControlFrame, decodeControlFrame, waterBody, planBody }

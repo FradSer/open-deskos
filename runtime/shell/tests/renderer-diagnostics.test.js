@@ -7,6 +7,9 @@ const { EventEmitter } = require('node:events')
 const { createPluginHost } = require('../src/plugin-host')
 const { createMainPlugins } = require('../src/plugins/main-composition')
 const { independentRendererDiagnostics } = require('./fixtures/renderer-diagnostics-replacement')
+const { RENDERER_RUNTIME_PORT } = require('../src/renderer-diagnostics')
+const os = require('node:os')
+const path = require('node:path')
 
 for (const selected of [false, true]) {
   function definition() {
@@ -18,7 +21,6 @@ for (const selected of [false, true]) {
   }
 
   function fixture({ timeoutMs = 20, frameCount = 1 } = {}) {
-    const { RENDERER_RUNTIME_PORT } = require('../src/renderer-diagnostics')
     const ipc = new EventEmitter()
     const sender = {}
     const mainFrame = {}
@@ -125,12 +127,9 @@ for (const selected of [false, true]) {
 
   test(`${selected ? 'selected' : 'default'} authenticated CLI selects renderer plugins and fails for unavailable runtimes`, async t => {
     const fs = require('node:fs')
-    const os = require('node:os')
-    const path = require('node:path')
     const { promisify } = require('node:util')
     const { execFile } = require('node:child_process')
     const { createDiagnosticsPlugin } = require('../src/plugin-diagnostics')
-    const { RENDERER_RUNTIME_PORT } = require('../src/renderer-diagnostics')
     const { resolveShellHost } = require('../src/platform')
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-rcli-'))
     t.after(() => fs.rmSync(root, { recursive: true, force: true }))
@@ -216,8 +215,6 @@ for (const selected of [false, true]) {
 test('actual Electron diagnosis preserves selected consumers and rejects missing selection',
   { timeout: 60000, skip: require('./not-ported').posixOnlyReason('unix-socket') }, async t => {
     const fs = require('node:fs/promises')
-    const os = require('node:os')
-    const path = require('node:path')
     const { runCommand } = require('./helpers/hydra-wire-lifecycle')
     const root = await fs.mkdtemp(path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), 'odk-renderer-probe-'))
     t.after(() => fs.rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))

@@ -19,7 +19,12 @@ Set `ODK_WORKSPACE` to the shared writable project checkout in `~/.config/odk/ru
 <body><p>Remember to take a break.</p></body></html>
 ```
 
-The first version does not provide persistent per-app data or background services. In-memory UI state is discarded when its frame closes. Keep these limitations explicit when asking the Agent to create an application.
+HTML packages do not provide persistent per-app data or background processes. In-memory UI state is discarded when its frame closes. Keep these limitations explicit when asking the Agent to create an application.
+
+[ADR-0041](ARCHITECTURE.md#adr-0041) defines the target for complete plugins with separate Service revisions and declared data dependencies.
+That target is not implemented by this HTML lifecycle or its existing manifest.
+HTML verification never authorizes Service execution, credential access, or private network destinations.
+The existing `service` endpoint declaration does not grant process execution.
 
 ## Public API data
 

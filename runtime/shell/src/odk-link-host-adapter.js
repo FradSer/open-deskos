@@ -321,6 +321,4 @@ module.exports = {
   normalizeHistory,
   normalizeEvent,
   sessionEventsFromEntry,
-  HOST_PROTOCOL,
-  MAX_HOST_RECORD_BYTES,
 }

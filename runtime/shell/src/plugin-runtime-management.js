@@ -37,4 +37,4 @@ async function resolveRuntimeManagement(host, pluginId, request = requestLocalCo
   return { scope: owners[0].scope, endpoint: host.endpoint(owners[0].endpoint) }
 }
 
-module.exports = { resolveRuntimeManagement, RUNTIMES }
+module.exports = { resolveRuntimeManagement }

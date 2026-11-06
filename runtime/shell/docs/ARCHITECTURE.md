@@ -49,7 +49,7 @@ Frames retain their network prohibition.
 [USER_APPLICATIONS](USER_APPLICATIONS.md#public-api-data) owns this limited data contract.
 It does not implement arbitrary Service Plugin execution or secret collection.
 
-The accepted service design couples manifest declarations, verification, lifecycle, named secrets and enforced egress to a package revision. Secrets must use system-owned collection/vault paths, never package bytes, releases or plugin-drawn fields. This avoids a separate integration for each account source. It is not evidence that arbitrary installed HTML packages can declare services today: [USER_APPLICATIONS](USER_APPLICATIONS.md) states their current limits. ADR-0026 extends the original Unix-only service endpoint rule.
+The accepted service design couples manifest declarations, verification, lifecycle, named secrets and enforced egress to an exact revision. [ADR-0041](#adr-0041) separates UI revisions, Service revisions, and private bindings within one plugin composition. Secrets must use system-owned collection/vault paths, never package bytes, releases or plugin-drawn fields. This avoids a separate integration for each account source. It is not evidence that arbitrary installed HTML packages can declare services today: [USER_APPLICATIONS](USER_APPLICATIONS.md) states their current limits. ADR-0026 extends the original Unix-only service endpoint rule.
 
 <a id="adr-0010"></a>
 ### ADR-0010: Main-owned weather provider
@@ -288,7 +288,7 @@ Snapshot files, renderer-owned truth, one tool per source, direct agent provider
 
 On Windows fullscreen is geometry: `isFullScreen()` can be false for a covered display. Show the window, leave maximized state, then apply display bounds rather than work area. Compare actual bounds and retry fullscreen/bounds at most eight times. A persistent mismatch is a defect, not an infinite retry.
 
-The panel is not movable, resizable, maximizable or minimizable. It has no `WS_THICKFRAME` or box buttons. This fixes observed work-area gaps and hand dragging/Win+Down. ADR-0034 originally kept the taskbar visible and let other applications take the foreground. The owner later chose a game-like fullscreen: once the geometry covers the display, the panel enters kiosk mode. Kiosk mode hides the taskbar, owns the display and suppresses Windows touch edge gestures. The panel also sets always-on-top at the screen-saver level. Taps on the panel's own controls still reach the desk. Ending the kiosk session restores host control. The reference host keeps its kiosk geometry. [WINDOWS_HOST](WINDOWS_HOST.md#panel-operation) owns the measured probe and timing.
+The panel is not movable, resizable, maximizable or minimizable. It has no `WS_THICKFRAME` or box buttons. This fixes observed work-area gaps and hand dragging/Win+Down. It is not topmost and does not hide the taskbar; other applications restore host control. The reference host keeps its kiosk geometry. [WINDOWS_HOST](WINDOWS_HOST.md#panel-operation) owns the measured probe and timing.
 
 <a id="adr-0035"></a>
 ### ADR-0035: Host-neutral shared source root
@@ -322,7 +322,7 @@ A home statement grants no execution authority.
 
 Android is another Shell Host. The Android app loads `src/renderer/index.html` from the same renderer the other hosts use. The build copies renderer output during packaging; the repository holds no Android copy of the renderer. An Android renderer fork was rejected because it breaks the single design source. Breakpoints, tokens and terms stay identical to the other hosts.
 
-The first Android surfaces are the Personal Agent page and the Personal Agent status panel. Other surfaces wait for a product decision.
+The Android host loads the complete shared Shell document. `index.html` registers the full composer, registry, page, Widget and status plugin set, and the [Android scenarios](../tests/features/android-host.feature) assert that the Shell composes its pages and Widgets with each provider in its honest state. The first product surfaces emphasized the Personal Agent page and its status panel; they are not a separate renderer or a reduced document.
 
 The Android host supplies only the preload equivalents it can answer for: `odkPersonalAgent` is backed by the link. The other bridges stay absent, so the renderer names its own honest unavailable condition instead of a shape this host invented. `toggle` answers `accepted: false` because Android captures no audio, and the renderer draws nothing from that value. `proposalCommand` answers `accepted: false` because the link carries no suggestion response, and the renderer draws its own sentence for it.
 
@@ -333,6 +333,8 @@ Android reports `unavailable` when the link drops. The conversation keeps the co
 The engine baseline is a modern Chromium WebView of the Electron Chromium generation. `minSdk` is 26. A redroid Android 14 image with WebView 125 is the reference test device. A system WebView older than the baseline does not prove presentation; upgrading it is a separate device change.
 
 The host lives in `runtime/android/`. That directory holds Android-only host code, build files and assets. Shared renderer behavior stays under `runtime/shell/`, so ADR-0035 still owns the shared source root. Gradle with the Android plugin and Kotlin builds the host. The staging excludes `renderer/themes/liquid-glass-sdk.js`, which the Shell generates at build time and never commits. [ANDROID_HOST](ANDROID_HOST.md) owns build, verification and device steps.
+
+The Shell can also be the device's default Home app. `ShellActivity` declares one `MAIN` intent filter with `HOME` and `DEFAULT` categories, in addition to its `LAUNCHER` filter. The operator selects the default in system Home Settings; the declaration grants no network, bridge, or device authority, and the app cannot set itself as the default. Because PRODUCT requires a reliable way back, a HOME start shows a host-owned `Home settings` control that opens the system Home Settings screen. The activity is `singleTask`; `onCreate` and `onNewIntent` both set its visibility from the current intent's `HOME` category, so a reused task keeps the correct state. It is host chrome outside the renderer, and an ordinary launcher start does not draw it. Back still reaches the renderer as Escape, and direct touch and keyboard input remain available without the link. `scripts/check-home-declaration.mjs` verifies the packaged declaration, and the [Android scenarios](../tests/features/android-host.feature) define the HOME, recovery, and verification behavior. A device below the engine baseline still cannot render the Shell, so HOME selection does not establish device acceptance.
 
 <a id="adr-0038"></a>
 ### ADR-0038: Pluggable peripherals with host-owned device access
@@ -672,3 +674,211 @@ The host assembles one Overview Sentence from a Selection of Facts. The host joi
 **Considered Options**: Per-source sentence templates were rejected. They add a special case for each new source. Free-form model sentences were rejected. They break local value binding. A fixed three-line layout was rejected. It changes the measured Overview density.
 
 **Consequences**: A new source needs no wording change. The literal-word allowlist grows with Syntactic Roles, not with sources. Connectors use the subdued Tone Tier. Fact text uses the primary Tone Tier. Values and state words use state tokens. The 240-character limit and the three-service glance limit stay unchanged.
+
+<a id="adr-0041"></a>
+### ADR-0041: Voice-created plugin compositions with isolated Services
+
+**Status:** Accepted target design, 2026-11-06. The complete creation workflow is not implemented.
+This decision permits architecture and BDD work. It authorizes no deployment, service activation, provider migration, or credential collection.
+The [planned scenarios](../../../integrations/service-runtime/features/generated-plugins.feature) have no executable step bindings yet.
+Current HTML and operator service contracts remain in force until each implementation gate passes.
+
+#### Decision and alternatives
+
+An owner can request one plugin through voice or text.
+That plugin can contain a Widget, an App, independent Services, and declared data.
+The owner sees one composition. Runtime owners retain separate revisions and authority.
+
+| Candidate | Result |
+| --- | --- |
+| One inseparable UI and Service revision | Rejected. A visual change would also replace privileged code and couple rollback to provider state. |
+| Unrelated UI and Service installations | Rejected. Compatibility, ownership, and removal would depend on manual coordination. |
+| One composition referencing independent revisions | Selected. The owner gets one operation with exact dependencies and recoverable activation. |
+
+Reuse the installed package catalog, external service manager, Hosted Pi workflow, and Open DeskOS Data registry.
+Do not create another package manager, task engine, data registry, or source snapshot store.
+The composition record contains revision references and lifecycle ownership. It contains no source values, credentials, or real destination addresses.
+
+#### Owners and compatibility
+
+| Part | Owner and boundary |
+| --- | --- |
+| Creation | Personal Agent coordinates; Hosted Pi drafts and checks exact candidate bytes on an explicitly configured target. |
+| UI | The existing catalog verifies opaque HTML revisions. Widgets remain display-only; Apps use approved shared interaction primitives. |
+| Service | The external manager owns execution revisions, sandbox admission, supervision, resource handles, and recovery. |
+| Provider dependency | Operator configuration selects an existing endpoint or a separately approved managed provider. A declaration grants no lifecycle authority. |
+| Data contract | A versioned declaration defines bounded readings, measurement semantics, and permitted consumer projections. |
+| Private binding | Operator configuration owns destination identity, credential references, grant versions, and execution host selection. |
+
+An HTML revision does not execute Service code or acquire network, filesystem, preload, or secret access.
+The existing HTML manifest stays compatible. A future composition format must not reinterpret old manifests as execution grants.
+One composition can reference separate existing Widget and App entries, each with its own UI revision and reading grant.
+The renderer uses shared text, status, attributes, selectors, and buttons. Backend Services own domain logic.
+An App action needs a separately reviewed action interface. Readings cannot become arbitrary executable tools.
+UI-only updates preserve compatible running Services. Service updates require exact new execution approval.
+First deployment of platform support remains separate. Later plugin operations require no Shell rebuild, source edit, or process restart.
+Host support remains explicit. CM5 acceptance does not establish Windows, macOS, or remote-host capability.
+
+#### Provider deployment is not Service execution
+
+Python names an implementation language. Docker and an accepted Linux sandbox profile name execution environments.
+OpenD deployment is a separate provider choice. A plugin declares its protocol and compatibility needs, not its installation commands.
+Private operator configuration resolves the deployment, endpoint, identity, and credentials.
+
+The current Futu dependency remains the existing Docker OpenD on `frad-nas`.
+This work does not move OpenD, change its login state, or change the existing poller deployment.
+The current x86-64 OpenD executable cannot run natively on ARM64 CM5.
+Native OpenD, emulation, and additional execution hosts require separate compatibility evidence and operational authorization.
+The architecture permits later provider adapters without changing UI or reading contracts.
+It does not claim that such adapters exist today.
+
+A borrowed provider remains externally owned through install, update, rollback, and removal.
+A future managed provider needs its own revision, platform, state, and lifecycle grant.
+One deployment group may contain trusted OpenD and trusted Python processes with separate supervision.
+They must not restart together merely because presentation or Python code changes.
+Untrusted generated code cannot share OpenD credentials, writable state, or unrestricted network authority.
+Device identity and login state remain private persistent data. A plugin operation never clones them to another host.
+
+#### Execution and private authority
+
+User-generated Service code requires an admitted OS sandbox. Native operator Python is not an automatic fallback.
+Preparation hooks, dependency installation, workers, health probes, and migrations all require explicit execution boundaries.
+Package-owned verification runs without production credentials. Host-owned checks separately verify admitted runtime data.
+Missing isolation support refuses execution. A unit-file assertion alone does not establish enforcement.
+
+Each Service receives only its bounded state and IPC paths, a restricted identity, and enforceable resource limits.
+Manager metadata, retained revisions, peer data, host homes, and general runtime sockets stay inaccessible.
+The host also limits aggregate memory, CPU, processes, storage, request size, and request rate.
+Shell startup never awaits Service readiness, Docker availability, provider login, or model inference.
+
+Generated workers have no direct network route by default.
+Named connector capabilities provide approved operations with bounded arguments; they are not arbitrary HTTP or TCP proxies.
+Host enforcement covers IPv4, IPv6, DNS, local sockets, proxy bypass, retries, and active-connection revocation.
+The public API broker retains its public-only checks and DNS pinning.
+Private connectors use separate authorization with exact destinations, protocols, ports, and endpoint identity.
+DNS results must stay within the explicit private binding. Connections use checked addresses without another unchecked resolution.
+
+Credentials use system-owned collection and protected storage, never speech, plugin forms, package bytes, releases, command arguments, or container environment metadata.
+Private bindings contain named references. Services receive only their approved credential access through protected runtime interfaces or files.
+Grant review binds the exact Service artifact, declared capabilities, and private binding version.
+Revoked authority stays revoked during rollback. Private files are not a substitute for execution or egress controls.
+Protected manager and grant storage remain outside generated code and ordinary worker write access.
+Host administrators remain trusted. These controls do not confine an administrator who can replace the enforcement runtime.
+
+The Futu connector owns OpenD credentials and exposes only reviewed queries.
+An unlocked OpenD permits transaction calls from other connections; a destination allowlist alone cannot make access read-only.
+Generated code therefore receives neither raw OpenD access nor transaction credentials.
+OpenD needs outbound provider connectivity. Combining it with generated code does not justify unrestricted shared egress.
+
+Trusted build evidence binds captured source, locked dependencies, execution artifact digest, target architecture, and trusted builder identity.
+A pinned image identifies bytes but does not prove their source or safety.
+Linux sandbox artifacts require equivalent runtime and dependency evidence even without an image.
+Builds receive no production credentials, privileged daemon socket, or uncontrolled host mounts.
+The first implementation uses reviewed Service templates. Arbitrary generated backends remain gated until these controls pass.
+
+#### One data path
+
+```mermaid
+flowchart LR
+  Provider["Provider deployment: current NAS Docker OpenD"] --> Service["Admitted Service sandbox"]
+  Service --> Adapter["Host-owned data adapter"]
+  Adapter --> Registry["One Open DeskOS Data registry"]
+  Registry --> Widget["Granted Widget"]
+  Registry --> App["Granted App"]
+  Registry --> Agent["odk_data"]
+  Registry --> Facts["Approved scalar Facts"]
+  Facts --> Selection["Finite model selectors"]
+  Selection --> Overview["Overview"]
+```
+
+A fixed host adapter admits pure declarations and bounded Service data into the existing registry.
+Never load package-owned JavaScript projections into Main to extend the registry.
+The existing trusted `desk-service-readings` factory port is not a container registration protocol.
+The external producer protocol must carry its own version, ownership, schema, freshness, and size limits.
+
+Publication uses a dedicated capability bound to Service identity, exact revision, activation generation, and reading IDs.
+Do not give generated workers the host's shared Runtime Channel token or its general socket directory.
+Cross-host private data requires authenticated encryption or an explicitly approved protected transport.
+Service instances own their reading identities. A composition cannot replace another owner's source.
+Only the committed generation publishes current data. Closing, replacing, or revoking it rejects late results and reconnections.
+Reading state and receive time belong to the host. Source measurement time remains separately identified and validated.
+Discovery reads declarations without starting Services or contacting providers. Reads retain bounded deadlines and the source's existing refresh policy.
+
+Widget, App, `odk_data`, and Overview use the same registered source and refresh policy.
+Closing UI does not stop Service refresh. UI does not republish Service values to keep them alive.
+Source-owned refresh caches remain allowed. Consumers create no second authoritative snapshot.
+The future data schema supports explicitly bounded collections for complex Apps.
+Existing `data.fields` remains a flat publication contract; it cannot represent a complete holdings collection today.
+A granted frame reads only its declared reading scope for its active UI revision.
+The first private-data UI profile cannot also declare public API sources, which could encode private values through request timing.
+
+Overview consumes only approved scalar Facts from the same readings.
+The host selects permitted fields and model-visible metadata; package `home` declarations cannot expand that approval.
+The model returns finite selectors. Host rendering binds them to current facts and source generations.
+Service output remains untrusted content with provenance. It cannot grant tools, alter owner rules, or prove business correctness.
+Failure withdraws live values; an explicit stale presentation cannot become live through reconnect or model fallback.
+
+#### Creation and recoverable lifecycle
+
+Voice and text enter the existing creation workflow with the same authority.
+The coordinator resolves existing packages, configured targets, and reusable Services before requesting another implementation.
+Hosted Pi returns exact candidate identities, compatibility requirements, validation results, and missing capabilities.
+Drafting or a request to place UI does not authorize private Service activation.
+A candidate needing new execution or private grants reports `needs-operator-trust`.
+System-owned approval names the exact candidate and requested capabilities. Generated text cannot provide that approval.
+Existing valid grants remain usable only within their approved revision, scope, binding version, and explicit operational authorization.
+Lifecycle APIs enforce the same checks for Hosted Pi and direct CLI calls; intent wording alone is not a security boundary.
+
+Reuse existing serialized lifecycle operations and durable ownership reservations.
+Prepare exact candidates, verify compatibility, obtain grants, and start the candidate under an uncommitted generation.
+Host-owned schema, identity, and readiness checks precede selection commit.
+Commit the composition selection before admitting its generation to consumers.
+Keep durable operation identity across managers; do not assume the UI catalog and Service manager share an atomic transaction.
+Reconcile interrupted operations by inspecting owned resources. Unknown outcomes never authorize automatic mutation replay.
+First delivery permits a bounded unavailable interval instead of promising uninterrupted dual-instance switching.
+
+Rollback restores compatible code references and revalidates current grants.
+It does not restore credential contents, provider state, orders, login sessions, or migrated application data.
+Default generated templates introduce no persistent schema migrations or external writes.
+Migration support requires an explicit compatibility and recovery contract before activation.
+Each composition owns its Service instances by default. Shared instances require explicit ownership and reference records.
+Shared update and rollback revalidate every retained composition's exact dependency, schema, and grant.
+Conflicts refuse the operation or require a separately owned instance. Never silently change another composition's revision references.
+Removal revokes the composition's frame, read, and disclosure grants before releasing resources owned only by that composition.
+Shared references preserve the producer capability until its Service is disabled or its last lifecycle owner releases it.
+External providers, private state, credentials, and recovery material remain preserved.
+
+#### BDD-first delivery and authorization
+
+Write failing public-interface tests for the tagged planned scenarios before implementing each stage.
+The feature file is the acceptance intent, not evidence that those tests currently exist or pass.
+
+| Stage | Deliverable and existing owner | Exit evidence |
+| --- | --- | --- |
+| 1 | Exact composition declarations and candidate reports; existing catalog and Hosted Pi workflow | Same voice/text behavior; no activation from declarations; backward-compatible HTML validation |
+| 2 | Admitted execution profile; existing service manager and backend interfaces | Real local isolation, build evidence, no native fallback, and host startup/input checks under Service failure |
+| 3 | Named private bindings and reviewed Futu connector; existing service lifecycle | Test-provider query limits, secret containment, destination pinning, revocation, and unchanged external OpenD |
+| 4 | Generic producer adapter and frame read bridge; existing registry and installed runtime | Closed-UI refresh, bounded collections, scoped reads, generation rejection, and finite Overview selection |
+| 5 | Composition activation and recovery; existing catalog and service reservations | Fault injection at selection boundaries; compatible UI-only updates; safe removal and grant-aware rollback |
+| 6 | Reviewed templates through resident creation; existing intent routing | Exact receipts, truthful pending states, no unknown replay, and separately authorized real provider/device acceptance |
+
+Stages 1–5 expose no new resident service mutation tool before their enforcement gates pass.
+Initial implementation does not add an intent per provider or load arbitrary generated tools into the resident.
+New runtime tools, private data disclosure, persistent migrations, and broader provider actions need explicit product authorization.
+Deployment, host provisioning, service installation, activation, rollback, and real account access retain separate operational authorization.
+Support for native OpenD and Linux sandbox execution must pass their own host acceptance; neither follows from this architecture decision.
+
+#### Evidence and references
+
+Read-only NAS inspection on 2026-11-06 confirmed an x86-64 host, an amd64 image, and an x86-64 OpenD executable.
+The current process runs as root with a writable root filesystem and no configured CPU or memory limit.
+Configuration and RSA files use read-only mounts. Login state and logs use separate writable mounts.
+This sample proves deployment shape, not sandbox enforcement, source provenance, ARM64 support, or a new provider acceptance result.
+No configuration, credential, running service, or device was changed during architecture work.
+
+- [Current HTML lifecycle](USER_APPLICATIONS.md), [data contract](ODK_DATA_SPEC.md), and [external service runtime](../../../integrations/service-runtime/README.md) own implemented interfaces.
+- [Personal Agent contract](../../../integrations/personal-agent/docs/CONTRACT.md#generated-plugin-creation-target) owns resident workflow integration.
+- [OpenD configuration](https://openapi.futunn.com/futu-api-doc/en/opend/opend-cmd.html) defines listening and platform options.
+- [OpenD gateway](https://openapi.futunn.com/futu-api-doc/en/opend/opend-intro.html) requires upstream provider connectivity.
+- [OpenD unlock semantics](https://openapi.futunn.com/futu-api-doc/en/trade/unlock.html) apply across client connections.
+- [OpenD device state](https://openapi.futunn.com/futu-api-doc/en/qa/opend.html) requires separate migration and login acceptance.

@@ -306,8 +306,6 @@ html[data-theme="pixel"] .quota-card :is(.provider-quota-card, .provider-quota-m
 }
 .quota-tile-secondary:empty { display: none; }
 
-/* A reported short window draws its own meter below the supporting reading.
-   Plans without a short window keep the meter hidden. */
 .quota-tile-short-meter {
   flex-shrink: 0;
   width: 100%;
@@ -358,8 +356,6 @@ html[data-theme="pixel"] .quota-card :is(.provider-quota-card, .provider-quota-m
   width: 100%;
 }
 
-/* The App view supplies the frame, so its card keeps only the reading layout
-   and owns the scroll region. */
 .quota-app-card {
   min-width: 0;
   min-height: 0;

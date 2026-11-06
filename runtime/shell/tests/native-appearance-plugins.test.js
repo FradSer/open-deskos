@@ -14,6 +14,17 @@ const { loadNativeAppearancePlugins } = require('../src/native-plugin-loader')
 const api = require('../src/renderer/core/appearance-plugins')
 const { createNativeRendererActivator } = require('../src/native-renderer-activation')
 
+async function activatedBrowser(t) {
+  const f = await fixture(t)
+  await f.manager.install(f.source, { trust: true, grants: [] })
+  const entries = await loadNativeAppearancePlugins(readConfig(f.configPath), { store: f.store, assets: f.assets })
+  const scripts = new Map([[entries[0].entryUrl, f.entry]])
+  const b = await browser(entries, scripts)
+  await b.root.odkTheme.ready
+  await b.root.odkTheme.restoreDefault('odk.theme.pixel')
+  return { f, entries, scripts, b }
+}
+
 async function fixture(t, { code = true, change = {} } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-native-appearance-'))
   t.after(() => fs.rm(root, { recursive: true, force: true }))
@@ -215,13 +226,7 @@ test('Appearance Main activation rejects data-only palette selections without pu
 })
 
 test('Appearance browser activation scopes the captured entry and preserves preferences without another default construction', async t => {
-  const f = await fixture(t)
-  await f.manager.install(f.source, { trust: true, grants: [] })
-  const entries = await loadNativeAppearancePlugins(readConfig(f.configPath), { store: f.store, assets: f.assets })
-  const scripts = new Map([[entries[0].entryUrl, f.entry]])
-  const b = await browser(entries, scripts)
-  await b.root.odkTheme.ready
-  await b.root.odkTheme.restoreDefault('odk.theme.pixel')
+  const { f, entries, scripts, b } = await activatedBrowser(t)
   const url = 'odk-native-plugin://' + 'a'.repeat(32) + '/entry.js'
   entries.splice(0, entries.length, { ...entries[0], entryUrl: url, manifest: { ...entries[0].manifest, version: '4.0.0' } })
   scripts.set(url, f.entry)
@@ -283,13 +288,7 @@ test('Appearance disable during runtime discovery prevents entry execution', asy
 })
 
 for (const phase of ['create', 'start']) test(`Appearance Theme activation cancellation reaches candidate ${phase}`, async t => {
-  const f = await fixture(t)
-  await f.manager.install(f.source, { trust: true, grants: [] })
-  const entries = await loadNativeAppearancePlugins(readConfig(f.configPath), { store: f.store, assets: f.assets })
-  const scripts = new Map([[entries[0].entryUrl, f.entry]])
-  const b = await browser(entries, scripts)
-  await b.root.odkTheme.ready
-  await b.root.odkTheme.restoreDefault('odk.theme.pixel')
+  const { f, entries, scripts, b } = await activatedBrowser(t)
   const url = 'odk-native-plugin://' + 'd'.repeat(32) + '/entry.js'
   entries[0] = { ...entries[0], entryUrl: url, manifest: { ...entries[0].manifest, version: '4.0.0' } }
   let code = f.entry.replace('create(ctx) {', 'async create(ctx) { window.candidateSignal = ctx.signal;')

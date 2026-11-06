@@ -24,10 +24,6 @@
   })
 
 
-  // The Pomodoro session is module state: the App owns every control, and a
-  // session keeps running and keeps its remaining time while the App is closed.
-  // A reading never depends on how many ticks ran, because a running session
-  // counts from its own end time.
   const FOCUS_SECONDS = 25 * 60
 
   const focus = {
@@ -39,9 +35,6 @@
       this.subscribers.add(callback)
       return () => this.subscribers.delete(callback)
     },
-    // One failing view must not stop the others, and a swallowed error would
-    // hide a defect, so the failure is reported the way the shared services
-    // report theirs.
     notify() {
       const snapshot = this.snapshot()
       for (const callback of [...this.subscribers]) {
@@ -56,8 +49,6 @@
       if (this.mode !== 'running' || this.endAt === null) return this.remaining
       return Math.max(0, Math.ceil((this.endAt - Date.now()) / 1000))
     },
-    // Settling on access keeps every action truthful after the App was closed
-    // past the end of a session.
     settle() {
       if (this.mode !== 'running' || this.endAt === null) return
       const remaining = this.remainingNow()
@@ -130,8 +121,6 @@
       if (dial.textContent !== snap.time) dial.textContent = snap.time
       if (state.textContent !== snap.state) state.textContent = snap.state
       dial.classList.toggle('is-running', snap.mode === 'running')
-      // Start, Pause, and Resume are one control that states what it will do
-      // next; Reset only exists while a session does.
       const label = snap.mode === 'running' ? 'Pause' : snap.mode === 'paused' ? 'Resume' : 'Start'
       if (toggleBtn.textContent !== label) toggleBtn.textContent = label
       const idle = snap.mode === 'idle'
@@ -151,7 +140,6 @@
       resetBtn.removeEventListener('click', onReset)
     })
 
-    // The shared Tick advances the countdown while the App is open.
     ctx.onTick(() => focus.tick())
 
     render(focus.snapshot())

@@ -11,6 +11,8 @@ const { createNativePluginManager } = require('../src/native-plugin-manager')
 const { readConfig } = require('../src/plugin-config')
 const { loadNativeRendererPlugins } = require('../src/native-plugin-loader')
 const { createNativeRendererAssets, NATIVE_PLUGIN_SCHEME } = require('../src/native-renderer-assets')
+const { createPluginHost } = require('../src/plugin-host')
+const { RENDERER_DEVELOPMENT_CHANNEL } = require('../src/plugins/renderer-development')
 
 async function fixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-native-renderer-'))
@@ -96,8 +98,6 @@ for (const selected of [false, true]) {
   test(`${selected ? 'selected' : 'default'} Renderer discovery owns protocol leases across disable enable and shutdown`, async t => {
     const f = await fixture(t)
     const entries = await loadNativeRendererPlugins(f.config, { store: f.store, assets: f.assets })
-    const { createPluginHost } = require('../src/plugin-host')
-    const { RENDERER_DEVELOPMENT_CHANNEL } = require('../src/plugins/renderer-development')
     const routes = new Map()
     const handlers = new Map()
     const frame = {}
@@ -125,8 +125,6 @@ for (const selected of [false, true]) {
 
   test(`${selected ? 'selected' : 'default'} runtime native discovery binds its route before entries and serves later verified captures`, async t => {
     const f = await fixture(t)
-    const { createPluginHost } = require('../src/plugin-host')
-    const { RENDERER_DEVELOPMENT_CHANNEL } = require('../src/plugins/renderer-development')
     const routes = new Map(), handlers = new Map()
     const sender = { mainFrame: {} }
     let entries = []

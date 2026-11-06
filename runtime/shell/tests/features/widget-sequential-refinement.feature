@@ -98,7 +98,7 @@ Feature: Independent instrument refinement
     And the idle count appears below the capsule
     And primary numerals and the focus dial use more of their available content area
     And supporting labels stay with their readings
-    And Hydra uses larger plant and environment readings within its three-column span
+    And Hydra uses larger plant and environment readings within its three-by-one span
 
   Scenario: Compact reading leaves room for the excerpt
     Given WeRead uses one grid cell with a book cover and author
@@ -117,8 +117,8 @@ Feature: Independent instrument refinement
   Scenario: Reading follows Hydra in a three-column three-row area
     Given the default desktop shows Home and Hydra
     When the user moves to the page after Hydra
-    Then WeRead occupies three columns and one row
-    And Overview keeps its own row above the Widget pages
+    Then WeRead occupies three columns and three rows
+    And Overview keeps its first Home row
 
   Scenario: Retired views have no installed entry
     Given Clock, Calendar, and Pre-order are retired

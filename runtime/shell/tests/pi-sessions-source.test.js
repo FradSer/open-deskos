@@ -9,6 +9,17 @@ const path = require('node:path')
 const { posixOnlyReason } = require('./not-ported')
 
 const env = { ODK_PI_SSH_HOST: 'desk-mac', ODK_PI_SSH_NODE: '/opt/homebrew/bin/node', ODK_PI_SSH_COLLECTOR: '/Users/example/.local/share/odk/pi-sessions-snapshot.js' }
+function odkLinkScan(link) {
+  let executeCalls = 0
+  const scan = createPiSessionsSource({
+    env,
+    odkLink: link,
+    execute: () => { executeCalls += 1 },
+    scanLocal: async () => { throw new Error('the local collector must not run') },
+  })
+  return { scan, calls: () => executeCalls }
+}
+
 function snapshot() {
   return { ok: true, scannedAt: Date.now(), summary: { total: 1, running: 1, settled: 0, exited: 0, workspacesCount: 1 }, sessions: [{ pid: 42, status: 'running', isAlive: true }], workspaces: [{ sessions: [] }] }
 }
@@ -198,17 +209,11 @@ function odkLinkFixture({ machines = ['desk-mac'], snapshot = null } = {}) {
 
 test('a connected Open DeskOS Link answers instead of the configured SSH source', async () => {
   const link = odkLinkFixture()
-  let executeCalls = 0
-  const scan = createPiSessionsSource({
-    env,
-    odkLink: link,
-    execute: () => { executeCalls += 1 },
-    scanLocal: async () => { throw new Error('the local collector must not run') },
-  })
+  const { scan, calls } = odkLinkScan(link)
 
   const result = await scan()
 
-  assert.equal(executeCalls, 0, 'no SSH scan happens while a Open DeskOS Link answers')
+  assert.equal(calls(), 0, 'no SSH scan happens while a Open DeskOS Link answers')
   assert.equal(link.calls.machines, 1)
   assert.equal(link.calls.snapshot, 1)
   assert.equal(result.ok, true)
@@ -245,17 +250,11 @@ test('an empty Open DeskOS Link state is reported as such rather than mixing sou
     sessions: [],
     workspaces: [],
   } })
-  let executeCalls = 0
-  const scan = createPiSessionsSource({
-    env,
-    odkLink: link,
-    execute: () => { executeCalls += 1 },
-    scanLocal: async () => { throw new Error('the local collector must not run') },
-  })
+  const { scan, calls } = odkLinkScan(link)
 
   const result = await scan()
 
-  assert.equal(executeCalls, 0)
+  assert.equal(calls(), 0)
   assert.equal(result.summary.total, 0)
   assert.equal(result.source.kind, 'odk-link')
 })

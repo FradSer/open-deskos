@@ -2,6 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
+const os = require('node:os')
 
 const RUNTIME_ROOT = path.resolve(__dirname, '..')
 
@@ -114,7 +115,6 @@ test('the acceptance script resolves the stylesheet CLI the release installs', a
 
 test('shared smoke produces the package stylesheet bytes without scanning generated SDK bundles', async () => {
   const { buildStyles } = await load()
-  const os = require('node:os')
   const { spawnSync } = require('node:child_process')
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-smoke-style-parity-'))
   try {
@@ -151,7 +151,6 @@ test('shared smoke produces the package stylesheet bytes without scanning genera
 
 test('shared smoke generates real renderer rules but excludes SDK-only utilities repeatably', async () => {
   const { buildStyles } = await load()
-  const os = require('node:os')
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-smoke-sdk-exclusion-'))
   try {
     const renderer = path.join(root, 'src/renderer')

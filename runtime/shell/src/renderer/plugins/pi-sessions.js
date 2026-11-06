@@ -10,8 +10,6 @@
   const SCROLL_STEP_PX = 140
   const SCAN_TICK_INTERVAL = 5
   const LIVE_STATUSES = new Set(['running', 'settled'])
-  // The filter belongs to the Session Overview, not to the Session Detail: the
-  // page lands on the live set, and history is one deliberate press away.
   const FILTERS = ['live', 'working', 'idle', 'exited', 'all']
   const FILTER_LABELS = { live: 'Live', working: 'Working', idle: 'Idle', exited: 'Exited', all: 'All' }
   const DEFAULT_FILTER = 'live'
@@ -64,12 +62,6 @@
   const renderGoalHtml = renderSkillTaggedText
   const renderActivityHtml = renderSkillTaggedText
 
-  /**
-   * The prompt as the card shows it. normalizeInline collapsed the text into one
-   * line, so a pasted multi-line message reached the card as a single sentence
-   * even once the reporter stopped cutting it to its first line: the card needs
-   * the lines to be lines, which in HTML means a break rather than a newline.
-   */
   function renderGoalLinesHtml(text) {
     const lines = String(text ?? '')
       .split(/\r?\n/)
@@ -113,8 +105,6 @@
     }
   }
 
-  // Only a Pi process that is still running is live; an exited session is
-  // history, and history is not what the page shows as current work.
   function isLive(session) {
     return LIVE_STATUSES.has(session.status)
   }
@@ -180,8 +170,6 @@
       return `Pi is running, but no events have arrived${sourceLabel ? ` from ${sourceLabel}` : ''} yet.`
     }
     if (reason === 'session-log-missing' && sourceLabel) {
-      // A remote machine keeps its own logs; this host simply has none of them, and
-      // saying so names the machine instead of implying the session produced nothing.
       return `No session log is available for this session on ${sourceLabel}, and it has reported none.`
     }
     return EVENT_NOTE[reason] || 'Session events are unavailable.'
@@ -258,10 +246,6 @@
    * Session Overview (the page) + Session Detail (one session)
    * --------------------------------------------------------- */
 
-  // The page carries no title beyond the view's own name and no session
-  // control. The Session Filter acts on the list below it, so it holds the
-  // title row's trailing edge rather than a row of its own; the Overview still
-  // owns it, and the Detail still carries none.
   function surfaceMarkup() {
     return `
       <div class="runtime-app pi-app-wrapper">
@@ -293,9 +277,6 @@
       </div>`
   }
 
-  // The detail states the model activity once. A session that reports none and
-  // is not working already states its Pi state as the page title, so the line is
-  // omitted rather than repeating that state in a second voice.
   function renderIdentity(session) {
     const activity = normalizeInline(session.activity) || (session.status === 'running' ? 'Working...' : '')
     return `<p class="pi-goal-text">${renderGoalHtml(session.latestGoal || 'No goal stated')}</p>
@@ -565,7 +546,6 @@
     return PAGE_INPUT[listIsOpen ? 'list' : 'detail'][input] || 'ignore'
   }
 
-  // The Pi Sessions page's own copy for the states it can be in.
   function emptyCopy({ scan, filter, setSize, sourceLabel }) {
     if (scan === null) return 'Loading Pi sessions...'
     if (scan.ok === false) return `${sourceLabel || 'Pi sessions'} unavailable. Retrying automatically.`
@@ -694,12 +674,6 @@
     }
   }
 
-  // The Session Overview board gives every state the Session Filter selects its
-  // own lane, so the board is a kanban rather than a list of whatever happens to
-  // be present: a lane whose state has no session keeps its column and states a
-  // count of zero, because the column is what tells a reader that state exists
-  // and is empty rather than absent. A state the filter cannot select is not on
-  // the board at all, so the filter, not the session list, decides the lanes.
   const BOARD_STATE_ORDER = ['running', 'settled', 'exited']
 
   function boardLanes(set, filter = DEFAULT_FILTER) {
@@ -776,12 +750,6 @@
             cell.classList.toggle('is-selected', isSelected)
             cell.setAttribute('aria-pressed', String(isSelected))
             cell.querySelector('.pi-overview-state').innerHTML = stateMarkup(session)
-            // Pi reports a goal and a latest content line as Markdown, so a card
-            // reads them the way the Home tile and the Session Detail read those
-            // same fields: the emphasis and the inline code are formatting rather
-            // than the syntax Pi wrote to produce them. The card keeps its own role
-            // for the line, so the goal stays body type and the latest content
-            // stays supporting text.
             cell.querySelector('.pi-overview-goal').innerHTML = renderGoalLinesHtml(session.latestGoal || 'No goal stated')
             cell.querySelector('.pi-overview-path').textContent = session.hostedPi ? `Hosted Pi · ${sessionPath(session)}` : sessionPath(session)
             const activity = cell.querySelector('.pi-overview-activity')
@@ -912,11 +880,6 @@
       return emptyCopy({ scan, filter, setSize: currentSet().length, sourceLabel: sourceLabel() })
     }
 
-    // The title row states the page's condition, so the list states only what
-    // the rows themselves need. A condition said in both places is read as two
-    // conditions: while the scan is in flight the list shows Pi's own working
-    // indicator, and it names a reason only when the scan answered and matched
-    // no session.
     function regionHtml() {
       if (scan === null) return `<span class="pi-spinner" data-pi-spinner aria-hidden="true">${SPINNER_FRAMES[0]}</span>`
       // An unavailable scan has not matched nothing: it has not answered, and
@@ -951,9 +914,6 @@
     }, SPINNER_INTERVAL_MS)
 
     function publishRemote() {
-      // The page owns directional input in both views: a session by session,
-      // or a row by row. The only page-owned Strip control is the Session
-      // Filter, whose label is the filter the overview is showing.
       ctx?.publishPageRemote?.(el, {
         actions: [{ id: ACTION_FILTER, label: filterTitle(filter).toUpperCase() }],
         focus: 'items',
@@ -965,26 +925,14 @@
       if (statusEl.textContent !== text) statusEl.textContent = text
     }
 
-    // The title states the view: the session's own Pi state while one is
-    // shown, and the live set while the Overview is open.
     function renderTitle() {
       const showing = overview.isOpen()
       const session = selected()
       factsEl.textContent = ''
-      // The Session Filter and the open session's elapsed time share the title
-      // row's trailing edge, and each is stated exactly when it applies: the
-      // filter while the list is the view, the elapsed reading while a session
-      // is. Neither is a control over the other view.
       filtersEl.hidden = !showing
       if (showing) {
         titleTextEl.textContent = 'Pi Sessions'
         titleSpinnerEl.hidden = true
-        // The title row states the page's condition, not a description of the
-        // list. A running count with its source, and any driven-by attribution,
-        // was a second line of chrome under the title: the board below already
-        // says what it holds, the card says which session is hosted, and the
-        // live region still announces the count. What stays here is the part
-        // only this row can say, so the page carries no summary line at all.
         subtitleEl.textContent = scan === null
           ? 'Loading Pi sessions...'
           : scan.ok === false
@@ -1118,12 +1066,6 @@
         detail.paint(eventsState, sourceLabel())
         return
       }
-      // A remote session's events are not this host's business to judge: a machine
-      // that reports over a Open DeskOS Link brings its own bounded event tail with it, and
-      // the main process already asks that link first and falls back to a local log.
-      // What this surface must not do is refuse a remote session before the source
-      // that actually holds its events has been asked. When nothing holds them, the
-      // reason the main process returns is what the detail states.
       try {
         const res = typeof root.odkPlatform?.getPiSessionEvents === 'function'
           ? await root.odkPlatform.getPiSessionEvents({ cwd: session.cwd, sessionId: session.sessionId || session.uuid, hostedPi: session.hostedPi === true })
@@ -1244,8 +1186,6 @@
       button.addEventListener('click', () => setFilter(button.dataset.filter))
     }
 
-    // The page lands on the live session list: the overview is where a
-    // session is chosen, and the detail is what a choice opens.
     overview.show(true)
     detailEl.inert = true
     detailEl.removeAttribute('data-page-focus')

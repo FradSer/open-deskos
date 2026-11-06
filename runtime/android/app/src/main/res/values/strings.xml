@@ -3,4 +3,6 @@
     <string name="app_name">Open DeskOS</string>
     <!-- Host chrome. The desk marked this frame as development state. -->
     <string name="development_state">Development state from the desk</string>
+    <!-- Host chrome. Restores another default Home app when the Shell is Home. -->
+    <string name="home_settings">Home settings</string>
 </resources>

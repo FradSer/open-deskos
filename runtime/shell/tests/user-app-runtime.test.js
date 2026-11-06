@@ -442,7 +442,7 @@ for (const [name, html, expectedCode] of [
     let stderr = ''
     const events = []
     const began = performance.now()
-    const verifier = createUserAppVerifier({ electronPath: require('electron'), spawnProcess(file, args, options) {
+    const verifier = createUserAppVerifier({ electronPath, spawnProcess(file, args, options) {
       const child = require('node:child_process').spawn(file, args, options)
       child.stdout.on('data', chunk => {
         if (chunk.toString().includes('"ok":')) events.push({ phase: 'reported', elapsedMs: Math.round(performance.now() - began) })

@@ -151,4 +151,4 @@ function createHydraEspNowSource({ deviceGateway, profileFile, peerStore = creat
       if (failures.length) throw new AggregateError(failures, 'Hydra subscription cleanup failed')
     } }
 }
-module.exports = { createHydraEspNowSource, decodeHydraTelemetry, LIVE_MS }
+module.exports = { createHydraEspNowSource, decodeHydraTelemetry }

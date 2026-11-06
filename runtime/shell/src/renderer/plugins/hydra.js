@@ -8,8 +8,6 @@
   const PLANT_LABELS = ['Plant 1', 'Plant 2']
   const PLANT_LABELS_SHORT = ['P1', 'P2']
 
-  // The Desk declares a full canvas. Wide Cells pair the environment readings
-  // and plants; smaller Cells retain their measured readable compositions.
   const MIN_CELL = 120
   // Below the tall slot the tile re-composes in the cell it was given rather than
   // letting the cell cut it. Each threshold is the cell this tile was measured
@@ -44,10 +42,6 @@
     return `${Math.round(entry.soilPercent)}%`
   }
 
-  // A plant states its own condition in words. The rail's colour says the same
-  // thing to a glance, and a glance is what this tile is for, but a state that can
-  // only be seen as a colour cannot be read back: an offline plant, a stale one
-  // and a running pump each say which of the three they are.
   function plantState(entry) {
     if (!entry) return ''
     if (entry.online === false) return 'Offline'
@@ -170,22 +164,12 @@
         })),
       }
 
-      // A glanceable tile re-composes rather than letting the cell cut it. The
-      // shape is read from the tile's own box, so the same tile is the tall slot
-      // on the reference panel and on a handheld and is something smaller in a
-      // square cell, with no host named anywhere in it.
       const fitToCell = () => {
         if (!alive()) return
         const box = el.getBoundingClientRect()
         const shape = shapeForCell(box.width, box.height)
         if (body.dataset.shape === shape) return
         body.dataset.shape = shape
-        // A cell too small for the tile's own state line says so rather than
-        // drawing a fragment of it. A shape that leaves the environment out states
-        // the count, because a shortened reading that looks like the whole reading
-        // is the one way a glanceable instrument can be quietly wrong. The
-        // environment is the reading that goes first: the plants are what the tile
-        // is for.
         const note = shape === 'small' ? 'Too small' : shape === 'plants' ? `Not shown · ${ENV_KEYS.length}` : ''
         hint.textContent = note
         hint.hidden = !note

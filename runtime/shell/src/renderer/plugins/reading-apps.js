@@ -1,7 +1,6 @@
 ;(function (root) {
   'use strict'
 
-  // Continuations read the same bounded IPC snapshots as their source Widgets.
   function register(id, name, load, render) {
     root.odkPlugins.register({
       id: `odk.app.${id}`, manifest: { schemaVersion: 1 }, kind: 'app', appId: id,

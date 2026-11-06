@@ -432,4 +432,4 @@ function createUserAppStore({ workspace, stateDir, verify, waitForVerification, 
   }
 }
 
-module.exports = { createUserAppStore, MAX_APPS, MAX_HTML_BYTES }
+module.exports = { createUserAppStore, MAX_HTML_BYTES }

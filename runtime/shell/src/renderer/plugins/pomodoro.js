@@ -4,8 +4,6 @@
 
   root.odkPlugins.register({
     id: 'odk.tile.pomodoro',
-    // Reads at the smallest cell the desk promises, so a span above one cell
-    // is only refused below that.
     manifest: { schemaVersion: 1, minCell: 186 },
     kind: 'tile',
     app: 'Pomodoro',
@@ -13,8 +11,6 @@
     interaction: 'display-only',
     opensApp: 'pomodoro',
     mount(el, ctx = {}) {
-      // The dial is the instrument: no header repeats the App name. A state word sits
-      // above the dial only when the App has one to state.
       el.innerHTML = `
         <div class="pomodoro-body widget-signal">
           <span class="pomodoro-state w-state">App timer</span>
@@ -35,9 +31,6 @@
       const arc = el.querySelector('.ring-arc')
       let released = false, selected = null, unsubscribe = null
       ctx.trackCleanup(() => { released = true; unsubscribe?.(); unsubscribe = null })
-      // The desk states the App's own word for a live session, and a paused timer states
-      // itself. An idle session states nothing: the removed Ready label made no claim the
-      // dial could not already carry, and no label claims that a session has started.
       const setState = (label) => {
         if (state.textContent !== label) state.textContent = label
         const hidden = !label

@@ -2,10 +2,6 @@
 (function (root) {
   'use strict'
 
-  // The owner's pad is not the desk's Remote Control, and this states only that
-  // one is connected: a presence indicator, not a control, absent entirely while
-  // no pad is connected. A pad the desk cannot read keeps the same presence with
-  // a muted emphasis, because the desk must not imply it can be driven by it.
   const PAD_ICON =
     '<svg data-tabler="device-gamepad-2" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><rect x="2" y="8" width="20" height="9" rx="4.5" /><path d="M8 11v4M6 13h4" /><path d="M16 12l.01 0M18 14l.01 0" /></svg>'
 

@@ -907,7 +907,6 @@ async function main() {
     await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1280, deviceScaleFactor: 1, mobile: false })
     await js("window.dispatchEvent(new Event('resize')); await document.fonts.ready")
     await reset([session('example-a', 'Example reasoning session', 'settled')])
-    const cycle = ['user', 'thinking', 'tool', 'thinking', 'assistant']
     const group = (index) => [
       { kind: 'user', text: `Example prompt ${index}` },
       { kind: 'thinking', text: `Example reasoning body ${index}: checking the composer before changing it.`, truncated: index === 0 },

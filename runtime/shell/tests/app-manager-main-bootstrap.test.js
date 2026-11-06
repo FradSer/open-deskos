@@ -10,6 +10,7 @@ const { createMainPlugins } = require('../src/plugins/main-composition')
 const { runCommand } = require('./helpers/hydra-wire-lifecycle')
 const { posixOnlyReason } = require('./not-ported')
 const electron = require('electron')
+const { resolveShellHost } = require('../src/platform')
 
 test('production Main preserves default, independent signed and development navigation, and corrupt selection recovery',
   { timeout: 150000, skip: posixOnlyReason('isolated-native-activation') }, async t => {
@@ -90,7 +91,6 @@ for (const { rejected, fullComposition } of [
           assert.equal(report.fullComposition, true)
           assert.equal(report.mainPlugins, createMainPlugins().length)
         }
-        const { resolveShellHost } = require('../src/platform')
         const host = resolveShellHost({ env })
         const channels = fullComposition
           ? ['plugin-control', 'renderer-plugin-control', 'plugin-diagnostics', 'user-app-control', 'odk-data'] : ['plugin-control']
@@ -119,14 +119,14 @@ test('production Main preserves selected installed desktop consumers and detects
         await fs.mkdir(env.XDG_RUNTIME_DIR, { recursive: true, mode: 0o700 })
         const store = createUserAppStore({ workspace: env.ODK_WORKSPACE, stateDir: resolveUserAppSurface({ env }).stateDir, verify: () => true })
         // Seed private accepted snapshots. This check exercises startup, not installation verification.
-        for (const [id, kind] of [['note', 'app'], ['counter', 'app']]) {
+        for (const [id, kind] of [['note', 'widget'], ['counter', 'app']]) {
           const draft = path.join(env.ODK_WORKSPACE, 'apps', id)
           await fs.mkdir(draft, { recursive: true })
           await fs.writeFile(path.join(draft, 'manifest.json'), JSON.stringify({ schemaVersion: 1, id, name: id, version: '1', kind }))
           await fs.writeFile(path.join(draft, 'index.html'), kind === 'app'
             ? '<button id="counter">0</button><script>counter.onclick=()=>counter.textContent=Number(counter.textContent)+1</script>'
             : '<p>Installed note</p>')
-          assert.equal((await store.install(id, undefined)).ok, true)
+          assert.equal((await store.install(id, kind === 'widget' ? { pageId: 'desk', col: '2', row: '3' } : undefined)).ok, true)
         }
         if (mode === 'development') {
           const bundle = path.join(directory, 'desktop')
@@ -289,7 +289,6 @@ globalThis.odkDiagnosticMainEntries.push(${JSON.stringify(plugin.manifest.id)});
             navigation: report.consumer, discoveryEntries: report.diagnostics.discoveryEntries }
           if (baseline) assert.deepEqual(consumers, baseline)
           else baseline = consumers
-          const { resolveShellHost } = require('../src/platform')
           await assert.rejects(fs.stat(resolveShellHost({ env }).endpoint('plugin-diagnostics')), { code: 'ENOENT' })
           await assert.rejects(fs.stat(resolveShellHost({ env }).endpoint('plugin-control')), { code: 'ENOENT' })
           await assert.rejects(fs.stat(resolveShellHost({ env }).endpoint('renderer-plugin-control')), { code: 'ENOENT' })

@@ -250,28 +250,6 @@ test('the Android projection carries bounded readable suggestions without respon
   assert.equal(JSON.stringify(projected).includes('PRIVATE_TOOL_RESULT'), false)
 })
 
-test('the Android frame carries the full OpenUI component tree without leaking private fields', () => {
-  const base = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', status: 'pending', advice: 'Inspect the soil.', evidence: [] }
-  const ui = { type: 'Suggestions', children: [{ type: 'Suggestion', children: [
-    { type: 'Heading', props: { value: 'Soil' } },
-    { type: 'Advice', props: { value: 'Inspect the soil.' } },
-    { type: 'Stack', children: [{ type: 'Metric', props: { label: 'Moisture', value: '12%' } }] },
-  ] }] }
-  const projected = projectPersonalAgentFrame({ state: 'idle', proposals: [{ ...base, ui,
-    action: { tool: 'memory_update', params: { value: 'private action' } }, result: 'PRIVATE_TOOL_RESULT' }] })
-  assert.equal(projected.proposalCapabilities.read, true)
-  assert.deepEqual(projected.proposals[0].ui, ui, 'every OpenUI node must cross the link')
-  assert.equal(JSON.stringify(projected).includes('private action'), false)
-  assert.equal(JSON.stringify(projected).includes('PRIVATE_TOOL_RESULT'), false)
-  assert.equal(projected.proposals[0].action, null)
-  // A malformed tree must not silently pass as readable.
-  for (const bad of [{ type: '' }, { type: 'Suggestions', children: 'nope' }, { type: 'Suggestions', children: [{ nope: 1 }] }]) {
-    const frame = projectPersonalAgentFrame({ state: 'idle', proposals: [{ ...base, ui: bad }] })
-    assert.equal(frame.proposalCapabilities.read, false, JSON.stringify(bad))
-    assert.deepEqual(frame.proposals, [])
-  }
-})
-
 test('the Android desk projection rejects malformed next steps and preserves actionless legacy data', () => {
   const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', status: 'pending', advice: 'Inspect the soil.', evidence: [] }
   for (const nextStep of ['', ' ', 'x'.repeat(241), 7, null, 'inspect\u0000file', 'inspect\nfile', 'inspect\tfile', 'inspect\u007ffile']) {

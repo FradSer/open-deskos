@@ -42,7 +42,7 @@ Feature: Widget continuations in the right desk pane
   Scenario: Reading canvas and consistent outlines
     Given three square columns fit the right pane
     When the Reading page opens
-    Then WeRead occupies three columns and one row
+    Then WeRead occupies three columns and three rows
     And the Pre-order Widget remains reachable on Desk
     And every Widget has an outline in every supported theme
     And Overview has no outline
@@ -203,3 +203,11 @@ Feature: Widget continuations in the right desk pane
     Then the reminder remains closed and the desktop remains interactive
     And the Agent shows Listening... with its recording feedback
     And the hidden microphone does not replace Send voice request
+
+  Scenario: App error and retry states state only what the runtime established
+    Given a Widget App failed to start or its action returned a failure
+    When the Shell shows the unavailable or action-failed view
+    Then the detail states the runtime reason without claiming the foreground App is unchanged
+    When the user retries and the request is accepted
+    Then the status states that the App started or the action was accepted
+    And it never claims that the action completed or that a request proves completion

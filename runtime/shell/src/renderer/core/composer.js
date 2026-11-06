@@ -97,8 +97,6 @@
     tile.dataset.app = plugin.app
     tile.dataset.state = plugin.state
     tile.dataset.interaction = plugin.interaction || 'display-only'
-    // The declared floor is published on the tile so the geometry gates can hold
-    // the desk to it instead of trusting a comment.
     if (Number.isFinite(Number(plugin.manifest?.minCell))) tile.dataset.minCell = String(plugin.manifest.minCell)
     placeTile(page, tile, widgetDef, plugin)
     if (!root.odkPlugins.activate(plugin, tile, uiCtx)) markActivationError(tile, plugin)
@@ -123,10 +121,6 @@
     }
   }
 
-  // The geometry the layout model has just produced: the cell every tile is given,
-  // and the lines of the grid they are placed in. Spans are decided from this, so a
-  // page keeps its composition whenever the grid can satisfy it and the resulting
-  // cell is large enough for the instrument it holds.
   function gridMetrics() {
     const style = root.getComputedStyle ? root.getComputedStyle(document.documentElement) : null
     const pixels = (name) => Number.parseFloat(style?.getPropertyValue(name) || '') || 0
@@ -145,11 +139,6 @@
     const { spanCells, honorsSpan, gridHasLines, pageFitsGrid } = root.odkGridPlacement
     const { cellWidth, cellHeight, columns, rows: defaultRows } = gridMetrics()
     const rows = page.gridRows || defaultRows
-    // The grid has to be able to give the span its lines, the page has to be a
-    // grid its composition was drawn for, and the cell the span produces has to
-    // reach what the instrument declared it reads at. Failing any of those leaves
-    // the tile unplaced, and the grid then gives it one cell, which is always
-    // somewhere an instrument can be drawn.
     const placeable = columns > 0 && rows > 0
       && pageFitsGrid(page.widgets, columns, rows)
       && gridHasLines(widgetDef.col, columns)
@@ -163,8 +152,6 @@
       tile.style.gridRow = widgetDef.row
       tile.dataset.span = 'kept'
     } else {
-      // Left unplaced, the grid gives the instrument a single cell, which is
-      // always enough for it to be drawn.
       tile.style.gridColumn = ''
       tile.style.gridRow = ''
       tile.dataset.span = 'dropped'
@@ -275,7 +262,6 @@
     validate(layout)
     track.replaceChildren()
     layout.pages.forEach((page, index) => buildPage(page, index, track, uiCtx))
-    // The cell changes when the window does, and the cell is what decides a span.
     watchCellSize(track)
   }
 

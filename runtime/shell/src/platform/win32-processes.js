@@ -121,6 +121,4 @@ function createWindowsProcessSource({ loadNative, readManagedTable, now = () => 
 module.exports = {
   createWindowsProcessSource,
   parseWindowsProcessTable,
-  toProcessRow,
-  PROCESS_TABLE_SCRIPT,
 }

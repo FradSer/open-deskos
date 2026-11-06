@@ -63,6 +63,14 @@ One APK serves arm64-v8a and x86_64: the host ships no native library. `minSdk` 
 
 A debug build enables WebView remote debugging. Verification reads the rendered document through the Chrome DevTools Protocol over `adb forward`. The harness selects the `com.odk.shell` process and exact local document. It removes only its own ADB forward.
 
+## Default Home app
+
+`ShellActivity` declares a `MAIN` intent filter with `HOME` and `DEFAULT` categories, in addition to its `LAUNCHER` filter. The declaration makes the Shell a candidate in system Home Settings. It grants no network, bridge, or device authority. [ADR-0037](ARCHITECTURE.md#adr-0037) owns the role.
+
+The operator sets the default Home app on the device. Use the system Home Settings screen or the HOME resolver. The host cannot set itself as the default. On a release older than Android 10, use the Home Settings screen; `cmd package set-home-activity` and `RoleManager` are not available there.
+
+The activity uses `singleTask`, so a later HOME press reuses the running instance through `onNewIntent`. Both `onCreate` and `onNewIntent` set the control's visibility from the current intent's `HOME` category. When the Shell starts through HOME, it shows a host-owned `Home settings` control. The control opens `Settings.ACTION_HOME_SETTINGS` so the owner can restore another Home app. It is not renderer content, and an ordinary launcher start does not draw it. Back still reaches the renderer as Escape, and direct touch and keyboard input remain available without the desk link.
+
 ## Host bridge
 
 The renderer reads `window.odkPersonalAgent` through an asynchronous message shim. Android uses `WebViewCompat.addWebMessageListener` for the exact local asset origin. Native code checks the current WebView, `isMainFrame`, the source origin and the current document URL. Body fields cannot grant these permissions. App frames and external documents cannot submit owner requests.
@@ -130,12 +138,20 @@ cd runtime/android && node scripts/check-staged-renderer.mjs
 
 It compares the staged asset tree with `runtime/shell/src`. It fails on any difference, any missing file, and any staged file the shared renderer does not have.
 
+Prove the APK answers the HOME intent:
+
+```sh
+cd runtime/android && node scripts/check-home-declaration.mjs
+```
+
+It reads the merged manifest and the APK badging. It fails when the `MAIN` intent filter does not carry `HOME` and `DEFAULT`, when the `LAUNCHER` filter is missing, or when the launchable activity changes. A negative control refuses a LAUNCHER-only manifest, so the check cannot pass without the declaration.
+
 The two device gates need a connected phone, so they are not part of `pnpm geometry`. Run them with the script names above.
 
 ## Device limits
 
 - The reference test device is the redroid Android 14 image at `10.10.0.195:5555` with WebView 125. It is the fidelity target.
-- The Sony SO-02J at `BH9075T25U` runs Android 8.0 (API 26) with Chrome 67 as its system WebView. That engine predates optional chaining, `Object.hasOwn` and CSS `:has()`, so the design does not render there. Installing the APK on that device proves installation only. Upgrading its WebView is a separate device change.
+- Measured on 2026-11-06, the connected Sony SO-02J runs Android 6.0.1 (API 23) with system WebView `com.google.android.webview` 51.0.2704.81. It is a production build (`ro.debuggable=0`, `dm-verity=enforcing`, OEM unlock `0`); `adb root` is refused. `/data/adb` exists but denies shell access, and a control probe with a fabricated path returns `No such file`, so the directory is real, not a traversal artifact. That directory indicates a systemless root was installed at some point. The current adb shell has no usable `su` in `PATH`, `/system`, `/vendor`, or `/sbin`; no `magisk`, `resetprop`, `ksud`, or `apd` command; no running root daemon; and no third-party root manager app. It cannot write `/system` (read-only) or `/data/adb` (permission denied). Root is therefore unavailable to the host tooling, even though the device was modified. The current `minSdk` is 26. An `adb install` of the debug APK fails with `INSTALL_FAILED_OLDER_SDK` and leaves the device unchanged. The WebView predates the secure `addWebMessageListener` bridge and the renderer's JavaScript. A WebView at the Chrome 111 baseline has no official build for API 23, so rendering on this device needs an owner-performed ROM change and a factory reset, or a renderer transpile that breaks the shared single-source gate. Both are separate, destructive device changes. The earlier note claiming Android 8.0 and Chrome 67 was wrong.
 - The phone reads a desk that carries the Personal Agent link. A desk on an older revision refuses the token or closes the link. Deploy the desk revision before you expect phone data.
 - Android draws overlay scrollbars and a desktop host reserves a classic scrollbar gutter. The compact layout's scroll containers therefore give the phone about 15 px more content width. The gate accounts for that metric; it is not a renderer difference.
 - Hover and pointer media features differ by nature. The renderer uses them for hover affordances only, and no geometry depends on them.
@@ -144,4 +160,4 @@ The two device gates need a connected phone, so they are not part of `pnpm geome
 
 - Voice capture. The microphone control reports the outcome it received and this host captures no audio.
 - Live desk verification on CM5. Deployment and activation need separate authorization.
-- Frame delivery to a Sony device, which its system WebView cannot render.
+- Frame delivery to the connected Sony SO-02J. Its API 23, Chrome 51 WebView, and unavailable root shell fail the `minSdk` 26 install gate and the renderer engine baseline. Rendering there needs an owner-performed, destructive device change.

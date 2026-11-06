@@ -37,6 +37,18 @@ function endpoint() {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'odk-sock-')), 'svc.sock')
 }
 
+async function seenServer() {
+  const sockPath = endpoint()
+  const seen = []
+  const server = createServicePluginSocket({
+    socketPath: sockPath,
+    services: { 'futu-poller': { revision: 'abc123' } },
+    onSnapshot: (record) => seen.push(record),
+  })
+  await server.start()
+  return { sockPath, seen, server }
+}
+
 function clientSend(sockPath, records) {
   return new Promise((resolve, reject) => {
     const received = []
@@ -55,14 +67,7 @@ function clientSend(sockPath, records) {
 }
 
 test('rejects unknown peers and data before hello', async () => {
-  const sockPath = endpoint()
-  const seen = []
-  const server = createServicePluginSocket({
-    socketPath: sockPath,
-    services: { 'futu-poller': { revision: 'abc123' } },
-    onSnapshot: (record) => seen.push(record),
-  })
-  await server.start()
+  const { sockPath, seen, server } = await seenServer()
   try {
     const stranger = await clientSend(sockPath, [
       { v: 1, type: 'hello', service: 'intruder', revision: 'x', proto: 1 },
@@ -99,14 +104,7 @@ test('reports disconnect when the service drops', async () => {
 })
 
 test('accepts hello from a declared service and delivers its data snapshot', async () => {
-  const sockPath = endpoint()
-  const seen = []
-  const server = createServicePluginSocket({
-    socketPath: sockPath,
-    services: { 'futu-poller': { revision: 'abc123' } },
-    onSnapshot: (record) => seen.push(record),
-  })
-  await server.start()
+  const { sockPath, seen, server } = await seenServer()
   try {
     const replies = await clientSend(sockPath, [
       { v: 1, type: 'hello', service: 'futu-poller', revision: 'abc123', proto: 1 },

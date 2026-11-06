@@ -52,9 +52,7 @@ test('disabled appearance ports fall back without changing the remaining plugins
 })
 
 test('appearance replacements execute their selected factory and retain lifecycle ownership', async () => {
-  const trace = []
-  const plugins = createAppearancePlugins()
-  const original = plugins[1]
+  const { trace, plugins, original } = replacementFixture()
   plugins[1] = { ...original, create(ctx) {
     trace.push('create')
     ctx.onCleanup(() => trace.push('cleanup'))
@@ -120,9 +118,7 @@ test('appearance data equality ignores object key order and preserves face array
 })
 
 test('appearance factory port mismatch releases its resources and preserves independent appearances', async () => {
-  const trace = []
-  const plugins = createAppearancePlugins()
-  const original = plugins[1]
+  const { trace, plugins, original } = replacementFixture()
   plugins[1] = { ...original, create(ctx) {
     ctx.onCleanup(() => trace.push('cleanup'))
     return { ports: { 'odk:theme/pixel/v1': { ...original.appearance, faces: ['montserrat-bold'] } },
@@ -209,9 +205,7 @@ test('shutdown during selected appearance factory creation drains its late insta
   let started
   const began = new Promise(resolve => { started = resolve })
   const gate = new Promise(resolve => { release = resolve })
-  const trace = []
-  const plugins = createAppearancePlugins()
-  const original = plugins[1]
+  const { trace, plugins, original } = replacementFixture()
   plugins[1] = { ...original, async create(ctx) {
     ctx.onCleanup(() => trace.push('cleanup'))
     started()
@@ -313,6 +307,27 @@ function restorationFixture({ stop, defaultCreate } = {}) {
   return { runtime, defaults, original, trace }
 }
 
+function replacementFixture() {
+  const trace = []
+  const plugins = createAppearancePlugins()
+  const original = plugins[1]
+  return { trace, plugins, original }
+}
+
+async function startedRestorationFixture() {
+  const entered = deferred(); const finish = deferred()
+  const f = restorationFixture({ stop() { entered.resolve(); return finish.promise } })
+  await f.runtime.start()
+  return { entered, finish, f }
+}
+
+async function startedHost() {
+  const runtime = createAppearanceHost()
+  await runtime.start()
+  const original = createAppearancePlugins()[1]
+  return { runtime, original }
+}
+
 test('Appearance restores a privately captured configured default and preserves independent factories', async () => {
   const f = restorationFixture()
   f.original.create = () => { throw Error('later default mutation') }
@@ -364,9 +379,7 @@ test('Appearance failed default startup restores the external factory without a 
 })
 
 test('Appearance shutdown fences default construction after delayed external cleanup', async () => {
-  const entered = deferred(); const finish = deferred()
-  const f = restorationFixture({ stop() { entered.resolve(); return finish.promise } })
-  await f.runtime.start()
+  const { entered, finish, f } = await startedRestorationFixture()
   const restored = assert.rejects(f.runtime.restoreDefault('odk.theme.pixel'), /shutdown|cancelled/)
   await entered.promise
   const stopped = f.runtime.stop()
@@ -424,9 +437,7 @@ test('Appearance disable cancels pending default construction and prevents a rec
 })
 
 test('Appearance disable during external cleanup prevents default construction', async () => {
-  const entered = deferred(); const finish = deferred()
-  const f = restorationFixture({ stop() { entered.resolve(); return finish.promise } })
-  await f.runtime.start()
+  const { entered, finish, f } = await startedRestorationFixture()
   const restored = assert.rejects(f.runtime.restoreDefault('odk.theme.pixel'), /incomplete/)
   await entered.promise
   const disabled = f.runtime.setEnabled('odk.theme.pixel', false)
@@ -456,9 +467,7 @@ test('Appearance runtime replacement executes an independent factory and preserv
 })
 
 test('Appearance runtime replacement rejects disabled identities and rolls back failed candidates', async () => {
-  const runtime = createAppearanceHost()
-  await runtime.start()
-  const original = createAppearancePlugins()[1]
+  const { runtime, original } = await startedHost()
   const replacement = { ...original, manifest: { ...original.manifest, version: '4.0.0' }, create() { throw Error('controlled startup failure') } }
   await assert.rejects(runtime.replace(replacement), /replacement failed/)
   assert.equal(runtime.list()[1].manifest.version, '1.0.0')
@@ -470,9 +479,7 @@ test('Appearance runtime replacement rejects disabled identities and rolls back 
 
 for (const phase of ['create', 'start']) test(`Appearance activation cancellation drains candidate ${phase} and restores the previous factory`, async () => {
   const entered = deferred(); const finish = deferred(); const controller = new AbortController()
-  const runtime = createAppearanceHost()
-  await runtime.start()
-  const original = createAppearancePlugins()[1]
+  const { runtime, original } = await startedHost()
   let candidateSignal; let stops = 0; let cleanups = 0
   const candidate = { ...original, manifest: { ...original.manifest, version: '4.0.0' }, async create(ctx) {
     candidateSignal = ctx.signal

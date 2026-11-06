@@ -3,6 +3,7 @@ const assert = require('node:assert/strict')
 const { createPersonalAgentReadingSource } = require('../src/personal-agent-readings')
 const { createShellOdkData } = require('../src/odk-data')
 const { integrationURL } = require('./helpers/repo-root')
+const { createPluginHost } = require('../src/plugin-host')
 
 const contract = 'odk:producer-projection/v1'
 const entry = { id: 'odk.agent.task', label: 'Helper', kind: 'service', home: { mode: 'optional', priority: 0, icon: 'tasks', fields: ['state', 'goal'] } }
@@ -172,7 +173,6 @@ test('disabling a source plugin cancels a slow authenticated read before a fresh
   const os = require('node:os')
   const path = require('node:path')
   const crypto = require('node:crypto')
-  const { createPluginHost } = require('../src/plugin-host')
   const { createPersonalAgentReadingsPlugin, READING_PORT } = require('../src/plugins/personal-agent-readings')
   const { listenOdkData } = require('../src/odk-data-control')
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-source-cancel-'))
@@ -213,7 +213,6 @@ test('disabling a source plugin cancels a slow authenticated read before a fresh
 
 test('Main discovers default and independent replacement producer ports through the same registry', async () => {
   const { createMainPlugins } = require('../src/plugins/main-composition')
-  const { createPluginHost } = require('../src/plugin-host')
   const { DESK_PORTS } = require('../src/plugins/desk-runtime')
   const { READING_PORT } = require('../src/plugins/personal-agent-readings')
   for (const alternative of [false, true]) {

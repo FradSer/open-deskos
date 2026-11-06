@@ -5,6 +5,7 @@ const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 const { parseDevices, parseDeviceGrants, loadDeviceGrants, loadDeviceGrantsSync, createUserAppDevices, isActiveDeviceFrame } = require('../src/user-app-devices')
+const { createUserAppStore } = require('../src/user-app-store')
 const peer = '02:11:22:33:44:55', reserved = 'f0:9e:9e:11:23:cc', revision = 'a'.repeat(32)
 function fixture(options = {}) {
   let app = { id: 'sensor', revision, kind: 'app', devices: { gateway: true, read: [peer], send: [peer, reserved] } }, active = true, calls = 0
@@ -137,7 +138,6 @@ test('frame removal at the authorization microtask boundary prevents dispatch', 
 })
 
 test('catalog update queued before device admission refuses the old revision without sending', async t => {
-  const { createUserAppStore } = require('../src/user-app-store')
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-device-admit-')); t.after(() => fs.rm(dir, { recursive: true, force: true }))
   const draft = path.join(dir, 'workspace/apps/sensor'); await fs.mkdir(draft, { recursive: true })
   const manifest = { schemaVersion: 1, id: 'sensor', name: 'Sensor', kind: 'app', version: '1', devices: { send: [peer] } }
@@ -155,7 +155,6 @@ test('catalog update queued before device admission refuses the old revision wit
 })
 
 test('an admitted send releases the catalog queue and a later update fences its reply', async t => {
-  const { createUserAppStore } = require('../src/user-app-store')
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-device-reply-')); t.after(() => fs.rm(dir, { recursive: true, force: true }))
   const draft = path.join(dir, 'workspace/apps/sensor'); await fs.mkdir(draft, { recursive: true })
   const manifest = { schemaVersion: 1, id: 'sensor', name: 'Sensor', kind: 'app', version: '1', devices: { send: [peer] } }

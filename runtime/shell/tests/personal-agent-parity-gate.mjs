@@ -50,8 +50,9 @@ async function reading(host, state, extra = []) {
   return parsed
 }
 
-// Chrome 111 is the oldest engine the shared renderer is written for; the Sony
-// device's WebView 67 must never pass this gate.
+// Chrome 111 is the oldest engine the shared renderer is written for. The
+// connected Sony SO-02J reports WebView 51 and must never pass this gate; see
+// the measured device facts in docs/ANDROID_HOST.md.
 const MINIMUM_WEBVIEW_MAJOR = 111
 const engines = new Set()
 let failed = 0

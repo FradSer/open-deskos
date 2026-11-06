@@ -380,7 +380,6 @@ module.exports = {
   TOKEN_FILENAME,
   MAX_HANDSHAKE_BYTES,
   HANDSHAKE_TIMEOUT_MS,
-  describeEndpoint,
   handshakeFrame,
   isNamedPipe,
   isTcpEndpoint,

@@ -250,11 +250,11 @@ nodeTest('independent Hydra shares only the static visual layout', () => {
     layout(fs.readFileSync(path.join(__dirname, '../src/renderer/plugins/hydra.js'), 'utf8')))
 })
 
-nodeTest('Desk declares the shared 3x2 Hydra card with the same App continuation', () => {
+nodeTest('Desk declares the three-by-one Hydra card with the same App continuation', () => {
   const root = {}
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/config/desktop_layout.js'), 'utf8'), { window: root })
   const desk = root.DESKTOP_LAYOUT.pages.find(page => page.id === 'desk')
-  assert.equal(desk.gridRows, 2)
+  assert.equal(desk.gridRows, 3)
   assert.equal(desk.widgets.length, 1)
   assert.equal(desk.widgets[0].id, 'odk.tile.hydra')
   assert.equal(desk.widgets[0].col, '1 / 4')

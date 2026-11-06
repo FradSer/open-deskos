@@ -1,9 +1,6 @@
 // Renders each case from a real Agent-path corpus, not hand-written cards.
 // Usage: electron scripts/capture-paradigms.cjs --corpus <json> --out <dir>
-// Corpus: { rounds: [{ round, proposals: [{ topic, advice, ui, nextStep, probability, grounding }] }] }
-// Each admitted candidate carries the official OpenUI tree. The harness never
-// rebuilds a card from a preview summary: that duplicated the advice sentence.
-// The pass===true truthfulness filter always stays; only admitted candidates render.
+// Corpus: { rounds: [{ round, proposals: [{ topic, advice, preview, nextStep, probability, grounding }] }] }
 const { app, BrowserWindow, ipcMain } = require('electron')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -34,25 +31,17 @@ const CASE_NAMES = {
   'release-pipeline': 'P2 · 流水线推进',
 }
 
-// Render the exact tree the Agent published. No preview projection, no second
-// sentence from a summary, and no invented readings. An admitted proposal must
-// carry its tree: an older corpus with only a preview cannot render honestly.
-const isUiTree = value => value && typeof value === 'object' && !Array.isArray(value) && typeof value.type === 'string'
-
-const proposalFor = (row, index) => {
-  if (!isUiTree(row.ui)) throw Error(`Admitted proposal ${index} has no OpenUI tree; regenerate the corpus`)
-  return {
-    id: `${String(index).padStart(8, '0')}-1111-4111-8111-${String(index).padStart(12, '0')}`,
-    status: 'pending', offered: true, presented: true,
-    advice: row.advice,
-    ui: row.ui,
-    nextStep: row.nextStep || '打开计划',
-    action: { tool: 'memory_update', params: { category: 'note', value: 'opened' } },
-    confirmation: '记住 note：opened',
-    createdAt: new Date().toISOString(),
-    evidence: [{ readingId: 'fixture', field: 'value', value: 1, state: 'live', measuredAt: new Date().toISOString() }],
-  }
-}
+const proposalFor = (row, index) => ({
+  id: `${String(index).padStart(8, '0')}-1111-4111-8111-${String(index).padStart(12, '0')}`,
+  status: 'pending', offered: true, presented: true,
+  advice: row.advice,
+  ...(row.preview ? { preview: row.preview } : {}),
+  nextStep: row.nextStep || '打开计划',
+  action: { tool: 'memory_update', params: { category: 'note', value: 'opened' } },
+  confirmation: '记住 note：opened',
+  createdAt: new Date().toISOString(),
+  evidence: [{ readingId: 'fixture', field: 'value', value: 1, state: 'live', measuredAt: new Date().toISOString() }],
+})
 
 app.whenReady().then(async () => {
   for (const channel of ['odk-opencode-go-status', 'odk-pi-sessions', 'odk-hydra-status', 'odk-weread-highlight',
@@ -78,10 +67,7 @@ app.whenReady().then(async () => {
   const capabilities = { read: true, respond: true, acknowledge: true }
   const shots = []
   for (const round of rounds) {
-    // Only a candidate that passed the host gates may appear as a published message.
-    // A rejected round is an honest empty state, with its scores shown in the matrix.
-    // Keep the pass===true truthfulness filter; every shown proposal carries a ui tree.
-    const proposals = (round.proposals ?? []).filter(p => p.pass === true).map(proposalFor)
+    const proposals = (round.proposals ?? []).map(proposalFor)
     const topics = round.topics ?? (corpus.cases?.[round.round - 1]?.topics) ?? [...new Set((round.proposals ?? []).map(p => p.topic))]
     const label = CASE_NAMES[round.proposals?.[0]?.topic] || CASE_NAMES[topics[0]] || `Case ${round.round}`
     await win.webContents.send('odk-personal-agent-status', { state: 'idle', proposals: [], proposalCapabilities: capabilities })
@@ -95,7 +81,7 @@ app.whenReady().then(async () => {
     const file = `case-${round.round}-${(topics[0] || 'empty').replace(/[^a-z0-9-]/gi, '-')}.png`
     fs.writeFileSync(path.join(outDir, file), png)
     console.log('CAPTURED', file, `(${proposals.length} shown)`)
-    const scores = (round.proposals ?? []).map(p => `p=${Number(p.probability).toFixed(2)} g=${Number(p.grounding).toFixed(2)}${p.pass === true ? '' : ' · below threshold'}`).join(' · ')
+    const scores = (round.proposals ?? []).map(p => `p=${Number(p.probability).toFixed(2)} g=${Number(p.grounding).toFixed(2)}`).join(' · ')
     shots.push({ label, file, topics, scores, count: proposals.length, png })
   }
 

@@ -16,9 +16,6 @@
     return settled === 1 ? '1 session has settled' : `${settled} sessions have settled`
   }
 
-  // The State Bar indicator is the shell's only always-mounted Pi Sessions
-  // reader, so the Today briefing is published from its refresh instead of
-  // scanning the same host a fourth time.
   function briefingParts(summary) {
     if (!summary) return [{ text: 'Pi session status is unavailable.' }]
     const running = summary.running ?? 0

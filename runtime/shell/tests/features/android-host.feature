@@ -102,14 +102,6 @@ Feature: Android Shell Host renders the shared Personal Agent
     Then every script, style, font and image loads from that origin
     And the app adds no script source
 
-  Scenario: The Android frame carries the OpenUI component tree
-    Given a proposal carries a bounded OpenUI component tree
-    When the desk projects the Personal Agent frame for the Android host
-    Then the projected proposal keeps the full component tree with every node
-    And the tree stays within the same depth and byte bounds as the service state
-    And an oversized, cyclic or untyped tree degrades to an unreadable frame
-    And private action parameters and tool results never cross the link
-
   Scenario: Both ends agree on the frame contract
     Given the shared Personal Agent frame fixtures
     When the desk and the Android client encode and decode each fixture
@@ -121,6 +113,34 @@ Feature: Android Shell Host renders the shared Personal Agent
     When the acceptance record is written
     Then it names the tested Android device and WebView version
     And other Shell Host acceptance stays separate
+
+  Scenario: The Android host answers the HOME intent
+    Given an operator selects the Android host as the default Home app
+    When the system resolves android.intent.action.MAIN with android.intent.category.HOME
+    Then ShellActivity is one resolved HOME candidate
+    And the same activity keeps its LAUNCHER entry
+    And HOME selection does not grant network or bridge authority
+
+  Scenario: The default Home app keeps a way back
+    Given ShellActivity is the selected default Home app
+    When the owner presses Back at the Shell root
+    Then the renderer receives an Escape key event
+    And the host offers a system Home Settings control to restore another Home app
+    And direct touch and keyboard input remain available without the desk link
+
+  Scenario: A reused HOME task keeps the correct way back
+    Given the singleTask ShellActivity already runs
+    When the system delivers a HOME intent through onNewIntent
+    Then the host follows the current intent to show the Home Settings control
+    And a launch without HOME keeps that control hidden
+    And the renderer geometry stays unchanged in both cases
+
+  Scenario: The packaged HOME declaration is verified
+    Given a built Android APK
+    When the launcher declaration contract runs against the merged manifest and APK
+    Then the merged manifest declares one HOME activity with HOME and DEFAULT categories
+    And the APK declares the same activity as its launchable activity
+    And the declaration check fails when HOME is absent
   Scenario: A phone keeps the central conversation and the exact reply reference
     Given CM5 owns a conversation with a bound reply and an owner turn identifier
     When the Android host receives the public frame and submits a reply

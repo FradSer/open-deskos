@@ -132,4 +132,4 @@ function createShellOdkData({ serviceReadings, readings, hydra, weather, weread,
   }
 }
 
-module.exports = { createShellOdkData, CATALOG_ID }
+module.exports = { createShellOdkData }
