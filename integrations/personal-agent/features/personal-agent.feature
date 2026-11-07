@@ -37,6 +37,27 @@ Feature: Explicit personal assistant configuration and private opt-in note memor
     Then only a listed skill index can be read
     And no model-selected filesystem path is accepted
 
+  Scenario: Current notes supply bounded relevant context
+    Given private notes include unrelated subjects and a corrected named note
+    When an owner asks about that note with different word order
+    Then the current exact note is retrieved with its content revision
+    And automatic note context is limited to 4096 UTF-8 bytes
+    And explicit full reads remain available
+    And forgotten notes are absent from later memory reads and context
+
+  Scenario: Private notes cannot become automatic procedural experience
+    Given an owner turn reads or receives private note context
+    When completion checks pass for another tool in that turn
+    Then automatic procedural learning is skipped
+    And note tools mark their results as private data
+
+  Scenario: Separate profiles update one private note map
+    Given two profiles have distinct current-turn remember grants
+    When both profiles update the same private memory file
+    Then a filesystem lock serializes the read and write
+    And both notes survive without a format change
+    And a superseded turn cannot write after it waits for the lock
+
   Scenario: Startup verifies Jev through one public typed request
     Given a new resident service and a private Jev credential
     When the service starts before clients connect

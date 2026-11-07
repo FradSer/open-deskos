@@ -7,6 +7,10 @@ import { join } from 'node:path';
 import { loadPersonalConfig } from '../src/personal-config.mjs';
 import { createMemoryStore } from '../src/memory.mjs';
 import { createPersonalTools } from '../src/personal-tools.mjs';
+import lockfile from 'proper-lockfile';
+import { createAgentPluginRuntime } from '../src/agent-plugins/runtime.mjs';
+import { createExperienceStore } from '../src/agent-plugins/experience.mjs';
+import { evaluateMemoryRetrieval } from '../scripts/evaluate-memory.mjs';
 
 async function fixture(t) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'personal-test-')));
@@ -113,6 +117,82 @@ test('Given unsafe memory When reading/writing Then reject oversized insecure li
   await assert.rejects(createMemoryStore(link).read(), /memory/i);
 });
 
+test('Given notes When a related request arrives Then current bounded evidence replaces unrelated prompt data', async t => {
+  const dir = await fixture(t), file = join(dir, 'MEMORY.json'), memory = createMemoryStore(file);
+  for (const [category, value] of [['tea', 'Afternoon tea preference is green tea.'], ['garden', 'Plant care '.repeat(600).trim()], ['会议', '会议时间改成周五下午三点。'], ['checks', '使用vitest检查代码。']]) {
+    memory.beginTurn(`remember ${category}: ${value}`);
+    await memory.update({ category, value });
+  }
+  const context = await memory.context('What tea do I prefer in the afternoon?');
+  assert(Buffer.byteLength(context) <= 4096);
+  assert(context.includes('Afternoon tea preference is green tea.'));
+  assert(!context.includes('Plant care'));
+  assert.match(context, /not instructions or authorization/);
+  const tool = createPersonalTools({ memory, skillPaths: [] }).find(tool => tool.name === 'memory_read');
+  const read = await tool.execute('query', { query: '下午会议时间', limit: 2 });
+  const evidence = JSON.parse(read.content[0].text);
+  assert.equal(evidence.entries[0].category, '会议');
+  assert.match(evidence.entries[0].revision, /^[a-f0-9]{64}$/);
+  assert.equal(read.details.privateData, true);
+  assert.equal((await memory.search('vitest')).entries[0]?.category, 'checks');
+  assert.equal(JSON.parse(await memory.read()).garden.length, 6599);
+  memory.beginTurn('remember tea: Afternoon tea preference is oolong tea.');
+  await memory.update({ category: 'tea', value: 'Afternoon tea preference is oolong tea.' });
+  const fresh = await memory.context('afternoon tea');
+  assert(fresh.includes('oolong'));
+  assert(!fresh.includes('green tea'));
+  memory.beginTurn('forget tea'); await memory.forget({ category: 'tea' });
+  assert(!(await memory.context('afternoon tea')).includes('oolong'));
+  await assert.rejects(tool.execute('bad', { query: 'x'.repeat(513) }));
+});
+
+test('Given another profile holds the memory lock When saving Then updates wait and merge the latest map', async t => {
+  const dir = await fixture(t), file = join(dir, 'MEMORY.json'), memory = createMemoryStore(file);
+  await writeFile(file, '{}', { mode: 0o600 });
+  if (process.platform === 'win32') { const { protectProactivePath } = await import('../src/proactive-private.mjs'); protectProactivePath(file); }
+  const release = await lockfile.lock(file, { realpath: false });
+  let released = false;
+  t.after(async () => { if (!released) await release(); });
+  memory.beginTurn('remember tea: green');
+  const update = memory.update({ category: 'tea', value: 'green' });
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), {});
+  await writeFile(file, '{"language":"zh-CN"}', { mode: 0o600 });
+  await release(); released = true;
+  await update;
+  assert.deepEqual(JSON.parse(await memory.read()), { language: 'zh-CN', tea: 'green' });
+  const releaseAgain = await lockfile.lock(file, { realpath: false });
+  memory.beginTurn('remember tea: stale');
+  const cancelled = memory.update({ category: 'tea', value: 'stale' });
+  memory.beginTurn('');
+  await releaseAgain();
+  await assert.rejects(cancelled, /safely|superseded/);
+  assert.deepEqual(JSON.parse(await memory.read()), { language: 'zh-CN', tea: 'green' });
+});
+
+test('Given private notes in context or tools When execution passes Then automatic experience learning is suppressed', async t => {
+  const dir = await fixture(t), memory = createMemoryStore(join(dir, 'MEMORY.json'));
+  memory.beginTurn('remember tea: green tea'); await memory.update({ category: 'tea', value: 'green tea' });
+  for (const source of ['context', 'tool']) {
+    const store = createExperienceStore(join(dir, `${source}.json`)), calls = [];
+    const runtime = createAgentPluginRuntime({ store, config: { enabled: ['completion', 'learning'] }, infer: async (kind, input) => {
+      calls.push(kind);
+      assert.equal(kind, 'completion');
+      const receipt = input.receipts.find(item => item.tool === 'check');
+      return { status: 'passed', summary: 'Report checked.', checks: [{ requirement: 'Check report', status: 'passed', scope: 'completion', evidence: [{ id: receipt.id, quote: 'report passed' }] }] };
+    } });
+    runtime.beginTurn('Check a report.', 'agent_execute');
+    if (source === 'context') await memory.context('tea', () => runtime.markPrivateData());
+    else await runtime.observeTools(createPersonalTools({ memory, skillPaths: [] })).find(tool => tool.name === 'memory_read').execute('read', {});
+    await runtime.observeTools([{ name: 'check', execute: async () => ({ content: [{ type: 'text', text: 'report passed' }], details: {} }) }])[0].execute();
+    const outcome = await runtime.finishTurn('Report checked.');
+    assert.equal(outcome.verification.status, 'passed');
+    assert.equal(outcome.learning.status, 'skipped');
+    assert.deepEqual(calls, ['completion']);
+    assert.deepEqual(store.load().entries, []);
+  }
+});
+
 test('Given personal tools When reading skills Then only indexed reviewed files are exposed', async (t) => {
   const dir = await fixture(t);
   const skill = join(dir, 'SKILL.md');
@@ -123,6 +203,19 @@ test('Given personal tools When reading skills Then only indexed reviewed files 
   const tool = tools.at(-1);
   assert.equal((await tool.execute('id', { index: 0 })).content[0].text, 'reviewed');
   await assert.rejects(tool.execute('id', { index: 1 }), /skill/i);
+});
+
+test('Given published memory evidence When scoring Then repeated source ids cannot inflate recall and labels cannot enter retrieval', () => {
+  const row = { question_id: 'example', question_type: 'multi-session', question: 'region totals', answer: 'HIDDEN_LABEL',
+    haystack_session_ids: ['evidence', 'evidence', 'other'], haystack_dates: ['2026-01-01', '2026-01-01', '2026-01-02'],
+    haystack_sessions: [[{ role: 'user', content: 'region totals are three', has_answer: true }], [{ role: 'user', content: 'region totals are three' }], [{ role: 'user', content: 'unrelated plant care' }]], answer_session_ids: ['evidence'] };
+  const result = evaluateMemoryRetrieval([row]);
+  assert.equal(result.arms.ranked.recall, 1);
+  assert.equal(result.rows[0].duplicateSourceIds, 1);
+  const hidden = evaluateMemoryRetrieval([{ ...row, question: 'HIDDEN_LABEL' }]);
+  assert.equal(hidden.arms.ranked.hit, 0);
+  assert.equal(evaluateMemoryRetrieval([{ ...row, question_id: 'example_abs' }]).skipped.length, 1);
+  assert.throws(() => evaluateMemoryRetrieval([row, row]), /Invalid/);
 });
 
 test('Given a coding profile, Intent selection is rejected before creating providers', async t => {

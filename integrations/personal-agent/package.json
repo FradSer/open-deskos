@@ -18,6 +18,8 @@
     "test:proactive:jev:live": "node scripts/test-proactive-jev-live.mjs",
     "test:proactive:docker:live": "node scripts/test-proactive-docker-live.mjs",
     "test:proactive:evaluate": "node scripts/evaluate-proactive.mjs",
+    "test:memory:evaluate": "node scripts/evaluate-memory.mjs",
+    "test:memory:live": "node scripts/test-memory-live.mjs",
     "start": "node src/main.mjs",
     "agent:packages": "node src/agent-catalog/cli.mjs",
     "typecheck": "tsc -p tsconfig.json"

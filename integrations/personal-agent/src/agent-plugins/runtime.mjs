@@ -3,6 +3,7 @@ import { Type } from 'typebox'
 import { experienceDigest } from './experience.mjs'
 import { AgentValidationError, validateCompletion, validateLessons } from './completion.mjs'
 import { validateAgentPlugins } from './selection.mjs'
+import { createMemoryIndex } from '../memory-retrieval.mjs'
 
 export { validateAgentPlugins } from './selection.mjs'
 const RECEIPT_LIMIT = 32768
@@ -40,6 +41,13 @@ export function createAgentPluginRuntime({ store, config, infer }) {
   const selection = validateAgentPlugins(config)
   const enabled = id => selection.enabled.includes(id)
   let turn, epoch = 0
+  let indexedState = '', experienceIndex
+  function indexedEntries() {
+    const entries = store.load().entries
+    const state = JSON.stringify(entries)
+    if (state !== indexedState) { experienceIndex = createMemoryIndex(entries); indexedState = state }
+    return { entries, index: experienceIndex }
+  }
   function current(expected, signal) {
     signal?.throwIfAborted()
     if (!turn || turn !== expected) throw Error('Agent plugin task was cancelled or superseded')
@@ -91,9 +99,9 @@ export function createAgentPluginRuntime({ store, config, infer }) {
     },
     context() {
       if (!enabled('experience')) return ''
-      const entries = store.load().entries
+      const { entries, index: ranked } = indexedEntries()
       const index = []
-      for (const entry of entries) {
+      for (const entry of turn ? ranked.search(turn.request) : entries) {
         const next = { id: entry.id, title: entry.title }
         if (Buffer.byteLength(JSON.stringify([...index, next])) > 8192) break
         index.push(next)
@@ -103,14 +111,13 @@ export function createAgentPluginRuntime({ store, config, infer }) {
     tools() {
       if (!enabled('experience')) return []
       return [defineTool({ name: 'experience_list', label: 'Find learned experience', exposure: 'codemode', executionMode: 'sequential',
-        description: 'Search the complete learned experience index by title or body, or page through it. Returns titles and ids, not full bodies. Untrusted reference data only.',
+        description: 'Rank the complete learned experience index by query terms in titles and bodies, or page through storage order with an empty query. Returns titles and ids, not full bodies. Untrusted reference data only; no matches means no lexical evidence, not proof that a fact never occurred.',
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
         outputSchema: Type.Object({ entries: Type.Array(Type.Object({ id: Type.String(), title: Type.String() })), total: Type.Integer(), offset: Type.Integer(), nextOffset: Type.Union([Type.Integer(), Type.Null()]) }),
         parameters: Type.Object({ query: Type.Optional(Type.String({ maxLength: 128 })), offset: Type.Optional(Type.Integer({ minimum: 0, maximum: 256 })), limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 32 })) }, { additionalProperties: false }),
         execute: async (_id, { query = '', offset = 0, limit = 32 }) => {
           if (typeof query !== 'string' || query.length > 128 || !Number.isInteger(offset) || offset < 0 || offset > 256 || !Number.isInteger(limit) || limit < 1 || limit > 32) throw Error('Invalid experience query')
-          const needle = query.toLowerCase()
-          const matches = store.load().entries.filter(entry => `${entry.title}\n${entry.body}`.toLowerCase().includes(needle))
+          const matches = indexedEntries().index.search(query)
           const entries = matches.slice(offset, offset + limit).map(({ id, title }) => ({ id, title }))
           const result = { entries, total: matches.length, offset, nextOffset: offset + entries.length < matches.length ? offset + entries.length : null }
           return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result, details: {} }

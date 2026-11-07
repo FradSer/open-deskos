@@ -271,11 +271,44 @@ Memory accepts explicit current-turn commands:
 A named write replaces that note.
 Verbatim current-turn content grants one write.
 Private `MEMORY.md` contains an atomic JSON note map, limited to 16 KiB.
+Each mutation holds a filesystem lock across its read and write.
+An expired turn cannot write after it waits for that lock.
 Tools expose notes as data, never instructions.
 Memory cannot authorize purchases or establish the current pickup point.
 Credential detection is heuristic; do not store passwords, tokens, or sensitive account data.
 Forget removes a note, not earlier conversation entries.
 The operator owns session retention and deletion.
+
+Automatic note context has a 4096-byte UTF-8 limit, including its framing.
+Small stores provide every note to retain preferences and references across languages.
+Larger stores provide up to eight relevant whole notes and a bounded category index.
+The category index has a 1024-byte limit.
+Large notes remain available through `memory_read`.
+Its optional `query` accepts up to 512 characters.
+Its optional `limit` accepts 1 through 32 results.
+An omitted query returns the complete existing note map.
+Query results include exact values and content revision hashes.
+These hashes identify content; they cannot establish current observations or grant actions.
+
+Note tools mark their output as private data.
+The resident also marks a turn private when its note context reads a nonempty store.
+Such turns skip automatic procedural learning, including when another public tool succeeds.
+This conservative boundary preserves private notes outside automatic experience.
+Explicit note writes and scoped recommendation feedback retain their separate gates.
+
+### Learned experience retrieval
+
+`experience_list` ranks terms across stored titles and bodies with local BM25.
+The shared index normalizes Unicode and separates Chinese text from adjacent Latin identifiers.
+Chinese character pairs support search without a space separator.
+An empty query retains storage order and the existing pagination contract.
+The automatic title index follows the current owner request within its existing 8192-byte limit.
+Only `experience_read` returns the complete method and its recorded evidence sources.
+The in-process index refreshes when the complete validated store changes.
+It adds no external service, persistent index, or new storage format.
+Lexical retrieval cannot guarantee matches across languages or paraphrases without shared terms.
+
+The [memory evaluation](MEMORY_EVALUATION.md) owns comparisons, commands, results, and remaining acceptance limits.
 
 ## Ride authorization
 

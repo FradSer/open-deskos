@@ -318,6 +318,14 @@ Feature: Personal Agent owns a bounded plugin runtime
     And an unknown reply with expired origin history blocks only its retained session
     And another explicitly identified session can receive an owner reply
 
+  Scenario: Experience retrieval follows the current owner request
+    Given the experience store contains older unrelated methods and a recent matching method
+    When the owner uses separated English terms or Chinese words
+    Then search ranks matching titles and bodies by relevance
+    And the bounded context index includes relevant entries before unrelated entries
+    And empty search retains stable pagination through the complete index
+    And index entries require a full read before their bodies can support an answer
+
   Scenario: Provider selection follows native Pi configuration
     Given Pi has provider credentials and model endpoint overrides
     When a resident selects an OpenCode model

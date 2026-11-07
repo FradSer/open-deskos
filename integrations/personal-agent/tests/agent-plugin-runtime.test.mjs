@@ -445,13 +445,33 @@ test('experience omitted from the bounded prompt remains discoverable by search 
   const list = runtime.tools().find(tool => tool.name === 'experience_list')
   const found = JSON.parse((await list.execute('search', { query: 'method 255' })).content[0].text)
   assert.equal(found.entries[0].id, entries[255].id)
-  assert.equal(found.total, 1)
+  assert.equal(found.total, 256)
   assert(!JSON.stringify(found).includes('Reusable method'))
   const page = JSON.parse((await list.execute('page', { offset: 224, limit: 32 })).content[0].text)
   assert.equal(page.entries.at(-1).id, entries[255].id)
   assert.equal(page.total, 256)
   await assert.rejects(list.execute('bad', { offset: -1 }))
 })
+
+test('Given a later relevant method When searching reordered terms Then retrieval and current context rank that method first', async t => {
+  const directory = await fixture(t), store = createExperienceStore(join(directory, 'ranked.json'));
+  await store.append([
+    { title: 'Plant care', body: 'Check soil moisture before watering.', sources: [{ tool: 'check', digest: 'a'.repeat(64) }] },
+    { title: 'Validate region report', body: 'Check region labels and assert report totals before delivery.', sources: [{ tool: 'check', digest: 'b'.repeat(64) }] },
+    { title: '中文报表检查', body: '先检查报表的地区标签，再验证总数。', sources: [{ tool: 'check', digest: 'c'.repeat(64) }] },
+  ]);
+  const runtime = createAgentPluginRuntime({ store, config: { enabled: ['experience'] }, infer: async () => assert.fail('no inference') });
+  const list = runtime.tools().find(tool => tool.name === 'experience_list');
+  const found = (await list.execute('search', { query: 'report region totals' })).structuredContent;
+  assert.equal(found.entries[0]?.title, 'Validate region report');
+  const chinese = (await list.execute('zh', { query: '地区报表总数' })).structuredContent;
+  assert.equal(chinese.entries[0]?.title, '中文报表检查');
+  runtime.beginTurn('report region totals');
+  const context = runtime.context();
+  assert(context.includes('Validate region report'));
+  assert(!context.includes('Plant care'));
+  assert(!context.includes('Check region labels'));
+});
 
 test('missing receipts and launch-only receipts cannot certify downstream completion', async t => {
   const directory = await fixture(t)
