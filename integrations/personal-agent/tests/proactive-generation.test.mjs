@@ -3,7 +3,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ProactiveWatch, validateOwnerConfig } from '../src/proactive.mjs'
 import { generationKey, timeWindow } from '../src/proactive-lifecycle.mjs'
-import { generationInstructions, validateGeneratedBatch, generatedFormatCorrection, modelInput } from '../src/proactive-generation.mjs'
+import { validateGeneratedBatch, modelInput } from '../src/proactive-generation.mjs'
+import { generationSystemPrompt, openuiFormatCorrection, parseSuggestionDocument } from '../src/openui-contract.mjs'
+import { proposalStateStore } from '../src/proactive-state.mjs'
+import { mkdtemp, realpath, rm } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 
 const stamp = '2026-10-02T10:00:00.000Z'
 const approved = { id: 'inspect', label: 'Inspect the pending item.', tool: 'memory_update', params: { category: 'note', value: 'Inspect pending item' } }
@@ -34,6 +39,32 @@ test('generator emits multiple candidates; Jev chooses a probability-ordered sub
   assert.deepEqual(p.map(p => p.advice), ['检查物品数量。', '领取待取物品。'])
   assert(p.every(p => p.action?.tool === 'memory_update' && p.confirmation && p.nextStep && !Object.hasOwn(p, 'reason')))
   assert.equal(f.frames.at(-1).popup, true)
+})
+
+test('OpenUI details are judged and survive a checkpoint restart', async t => {
+  const directory = await realpath(await mkdtemp(join(tmpdir(), 'odk-openui-checkpoint-')))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const store = proposalStateStore(join(directory, 'state.json'))
+  let judged
+  const f = fixture({ loadState: store.load, saveState: store.save, judge: async ({ candidates: [candidate] }) => {
+    judged = candidate
+    return { model: 'jev-fixture', answers: { [candidate.id]: { probability: 0.9, threshold: 0.8, groundingProbability: 0.9 } } }
+  } })
+  const raw = parseSuggestionDocument([
+    'root = Suggestions([s])',
+    's = Suggestion([a, r, b],"deliveries","count",["e1"])',
+    'a = Advice("有物品待领取。")',
+    'r = Reading("待取数量","2")',
+    'b = ApprovedAction("inspect")',
+  ].join('\n'))
+  f.raw(raw)
+  await f.watch.tick()
+  assert.deepEqual(judged.uiText, ['待取数量', '2'])
+  assert.equal(f.frames.at(-1).proposals.length, 1, f.frames.at(-1).error)
+  assert.deepEqual(f.frames.at(-1).proposals[0].ui, raw.suggestions[0].ui)
+  const restored = fixture({ loadState: store.load })
+  assert.deepEqual(restored.watch.list()[0].ui, raw.suggestions[0].ui)
+  assert.equal(restored.watch.list()[0].action.tool, approved.tool)
 })
 
 test('all candidates may be rejected and an empty generated batch is valid', async () => {
@@ -296,7 +327,7 @@ test('ordinary generated advice selects a supplied action identifier and rejects
     { ...candidate, advice: '查'.repeat(401) }, { ...candidate, advice: `Inspect SHA256 ${hash}` }]) {
     assert.throws(() => validateGeneratedBatch({ suggestions: [invalid] }, topics, 1), /Invalid generated suggestion/)
   }
-  assert.match(generationInstructions, /actionId/); assert.doesNotMatch(generationInstructions, /"reason"/)
+  assert.match(generationSystemPrompt, /actionId/); assert.doesNotMatch(generationSystemPrompt, /"reason"/)
 })
 
 test('a legacy generation cache cannot suppress generation of the required next step', async () => {
@@ -311,28 +342,12 @@ test('a legacy generation cache cannot suppress generation of the required next 
 })
 
 
-test('suggestion schema correction identifies missing advice without disclosing private model errors', () => {
+test('an ordinary or Intent candidate still requires advice at the host boundary', () => {
   for (const intentPreview of [false, true]) {
     const topic = { id: 'topic-id', intentPreview, actions: [{ id: 'inspect', label: 'Inspect the current observation.' }], evidence: [{ id: 'e0' }] }
-    const candidate = { topicId: topic.id, key: 'stable-key', evidenceIds: ['e0'], ...(intentPreview ? { nextStep: 'Inspect the returned places.' } : { actionId: 'inspect' }) }
-    let error
-    try { validateGeneratedBatch({ suggestions: [candidate] }, [topic], 1) } catch (caught) { error = caught }
-    assert.equal(error?.code, 'advice_required')
-    error.message = 'PRIVATE_MODEL_RESPONSE'
-    const correction = generatedFormatCorrection(error)
-    assert.match(correction, /Missing required field "advice"/)
-    assert.doesNotMatch(correction, /PRIVATE_MODEL_RESPONSE/)
-    assert.equal(Object.hasOwn(candidate, 'advice'), false)
-  }
-  for (const error of [new SyntaxError('PRIVATE_MODEL_RESPONSE'), Object.assign(Error('PRIVATE_MODEL_RESPONSE'), { code: 'advice_required' })]) {
-    const correction = generatedFormatCorrection(error)
-    assert.doesNotMatch(correction, /PRIVATE_MODEL_RESPONSE|Missing required field/)
-    for (const label of ['Ordinary example: ', 'Intent preview example: ']) {
-      const example = JSON.parse(correction.split('\n').find(line => line.startsWith(label)).slice(label.length))
-      const candidate = example.suggestions[0]
-      assert.equal(typeof candidate.advice, 'string')
-      assert.deepEqual(Object.keys(candidate).sort(), ['topicId', 'key', 'advice', label.startsWith('Intent') ? 'nextStep' : 'actionId', 'evidenceIds'].sort())
-    }
+    const candidate = { topicId: topic.id, key: 'stable-key', evidenceIds: ['e0'],
+      ...(intentPreview ? { nextStep: 'Inspect the returned places.' } : { actionId: 'inspect' }) }
+    assert.throws(() => validateGeneratedBatch({ suggestions: [candidate] }, [topic], 1), { code: 'advice_required' })
   }
 })
 
@@ -364,21 +379,10 @@ test('a batch judgment with several candidates is not split into solo judgments'
   assert.deepEqual(calls.judge, [3], 'the whole batch is judged in one request')
 })
 
-test('the format correction reuses the contract instead of repeating it', () => {
-  const correction = generatedFormatCorrection(new SyntaxError('bad json'))
-  // The system prompt already carries the full contract. A retry only needs the
-  // failure, the schema skeleton and the two examples.
-  assert.ok(correction.length < 900, `correction is ${correction.length} chars; the contract must not be repeated`)
-  assert.doesNotMatch(correction, /one short, natural sentence/)
-  assert.doesNotMatch(correction, /The advice and the preview must complement each other/)
-  assert.doesNotMatch(correction, /Use proactive_judge at most once/)
-  for (const label of ['Ordinary example: ', 'Intent preview example: ']) {
-    const line = correction.split('\n').find(row => row.startsWith(label))
-    assert.ok(line, label)
-    assert.ok(JSON.parse(line.slice(label.length)).suggestions[0].advice)
-  }
-  assert.match(generationInstructions, /one short, natural sentence/)
-  assert.match(generationInstructions, /The advice and the preview must complement each other/)
+test('the OpenUI correction points back to the contract without echoing private errors', () => {
+  const correction = openuiFormatCorrection(new SyntaxError('PRIVATE_MODEL_RESPONSE'))
+  assert.match(correction, /Follow the component signatures and host rules/)
+  assert.doesNotMatch(correction, /PRIVATE_MODEL_RESPONSE|Use proactive_judge at most once/)
 })
 
 test('model input carries each fact once and omits host bookkeeping', () => {
@@ -406,11 +410,9 @@ test('model input carries each fact once and omits host bookkeeping', () => {
 })
 
 test('the system contract leads with concise advice while remaining complete', () => {
-  for (const instructions of [generationInstructions]) {
-    assert.match(instructions, /one short, natural sentence/)
-    assert.match(instructions, /The advice and the preview must complement each other/)
-    assert.match(instructions, /cited observation/)
-  }
+  assert.match(generationSystemPrompt, /Advice is one short sentence/)
+  assert.match(generationSystemPrompt, /Do not copy the entire advice sentence/)
+  assert.match(generationSystemPrompt, /cited observation/)
   const topics = [{ id: 'deliveries', actions: [approved], evidence: [{ id: 'e0' }] }]
   const retained = suggestion('retained', '查'.repeat(400))
   assert.equal(validateGeneratedBatch({ suggestions: [retained] }, topics, 1)[0].advice, retained.advice)

@@ -193,6 +193,7 @@ async function main() {
         },
         transcribe: (path, signal) => transcribe(path, runtime.stt, signal),
         prompt: (text, onResponseSnapshot, reply, owner) => runtime.agent.prompt(text, onResponseSnapshot, reply, owner),
+        projectReply: (answer, signal) => runtime.agent.projectReply(answer, signal),
       })
       service.setState('error', 'Configure Open DeskOS workspace, STT credential and Pi authentication; restart service')
       const originalToggle = service.toggle.bind(service)

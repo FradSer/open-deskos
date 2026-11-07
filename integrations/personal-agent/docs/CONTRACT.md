@@ -477,6 +477,14 @@ Closing a session releases its views, Harness, storage lease, sandbox, and owned
 Normal isolated generation awaits Harness disposal.
 Timeout and cancellation retain their response deadline while cleanup failures remain observed.
 
+### Completed reply presentation
+
+The resident keeps the original reply text in status and conversation history within the existing limits.
+An optional model turn can supply a short lead and read-only OpenUI content.
+The resident checks the tree, its size, and numeric values before it sends the lead and content together.
+The Shell shows the original text if the optional presentation is unavailable.
+A reply to a task keeps its answer or its host delivery receipt.
+
 <a id="hosted-pi"></a>
 
 ## Hosted Pi setup
@@ -710,9 +718,13 @@ The host binds `nextStep` to the approved action label and retains its exact too
 Advice has at most 400 UTF-16 code units. Action labels have at most 240 UTF-16 code units.
 Trusted Intent preview topics retain their separate read-only `nextStep` format and existing endpoint selection flow.
 Next-step validation rejects control characters, including line breaks, tabs, and DEL, across generation, storage, and display hosts.
-The output contract is declared once in the generation system prompt. A format correction reports only the failure and the two examples; it does not repeat the contract.
+[openui-contract.mjs](../src/openui-contract.mjs) defines the OpenUI Lang output format for new suggestions.
+The host validates the parsed component tree and the visible readings before judgment.
+The Shell shows the generated content in one message bubble.
+It shows all alternative labels in a read-only list.
+The host supplies controls for approved actions.
 The model-visible input is a projection: host bookkeeping fields stay with the host, and a topic's shared observation state and measurement time appear once on the topic instead of on every row. Validation, investigation tools, and judgment keep the full input.
-A generic preview has at most three item pairs, showing only readings behind the advice. Unrelated observations, technical identifiers, and diagnostics stay in evidence.
+A stored generic preview has at most three item pairs. Unrelated observations, technical identifiers, and diagnostics stay in evidence.
 Generation does not request or accept a `reason` field.
 Keep hashes, technical identifiers, tool parameters, and diagnostic values in evidence, outside advice and the next step.
 Advice and next-step validation reject SHA256 labels and hexadecimal values with 32 or more characters.

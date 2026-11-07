@@ -683,3 +683,16 @@ Feature: Owner controlled proactive Personal Agent proposals
     And the completed action, receipt, handled occurrence, and owner configuration stay unchanged
     And repeated feedback does not repeat learning or execute the action
     And failed learning can retry without reopening the completed action
+
+  Scenario: OpenUI generation carries grounded details with the proposal
+    Given an owner rule supplies observations and approved actions
+    When the resident model returns a valid OpenUI document
+    Then the host binds the action to the approved action ID
+    And the host judges the visible card text against the observations
+    And the proposal retains the component tree after restart
+
+  Scenario: A malformed OpenUI document receives one correction
+    Given an OpenUI suggestion omits its advice
+    When the resident parses the generated document
+    Then the resident requests one correction with the original observations
+    And it does not publish a suggestion if the correction still omits advice

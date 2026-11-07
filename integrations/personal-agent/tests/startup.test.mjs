@@ -112,6 +112,21 @@ test('main prompt wiring forwards the live snapshot callback, bound reply and ho
   assert.deepEqual(received, ['request', snapshot, undefined, undefined])
 })
 
+test('main wiring forwards reply presentation and cancellation separately', async () => {
+  const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
+  const wiring = source.match(/projectReply:\s*([^\n]+),\n/)
+  assert.ok(wiring)
+  const signal = new AbortController().signal
+  const presentation = { text: 'Short reply' }
+  const runtime = { agent: { projectReply: (reply, cancellation) => {
+    assert.equal(reply, 'Original reply')
+    assert.equal(cancellation, signal)
+    return Promise.resolve(presentation)
+  } } }
+  const projectReply = Function('runtime', `return (${wiring[1]})`)(runtime)
+  assert.equal(await projectReply('Original reply', signal), presentation)
+})
+
 test('unconfigured resident stays reachable and reports configuration error', residentRole, async t => {
   assert.equal((await startupStatus(t)).state, 'error')
 })

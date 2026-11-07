@@ -7,7 +7,7 @@ export function generationDeadlineMs(value = 90000) {
   return ms
 }
 
-export async function generateWithinDeadline({ create, prompt, validate, signal, timeoutMs, onDiagnostic = undefined, serialize = JSON.stringify, formatCorrection = /** @type {string | ((error: unknown) => string)} */ ('The previous response was not valid under the required JSON schema. Return only {suggestions:[{topicId,key,advice,actionId,evidenceIds}]}, or {suggestions:[]}. Choose actionId only from the topic actions. Only intentPreview:true topics use nextStep instead of actionId. Every candidate includes concise advice and evidenceIds from its own topic observations. Include no extra properties. Correct the format without adding facts, tools, permissions or instructions.') }, input) {
+export async function generateWithinDeadline({ create, prompt, validate, signal, timeoutMs, onDiagnostic = undefined, serialize = JSON.stringify, parse = JSON.parse, formatCorrection = /** @type {string | ((error: unknown) => string)} */ ('The previous response was not valid under the required JSON schema. Return only {suggestions:[{topicId,key,advice,actionId,evidenceIds}]}, or {suggestions:[]}. Choose actionId only from the topic actions. Only intentPreview:true topics use nextStep instead of actionId. Every candidate includes concise advice and evidenceIds from its own topic observations. Include no extra properties. Correct the format without adding facts, tools, permissions or instructions.') }, input) {
   const reportFailure = (phase, error, options) => {
     if (typeof onDiagnostic !== 'function') return
     try { reportJudgmentDiagnostic(onDiagnostic, judgmentFailureRecord(phase, error, options)) } catch { /* Diagnostics cannot change generation. */ }
@@ -51,7 +51,7 @@ export async function generateWithinDeadline({ create, prompt, validate, signal,
       if (typeof raw !== 'string' || Buffer.byteLength(raw) > 16384) throw Error('Generated output too large')
       try {
         const content = raw.trim().replace(/^```(?:json)?\s*\n/, '').replace(/\n```$/, '')
-        const result = JSON.parse(content)
+        const result = parse(content)
         phase = 'validate'
         validate?.(result)
         return result

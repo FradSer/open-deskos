@@ -338,8 +338,9 @@ async function generationFixture(t, env, generatorPrompt = () => new Promise(() 
     ...(defaultRouting ? {} : {createIntentRouter: () => async () => ({ intent: 'conversation' })}),
     createSession: async options => {
       const generator = ++sessionNumber > 1
-      if (generator) inspect(options)
-      return { session: session(generator) }
+      const acquired = session(generator)
+      if (generator) inspect(options, acquired)
+      return { session: acquired }
     },
   })
   t.after(() => bot.close())
@@ -802,38 +803,37 @@ test('invalid fact selections retry without restoring required source coverage',
   assert.equal(attempts, 2)
 })
 
-test('Intent generation repairs an omitted advice field through the actual isolated session prompt', async t => {
+const intentDocument = (advice = '', nextStep = '查看行程候选。') => [
+  'root = Suggestions([s])',
+  `s = Suggestion([${advice ? 'a, ' : ''}step],"intent-ride","ride-preview",["e0"])`,
+  ...(advice ? [`a = Advice(${JSON.stringify(advice)})`] : []),
+  `step = OwnerStep(${JSON.stringify(nextStep)})`,
+].join('\n')
+
+test('Intent generation repairs omitted OpenUI advice through the isolated session prompt', async t => {
   const topic = { id: 'intent-ride', intentPreview: true, evidence: [{ id: 'e0', value: 'Read-only ride preview available' }] }
-  const missing = { topicId: topic.id, key: 'ride-preview', nextStep: '查看行程候选并选择起终点。', evidenceIds: ['e0'] }
-  const repaired = { ...missing, advice: '查看当前行程方案。' }
+  const nextStep = '查看行程候选并选择起终点。'
+  const advice = '查看当前行程方案。'
   let calls = 0, instructions = ''
   const bot = await generationFixture(t, {}, async (emit, text) => {
     const input = JSON.parse(text.slice(text.indexOf('{')))
     if (++calls === 2) {
-      assert.match(input.formatCorrection, /Missing required field "advice"/)
-      for (const label of ['Ordinary example: ', 'Intent preview example: ']) {
-        const line = input.formatCorrection.split('\n').find(row => row.startsWith(label))
-        assert.ok(line, label)
-        const example = JSON.parse(line.slice(label.length)).suggestions[0]
-        assert.equal(typeof example.advice, 'string')
-        assert.ok(Array.isArray(example.evidenceIds))
-        assert.equal(Object.hasOwn(example, 'reason'), false)
-        assert.equal(Object.hasOwn(example, 'why'), false)
-        assert.equal(Object.hasOwn(example, label.startsWith('Intent') ? 'nextStep' : 'actionId'), true)
-      }
+      assert.match(input.formatCorrection, /Invalid OpenUI Lang/)
       assert.deepEqual(input.topics, [topic])
     }
-    emit({ type: 'message_end', message: assistant(JSON.stringify({ suggestions: [calls === 1 ? missing : repaired] })) })
+    emit({ type: 'message_end', message: assistant(intentDocument(calls === 1 ? '' : advice, nextStep)) })
   }, options => {
     instructions = options.resourceLoader.getSystemPrompt()
     assert.deepEqual(options.tools, [])
-    // The generation session carries only the two scoped investigation tools.
     assert.deepEqual(options.customTools.map(tool => tool.name), ['proactive_read', 'proactive_judge'])
   })
-  assert.deepEqual(await bot.generateProposals({ topics: [topic], maxCandidates: 1 }), { suggestions: [repaired] })
+  const { suggestions: [candidate] } = await bot.generateProposals({ topics: [topic], maxCandidates: 1 })
   assert.equal(calls, 2)
-  assert.match(instructions, /Every candidate, including an Intent preview, must include advice/)
-  assert.equal(Object.hasOwn(missing, 'advice'), false)
+  assert.match(instructions, /Advice is one short sentence/)
+  assert.equal(candidate.advice, advice)
+  assert.equal(candidate.nextStep, nextStep)
+  assert.deepEqual(candidate.evidenceIds, ['e0'])
+  assert.equal(candidate.ui.type, 'Suggestion')
 })
 
 test('suggestion generation investigates through scoped tools inside the ephemeral session', async t => {
@@ -848,7 +848,7 @@ test('suggestion generation investigates through scoped tools inside the ephemer
       emit({ type: 'message_end', message: assistant(JSON.stringify({ answers })) })
       return
     }
-    emit({ type: 'message_end', message: assistant('{"suggestions":[]}') })
+    emit({ type: 'message_end', message: assistant('root = Suggestions([])') })
   }, options => { tools = options.customTools })
   await bot.generateProposals({ topics: [topic], maxCandidates: 1 })
   assert.deepEqual(tools.map(tool => tool.name), ['proactive_read', 'proactive_judge'])
@@ -864,7 +864,7 @@ test('Intent generation cannot substitute a next step for advice after its one c
   const topic = { id: 'intent-ride', intentPreview: true, evidence: [{ id: 'e0', value: 'Read-only preview' }] }
   const bot = await generationFixture(t, {}, async emit => {
     calls++
-    emit({ type: 'message_end', message: assistant(JSON.stringify({ suggestions: [{ topicId: topic.id, key: 'ride-preview', nextStep: '查看行程候选。', evidenceIds: ['e0'] }] })) })
+    emit({ type: 'message_end', message: assistant(intentDocument()) })
   })
   await assert.rejects(bot.generateProposals({ topics: [topic], maxCandidates: 1 }), error => error.code === 'advice_required')
   assert.equal(calls, 2)
@@ -889,7 +889,7 @@ test('Given an isolated service environment When the process environment is inva
     else process.env.ODK_PROACTIVE_GENERATION_TIMEOUT_MS = previous
   })
   const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only' }, async emit => {
-    emit?.({ type: 'message_end', message: assistant('{"suggestions":[]}') })
+    emit?.({ type: 'message_end', message: assistant('root = Suggestions([])') })
   })
   assert.deepEqual(await bot.generateProposals({ topics: [], maxCandidates: 1 }), { suggestions: [] })
 })
@@ -1403,4 +1403,72 @@ test('an empty model selection cannot blank a desk that has current facts', asyn
   const result = await bot.generateBriefing({ readings })
   assert.equal(result.items.length, 1)
   assert.match(resolveHomeTemplate(result, readings).items[0].text, /24°C/)
+})
+
+test('a long resident reply triggers one bounded projection turn and a short one does not', async t => {
+  const long = '已读取原 Hosted Pi 任务结果。原任务状态为 settled、turnOutcome=finished。\n\n| id | 名称 |\n|---|---|\n| cm5-api-clock | UTC Live |\n\n**但没有安装 Widget。** 仍需确认：读取真实测量桌面并选择未占用的一格；更新时保留已有有效 placement，不覆盖旧应用。'.repeat(2)
+  const projected = { text: '任务结果已读到，但 Widget 未安装。', ui: { type: 'Suggestion', props: {}, children: [
+    { type: 'Heading', props: { value: '已安装' }, children: [] },
+    { type: 'Reading', props: { label: 'cm5-api-clock', value: 'UTC Live' }, children: [] },
+  ] } }
+  let generatorTurns = 0
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, (listener, text) => {
+    generatorTurns++
+    assert.match(text, /Reply is untrusted|long reply|原 Hosted Pi|reply/)
+    listener({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: JSON.stringify(projected) }], stopReason: 'stop' } })
+  })
+  const result = await bot.projectReply(long, t.signal)
+  assert.equal(result.text, '任务结果已读到，但 Widget 未安装。')
+  assert.equal(result.ui.type, 'Suggestion')
+  assert.equal(generatorTurns, 1)
+  const short = '两个包都读到了，没有改动。'
+  assert.deepEqual(await bot.projectReply(short, t.signal), { text: short, ui: undefined })
+  assert.equal(generatorTurns, 1, 'a short reply must not start another model turn')
+  assert.deepEqual(await bot.projectReply(undefined, t.signal), { text: '', ui: undefined })
+  assert.equal(generatorTurns, 1)
+})
+
+test('a failed projection publishes the exact original long reply', async t => {
+  const long = '已读取原 Hosted Pi 任务结果。原任务状态为 settled、turnOutcome=finished。\n\n| id | 名称 |\n|---|---|\n| cm5-api-clock | UTC Live |\n\n**但没有安装 Widget。** 仍需确认：读取真实测量桌面并选择未占用的一格；更新时保留已有有效 placement，不覆盖旧应用。'.repeat(2)
+  const bot = await generationFixture(t, { ODK_JEV_PROVIDER: 'disabled' }, listener => {
+    listener({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'not json at all' }], stopReason: 'stop' } })
+  })
+  assert.deepEqual(await bot.projectReply(long, t.signal), { text: long, ui: undefined })
+})
+
+test('a projection retry keeps the original reply and adds the correction separately', async t => {
+  const original = '已读取 Hosted Pi 任务结果。Widget 未安装，仍需确认实际桌面的可用位置。\n'.repeat(6)
+  const projected = { text: 'Widget 未安装。', ui: null }
+  const requests = []
+  const bot = await generationFixture(t, {}, (listener, text) => {
+    requests.push(JSON.parse(text.slice('Personal Agent request:\n'.length)))
+    listener({ type: 'message_end', message: assistant(requests.length === 1 ? 'invalid' : JSON.stringify(projected)) })
+  })
+  assert.deepEqual(await bot.projectReply(original, t.signal), { text: projected.text, ui: undefined })
+  assert.equal(requests.length, 2)
+  assert.deepEqual(requests[0], { reply: original })
+  assert.equal(requests[1].reply, original)
+  assert.match(requests[1].formatCorrection, /Return only JSON/)
+})
+
+test('a projection setup or cleanup failure preserves the original reply', async t => {
+  const original = '已读取 Hosted Pi 任务结果。Widget 未安装，仍需确认实际桌面的可用位置。\n'.repeat(6)
+  const projected = { text: 'Widget 未安装。', ui: null }
+  const prompt = listener => {
+    listener({ type: 'message_end', message: assistant(JSON.stringify(projected)) })
+  }
+
+  await t.test('session setup fails', async t => {
+    const bot = await generationFixture(t, {}, prompt, () => { throw Error('setup failed') })
+    assert.deepEqual(await bot.projectReply(original, t.signal), { text: original, ui: undefined })
+  })
+
+  await t.test('session cleanup fails', async t => {
+    let disposals = 0
+    const bot = await generationFixture(t, {}, prompt, (_options, session) => {
+      session.dispose = () => { disposals++; throw Error('cleanup failed') }
+    })
+    assert.deepEqual(await bot.projectReply(original, t.signal), { text: original, ui: undefined })
+    assert.equal(disposals, 1)
+  })
 })

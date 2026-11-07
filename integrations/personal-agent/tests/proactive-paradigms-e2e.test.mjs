@@ -5,7 +5,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ProactiveWatch } from '../src/proactive.mjs'
 import { createJevJudge } from '../src/proactive-jev.mjs'
-import { generationInstructions, validateGeneratedBatch } from '../src/proactive-generation.mjs'
+import { validateGeneratedBatch } from '../src/proactive-generation.mjs'
+import { generationSystemPrompt } from '../src/openui-contract.mjs'
 
 const stamp = '2026-11-01T09:40:00.000Z'
 const action = { id: 'open', label: 'Open the plan', tool: 'memory_update', params: { category: 'note', value: 'opened' } }
@@ -148,19 +149,12 @@ const deterministic = () => createJevJudge({
   })
 })
 
-test('the generator instructions teach the preview shape', () => {
-  assert.match(generationInstructions, /preview object/)
-  assert.match(generationInstructions, /preview\.items is 1-3/)
-  assert.match(generationInstructions, /Every value is copied from a cited observation/)
-  assert.match(generationInstructions, /Prefer a difference that the observations already measure/)
-  assert.match(generationInstructions, /The advice and the preview must complement each other/)
-  assert.match(generationInstructions, /equal values for genuinely different facts are valid/)
-  assert.match(generationInstructions, /Use proactive_judge at most once/i)
-  assert.doesNotMatch(generationInstructions, /complementarityProbability/)
-  assert.match(generationInstructions, /host independently judges every returned candidate/i)
-  assert.match(generationInstructions, /"warn"/)
-  assert.match(generationInstructions, /"good"/)
-  assert.match(generationInstructions, /neutral/)
+test('the generator contract composes shared details under host judgment', () => {
+  assert.match(generationSystemPrompt, /Compose the card freely from the shared primitives/)
+  assert.match(generationSystemPrompt, /a value of a cited observation/)
+  assert.match(generationSystemPrompt, /Prefer a difference the observations already measure/)
+  assert.match(generationSystemPrompt, /Use proactive_judge at most once/i)
+  assert.match(generationSystemPrompt, /host independently judges every returned candidate/i)
 })
 
 test('advice reads as natural content and never repeats the action label', () => {
@@ -173,16 +167,12 @@ test('advice reads as natural content and never repeats the action label', () =>
   assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, advice: '通勤变慢了，请打开计划。' }] }, topics, 8), /action label/i)
   // The instructions must not ask the model to write the action into advice,
   // and must ask for spoken language and plain labels instead of report copy.
-  assert.doesNotMatch(generationInstructions, /stating the meaning and the action/)
-  assert.match(generationInstructions, /do not (?:restate|repeat) the action label/i)
-  assert.match(generationInstructions, /plain spoken language/)
-  assert.match(generationInstructions, /without bracketed units/)
+  assert.doesNotMatch(generationSystemPrompt, /stating the meaning and the action/)
+  assert.match(generationSystemPrompt, /do not (?:restate|repeat) the approved action label/i)
+  assert.match(generationSystemPrompt, /plain spoken language/)
 })
 
-test('the preview contract carries only the readings behind the advice', () => {
-  assert.match(generationInstructions, /at most three/i)
-  assert.match(generationInstructions, /Do not list every observation/i)
-  assert.match(generationInstructions, /1-3 \{label,value,tone\}/)
+test('the legacy preview contract keeps its existing reading limit', () => {
   const topics = [{ id: 't', actions: [{ id: 'a', label: 'Open' }], evidence: [{ id: 'e0', readingId: 'r', field: 'x', value: 1 }] }]
   const base = { topicId: 't', key: 'k', advice: '路线比平时慢。', actionId: 'a', evidenceIds: ['e0'] }
   const four = { items: [1, 2, 3, 4].map(n => ({ label: `读数${n}`, value: String(n) })) }
@@ -191,23 +181,11 @@ test('the preview contract carries only the readings behind the advice', () => {
   assert.equal(validateGeneratedBatch({ suggestions: [{ ...base, preview: three }] }, topics, 8).length, 1)
 })
 
-test('preview instructions drop report headings and redundant labels', () => {
-  assert.match(generationInstructions, /Omit preview\.summary when the item labels already say what the readings are/i)
-  assert.match(generationInstructions, /no report heading, no restatement of advice/i)
-  assert.match(generationInstructions, /without redundant qualifiers/i)
-})
-
-test('generation instructions forbid consequences the observations do not state', () => {
-  assert.match(generationInstructions, /Do not add a consequence, risk, likelihood, outcome/i)
-  assert.match(generationInstructions, /State only the observed change/i)
-  assert.match(generationInstructions, /second clause that restates the same fact/i)
-})
-
-test('generation instructions keep every topic and forbid in-process shortlisting', () => {
-  assert.match(generationInstructions, /return one suggestion for each topic/i)
-  assert.match(generationInstructions, /Do not pick a single best topic or drop a topic/i)
-  assert.match(generationInstructions, /Use proactive_judge at most once/i)
-  assert.doesNotMatch(generationInstructions, /revise or drop weak ones/i)
+test('OpenUI instructions keep facts grounded and forbid in-process shortlisting', () => {
+  assert.match(generationSystemPrompt, /Do not add a consequence, risk, likelihood or outcome/i)
+  assert.match(generationSystemPrompt, /Do not copy the entire advice sentence/i)
+  assert.match(generationSystemPrompt, /Consider each topic independently/i)
+  assert.match(generationSystemPrompt, /Do not shortlist topics by judgment scores/i)
 })
 
 test('the validator accepts each paradigm preview and rejects a fabricated shape', () => {

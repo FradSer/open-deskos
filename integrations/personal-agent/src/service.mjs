@@ -18,7 +18,8 @@ function boundedText(text, limit, label) {
 }
 
 /** @typedef {{stop: () => Promise<string>, cleanup: () => Promise<void>, done: Promise<void>}} Recording */
-/** @typedef {{record: (onLevel: (level: number) => void) => Promise<Recording>, transcribe: (path: string, signal: AbortSignal) => Promise<string>, prompt: (text: string, onResponseSnapshot: (snapshot: string) => void, reply?: import('./session-replies.mjs').BoundSessionReply, owner?: import('./session-replies.mjs').OwnerTurn) => Promise<string | void>, failureMessage?: string, getJudgmentStatus?: () => {status: string, provider: string, model?: string} | undefined, checkJev?: (signal: AbortSignal) => Promise<{status: string, reason?: string}>}} Dependencies */
+/** @typedef {{text: string, ui?: object}} ReplyPresentation */
+/** @typedef {{record: (onLevel: (level: number) => void) => Promise<Recording>, transcribe: (path: string, signal: AbortSignal) => Promise<string>, prompt: (text: string, onResponseSnapshot: (snapshot: string) => void, reply?: import('./session-replies.mjs').BoundSessionReply, owner?: import('./session-replies.mjs').OwnerTurn) => Promise<string | void>, projectReply?: (answer: string, signal: AbortSignal) => Promise<ReplyPresentation>, failureMessage?: string, getJudgmentStatus?: () => {status: string, provider: string, model?: string} | undefined, checkJev?: (signal: AbortSignal) => Promise<{status: string, reason?: string}>}} Dependencies */
 
 export class PersonalAgentService {
   /** @param {Dependencies} dependencies */
@@ -172,10 +173,10 @@ export class PersonalAgentService {
   notify(message) {
     if (this.closed) return
     this.pendingNotifications.push({ id: randomUUID(), message: boundedText(message, 4096, 'Ride update') })
-    if (!this.starting && ['idle', 'error'].includes(this.status.state)) this.setState(this.status.state, this.status.message, this.status.transcript, this.status.voiceFailure)
+    if (!this.starting && ['idle', 'error'].includes(this.status.state)) this.setState(this.status.state, this.status.message, this.status.transcript, this.status.voiceFailure, this.status.replyPresentation)
   }
 
-  setState(state, message = '', transcript = this.status.transcript, voiceFailure = undefined) {
+  setState(state, message = '', transcript = this.status.transcript, voiceFailure = undefined, replyPresentation = undefined) {
     const limit = this.proposalFrame.proposals.length ? 8192 : 16384
     const reply = boundedText(message, limit, 'Response')
     const notifications = !this.starting && ['idle', 'error'].includes(state) ? this.pendingNotifications.splice(0) : []
@@ -183,6 +184,7 @@ export class PersonalAgentService {
     this.status = {
       ...(judgment ? {judgment} : {}), proposalCapabilities: { read: Boolean(this.watch), respond: Boolean(this.watch), acknowledge: Boolean(this.watch) }, ...this.proposalFrame, ...this.replyFrame, ...(this.jev ? { jev: this.jev } : {}), agents: this.agentFrame, ...(this.remoteFrame ? { remote: this.remoteFrame } : {}), ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), replyInput: true, textInput: true, v: 1, type: 'status', state, level: 0, ...(state === 'recording' ? {cancelInput:true} : {}),
       message: reply, ...(state === 'error' && ['microphone','timeout','unavailable','protocol','invalid_audio','cleanup'].includes(voiceFailure) ? {voiceFailure} : {}), ...(notifications.length ? { notifications } : {}),
+      ...(state === 'idle' && replyPresentation ? { replyPresentation } : {}),
       transcript: boundedText(transcript, 4096, 'Transcript'),
     }
     for (const listener of this.listeners) listener(this.status)
@@ -317,8 +319,8 @@ export class PersonalAgentService {
     } finally {
       if (!await this.discard()) failure = this.dependencies.failureMessage || 'Personal Agent request failed; try again'
       if (!this.closed) {
-        this.setState(failure ? 'error' : 'idle', failure || response)
-        if (!failure) this.watch?.interact()
+        if (failure) this.setState('error', failure)
+        else await this.publishReply(response, reply)
       }
     }
   }
@@ -349,7 +351,7 @@ export class PersonalAgentService {
     try {
       const response = await this.promptResponse(text,reply,this.ownerContext(ownerTurnId,bound=>{reply=bound},applications))
       if(reply)this.remote?.completeReply(reply.id,{status:'answered',answer:boundedText(response,4000,'Response')})
-      if (!this.closed) { this.setState('idle', response); this.watch?.interact() }
+      await this.publishReply(response, reply)
     } catch {
       let failure=reply?'Reply did not complete. Check its delivery receipt before sending again.':this.dependencies.failureMessage || 'Personal Agent request failed; try again'
       if(reply)try{this.remote?.completeReply(reply.id,{status:'failed'})}catch{failure=replyPersistenceFailure}
@@ -357,6 +359,18 @@ export class PersonalAgentService {
     } finally {
       this.watch?.setBusy(false)
     }
+  }
+
+  async publishReply(response, boundReply) {
+    if (this.closed) return
+    let presentation
+    if (response && !boundReply && this.dependencies.projectReply) {
+      try { presentation = await this.dependencies.projectReply(response, this.controller.signal) }
+      catch { /* The completed answer is independent of its optional presentation. */ }
+    }
+    if (this.closed) return
+    this.setState('idle', response, this.status.transcript, undefined, presentation?.ui ? presentation : undefined)
+    this.watch?.interact()
   }
 
   async promptResponse(text, reply = undefined, owner = undefined) {
