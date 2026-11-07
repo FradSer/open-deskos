@@ -624,7 +624,6 @@
           body.append(details)
           if (detail) body.append(detail)
         }
-        bindRecommendationFooters(frame)
         updateReplyChoices()
         renderReplies()
         orderTimeline()
@@ -659,31 +658,6 @@
           wrapper.append(rendered, toggle)
         } else wrapper.append(rendered)
         return wrapper
-      }
-
-      // The host owns the session footer. It reuses the frame's remote source and
-      // sessionLabel() so Reply keeps its real replyTo target; the model never
-      // generates a source, timestamp, metadata or a control.
-      function bindRecommendationFooters(frame) {
-        const items = Array.isArray(frame?.messages) ? frame.messages : []
-        if (!items.length) return
-        for (const article of conversation.querySelectorAll('.agent-recommendation')) {
-          const body = article.querySelector('.agent-message-body')
-          if (!body || body.querySelector('.agent-recommendation-footer')) continue
-          // Bind one footer per recommendation using the frame's first remote
-          // source; the Reply reference stays that remote message, not the proposal.
-          const record = items.find(item => Array.isArray(item.sources) && item.sources.length === 1)
-          if (!record) continue
-          const recordKey = remoteKey(record)
-          const stored = remoteRecords.get(recordKey)
-          const source = stored?.sources?.[0] || record.sources[0]
-          const group = document.createElement('div')
-          group.className = 'agent-message-actions agent-update-sources agent-recommendation-footer'
-          group.setAttribute('role', 'group')
-          group.setAttribute('aria-label', 'Related tasks')
-          group.append(sessionLabel(source, stored || record, recordKey))
-          body.append(group)
-        }
       }
 
       function readinessCaption(value, judgment) {
@@ -740,12 +714,14 @@
         const reply = status.message
         if (!status.replyTo && !turn?.bound && !turn?.historyTerminal && reply && ['thinking', 'idle', 'error'].includes(status.state)) {
           if (!turn) turn = { prompt: '', response: message('assistant', '') }
-          root.odkPersonalAgentReply.render(turn.response, reply)
-          const body = turn.response
-          const existing = body.querySelector('.agent-remote-detail')
-          const detail = renderRemoteDetail({ ui: status.replyUi })
-          existing?.remove()
-          if (detail) body.append(detail)
+          const presentation = status.state === 'idle' ? status.replyPresentation : undefined
+          const presentationKey = presentation && JSON.stringify(presentation)
+          if (!presentationKey || turn.presentationKey !== presentationKey || !turn.response.querySelector('.agent-remote-detail')) {
+            const detail = presentation && renderRemoteDetail(presentation)
+            root.odkPersonalAgentReply.render(turn.response, detail ? presentation.text : reply)
+            if (detail) turn.response.append(detail)
+            turn.presentationKey = detail ? presentationKey : undefined
+          }
         }
         for (const notification of Array.isArray(status.notifications) ? status.notifications : []) {
           if (!notification || typeof notification.id !== 'string' || !notification.id || typeof notification.message !== 'string' || !notification.message || seenNotifications.has(notification.id)) continue

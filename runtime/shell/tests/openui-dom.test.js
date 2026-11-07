@@ -173,6 +173,30 @@ test('every composable OpenUI primitive produces a DOM node', () => {
   }
 })
 
+test('message alternatives render all labels as an inert list', () => {
+  const doc = makeDocument()
+  const ctx = contextFor(doc)
+  const tree = node('Suggestion', {}, [
+    node('OptionSet', { label: 'Travel options' }, [
+      leaf('Option', { label: 'Walk to the venue', value: 'walk' }),
+      leaf('Option', { label: 'Join online', value: 'online' }),
+    ]),
+    leaf('Option', { label: 'Choose later', value: 'defer' }),
+  ])
+  const message = api.renderOpenUI(tree, ctx)
+  const list = doc.created.find(element => element.tagName === 'UL')
+  assert.ok(list?.classList.contains('openui-option-set'))
+  assert.equal(list.getAttribute('aria-label'), 'Travel options')
+  assert.deepEqual(list.children.map(item => [item.tagName, item.textContent]), [
+    ['LI', 'Walk to the venue'],
+    ['LI', 'Join online'],
+  ])
+  assert.equal(message.children.at(-1).tagName, 'SPAN')
+  assert.equal(message.children.at(-1).textContent, 'Choose later')
+  assert.ok(!doc.created.some(element => ['SELECT', 'OPTION', 'BUTTON', 'INPUT'].includes(element.tagName)))
+  assert.ok(!doc.setAttributes.some(attribute => ['tabindex', 'value'].includes(attribute.name)))
+})
+
 test('unknown primitives render as plain text and are never dropped', () => {
   const doc = makeDocument()
   const ctx = contextFor(doc)
@@ -182,16 +206,17 @@ test('unknown primitives render as plain text and are never dropped', () => {
   assert.match(rendered.textContent, /KEEP_ME_MARKER/, 'the unknown node keeps its value as text')
   assert.match(rendered.textContent, /TotallyUnknownPrimitive/, 'the unknown type is named, not silently swallowed')
 
-  // Nested among known siblings, the unknown node survives recursion too.
+  // Unknown names can also match properties of Object.prototype.
   const tree = node('Stack', {}, [
     leaf('Text', { value: 'ALPHA_MARK' }),
-    leaf('TotallyUnknownPrimitive', { value: 'KEEP_ME_MARKER' }),
+    leaf('constructor', { value: 'CONSTRUCTOR_MARK' }),
+    leaf('__proto__', { value: 'PROTOTYPE_MARK' }),
     leaf('Text', { value: 'OMEGA_MARK' }),
   ])
   const root = api.renderOpenUI(tree, ctx)
   assert.ok(isNode(root))
-  assert.ok(root.children.length >= 3, `unknown sibling was dropped (${root.children.length} children)`)
-  for (const marker of ['ALPHA_MARK', 'KEEP_ME_MARKER', 'OMEGA_MARK'])
+  assert.equal(root.children.length, 4)
+  for (const marker of ['ALPHA_MARK', 'CONSTRUCTOR_MARK', 'PROTOTYPE_MARK', 'OMEGA_MARK'])
     assert.ok(root.textContent.includes(marker), `nested text ${marker} is missing`)
 })
 
@@ -231,7 +256,7 @@ test('all rendered text uses textContent, never innerHTML, inline style or a rem
   assert.ok(!doc.setAttributes.some(a => /^(src|href|style|on[a-z]+)$/i.test(a.name)), 'no src, style or inline handler attribute is set')
 })
 
-test('concentric shared-DOM primitive classes are applied', () => {
+test('shared DOM primitive classes are applied', () => {
   const doc = makeDocument()
   const tree = node('Suggestion', { topicId: 't', key: 'k', evidenceIds: ['e0'] }, [
     leaf('Heading', { value: 'Summary' }),
@@ -249,10 +274,10 @@ test('concentric shared-DOM primitive classes are applied', () => {
     'personal-agent-preview-chip',
     'personal-agent-preview-label',
     'personal-agent-preview-value',
-  ]) assert.ok(classes.has(name), `concentric primitive class ${name} must be applied`)
+  ]) assert.ok(classes.has(name), `shared primitive class ${name} must be applied`)
   const chip = doc.created.find(el => el.classList.contains('personal-agent-preview-chip'))
   assert.equal(chip.dataset.tone, 'warn', 'the tone is carried as data, not an invented class or inline style')
-  assert.deepEqual(doc.styleWrites, [], 'concentric geometry comes from CSS classes, not inline style')
+  assert.deepEqual(doc.styleWrites, [], 'layout comes from CSS classes, not inline style')
 })
 
 // Host authority: only the host binds approved actions and read-only owner steps.
@@ -270,12 +295,12 @@ test('host-bound ApprovedAction and OwnerStep never become renderer controls', (
   ])
   const root = api.renderOpenUI(tree, ctx)
   assert.ok(isNode(root), 'a tree with host-bound nodes still renders its card')
-  assert.ok(String(root.className).split(/\s+/).includes('personal-agent-preview-card'), 'the concentric card primitive class is applied')
+  assert.ok(String(root.className).split(/\s+/).includes('personal-agent-preview-card'), 'the shared detail container class is applied')
   assert.ok(!root.textContent.includes('CHANGED_MARK'), 'Advice is host-owned: the bubble already renders advice once')
   assert.ok(!doc.created.some(el => el.tagName === 'BUTTON'), 'the generic adapter invents no action button')
 })
 
-test('one suggestion tree renders exactly one card surface', () => {
+test('one suggestion tree renders one detail container', () => {
   const doc = makeDocument(), ctx = contextFor(doc)
   const tree = node('Suggestions', {}, [
     node('Suggestion', {}, [
@@ -286,7 +311,7 @@ test('one suggestion tree renders exactly one card surface', () => {
   const root = api.renderOpenUI(tree, ctx)
   assert.ok(isNode(root))
   const cards = doc.created.filter(el => String(el.className).split(/\s+/).includes('personal-agent-preview-card'))
-  assert.equal(cards.length, 1, 'a container must not nest another bordered card')
+  assert.equal(cards.length, 1, 'a suggestion uses one detail container')
   assert.ok(doc.created.some(el => String(el.className).includes('personal-agent-preview-chip')), 'the reading is still visible')
 })
 

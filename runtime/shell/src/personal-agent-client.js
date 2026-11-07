@@ -1,5 +1,5 @@
 const net = require('node:net')
-const { parseVoiceFailure } = require('./personal-agent-frame')
+const { parseReplyPresentation, parseVoiceFailure } = require('./personal-agent-frame')
 const { parseConversation } = require('./conversation-frame')
 const { parseReplyTo } = require('./personal-agent-reply-reference')
 const { randomUUID } = require('node:crypto')
@@ -192,8 +192,10 @@ function createPersonalAgentClient({ socketPath, env = process.env, platform = p
           && record.level >= 0 && record.level <= 1 ? record.level : 0
         const transcript = ['thinking', 'idle', 'error'].includes(record.state) && typeof record.transcript === 'string'
           ? record.transcript.slice(0, MAX_TRANSCRIPT_CHARACTERS) : ''
+        const replyPresentation = parseReplyPresentation(record)
         publish({
           state: record.state,
+          ...(replyPresentation ? { replyPresentation } : {}),
           ...(parseVoiceFailure(record) ? {voiceFailure:parseVoiceFailure(record)} : {}),
           textInput: record.textInput === true,
           cancelInput: record.cancelInput === true,

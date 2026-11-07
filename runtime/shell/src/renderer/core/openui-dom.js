@@ -12,10 +12,9 @@
     'suggestions', 'suggestion', 'advice', 'readings', 'reading', 'approvedaction', 'ownerstep',
     'heading', 'text', 'badge', 'metric', 'stack', 'row', 'optionset', 'option', 'divider',
   ])
-  const EXTRA_CLASSES = {
-    optionset: ['openui-option-set'],
-    chip: ['openui-badge'],
-  }
+  const EXTRA_CLASSES = new Map([
+    ['chip', ['openui-badge']],
+  ])
   const globalDocument = typeof document !== 'undefined' ? document : null
 
   function componentName(value) {
@@ -157,34 +156,39 @@
   }
 
   function makeOption(props, context) {
-    const option = createElement('option', context)
-    if (!option) return null
-    const label = textOf(props, ['label', 'text', 'name', 'value'])
-    const value = textOf(props, ['value', 'handle', 'id', 'label', 'text'])
-    option.textContent = label || value
-    try { option.value = value || label } catch { /* A host option stub may omit value. */ }
+    const option = createElement('span', context)
+    if (option) option.textContent = textOf(props, ['label', 'text', 'name', 'value'])
     return option
   }
 
-  function makeSelect(node, props, context, seen) {
-    const select = createElement('select', context)
-    if (!select) return null
-    setAttribute(select, 'aria-label', textOf(props, ['label', 'ariaLabel', 'name']) || 'Options')
+  function makeOptionList(node, props, context, seen) {
+    const group = createElement('div', context)
+    const list = createElement('ul', context)
+    if (!group || !list) return null
+    group.className = 'openui-options'
+    list.className = 'openui-option-set'
+    const label = textOf(props, ['label', 'ariaLabel', 'name'])
+    setAttribute(list, 'aria-label', label || 'Options')
+    if (label) {
+      const heading = createElement('span', context)
+      if (heading) {
+        heading.className = 'openui-options-label'
+        heading.textContent = label
+        append(group, heading)
+      }
+    }
     const options = Array.isArray(props.options) ? [...childrenOf(node), ...props.options] : childrenOf(node)
     for (const child of options) {
-      const rendered = renderChild(child, context, seen)
-      if (!rendered) continue
-      if (String(rendered.tagName ?? '').toUpperCase() === 'OPTION') {
-        append(select, rendered)
-        continue
-      }
-      const option = createElement('option', context)
-      if (!option) continue
-      option.textContent = rendered.textContent || describeProps(propsOf(child), componentName(child) || 'Option')
-      try { option.value = option.textContent } catch { /* A host option stub may omit value. */ }
-      append(select, option)
+      const text = renderChild(child, context, seen)?.textContent
+      if (!text) continue
+      const item = createElement('li', context)
+      if (!item) continue
+      item.className = 'openui-option'
+      item.textContent = text
+      append(list, item)
     }
-    return select
+    append(group, list)
+    return group
   }
 
   function makeUnknown(kind, props, context) {
@@ -204,24 +208,7 @@
   }
 
   function appendChildren(target, node, context, seen) {
-    if (!target) return
-    const targetTag = String(target.tagName ?? '').toUpperCase()
-    for (const child of childrenOf(node)) {
-      const rendered = renderChild(child, context, seen)
-      if (!rendered) continue
-      const kind = componentName(child).toLowerCase()
-      if (kind === 'optionset' && targetTag !== 'SELECT' && ['DIV', 'SPAN', 'SECTION', 'ARTICLE'].includes(targetTag)) {
-        const wrapper = createElement(targetTag === 'SPAN' ? 'span' : 'div', context)
-        if (wrapper) {
-          wrapper.className = 'personal-agent-preview-fields'
-          addClass(wrapper, 'openui-optionset', 'openui-option-set')
-          append(wrapper, rendered)
-          append(target, wrapper)
-          continue
-        }
-      }
-      append(target, rendered)
-    }
+    for (const child of childrenOf(node)) append(target, renderChild(child, context, seen))
   }
 
   function appendOptionText(option, node, context, seen) {
@@ -300,7 +287,7 @@
           if (element) element.dataset.emphasis = 'true'
           break
         case 'optionset':
-          element = makeSelect(node, props, context, seen)
+          element = makeOptionList(node, props, context, seen)
           break
         case 'option':
           element = makeOption(props, context)
@@ -314,7 +301,7 @@
       if (!element) return null
       const classType = type.replace(/[^a-z0-9]+/g, '-')
       addClass(element, `openui-${classType}`)
-      for (const extra of EXTRA_CLASSES[type] ?? []) addClass(element, extra)
+      for (const extra of EXTRA_CLASSES.get(type) ?? []) addClass(element, extra)
       if (!KNOWN_TYPES.has(type)) addClass(element, 'openui-unknown')
       if (type === 'option') appendOptionText(element, node, context, seen)
       else if (type !== 'optionset') appendChildren(element, node, context, seen)

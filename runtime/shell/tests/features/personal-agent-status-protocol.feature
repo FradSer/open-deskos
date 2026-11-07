@@ -109,3 +109,13 @@ Feature: Voice feedback status transport
     When the card renders
     Then the card offers source inspection instead of a quote or refresh action
     And no malformed handle reaches the Agent channel
+
+  Scenario: A reply card is optional presentation for one completed turn
+    Given the Personal Agent finishes a reply with a validated OpenUI card
+    When the resident publishes the completed turn
+    Then the original text remains in the status and conversation history
+    And the display receives the card and its lead together
+    And a status refresh keeps an open card expanded
+    And an invalid or missing card leaves the original text readable
+    And cancelling the next turn cannot publish the previous card
+    And a bound task reply preserves its answer and host delivery receipt

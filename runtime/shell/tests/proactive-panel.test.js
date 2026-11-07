@@ -940,7 +940,7 @@ test('a composed OpenUI bubble states its advice exactly once across the real DO
   const text = flatten(bubble).map(node => node.textContent).join(' ')
   assert.equal(text.split(sentence).length - 1, 1, 'the sentence appears once; the renderer suppresses the tree Advice node')
   assert.ok(text.includes('通勤用时') && text.includes('52分钟') && text.includes('平时用时') && text.includes('24分钟'), 'distinct readings stay visible')
-  assert.equal(flatten(bubble).filter(node => node.className?.split(/\s+/).includes('personal-agent-preview-card')).length, 1, 'one card surface')
+  assert.equal(flatten(bubble).filter(node => node.className?.split(/\s+/).includes('personal-agent-preview-card')).length, 1, 'one detail container')
 })
 
 test('a restated advice sentence in a card Heading is refused before publication', async () => {

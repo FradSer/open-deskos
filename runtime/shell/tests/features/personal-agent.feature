@@ -55,13 +55,13 @@ Feature: Independent resident Personal Agent
     And text line height is uniform across the advice, card summary and chips
     And no surface overflows the bubble or clips its text
 
-  Scenario: A recommendation with a session source keeps one concentric footer
-    Given a status frame supplies a recommendation and one session source
-    When the Shell renders the recommendation message across all themes
+  Scenario: A remote update keeps one concentric session footer
+    Given a remote update has one session source
+    When the Shell renders the update across all themes
     Then the host appends one session footer row at the bottom of the message capsule
     And the footer shows the session source on the left and a Reply control on the right
     And the Reply control shares the card radius with the action button and the card
-    And the footer uses the recommendation's one reading size
+    And the source and Reply use the shared footer text size
     And the bubble keeps its surface padding on all four sides
     And the footer spacing comes from the named block gap
     And the icon and source text keep one horizontal centre line
@@ -69,16 +69,11 @@ Feature: Independent resident Personal Agent
     And the source row grows its left inset to match the larger gap below its small text
     And the source keeps its full touch target without moving the Reply control
     And the Pixel theme collapses the whole scale to zero
-    And a plain conversation message without a generated card keeps the same footer geometry
 
-  Scenario: A message without a generated card shares the recommendation footer
-    Given a status frame supplies a plain remote message and a recommendation with a card
-    When the Shell renders both messages across all themes
-    Then both session footers use the one reading size and the named block gap
-    And both source rows carry the same left inset and optical nudge
-    And both Reply controls share the card radius and keep their full touch target
-    And neither footer depends on the presence of a generated card
-    And the two footer groups stay on one horizontal centre line
+  Scenario: A recommendation does not inherit an unrelated session source
+    Given a status frame supplies a recommendation and a separate remote update
+    When the Shell renders both messages
+    Then only the remote update shows its session source and Reply control
 
   Scenario: Card text keeps a readable hierarchy and intact pairs
     Given a recommendation message shows advice, a preview summary and attribute chips
@@ -88,11 +83,11 @@ Feature: Independent resident Personal Agent
     And no chip label or value wraps, clips or overflows its card
     And the card text uses one reading size from the shared scale
 
-  Scenario: An OpenUI message states its advice once and nests one card
+  Scenario: An OpenUI message states its advice once
     Given a recommendation message renders a composed OpenUI tree
     When the owner reads the bubble
     Then the advice sentence appears exactly once in the bubble
-    And the preview has one card surface, not a card inside another card
+    And the generated content shares the message bubble
     And every reading is still visible with its label and value
     And the mounted DOM harness counts the whole sentence once across the bubble
     And a restated sentence in a card Heading is refused before publication
@@ -731,7 +726,7 @@ Feature: Independent resident Personal Agent
     Given a parsed OpenUI document contains text, chips, badges and buttons
     When the renderer mounts it in a recommendation message
     Then every node maps to an existing shared primitive and no domain-specific card appears
-    And the concentric radius scale, one reading size and capsule state ownership are unchanged
+    And the reading size and capsule state ownership are unchanged
     And no React runtime, inline style, inline script or remote asset is required
 
   # --- OpenUI full component tree (renderer contract) ----------------------
@@ -744,17 +739,35 @@ Feature: Independent resident Personal Agent
 
   Scenario: An unknown OpenUI primitive is rendered and never dropped
     Given a ui tree holds one type the renderer does not register
+    And the type name can match a property of the JavaScript object prototype
     When the renderer mounts the tree in a recommendation message
     Then the unknown type appears as a plain text node
     And its siblings and children still render
     And the tree never loses the unknown node silently
 
   Scenario: OpenUI rendering uses only shared DOM primitives
-    Given a composable OpenUI tree holds text, badges, metrics and option selectors
-    When the renderer maps each type to a concentric shared primitive class
+    Given a composable OpenUI tree holds text, badges, metrics and a list of alternatives
+    When the renderer maps each type to a shared primitive class
     Then rendered text uses textContent and never innerHTML
     And no React runtime, inline style, inline script or remote asset is required
-    And the concentric radius scale and one 17-pixel reading size stay unchanged
+    And the content uses one 17-pixel reading size
+
+  Scenario: OpenUI content reads as part of the message
+    Given a recommendation or reply contains composed OpenUI content
+    When the message renders at a compact or reference panel size
+    Then the message bubble supplies the only frame for the generated content
+    And a read-only next step aligns with the advice text without a frame
+    And reading labels and values form plain rows with aligned values
+    And long values wrap within the message
+    And a badge fits its status text
+    And headings and paragraphs use the same spacing in recommendations and replies
+
+  Scenario: Alternatives in a message appear together as read-only text
+    Given an OpenUI recommendation or stored preview has an OptionSet
+    When the message renders
+    Then all option labels appear in order in a read-only list
+    And the list has no dropdown or focusable item
+    And only host-owned controls can submit a command
 
   Scenario: Host authority survives the OpenUI renderer
     Given OpenUI owns the component vocabulary and the rendered structure

@@ -15,24 +15,29 @@ app.on('will-quit', () => { try { fs.rmSync(profile, { recursive: true, force: t
 const timer = setTimeout(() => app.exit(1), 90000)
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
+const node = (type, props = {}, children = []) => ({ type, props, children })
 const proposal = {
   id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'commute-anomaly', status: 'pending', offered: true, presented: true,
   advice: '通勤比平时多了28分钟。',
-  preview: { summary: '路上的时间', items: [
-    { label: '今天', value: '52 分钟', tone: 'warn' },
-    { label: '平时', value: '24 分钟' },
-    { label: '多出', value: '28 分钟', tone: 'warn' } ] },
-  // A small composable OpenUI tree. It mirrors the legacy preview so the ui path
-  // renders the same generic card, chips, labels and values as the preview fallback.
-  ui: { type: 'Suggestion', props: { children: [
-    { type: 'Badge', props: { value: '通勤变化', tone: 'warn' } },
-    { type: 'Divider', props: {} },
-    { type: 'Heading', props: { value: '路上的时间' } },
-    { type: 'Reading', props: { label: '今天', value: '52 分钟', tone: 'warn' } },
-    { type: 'Reading', props: { label: '平时', value: '24 分钟' } },
-    { type: 'Reading', props: { label: '多出', value: '28 分钟', tone: 'warn' } },
-    { type: 'Divider', props: {} },
-  ] } },
+  ui: node('Suggestion', {}, [
+    node('Badge', { value: '通勤变化', tone: 'warn' }),
+    node('Stack', { direction: 'vertical' }, [
+      node('Heading', { value: '路上的时间' }),
+      node('Metric', { label: '今天', value: '52 分钟', tone: 'warn' }),
+      node('Readings', {}, [
+        node('Reading', { label: '平时', value: '24 分钟' }),
+        node('Reading', { label: '多出', value: '28 分钟', tone: 'warn' }),
+        node('Reading', { label: '参考路线', value: '城市中心换乘方案/alternate-commute-route-with-long-segments/review' }),
+      ]),
+      node('Divider'),
+      node('Text', { value: '出门前查看路线变化。' }),
+      node('Divider'),
+    ]),
+    node('OptionSet', {}, [
+      node('Option', { label: '查看公共交通', value: 'transit' }),
+      node('Option', { label: '查看步行方案', value: 'walk' }),
+    ]),
+  ]),
   action: { tool: 'memory_update', params: { category: 'note', value: 'opened' } },
   confirmation: '记住 note：opened', nextStep: '打开计划',
   createdAt: new Date().toISOString(),
@@ -75,57 +80,62 @@ app.whenReady().then(async () => {
       const measured = await run(`(() => {
         const bubble = document.querySelector('.agent-recommendation .agent-message-bubble')
         if (!bubble) return { error: 'no bubble' }
-        const card = bubble.querySelector('.personal-agent-preview-card')
-        const chips = [...bubble.querySelectorAll('.personal-agent-preview-chip')]
-        const size = sel => { const n = bubble.querySelector(sel); return n ? parseFloat(getComputedStyle(n).fontSize) : null }
-        const weight = sel => { const n = bubble.querySelector(sel); return n ? parseFloat(getComputedStyle(n).fontWeight) : null }
-        const rect = n => n.getBoundingClientRect()
+        const card = bubble.querySelector('.openui-suggestion')
+        const stack = card.querySelector('.openui-stack')
+        const readings = stack.querySelector('.openui-readings')
+        const rows = [...readings.querySelectorAll(':scope > .openui-reading')]
+        const metric = stack.querySelector('.openui-metric')
+        const badge = card.querySelector('.openui-badge')
+        const heading = card.querySelector('.openui-heading')
+        const list = card.querySelector('ul.openui-option-set')
+        const options = list ? [...list.querySelectorAll(':scope > li.openui-option')] : []
+        const cs = node => getComputedStyle(node)
+        const size = sel => { const n = bubble.querySelector(sel); return n ? parseFloat(cs(n).fontSize) : null }
+        const weight = node => parseFloat(cs(node).fontWeight)
+        const rect = node => node.getBoundingClientRect()
+        const visible = node => cs(node).display !== 'none' && cs(node).visibility === 'visible'
+          && rect(node).width > 0 && rect(node).height > 0
+        const sides = ['Top', 'Right', 'Bottom', 'Left']
+        const borders = node => sides.map(side => parseFloat(cs(node)['border' + side + 'Width']))
+        const clear = node => cs(node).backgroundColor === 'rgba(0, 0, 0, 0)' && cs(node).boxShadow === 'none'
+        const children = node => [...node.children].filter(visible)
+        const gaps = node => children(node).slice(1).map((child, i) => rect(child).top - rect(children(node)[i]).bottom)
         return {
           reading: ${JSON.stringify(READING)}.map(sel => [sel, size(sel)]),
           caption: ${JSON.stringify(CAPTION)}.map(sel => [sel, size(sel)]),
-          textNodes: (() => { const w = document.createTreeWalker(bubble, NodeFilter.SHOW_TEXT); const out = []; while (w.nextNode()) { const t = w.currentNode.textContent.trim(); if (t) out.push({ text: t, size: parseFloat(getComputedStyle(w.currentNode.parentElement).fontSize) }) } return out })(),
-          adviceWeight: weight('.personal-agent-proposal-advice'),
-          chipWeight: weight('.personal-agent-preview-chip'),
-          summaryWeight: weight('.personal-agent-preview-summary'),
-          bubbleOverflow: bubble.scrollWidth > bubble.clientWidth + 1,
-          cardOverflow: card.scrollWidth > card.clientWidth + 1,
-          chipOverflow: chips.some(n => rect(n).right > rect(card).right - 1),
+          textNodes: (() => { const w = document.createTreeWalker(bubble, NodeFilter.SHOW_TEXT); const out = []; while (w.nextNode()) { const t = w.currentNode.textContent.trim(); if (t) out.push({ text: t, size: parseFloat(cs(w.currentNode.parentElement).fontSize) }) } return out })(),
+          adviceWeight: weight(bubble.querySelector('.personal-agent-proposal-advice')),
+          headingWeight: weight(heading),
+          labelWeight: weight(rows[0].querySelector('.personal-agent-preview-label')),
+          metricWeight: weight(metric.querySelector('.personal-agent-preview-value')),
+          readingWeight: weight(rows[0].querySelector('.personal-agent-preview-value')),
+          overflow: [bubble, card, stack, readings, badge, metric, ...rows, ...options].some(n => n.scrollWidth > n.clientWidth + 1),
           controls: [...bubble.querySelectorAll('button')].every(n => rect(n).height >= 44),
-          cardText: (() => {
-            const chip = bubble.querySelector('.personal-agent-preview-chip')
-            const label = chip?.querySelector('.personal-agent-preview-label')
-            const value = chip?.querySelector('.personal-agent-preview-value')
-            const summary = bubble.querySelector('.personal-agent-preview-summary')
-            const cs = n => n ? getComputedStyle(n) : null
-            const r = n => n?.getBoundingClientRect()
-            return {
-              sameRow: label && value ? Math.abs(r(label).top - r(value).top) < 2 : null,
-              valueNowrap: cs(value)?.whiteSpace === 'nowrap',
-              pairGap: label && value ? r(value).left - r(label).right : null,
-              summaryColor: cs(summary)?.color,
-              labelColor: cs(label)?.color,
-              chipPadTop: parseFloat(cs(chip)?.paddingTop),
-              chipGap: parseFloat(cs(chip)?.columnGap),
-              chipRadius: parseFloat(cs(chip)?.borderTopLeftRadius),
-              chipClipped: [...bubble.querySelectorAll('.personal-agent-preview-chip')].some(n => n.scrollWidth > n.clientWidth + 1)
-            }
-          })(),
+          card: { clear: clear(card), border: borders(card),
+            padding: sides.map(side => parseFloat(cs(card)['padding' + side])) },
+          headingBorder: borders(heading),
+          badge: { contentWidth: rect(badge).width, availableWidth: rect(heading).width,
+            dot: getComputedStyle(badge, '::before').content !== 'none' && parseFloat(getComputedStyle(badge, '::before').width) > 0,
+            clear: clear(badge), border: borders(badge) },
+          layout: [stack, readings, metric, ...(list ? [list] : [])].map(node => ({ name: node.className, clear: clear(node), border: borders(node) })),
+          options: options.filter(visible).map(option => option.textContent),
+          interactiveOptions: Boolean(card.querySelector('select, input, button, [contenteditable]')) ||
+            Boolean(list && [list, ...list.querySelectorAll('*')].some(node => node.tabIndex >= 0)),
+          rows: [metric, ...rows].map(row => {
+            const label = row.querySelector('.personal-agent-preview-label')
+            const value = row.querySelector('.personal-agent-preview-value')
+            return { clear: clear(row), border: borders(row), right: rect(value).right,
+              gap: rect(value).left - rect(label).right, wrapped: rect(value).height > parseFloat(cs(value).lineHeight) + 1,
+              clipped: value.scrollWidth > value.clientWidth + 1, align: cs(value).textAlign }
+          }),
+          groups: [card, stack].map(node => ({ gap: parseFloat(cs(node).rowGap), gaps: gaps(node) })),
           token: parseFloat(getComputedStyle(bubble).getPropertyValue('--agent-text-body')) || parseFloat(getComputedStyle(document.querySelector('.agent-panel')).getPropertyValue('--agent-text-body')),
           divider: (() => {
-            const card = bubble.querySelector('.personal-agent-preview-card')
-            const kids = card ? [...card.children] : []
+            const kids = [...stack.children]
             const dividers = kids.filter(n => n.classList.contains('openui-divider'))
-            const cs = n => getComputedStyle(n)
-            const r = n => n.getBoundingClientRect()
-            // Gap between every adjacent pair of visible primitives.
-            const visible = kids.filter(n => cs(n).display !== 'none')
-            const gaps = []
-            for (let i = 1; i < visible.length; i++) gaps.push(+(r(visible[i]).top - r(visible[i - 1]).bottom).toFixed(1))
             return {
               count: dividers.length,
               margins: dividers.map(n => [parseFloat(cs(n).marginTop), parseFloat(cs(n).marginBottom)]),
-              gap: card ? parseFloat(cs(card).rowGap) : null,
-              gaps,
               trailingHidden: dividers.length ? cs(dividers.at(-1)).display === 'none' : null,
               trailingIsLast: dividers.length ? dividers.at(-1) === kids.at(-1) : null,
             }
@@ -142,34 +152,77 @@ app.whenReady().then(async () => {
       assert.ok(!measured.textNodes.some(n => /suggest(ed|ion)/i.test(n.text)), `${theme}/${width}: internal suggestion wording must not appear: ${JSON.stringify(measured.textNodes.map(n => n.text))}`)
       assert.ok(!measured.textNodes.some(n => /Dismissed|Expired|In progress|Completed|Outcome not confirmed|Read-only|No executable action|do not resend|do not repeat|Sandbox|Estimate expired|Result recorded|Next step/i.test(n.text)),
         `${theme}/${width}: state text must live in the capsule, not the bubble`)
-      assert.equal(measured.bubbleOverflow, false, `${theme}/${width}: bubble overflows`)
-      assert.equal(measured.cardOverflow, false, `${theme}/${width}: card overflows`)
-      assert.equal(measured.chipOverflow, false, `${theme}/${width}: chip escapes card`)
+      assert.deepEqual(measured.options, ['查看公共交通', '查看步行方案'], `${theme}/${width}: the native list shows both options`)
+      assert.equal(measured.interactiveOptions, false, `${theme}/${width}: the option list adds no controls or tab stops`)
+      const card = measured.card
+      assert.ok(card.clear && [...card.border, ...card.padding].every(value => value === 0),
+        `${theme}/${width}: generated content needs no extra surface or inset`)
+      assert.ok(measured.headingBorder.every(border => border === 0), `${theme}/${width}: the heading needs no rule`)
+      for (const part of measured.layout) {
+        assert.ok(part.clear && part.border.every(border => border === 0), `${theme}/${width}: ${part.name} adds another surface`)
+      }
+      const badge = measured.badge
+      assert.ok(badge.clear && badge.border.every(border => border === 0), `${theme}/${width}: the badge adds another surface`)
+      assert.ok(badge.dot && badge.contentWidth < badge.availableWidth, `${theme}/${width}: the badge must fit its status label and dot`)
+      assert.equal(measured.overflow, false, `${theme}/${width}: a card primitive overflows`)
       assert.equal(measured.controls, true, `${theme}/${width}: a control lost its touch target`)
-      const t = measured.cardText
-      assert.equal(t.sameRow, true, `${theme}/${width}: a chip split its label from its value`)
-      assert.equal(t.valueNowrap, true, `${theme}/${width}: a measured value can wrap away from its unit`)
-      assert.ok(t.pairGap >= 8, `${theme}/${width}: the label and value crowd each other (${t.pairGap}px)`)
-      assert.equal(t.chipClipped, false, `${theme}/${width}: chip text is clipped`)
-      assert.ok(t.chipPadTop >= t.chipGap, `${theme}/${width}: chip padding must clear its internal gap (${t.chipPadTop} < ${t.chipGap})`)
-      assert.equal(t.summaryColor, t.labelColor, `${theme}/${width}: the summary must sit at the supporting label colour, not compete with advice`)
+      const [, ...rows] = measured.rows
+      for (const [index, row] of measured.rows.entries()) {
+        const [top, ...edges] = row.border
+        assert.ok(row.clear && edges.every(border => border === 0) && (index >= 2 || top === 0), `${theme}/${width}: reading ${index} adds another surface`)
+        assert.ok(row.gap >= 7 && !row.clipped, `${theme}/${width}: reading ${index} crowds or clips the value`)
+      }
+      assert.ok(rows.every(row => Math.abs(row.right - rows[0].right) <= 1 && ['right', 'end'].includes(row.align)),
+        `${theme}/${width}: values need a shared right edge`)
+      if (width === 320) assert.ok(rows.at(-1).wrapped, `${theme}/${width}: a long value must wrap in the compact comparison`)
       if (theme !== 'pixel') {
-        assert.ok(measured.adviceWeight > measured.chipWeight, `${theme}/${width}: advice needs weight priority`)
-        assert.ok(measured.adviceWeight > measured.summaryWeight, `${theme}/${width}: advice leads the card summary`)
+        assert.ok(measured.adviceWeight > measured.labelWeight, `${theme}/${width}: advice needs weight priority`)
+        assert.ok(measured.headingWeight > measured.labelWeight, `${theme}/${width}: the heading needs weight priority`)
+        assert.ok(measured.metricWeight > measured.readingWeight, `${theme}/${width}: the metric needs weight priority`)
       }
       else assert.equal(measured.adviceWeight, 400, 'pixel keeps one weight and does not synthesize emphasis')
+      for (const group of measured.groups) {
+        assert.ok(group.gaps.every(gap => Math.abs(gap - group.gap) <= 1),
+          `${theme}/${width}: primitive gaps must equal the named group gap ${group.gap}, got ${JSON.stringify(group.gaps)}`)
+      }
       // Divider spacing comes only from the card's named gap. No doubled margins,
       // and a trailing divider draws no orphan line.
       const d = measured.divider
       assert.ok(d.count >= 2, `${theme}/${width}: the composed card needs dividers to test spacing` )
       assert.ok(d.margins.every(([top, bottom]) => top === 0 && bottom === 0),
         `${theme}/${width}: a divider added margin that doubles the gap: ${JSON.stringify(d.margins)}`)
-      assert.ok(d.gaps.every(gap => Math.abs(gap - d.gap) <= 1),
-        `${theme}/${width}: every primitive gap must equal the named card gap ${d.gap}, got ${JSON.stringify(d.gaps)}`)
       assert.equal(d.trailingIsLast, true, `${theme}/${width}: the test tree ends with a divider`)
       assert.equal(d.trailingHidden, true, `${theme}/${width}: a trailing divider must not draw an orphan line`)
     }
   }
+  const nextStep = '出门前比较公交与步行路线。'
+  const readOnlyProposal = { ...proposal, action: null, confirmation: '', nextStep,
+    ui: node('Suggestion', {}, [...proposal.ui.children, node('OwnerStep', { text: nextStep })]) }
+  win.setContentSize(320, 480)
+  win.webContents.send('odk-personal-agent-status', {
+    state: 'idle', proposals: [readOnlyProposal],
+    proposalCapabilities: { read: true, respond: false, acknowledge: false },
+  })
+  await delay(200)
+  const readOnly = await run(`(() => {
+    const advice = document.querySelector('.personal-agent-proposal-advice')
+    const step = document.querySelector('.personal-agent-proposal-next-step')
+    if (!advice || !step) return { error: 'no read-only advice or next step' }
+    const style = getComputedStyle(step.parentElement)
+    return {
+      text: step.textContent,
+      background: style.backgroundColor,
+      shadow: style.boxShadow,
+      borders: ['Top', 'Right', 'Bottom', 'Left'].map(side => style['border' + side + 'Width']),
+      inset: step.getBoundingClientRect().left - advice.getBoundingClientRect().left,
+    }
+  })()`)
+  assert.ok(!readOnly.error, readOnly.error)
+  assert.equal(readOnly.text, nextStep)
+  assert.equal(readOnly.background, 'rgba(0, 0, 0, 0)', 'a generated next step adds no second surface')
+  assert.equal(readOnly.shadow, 'none')
+  assert.deepEqual(readOnly.borders, ['0px', '0px', '0px', '0px'], 'a generated next step has no frame')
+  assert.ok(Math.abs(readOnly.inset) <= 1, 'a generated next step aligns with advice')
   console.log('PASS: one reading size across 4 themes x 3 sizes')
   clearTimeout(timer); win.destroy(); app.exit(0)
 }).catch(error => { console.error(error); app.exit(1) })

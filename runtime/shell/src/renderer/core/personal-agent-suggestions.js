@@ -432,6 +432,7 @@
         const ui = legacyPreviewUI(p)
         if (!ui || !renderer.isOpenUINode?.(ui)) return
         const rendered = renderer.renderOpenUI(ui, { button, document: root.document ?? globalDocument })
+        rendered?.classList?.add('personal-agent-legacy-preview')
         appendRendered(article, rendered)
       }
       function renderProposals(status) {

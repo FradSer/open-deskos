@@ -290,8 +290,7 @@ html[data-theme='pixel'] #home-summary .dash {
 .agent-update-sources { width: 100%; min-width: 0; }
 .agent-remote-detail { position: relative; margin-block-start: var(--agent-gap-block); white-space: normal; min-width: 0; }
 .agent-remote-detail > .personal-agent-preview-card { margin-block-start: 0; }
-/* A very long card keeps its card surface. Its lower rows fade out and the
-   expand control sits over the fade, so no extra frame or list appears. */
+/* The lower rows of a long detail fade behind its expand control. */
 .agent-remote-detail-clipped > .personal-agent-preview-card {
   max-block-size: 15rem;
   overflow: hidden;

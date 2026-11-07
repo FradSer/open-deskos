@@ -245,18 +245,16 @@
    It shares the card radius so the two corners stay tangent at that level.
    Controls outside a recommendation keep the independent control token. */
 .agent-recommendation .personal-agent-proposals button { border-radius: var(--agent-radius-card); }
-/* Every session footer shares one geometry, whether or not the message has a
-   generated OpenUI card. Both the plain remote message and the recommendation
-   use the same sessionLabel() DOM, so scope to that shared class. The Reply
-   keeps its real replyTo target in both messages. The extra .agent-panel
-   .agent-message-session specificity beats home-desk.css, which loads later. */
+/* A remote update keeps its session footer with or without a generated card.
+   The extra .agent-panel .agent-message-session specificity beats
+   home-desk.css, which loads later. */
 .agent-panel .agent-update-sources {
   gap: var(--agent-gap-block);
   margin-block-start: var(--agent-gap-block);
 }
 /* The theme layers give every #personal-agent button a control radius. A
    session footer Reply is a card-level control, so match that specificity and
-   scope it to the shared footer class. Both message kinds then agree. */
+   scope it to the shared footer class. */
 html #personal-agent .agent-update-sources .agent-message-session .agent-session-reply {
   border-radius: var(--agent-radius-card);
 }
@@ -370,13 +368,14 @@ html #personal-agent .agent-update-sources .agent-message-session .agent-session
 .personal-agent-proposal-error { margin: 0; font-size: var(--agent-text-label); line-height: var(--agent-line-body); color: var(--odk-accent-red); }
 .agent-recommendation .personal-agent-proposals button { width: auto; height: auto; min-width: 44px; padding: var(--odk-space-2) var(--odk-space-3); }
 
-/* OpenUI primitives use one reading size, shared gaps and concentric surfaces. */
+/* OpenUI content uses the message surface and one reading size. */
 .openui-heading,
 .openui-text,
 .openui-badge,
 .openui-stack,
 .openui-readings,
 .openui-row,
+.openui-options,
 .openui-option-set,
 .openui-divider,
 .openui-unknown {
@@ -399,67 +398,110 @@ html #personal-agent .agent-update-sources .agent-message-session .agent-session
   display: none;
 }
 
-.openui-heading {
+.openui-suggestion:not(.personal-agent-legacy-preview) {
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
   margin: 0;
-  padding-inline-start: var(--agent-gap-inline);
-  border-inline-start: 2px solid var(--odk-stroke-focus);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.personal-agent-proposal:has(> .openui-suggestion:not(.personal-agent-legacy-preview)) > .personal-agent-proposal-next {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.openui-suggestion:not(:where(.personal-agent-legacy-preview)) .openui-heading {
   color: var(--odk-primary);
-  font-weight: 500;
+  font-weight: 600;
   overflow-wrap: anywhere;
   white-space: normal;
 }
 
+.personal-agent-legacy-preview .openui-heading {
+  padding-inline-start: var(--agent-gap-inline);
+  border-inline-start: 2px solid var(--odk-stroke-focus);
+}
+
 .openui-text {
-  margin: 0;
   color: var(--odk-secondary-strong);
   overflow-wrap: anywhere;
   text-wrap: pretty;
   white-space: normal;
 }
-/* The conversation bubble gives every <p> a 12px paragraph margin. Inside a
-   generated card those <p> primitives are not prose paragraphs: the card's
-   named gap is the only spacing owner. Match the bubble selector's specificity. */
-.agent-recommendation .personal-agent-preview-card :is(.openui-heading, .openui-text) {
+
+/* The card gap owns spacing in both recommendations and replies. */
+.openui-suggestion :is(p.openui-heading, p.openui-text) {
   margin: 0;
 }
 
-/* A Readings group is a frameless list; the one card owns the only surface. */
 .personal-agent-preview-chips.openui-readings {
   display: grid;
   align-content: start;
   gap: var(--agent-gap-chip);
-  min-width: 0;
-  color: var(--odk-primary);
+  min-inline-size: 0;
 }
 
-/* A Metric is an emphasized reading, distinct from a plain Reading chip. */
-.openui-metric[data-emphasis='true'] {
-  border-color: var(--odk-stroke-focus);
-  background: var(--odk-elevated);
+.openui-suggestion:not(:where(.personal-agent-legacy-preview)) :is(.openui-reading, .openui-metric) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) fit-content(58%);
+  align-items: baseline;
+  gap: var(--agent-gap-inline);
+  flex: 1 1 9rem;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--agent-text-body);
+}
+
+.openui-suggestion:not(:where(.personal-agent-legacy-preview)) :is(.openui-reading, .openui-metric) :is(.personal-agent-preview-label, .personal-agent-preview-value) {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.openui-suggestion:not(:where(.personal-agent-legacy-preview)) :is(.openui-reading, .openui-metric) .personal-agent-preview-value {
+  text-align: end;
+}
+
+.openui-suggestion .openui-readings > .openui-reading + .openui-reading {
+  padding-block-start: var(--agent-gap-chip);
+  border-block-start: thin solid var(--odk-stroke);
 }
 
 .openui-metric[data-emphasis='true'] .personal-agent-preview-value {
-  font-weight: 600;
+  font-weight: 700;
 }
 
-.openui-badge {
+.openui-badge:not(.openui-chip) {
   display: inline-flex;
   align-items: center;
+  justify-self: start;
   gap: var(--agent-gap-chip);
-  min-height: var(--odk-status-control-h);
-  max-width: 100%;
-  padding: var(--agent-gap-inline) var(--agent-pad-card);
-  border: thin solid var(--odk-stroke);
-  border-radius: var(--agent-radius-chip);
-  background: var(--odk-surface);
+  max-inline-size: 100%;
   color: var(--odk-secondary-strong);
   font-weight: 500;
   overflow-wrap: anywhere;
   white-space: normal;
 }
 
-/* A Stack is a layout group inside the one card, not a second bordered surface.
-   Concentric radii belong to nested surfaces; a layout container adds no frame. */
+.openui-badge:not(.openui-chip)::before {
+  content: '';
+  flex: none;
+  inline-size: var(--odk-space-1);
+  block-size: var(--odk-space-1);
+  border-radius: var(--odk-radius-pill);
+  background: currentColor;
+}
+
+/* A Stack groups content by spacing. */
 .personal-agent-preview-chips.openui-stack {
   display: grid;
   align-content: start;
@@ -479,53 +521,45 @@ html #personal-agent .agent-update-sources .agent-message-session .agent-session
   gap: var(--agent-gap-inline);
 }
 
-:is(.openui-stack, .openui-option-set) :is(.openui-stack, .openui-option-set),
-:is(.openui-stack, .openui-option-set) :is(.openui-stack, .openui-option-set) :is(.openui-stack, .openui-option-set) {
-  background: transparent;
-}
-
 .personal-agent-preview-chips.openui-row {
   display: flex;
   flex-flow: row wrap;
   align-items: center;
-  gap: var(--agent-gap-inline);
+  gap: var(--agent-gap-inline) var(--odk-space-3);
   min-width: 0;
   border-radius: var(--agent-radius-inset);
   color: inherit;
   white-space: normal;
 }
 
-.openui-option-set {
-  display: flex;
-  flex-flow: row wrap;
-  align-items: center;
-  gap: var(--agent-gap-inline);
-  min-width: 0;
-  padding: var(--agent-pad-card);
-  border: thin solid var(--odk-stroke);
-  border-radius: var(--agent-radius-inset);
-  background: var(--odk-surface);
-  color: var(--odk-primary);
-  white-space: normal;
-}
-
-.openui-option-set :is(button, .openui-option):not(option) {
-  display: inline-flex;
-  align-items: center;
+.openui-options {
+  display: grid;
   gap: var(--agent-gap-chip);
-  min-height: var(--odk-status-control-h);
-  max-width: 100%;
-  padding: var(--agent-gap-inline) var(--agent-pad-card);
-  border: thin solid var(--odk-stroke);
-  border-radius: var(--agent-radius-chip);
-  background: var(--odk-button);
-  color: var(--odk-primary);
+  min-inline-size: 0;
+}
+
+.openui-options-label {
+  color: var(--odk-secondary-strong);
+}
+
+ul.openui-option-set {
+  display: grid;
+  gap: var(--agent-gap-chip);
+  min-inline-size: 0;
+  margin: 0;
+  padding-inline-start: 1.25em;
+  list-style-type: disc;
+}
+
+.openui-option {
+  min-inline-size: 0;
   overflow-wrap: anywhere;
-  text-align: start;
   white-space: normal;
 }
 
-.openui-option-set button { cursor: pointer; }
+.openui-option::marker {
+  color: var(--odk-secondary-strong);
+}
 
 /* A divider draws one hairline. Its spacing comes only from the card's named
    gap, so it never doubles the surrounding space. A trailing divider is an
@@ -558,9 +592,6 @@ html #personal-agent .agent-update-sources .agent-message-session .agent-session
 .openui-unknown[data-tone='good'] {
   color: var(--odk-accent-green);
 }
-
-.openui-badge[data-tone='warn'] { border-color: var(--odk-accent-red); }
-.openui-badge[data-tone='good'] { border-color: var(--odk-accent-green); }
 
 .openui-heading[data-tone='warn'] :where(*),
 .openui-text[data-tone='warn'] :where(*),

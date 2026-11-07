@@ -59,6 +59,15 @@ function validOpenUITree(node) {
   return true
 }
 
+function parseReplyPresentation(status) {
+  const presentation = status.replyPresentation
+  if (status.state !== 'idle' || status.replyTo || !status.message || typeof presentation?.text !== 'string'
+      || !presentation.text.trim() || presentation.text.length > 180
+      || /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(presentation.text)
+      || presentation.ui?.type !== 'Suggestion' || !validOpenUITree(presentation.ui)) return undefined
+  return { text: presentation.text, ui: presentation.ui }
+}
+
 const VOICE_FAILURES = new Set(['microphone','timeout','unavailable','protocol','invalid_audio','cleanup'])
 function parseVoiceFailure(status) {
   return status.state === 'error' && VOICE_FAILURES.has(status.voiceFailure) ? status.voiceFailure : undefined
@@ -149,6 +158,11 @@ function projectPersonalAgentFrame(status) {
     frame.proposalRecovery = readable && status.proposalRecovery === true
     frame.proposalHiddenCount = Number.isSafeInteger(status.proposalHiddenCount) && status.proposalHiddenCount >= 0 ? status.proposalHiddenCount : 0
   }
+  const replyPresentation = parseReplyPresentation(status)
+  if (replyPresentation) {
+    const presented = { ...frame, replyPresentation }
+    if (Buffer.byteLength(JSON.stringify(presented), 'utf8') <= MAX_PERSONAL_AGENT_FRAME_BYTES) return presented
+  }
   if (Buffer.byteLength(JSON.stringify(frame), 'utf8') > MAX_PERSONAL_AGENT_FRAME_BYTES) {
     return personalAgentUnavailable('Personal Agent state exceeded its bound')
   }
@@ -158,6 +172,7 @@ function projectPersonalAgentFrame(status) {
 module.exports = {
   projectPersonalAgentFrame,
   parseVoiceFailure,
+  parseReplyPresentation,
   MAX_PERSONAL_AGENT_FRAME_BYTES,
   PERSONAL_AGENT_STATES,
 }
