@@ -142,6 +142,8 @@ pnpm test:memory:evaluate --dataset=/private/path/longmemeval_s_cleaned.json --o
 pnpm test:memory:evaluate --dataset=/private/path/longmemeval_s_cleaned.json --output=/private/path/retrieval-10.json --top-k=10
 pnpm test:memory:live
 pnpm test:memory:live --live --dataset=/private/path/longmemeval_oracle.json --output=/private/path/answers.json --provider=cliproxyapi --model=gpt-6.1-sol
+PI_ODK_PACKAGE=/path/to/pi-packages/packages/open-deskos pnpm test
+pnpm typecheck
 ```
 
 The plan command makes no provider request.
