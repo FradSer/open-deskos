@@ -12,7 +12,7 @@ import { openAgentCatalog } from '../../src/agent-catalog/catalog.mjs'
 import { createExperienceStore } from '../../src/agent-plugins/experience.mjs'
 import { liveJevResponse } from '../fixtures/live-jev-response.mjs'
 import { createJevClient } from '../../src/jev-client.mjs'
-import { reportScore, reportData, reportSkill } from '../fixtures/agent-learning-reports.mjs'
+import { reportScore, reportData, reportSkill, reportProcedure } from '../fixtures/agent-learning-reports.mjs'
 import { capLiveModelOutput, fullExperienceReceipt, assertLivePairResults, createLivePlan, selectLiveEvaluation, classifyLiveFailure, liveStopPolicy, recordLiveGenerationUsage, selectLiveChildAdmission, assertLiveChildTurn, createLiveRequestBudget, createBudgetedFetch, learningComparison } from '../helpers/agent-live-contract.mjs'
 import { pluginEvidenceMetadata, toolExecutionMetadata } from '../helpers/agent-live-plugin-evidence.mjs'
 
@@ -227,21 +227,21 @@ async function run() {
   phase = 'saved-training'
   const training = await delegated(bot, '让固化子代理 reporter 使用 learning-reports 分析 training 报告，并以 RESULT=<number> 返回结果。', 'training', true)
   if (evaluation.mode === 'targeted') { mark(phase, { score: training.score }); await close(bot); return }
-  assert.equal(training.task.learning, 'applied')
+  assert.equal(training.task.learning, 'skipped')
   assert(activity.some(task => task.state === 'running' && task.identity?.id === 'reporter' && task.identity.avatar === 'book'))
   const experience = join(stateDir, 'personal-agent', 'children', 'homes', 'saved', 'reporter', 'personal-agent', 'experience.json')
-  const acceptedExperience = createExperienceStore(experience).load()
-  assert(acceptedExperience.entries.length > 0)
-  const acceptedContent = JSON.stringify(acceptedExperience)
-  await writeFile(offline ? join(base, 'accepted-experience.json') : '/evidence/accepted-experience.json', acceptedContent, { mode: 0o600 })
-  report.acceptedExperience = { file: 'accepted-experience.json', entries: acceptedExperience.entries.length, sha256: createHash('sha256').update(acceptedContent).digest('hex') }
+  const store = createExperienceStore(experience)
+  assert.deepEqual(store.load().entries, [], 'Ordinary report output cannot create automatic experience')
+  const ids = await store.append([{ title: 'Desk report conversion', body: reportProcedure,
+    sources: [{ tool: 'fixture', digest: createHash('sha256').update(reportProcedure).digest('hex') }] }])
+  report.restartExperience = { source: 'host_fixture', entries: ids.length }
   mark(phase, { score: training.score, activeAvatarMetadata: true })
   await close(bot)
   phase = 'saved-restart'
   bot = await newBot(stateDir, config)
   const beforeRestartRetrieval = retrievals
   const restarted = await delegated(bot, '让固化子代理 reporter 使用 learning-reports 分析 restart 报告，并以 RESULT=<number> 返回结果。', 'restart', true)
-  assert(retrievals > beforeRestartRetrieval, 'A restarted saved child must retrieve actual full accepted experience')
+  assert(retrievals > beforeRestartRetrieval, 'A restarted saved child must retrieve the full experience fixture')
   mark(phase, { score: restarted.score, experienceReads: retrievals - beforeRestartRetrieval })
   report.taskChecks.at(-1).experienceReads = retrievals - beforeRestartRetrieval
   phase = 'temporary-child'

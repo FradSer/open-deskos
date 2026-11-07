@@ -14,7 +14,7 @@ Feature: Personal Agent owns a bounded plugin runtime
 
   Scenario: Plugin models receive literal receipt text at the provider boundary
     Given a tool returns JSON with quotes, backslashes, Unicode, and misleading receipt headers
-    When completion and learning receive that receipt through the actual SDK
+    When completion receives that receipt through the actual SDK
     Then each original receipt text occurs once as literal untrusted data
     And host metadata and retry feedback retain every original value
     And only top-level host format correction supplies retry instructions
@@ -49,6 +49,22 @@ Feature: Personal Agent owns a bounded plugin runtime
     And a read-only tool retrieves the complete selected entry
     And Code Mode receives declared structured search and read results
     And experience supplies neither current observations nor action authorization
+
+  Scenario: Procedural learning uses only verified host check facts
+    Given an eligible hosted check and a turn with private note context
+    When the resident finishes the turn
+    Then separate completion inference does not receive private content
+    And learning receives only fixed check facts from the verified host receipt
+    And learning receives no request, answer, raw tool text, or prior lesson text
+    And the resulting experience stores a host receipt locator and a versioned scope
+
+  Scenario: Operators can retire and restore an experience entry
+    Given two active experience entries with the same scope
+    When the operator replaces one entry with the other by its current revision
+    Then automatic context and model tools omit the retired entry
+    And the automatic title index is absent from saved conversation entries
+    And the operator can inspect and restore the retained record
+    And a stale revision cannot overwrite a later decision
 
   Scenario: Completion receives a separate verification pass
     Given the resident has produced an answer and host-observed tool receipts
@@ -101,10 +117,11 @@ Feature: Personal Agent owns a bounded plugin runtime
     And verifier summaries cannot become learned source evidence
 
   Scenario: Learning uses only a verified completed task
-    Given completion verification passed with exact successful receipt citations
+    Given Hosted Pi verification passed with exact successful check citations
     When the learning plugin extracts a reusable lesson
-    Then each lesson cites exact successful receipt text from that task
-    And reusable source procedures retain their necessary steps and fixed parameters
+    Then each lesson cites exact text from the host projection of those checks
+    And raw commands, output, summaries, notes, and task paths are absent from learning input
+    And ordinary tool receipts cannot declare their own eligibility
     And invalid, sensitive, unsupported, or duplicate lessons are not added
     And unrelated explicit user notes remain unchanged
     And learning can be disabled without disabling experience retrieval
@@ -156,7 +173,8 @@ Feature: Personal Agent owns a bounded plugin runtime
     Given the default live evaluation and isolated synthetic state
     When the real model installs packages and delegates saved and temporary reports
     Then all six core scenarios retain host grading and completion checks
-    And a restarted saved child retrieves actual full-entry accepted experience
+    And the MCP report does not create automatic experience
+    And a restarted saved child retrieves a full seeded experience fixture
     And no paired holdout runs or learning benefit claim is included
     And plan inspection makes no external request and reads no credentials
 

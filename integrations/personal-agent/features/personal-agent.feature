@@ -45,10 +45,32 @@ Feature: Explicit personal assistant configuration and private opt-in note memor
     And explicit full reads remain available
     And forgotten notes are absent from later memory reads and context
 
+  Scenario: Automatic note context exists only in the active model request
+    Given a saved note and a durable Personal Agent conversation
+    When the resident sends the current note to the model
+    Then the note snapshot is absent from the persisted conversation input
+    When the owner forgets the note and restarts the resident
+    Then a request for current saved notes sees only current note state
+    And an earlier injected snapshot cannot supply a forgotten value
+
+  Scenario: Unnamed saves preserve unrelated notes
+    Given the owner has saved an unnamed note
+    When the owner saves another unnamed note with different content
+    Then both notes have distinct names and retain their exact values
+    And naming an existing note still replaces that note
+
+  Scenario: An unrelated request does not receive the complete note map
+    Given the operator selected the names of notes to keep in context
+    When a request does not match any saved note
+    Then the model receives only the selected standing notes that fit the context budget
+    And an unrelated unselected note is absent from the request
+    And the current memory workflow can still read the complete map
+
   Scenario: Private notes cannot become automatic procedural experience
     Given an owner turn reads or receives private note context
     When completion checks pass for another tool in that turn
-    Then automatic procedural learning is skipped
+    Then private content is absent from separate completion and learning inference
+    And learning can use independently verified host check facts
     And note tools mark their results as private data
 
   Scenario: Separate profiles update one private note map

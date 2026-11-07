@@ -1,7 +1,7 @@
 import { parsePluginInput } from '../src/agent-plugins/prompt.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, realpath, mkdir, rm, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, realpath, mkdir, rm, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createPersonalAgent } from '../src/agent.mjs'
@@ -20,7 +20,7 @@ async function fixture(t) {
     agentPlugins: { enabled: ['experience', 'completion', 'learning'] } }, env: {} } }
 }
 
-test('completion and learning providers receive original literal receipts through actual Durable tools', async t => {
+test('completion receives literal Durable tool receipts without promoting them to learning', async t => {
   const { directory, config } = await fixture(t)
   const workspace = join(directory, 'workspace')
   await mkdir(join(workspace, '.git'), { recursive: true })
@@ -47,7 +47,6 @@ test('completion and learning providers receive original literal receipts throug
       assert(receipt.text.includes(literal))
       assert(!input.receipts.some(item => item.id === 'tool-999'))
       for (const item of input.receipts) assert.equal(user.content.split(item.text).length - 1, 1)
-      if (kind === 'learning') return assistant(JSON.stringify({ lessons: [{ title: 'Read the source procedure', body: 'Read the supplied procedure before calculating.', evidence: [{ id: receipt.id, quote: literal }] }] }))
       const retry = seen.filter(item => item === 'completion').length > 1
       if (retry) assert.match(input.formatCorrection, /exact substring/)
       else assert.equal(input.formatCorrection, undefined)
@@ -60,9 +59,9 @@ test('completion and learning providers receive original literal receipts throug
   try {
     await bot.prompt('Read the supplied procedure.')
     assert.equal(literalObserved[0], true, 'The provider-visible user message must contain the original literal JSON')
-    assert.deepEqual(seen, ['completion', 'completion', 'learning'])
+    assert.deepEqual(seen, ['completion', 'completion'])
     assert.equal(bot.lastTaskResult.verification.status, 'passed')
-    assert.equal(bot.lastTaskResult.learning.status, 'applied')
+    assert.equal(bot.lastTaskResult.learning.status, 'skipped')
   } finally { await bot.close() }
 })
 
@@ -76,20 +75,30 @@ test('explicit owner notes reach real Durable context after restart and reflect 
     const text = typeof message.content === 'string' ? message.content : message.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
     const currentMemory = /Current saved MEMORY data [^\n]*\n([^\n]*)\nEnd MEMORY data\./.exec(text)
     assert(currentMemory, 'The actual provider request must carry the current memory block')
+    const request = text.split('Personal Agent request:\n').at(-1)
+    const afterMutation = {
+      'remember beverage: tea': { beverage: 'tea' },
+      'remember beverage: water': { beverage: 'water' },
+      'forget beverage': {},
+    }
+    const current = context.messages.at(-1).role === 'toolResult' ? afterMutation[request] ?? expected : expected
     const memory = JSON.parse(currentMemory[1])
-    assert.deepEqual(Object.fromEntries(memory.entries.map(entry => [entry.category, entry.value])), expected)
-    assert.equal(memory.total, Object.keys(expected).length)
+    assert.deepEqual(Object.fromEntries(memory.entries.map(entry => [entry.category, entry.value])), current)
+    assert.equal(memory.total, Object.keys(current).length)
     assert(memory.entries.every(entry => /^[a-f0-9]{64}$/.test(entry.revision)))
     assert(!text.includes('Learned experience index'))
     inspected++
-    const request = text.split('Personal Agent request:\n').at(-1)
+    if (request === 'Read my current saved notes after deletion.') {
+      assert(!JSON.stringify(context.messages).includes('remember beverage: tea'))
+      assert(!JSON.stringify(context.messages).includes('remember beverage: water'))
+    }
     if (context.messages.at(-1).role !== 'toolResult') {
       const code = request === 'remember beverage: tea' ? 'text(await tools.memory_update({category:"beverage",value:"tea"}));'
         : request === 'remember beverage: water' ? 'text(await tools.memory_update({category:"beverage",value:"water"}));'
         : request === 'forget beverage' ? 'text(await tools.memory_forget({category:"beverage"}));' : undefined
       if (code) return assistant([{ type: 'toolCall', id: `memory-${inspected}`, name: 'codemode', arguments: { code } }], 'toolUse')
     } else assert.equal(context.messages.at(-1).isError, false)
-    return assistant(JSON.stringify(expected))
+    return assistant(JSON.stringify(current))
   })
   const dependencies = { createRuntime: async () => modelRuntime, createIntentRouter: () => async () => { routed++; return { intent: 'memory' } } }
   let bot = await createPersonalAgent(config, dependencies)
@@ -111,6 +120,10 @@ test('explicit owner notes reach real Durable context after restart and reflect 
     assert.equal(routed, 6)
     assert.equal(inspected, 9)
   } finally { await bot.close() }
+  const state = join(config.stateDir, 'durable', 'personal')
+  const files = (await readdir(state)).filter(name => name.endsWith('.jsonl'))
+  assert(files.length > 0)
+  for (const file of files) assert.doesNotMatch(await readFile(join(state, file), 'utf8'), /Current saved MEMORY data/)
 })
 
 test('configured Durable query verifies, skips procedural learning, and clears shortcut outcomes across restart', async t => {

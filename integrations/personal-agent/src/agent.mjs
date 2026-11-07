@@ -208,6 +208,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
     const memory = personal ? createMemoryStore(config.personal.memoryFile) : undefined
     const plugins = config.personal?.agentPlugins ? createAgentPluginRuntime({
       config: config.personal.agentPlugins,
+      profile,
       store: createExperienceStore(join(config.stateDir, 'personal-agent', 'experience.json')),
       infer: (kind, input, signal) => inferPlugin(kind, input, signal),
     }) : undefined
@@ -262,7 +263,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         createWorker: spec => createPersonalAgent({ ...config, stateDir: spec.home, signal: spec.signal,
           childAgent: { role: spec.role, catalogDirectory: join(config.stateDir, 'personal-agent', 'packages') },
           onRideUpdate: undefined, onAgentUpdate: undefined, getWatch: undefined,
-          personal: { ...config.personal, memoryFile: personal ? join(spec.home, 'notes.json') : undefined, didi: undefined, browser: undefined,
+          personal: { ...config.personal, memoryFile: personal ? join(spec.home, 'notes.json') : undefined, pinnedMemoryCategories: undefined, didi: undefined, browser: undefined,
             ...(personal ? { capabilities: childCapabilityDeclarations(declarations) } : {}),
             agentPlugins: { ...config.personal.agentPlugins, enabled: config.personal.agentPlugins.enabled.filter(id => !['subagents', 'intent', 'remote_conversation'].includes(id)) } },
         }, { createSession, createRuntime: async () => modelRuntime, createIntentRouter }),
@@ -400,7 +401,18 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         packages?.beginTurn(text, intentTurn.getIntent())
         if (!text) { connectorRequestReady=false;activeReply=undefined;intentTurn.clear(); await session.setActiveToolsByName(baseTools) }
       },
-      context: async () => `${ownerTurn?.applications ? `Application destination for this owner turn: ${JSON.stringify(ownerTurn.applications.host)}. All user_apps_* and user_app_* tools operate on this originating desk. Draft source remains in the configured ODK_WORKSPACE on the central host; ask Hosted Pi to edit that existing source. Connection loss never permits fallback to the central desk.\n` : ''}${memory ? await memory.context(currentTurn, () => plugins?.markPrivateData()) : ''}${plugins?.context() ?? ''}${packages?.context() ?? ''}${remoteContext()}`,
+      context: async () => `${ownerTurn?.applications ? `Application destination for this owner turn: ${JSON.stringify(ownerTurn.applications.host)}. All user_apps_* and user_app_* tools operate on this originating desk. Draft source remains in the configured ODK_WORKSPACE on the central host; ask Hosted Pi to edit that existing source. Connection loss never permits fallback to the central desk.\n` : ''}${packages?.context() ?? ''}${remoteContext()}`,
+      memory: () => {
+        if (!memory && !plugins) return undefined
+        const query = currentTurn
+        const currentOnly = Boolean(memory && intentTurn.getIntent() === 'memory')
+        return { currentOnly, onPrivateData: () => plugins?.markPrivateData(), read: async () => {
+          let privateData = false
+          const notes = memory ? await memory.context(query, () => { privateData = true }, { current: currentOnly, pinned: config.personal?.pinnedMemoryCategories }) : ''
+          const experience = currentOnly ? '' : plugins?.context() ?? ''
+          return { content: notes + experience, privateData }
+        } }
+      },
       afterTurn: async (_text, answer, signal) => {
         if(intentTurn.getIntent()==='session_continue' && !activeReply && !sessionMutationAttempted) {
           intentTurn.defer()
@@ -630,8 +642,8 @@ export async function createPersonalAgent(config, { createSession = createDurabl
   }
 }
 
-/** @param {Pick<import('@earendil-works/pi-coding-agent').AgentSession, 'isStreaming'|'prompt'|'subscribe'|'abort'|'dispose'> & {recover?: (signal: AbortSignal) => Promise<void>, hasBufferedConnectorCompletion?: () => boolean, validateConnectorPublication?: () => Promise<void>}} session
- * @param {{beginTurn: (text: string, owner?: import('./session-replies.mjs').OwnerTurn) => void | Promise<void>, context?: () => Promise<string>, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal, reply?: import('./session-replies.mjs').BoundSessionReply) => Promise<{answer?: string, context?: string}>, streamResponse?: () => boolean, completeTurn?: (text: string, answer: string) => void, afterTurn?: (text: string, answer: string, signal: AbortSignal) => Promise<string>}} hooks */
+/** @param {Pick<import('@earendil-works/pi-coding-agent').AgentSession, 'isStreaming'|'subscribe'|'abort'|'dispose'> & {prompt: (text: string, options?: { expandPromptTemplates?: boolean, memory?: import('./durable-agent-session.mjs').OwnerMemoryProjection }) => Promise<void>, recover?: (signal: AbortSignal) => Promise<void>, hasBufferedConnectorCompletion?: () => boolean, validateConnectorPublication?: () => Promise<void>}} session
+ * @param {{beginTurn: (text: string, owner?: import('./session-replies.mjs').OwnerTurn) => void | Promise<void>, context?: () => Promise<string>, memory?: () => import('./durable-agent-session.mjs').OwnerMemoryProjection | undefined, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal, reply?: import('./session-replies.mjs').BoundSessionReply) => Promise<{answer?: string, context?: string}>, streamResponse?: () => boolean, completeTurn?: (text: string, answer: string) => void, afterTurn?: (text: string, answer: string, signal: AbortSignal) => Promise<string>}} hooks */
 export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
   let prompting = false
   let controller
@@ -657,7 +669,9 @@ export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
         unsubscribe = session.subscribe(event => { if (active) response.accept(event) })
         const context = hooks.context ? await hooks.context() : ''
         controller.signal.throwIfAborted()
-        await session.prompt(composeConnectorOwnerPrompt({ referenceContext: context, workflowContext: prepared?.context ?? '', request: text }), { expandPromptTemplates: false })
+        const memory = hooks.memory?.()
+        await session.prompt(composeConnectorOwnerPrompt({ referenceContext: context, workflowContext: prepared?.context ?? '', request: text }),
+          { expandPromptTemplates: false, ...(memory ? { memory } : {}) })
         controller.signal.throwIfAborted()
         const draft = response.result()
         const result = hooks.afterTurn ? await hooks.afterTurn(text, draft, controller.signal) : draft

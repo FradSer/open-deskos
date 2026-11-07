@@ -32,7 +32,7 @@ export function toolExecutionMetadata(context) {
 
 /** Keep validation facts only. Neither provider text nor receipt text enters evidence. */
 export function pluginEvidenceMetadata(input, text) {
-  const kind = Object.hasOwn(input, 'existingExperience') ? 'learning' : 'completion'
+  const kind = input.scope?.kind === 'hosted_check' ? 'learning' : 'completion'
   const result = { kind, jsonValid: false }
   let value
   try { value = JSON.parse(text.trim().replace(/^```(?:json)?\s*\n/, '').replace(/\n```$/, '')); result.jsonValid = true } catch { return result }

@@ -208,13 +208,12 @@ async function offlineReport(t, plan = agentLivePlan, extra = {}) {
   child.stdin.end(JSON.stringify({ offlineFixture: true, fixtureDirectory: root, hostValidationRequired: true, plan, provider: 'offline-fixture', model: { id: 'fixture' }, providerConfig: {}, jevKey: 'offline-only', candidate: 'fixture', fingerprints: {}, ...extra }))
   const [code] = await exited
   const report = JSON.parse(await readFile(join(root, 'report.json'), 'utf8'))
-  const acceptedExperience = report.acceptedExperience ? await readFile(join(root, 'accepted-experience.json'), 'utf8') : undefined
-  return { report, code, diagnostics, acceptedExperience }
+  return { report, code, diagnostics }
 }
 
 for (const resources of ['default', 'explicit']) test(`the delivery core runner proves its own contract with zero external calls (${resources})`, { timeout: 60000 }, async t => {
   const plan = resources === 'explicit' ? createLivePlan({ maxOutputTokens: 16384, deadlineMs: 1800000 }) : agentLivePlan
-  const { report, code, diagnostics, acceptedExperience } = await offlineReport(t, plan, resources === 'explicit' ? { pluginTimeoutMs: 180000 } : {})
+  const { report, code, diagnostics } = await offlineReport(t, plan, resources === 'explicit' ? { pluginTimeoutMs: 180000 } : {})
   assert.equal(report.limits.deadlineMs, resources === 'explicit' ? 1800000 : 900000)
   assert.equal(report.limits.maxRequests, 80)
   assert.equal(report.limits.maxOutputTokens, resources === 'explicit' ? 16384 : 2048)
@@ -240,11 +239,9 @@ for (const resources of ['default', 'explicit']) test(`the delivery core runner 
   assert.equal(report.learning.status, 'not_run')
   assert.equal(report.learning.generalLearningBenefit, 'not_established')
   assert(restart.experienceReads > 0)
-  assert.equal(report.acceptedExperience.entries, 1)
-  assert.equal(report.acceptedExperience.sha256, createHash('sha256').update(acceptedExperience).digest('hex'))
-  const saved = JSON.parse(acceptedExperience)
-  assert.equal(saved.entries.length, 1)
-  assert.deepEqual(Object.keys(saved).sort(), ['entries', 'version'])
+  assert.equal(report.taskChecks.find(check => check.phase === 'saved-training').learning, 'skipped')
+  assert.deepEqual(report.restartExperience, { source: 'host_fixture', entries: 1 })
+  assert.equal(report.acceptedExperience, undefined)
 })
 
 test('budget exhaustion stops the real runner before dependent stages without replay', { timeout: 15000 }, async t => {

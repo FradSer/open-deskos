@@ -4,7 +4,7 @@ import { mkdtemp, realpath, rm, readFile, writeFile, chmod, symlink, link } from
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createAgentPluginRuntime, validateAgentPlugins } from '../src/agent-plugins/runtime.mjs'
-import { createExperienceStore } from '../src/agent-plugins/experience.mjs'
+import { createExperienceStore, experienceDigest } from '../src/agent-plugins/experience.mjs'
 import { validateCompletion, validateLessons, completionInstructions, completionNotice, AgentValidationError, pluginFormatCorrection } from '../src/agent-plugins/completion.mjs'
 import { protectProactivePath } from '../src/proactive-private.mjs'
 
@@ -50,28 +50,30 @@ test('source queries retain receipt verification and skip automatic procedural l
   }
 })
 
-test('query learning can cite only imported host checks without promoting unrelated reads', async t => {
+test('tool metadata cannot promote receipts to automatic learning', async t => {
   const directory = await fixture(t)
-  for (const source of ['ordinary', 'host']) {
-    let learningInput
-    const store = createExperienceStore(join(directory, `${source}.json`))
+  for (const intent of ['task_query', 'agent_execute']) {
+    const calls = []
+    const store = createExperienceStore(join(directory, `${intent}.json`))
     const runtime = createAgentPluginRuntime({ store, config: { enabled: ['completion', 'learning'], autoLearn: true },
       infer: async (kind, input) => {
-        if (kind === 'completion') return { status: 'passed', summary: 'The requested check passed.', checks: [{ requirement: 'Check task evidence', scope: 'completion', status: 'passed', evidence: [{ id: 'tool-3', quote: 'Assertions: 3 passed' }] }] }
-        learningInput = input
-        return { lessons: [{ title: 'Validate region counts', body: 'Assert region count and uniqueness before reporting the result.',
-          evidence: [{ id: source === 'host' ? 'tool-3' : 'tool-1', quote: source === 'host' ? 'Assertions: 3 passed' : 'Unrelated method' }] }] }
+        calls.push(kind)
+        assert.equal(kind, 'completion')
+        assert(!input.receipts.some(receipt => receipt.kind === 'host_check'))
+        return { status: 'passed', summary: 'The requested check passed.', checks: [{ requirement: 'Check task evidence', scope: 'completion',
+          status: 'passed', evidence: [{ id: 'tool-2', quote: 'Checked task' }] }] }
       } })
-    runtime.beginTurn('Check task evidence.', 'task_query')
+    runtime.beginTurn('Check task evidence.', intent)
     const tools = runtime.observeTools([
       { name: 'skill_read', execute: async () => ({ content: [{ type: 'text', text: 'Unrelated method' }], details: {} }) },
       { name: 'coding_task_verify', execute: async () => ({ content: [{ type: 'text', text: 'Checked task' }], details: { completionReceipts: [{ text: 'Assertions: 3 passed', status: 'succeeded', truncated: false }] } }) },
     ])
     await tools[0].execute('ordinary', {}); await tools[1].execute('host', {})
     const outcome = await runtime.finishTurn('The check passed.')
-    assert.deepEqual(learningInput.receipts.map(receipt => receipt.kind), ['host_check'])
-    assert.equal(outcome.learning.status, source === 'host' ? 'applied' : 'needs_review')
-    assert.equal(store.load().entries.length, source === 'host' ? 1 : 0)
+    assert.equal(outcome.verification.status, 'passed')
+    assert.equal(outcome.learning.status, 'skipped')
+    assert.deepEqual(calls, ['completion'])
+    assert.deepEqual(store.load().entries, [])
   }
 })
 
@@ -87,6 +89,8 @@ test('Given invalid plugin judgments When validation fails Then only fixed host 
     [() => validateCompletion(checks({ scope: 'derivation' }), receipts), 'computation_required'],
     [() => validateCompletion(checks({ status: 'needs_review', evidence: [] }), receipts), 'unresolved'],
     [() => validateLessons({ lessons: 'PRIVATE_LESSONS' }, receipts), 'lesson_schema'],
+    [() => validateLessons({ lessons: [{ title: 'Unsupported lesson', body: 'Check the report.', evidence: [{ id: 'tool-1', quote: 'invented' }] }] }, receipts), 'citation'],
+    [() => validateLessons({ lessons: [{ title: 'Oversized lesson', body: 'x'.repeat(5000), evidence: [{ id: 'tool-1', quote: 'checked' }] }] }, receipts), 'lesson_text'],
     [() => validateLessons({ lessons: [{ title: 'password=PRIVATE', body: 'Unsafe lesson', evidence: [{ id: 'tool-1', quote: 'checked' }] }] }, receipts), 'lesson_text'],
   ]
   for (const [run, code] of cases) assert.throws(run, error => {
@@ -204,29 +208,6 @@ test('Given concurrent computations When their output exceeds the turn budget Th
   assert(receipts.reduce((bytes, receipt) => bytes + Buffer.byteLength(receipt.text), 0) <= 131072)
 })
 
-test('Hosted verification imports host checks for learning and excludes the verifier summary', async t => {
-  const directory = await fixture(t)
-  for (const learnSummary of [true, false]) {
-    const store = createExperienceStore(join(directory, `hosted-${learnSummary}.json`))
-    let inventory
-    const runtime = createAgentPluginRuntime({ store, config: { enabled: ['completion', 'learning'] }, infer: async (kind, input) => {
-      inventory = input.receipts
-      if (kind === 'completion') return { status: 'passed', summary: 'Checked', checks: [{ requirement: 'Complete the report', scope: 'completion', status: 'passed',
-        evidence: [{ id: 'tool-1', quote: 'Verified summary' }] }] }
-      return { lessons: [{ title: 'Check report regions', body: 'Check each required region before reporting completion.',
-        evidence: [{ id: learnSummary ? 'tool-1' : 'tool-2', quote: learnSummary ? 'Verified summary' : 'Three region assertions passed.' }] }] }
-    } })
-    runtime.beginTurn('Complete the report')
-    await runtime.observeTools([{ name: 'coding_task_verify', execute: async () => ({ content: [{ type: 'text', text: 'Verified summary' }], details: {
-      completionReceipts: [{ tool: 'coding_check', status: 'succeeded', text: 'Three region assertions passed.', truncated: false }],
-    } }) }])[0].execute('verify', {})
-    const result = await runtime.finishTurn('Report complete')
-    assert.equal(inventory.length, 2)
-    assert.equal(result.verification.status, 'passed')
-    assert.equal(result.learning.status, learnSummary ? 'needs_review' : 'applied')
-    assert.equal(store.load().entries.length, learnSummary ? 0 : 1)
-  }
-})
 const verification = { status: 'passed', summary: 'All requested regions were checked.', checks: [
   { requirement: 'Include three regions', status: 'passed', evidence: [{ id: 'tool-1', quote: 'Checks: 3 passed, 0 failed.' }] },
 ] }
@@ -234,22 +215,15 @@ const lesson = { title: 'Regional report validation', body: 'Validate every requ
   { id: 'tool-1', quote: 'The report contains all three requested regions.' },
 ] }
 
-test('Given private connector receipts When completion passes Then automatic learning never runs or saves private data', async t => {
+test('private connector receipts cannot start separate completion or learning inference', async t => {
   const directory = await fixture(t)
   const store = createExperienceStore(join(directory, 'experience.json'))
-  let receipts
-  const runtime = createAgentPluginRuntime({ store, config: { enabled: ['completion', 'learning'] }, infer: async (kind, input) => {
-    assert.equal(kind, 'completion', 'Private connector tasks cannot start automatic learning')
-    receipts = input.receipts
-    return verification
-  } })
+  const runtime = createAgentPluginRuntime({ store, config: { enabled: ['completion', 'learning'] }, infer: async () => assert.fail('no inference') })
   runtime.beginTurn('Read the requested private document', 'agent_execute', 'personal')
   await runtime.observeTools([{ name: 'agent_mcp_call', execute: async () => ({ ...success, details: { privateData: true } }) }])[0].execute('private-document', {})
   const result = await runtime.finishTurn('The requested private document is summarized.')
-  assert.equal(result.verification.status, 'passed')
+  assert.equal(result.verification.status, 'not_run')
   assert.equal(result.learning.status, 'skipped')
-  assert.equal(receipts[0].learningEligible, false)
-  assert.equal(receipts[0].privateData, true)
   assert.deepEqual(store.load().entries, [])
 })
 
@@ -258,22 +232,12 @@ test('plugin selection accepts only fixed DeskOS identities and independent lear
   for (const value of [{ enabled: ['@fradser/pi-subagents'] }, { enabled: ['/tmp/extension.js'] }, { enabled: ['learning'] }, { enabled: ['experience', 'experience'] }, { enabled: [], extra: true }, { enabled: [], autoLearn: 'yes' }]) assert.throws(() => validateAgentPlugins(value))
 })
 
-test('verified task learns once, survives restart, injects only an index and retrieves full reference data', async t => {
+test('stored experience survives restart, injects only an index and retrieves full reference data', async t => {
   const directory = await fixture(t)
   const store = createExperienceStore(join(directory, 'experience.json'))
-  const calls = []
-  const runtime = createAgentPluginRuntime({ store, config: { enabled: ['experience', 'completion', 'learning'] },
-    infer: async (kind, input) => { calls.push({ kind, input }); return kind === 'completion' ? verification : { lessons: [lesson] } } })
-  runtime.beginTurn('Create a report for three regions')
-  const wrapped = runtime.observeTools([{ name: 'report_check', execute: async () => success }])
-  await wrapped[0].execute('fixture', {})
-  const result = await runtime.finishTurn('The report is ready.')
-  assert.equal(result.verification.status, 'passed')
-  assert.equal(result.learning.status, 'applied')
-  assert.equal(calls.length, 2)
-  assert.equal(store.load().entries.length, 1)
-  runtime.beginTurn('Create another report')
-  const restarted = createAgentPluginRuntime({ store: createExperienceStore(join(directory, 'experience.json')), config: { enabled: ['experience'] }, infer: async () => assert.fail('retrieval does not call a model') })
+  await store.append([{ title: lesson.title, body: lesson.body, sources: [{ tool: 'fixture', digest: 'a'.repeat(64) }] }])
+  const restarted = createAgentPluginRuntime({ store: createExperienceStore(join(directory, 'experience.json')),
+    config: { enabled: ['experience', 'completion', 'learning'], autoLearn: false }, infer: async () => assert.fail('retrieval does not call a model') })
   const context = restarted.context()
   assert.match(context, /Regional report validation/)
   assert.doesNotMatch(context, /Validate every requested region/)
@@ -282,7 +246,44 @@ test('verified task learns once, survives restart, injects only an index and ret
   const entry = store.load().entries[0]
   assert.match((await tool.execute('read', { id: entry.id })).content[0].text, /Validate every requested region/)
   await assert.rejects(tool.execute('read', { id: '../experience.json' }))
-  assert.equal((await runtime.finishTurn('Again')).learning.status, 'skipped')
+})
+
+test('retired experience stays inspectable but cannot be retrieved by the model', async t => {
+  const directory = await fixture(t), store = createExperienceStore(join(directory, 'experience.json'))
+  const receipt = { target: 'mac', project: directory, taskId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', toolCallId: 'test-call' }
+  const sources = [{ tool: 'coding_check', digest: 'a'.repeat(64), receipt }]
+  const scope = { kind: 'hosted_check', version: 1, profile: 'personal' }
+  const original = { title: 'Old checks', body: 'Check the old report format.', sources, scope }
+  const [oldId, newId, otherProfileId] = await store.append([
+    original,
+    { title: 'New checks', body: 'Check the revised report format.', sources, scope },
+    { ...original, title: 'Coding-only checks', scope: { ...scope, profile: 'coding' } },
+  ])
+  const entry = () => store.load().entries.find(item => item.id === oldId)
+  const revision = () => experienceDigest(JSON.stringify(entry()))
+  const initial = revision()
+  const runtime = createAgentPluginRuntime({ store, config: { enabled: ['experience'] }, infer: async () => assert.fail('no inference') })
+  const read = runtime.tools().find(tool => tool.name === 'experience_read')
+  assert.match(runtime.context(), /Old checks/)
+  assert.doesNotMatch(runtime.context(), /Coding-only checks/)
+  await assert.rejects(read.execute('read', { id: otherProfileId }), /unavailable/)
+  await assert.rejects(store.maintain({ action: 'replace', id: oldId, replacementId: otherProfileId, expectedRevision: initial }), /scope/)
+  await store.maintain({ action: 'replace', id: oldId, replacementId: newId, expectedRevision: initial })
+  assert.equal(entry().retired.replacedBy, newId)
+  assert.deepEqual(entry().sources[0].receipt, receipt)
+  assert.doesNotMatch(runtime.context(), /Old checks/)
+  await assert.rejects(read.execute('read', { id: oldId }), /unavailable/)
+  assert.deepEqual(await store.append([original]), [], 'Learning cannot recreate a retired entry')
+  await assert.rejects(store.maintain({ action: 'restore', id: oldId, expectedRevision: initial }), /changed/)
+  await store.maintain({ action: 'restore', id: oldId, expectedRevision: revision() })
+  assert.match(runtime.context(), /Old checks/)
+  const data = (await read.execute('read', { id: oldId })).structuredContent.referenceData
+  assert.match(data.body, /old report format/)
+  assert.equal(data.sources[0].receipt, undefined)
+  assert.match(data.sources[0].receiptId, /^[a-f0-9]{64}$/)
+  await assert.rejects(store.maintain({ action: 'withdraw', id: oldId, expectedRevision: initial }), /changed/)
+  await store.maintain({ action: 'withdraw', id: oldId, expectedRevision: revision() })
+  assert.doesNotMatch(runtime.context(), /Old checks/)
 })
 
 test('unsupported verification, errors and truncated receipts cannot approve completion or learn', async t => {
@@ -359,16 +360,9 @@ test('Given identical literal and structured JSON When captured Then one complet
   }
 })
 
-test('learning rejects unsupported and sensitive candidates; disabled learning retains retrieval', async t => {
+test('learning can be disabled while completion and retrieval stay available', async t => {
   const directory = await fixture(t)
   const store = createExperienceStore(join(directory, 'experience.json'))
-  for (const candidate of [{ ...lesson, evidence: [{ id: 'tool-1', quote: 'invented' }] }, { ...lesson, body: 'remember password=fixture-only' }, { ...lesson, body: 'x'.repeat(5000) }]) {
-    const runtime = createAgentPluginRuntime({ store, config: { enabled: ['experience', 'completion', 'learning'] }, infer: async kind => kind === 'completion' ? verification : { lessons: [candidate] } })
-    runtime.beginTurn('report')
-    await runtime.observeTools([{ name: 'check', execute: async () => success }])[0].execute('id', {})
-    assert.equal((await runtime.finishTurn('ready')).learning.status, 'needs_review')
-    assert.equal(store.load().entries.length, 0)
-  }
   const runtime = createAgentPluginRuntime({ store, config: { enabled: ['experience', 'completion', 'learning'], autoLearn: false }, infer: async kind => { assert.equal(kind, 'completion'); return verification } })
   runtime.beginTurn('report')
   await runtime.observeTools([{ name: 'check', execute: async () => success }])[0].execute('id', {})
@@ -376,28 +370,6 @@ test('learning rejects unsupported and sensitive candidates; disabled learning r
   assert(runtime.tools().some(tool => tool.name === 'experience_read'))
 })
 
-test('cancellation and a stale callback cannot write learned experience', async t => {
-  const directory = await fixture(t)
-  const store = createExperienceStore(join(directory, 'experience.json'))
-  let resolveLearning, entered
-  const ready = new Promise(resolve => { entered = resolve })
-  const runtime = createAgentPluginRuntime({ store, config: { enabled: ['experience', 'completion', 'learning'] }, infer: async kind => {
-    if (kind === 'completion') return verification
-    entered()
-    return new Promise(resolve => { resolveLearning = resolve })
-  } })
-  const abort = new AbortController()
-  runtime.beginTurn('report')
-  await runtime.observeTools([{ name: 'check', execute: async () => success }])[0].execute('id', {})
-  const pending = runtime.finishTurn('ready', abort.signal)
-  // Given a failed setup, when completion settles before learning starts, then fail without waiting for an impossible event.
-  await Promise.race([ready, pending.then(result => assert.fail(`Learning did not start: ${JSON.stringify(result)}`))])
-  abort.abort()
-  runtime.beginTurn('next task')
-  resolveLearning({ lessons: [lesson] })
-  await assert.rejects(pending, /abort|cancel|superseded/i)
-  assert.equal(store.load().entries.length, 0)
-})
 
 test('private experience updates merge concurrent writers and reject linked or shared state', async t => {
   const directory = await fixture(t)
@@ -534,10 +506,7 @@ test('completion notices preserve passed results and identify the unmet outcome'
 test('private host admission suppresses learning when the connector later fails', async t => {
   const directory = await fixture(t)
   const store = createExperienceStore(join(directory, 'experience.json'))
-  const runtime = createAgentPluginRuntime({ store, config: { enabled: ['completion', 'learning'] }, infer: async kind => {
-    assert.equal(kind, 'completion', 'A private admitted request cannot start learning')
-    return verification
-  } })
+  const runtime = createAgentPluginRuntime({ store, config: { enabled: ['completion', 'learning'] }, infer: async () => assert.fail('no inference') })
   runtime.beginTurn('Check a private document and a public report', 'agent_execute', 'personal')
   const observed = runtime.observeTools([
     { name: 'public_report', execute: async () => success },
@@ -546,7 +515,7 @@ test('private host admission suppresses learning when the connector later fails'
   await observed[0].execute('public', {})
   await assert.rejects(observed[1].execute('private', {}))
   const result = await runtime.finishTurn('The public report passed; the private document is unavailable.')
-  assert.equal(result.verification.status, 'passed')
+  assert.equal(result.verification.status, 'not_run')
   assert.equal(result.learning.status, 'skipped')
   assert.deepEqual(store.load().entries, [])
 })

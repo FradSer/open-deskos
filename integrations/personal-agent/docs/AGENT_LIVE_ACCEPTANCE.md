@@ -27,12 +27,14 @@ The default `core` mode covers six scenarios:
 1. Install a staged Skill through a natural-language request.
 2. Install a staged MCP connector through a natural-language request.
 3. Create a saved identity with a name, role, and built-in avatar.
-4. Execute a saved report and check its result, completion, and accepted experience.
+4. Execute a saved report and check its result and completion.
 5. Restart the resident and check the saved identity, current result, completion, and a new full-entry experience read.
 6. Execute a separate temporary child and check its result and completion.
 
-The restart read must occur after restart; a training-stage read cannot satisfy this check.
-It proves accepted experience retrieval, not a read of the owner's `MEMORY.md`.
+The report connector does not create automatic experience.
+The runner adds a known synthetic experience entry before the restart.
+The report identifies that entry as a host fixture.
+The read after restart proves retrieval of that fixture.
 Child acceptance binds the task handle, turn, identity, and identity revision before grading.
 Saved-child activity must carry the expected avatar metadata.
 Rendered avatar acceptance remains separate.
@@ -47,7 +49,7 @@ Targeted setup has `naturalLanguageVerified: false`.
 It does not prove natural-language installation, restart, or paired learning.
 The compatibility flag `--task-evaluation` now selects targeted `saved-report`; it no longer starts the previous long task pipeline.
 
-Explicit `learning` mode requires accepted experience from a previous verified training stage.
+Explicit `learning` mode requires an existing accepted experience artifact from a verified training stage.
 It runs only three fresh-conversation pairs, using six new private homes.
 Each pair has identical packages, roles, current synthetic data, and a shared task contract.
 Only the candidate receives accepted experience; neither arm receives conversation history.
@@ -121,10 +123,7 @@ pnpm test:agent:live --live --output=/absolute/new/evidence-directory
 The command requires Docker and `TYPESAFE_API_KEY`.
 The selected custom model must exist in the current Pi agent configuration.
 The evidence directory contains `report.json`.
-A training stage with correct host grading, passed completion, and applied learning also writes `accepted-experience.json`.
-This private artifact contains validated accepted experience without conversation history or raw provider responses.
-The report records its entry count and SHA-256 digest before later stages begin.
-The artifact alone does not prove later retrieval or learning benefit.
+The core does not export the restart fixture as `accepted-experience.json`.
 A failed run preserves partial counts and outcomes.
 It does not retry a failed task automatically.
 

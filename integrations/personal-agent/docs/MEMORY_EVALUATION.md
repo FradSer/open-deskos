@@ -8,11 +8,11 @@ This report owns the comparison, evidence, and remaining verification boundaries
 
 | Candidate | Benefit | Cost or limitation | Decision |
 | --- | --- | --- | --- |
-| Complete injection | Complete small-store context; references work across languages | Context grows with stored content | Retain when the complete framed note context fits 4096 bytes |
+| Complete injection | Complete small-store context; references work across languages | Context grows with stored content | Use for the saved-note workflow when the framed map fits 4096 bytes |
 | Local ranked retrieval | No external index; exact source text; bounded context | Lexical search needs shared terms | Select for larger notes and procedural experience |
 | External vector service | Semantic matching can find more paraphrases | New credential, privacy, latency, and lifecycle dependencies | Defer until a controlled comparison demonstrates added value |
 
-The implementation preserves existing note, experience, and feedback storage formats.
+The initial implementation preserves existing note, experience, and feedback storage formats.
 It adds no dependency or automatic conversation extraction.
 It uses the existing filesystem lock dependency for note mutations.
 
@@ -23,10 +23,11 @@ It uses the existing filesystem lock dependency for note mutations.
 | Procedural experience | Ranked title/body search, relevant prompt index, and complete reads with evidence sources |
 | Recommendation feedback | Existing topic/version scope, bounded signals, private projections, and retry gates remain separate |
 
-Turns with accessible private notes skip automatic procedural learning.
-This conservative rule also applies when the same turn produces a successful public tool receipt.
-Retrieval, explicit saves, and recommendation feedback retain their existing roles.
-Public coding workflows without private note context can still learn checked methods.
+The follow-up keeps automatic note and experience context outside conversation storage.
+The saved-note workflow uses the current note store.
+Other workflows use matching notes and optional pinned notes.
+Learning uses a projection of verified host checks.
+The [memory contract](CONTRACT.md#profiles-and-memory) defines these boundaries.
 
 ## Published retrieval benchmark
 
@@ -89,13 +90,13 @@ The snapshot and its contents stay outside Git and external provider requests.
 This evidence proves saved-data compatibility and the sampled retrieval behavior.
 It does not prove installed candidate behavior or broad personal conversation quality.
 
-## Real model comparison
+## Initial real model comparison
 
 Model: `cliproxyapi/gpt-6.1-sol`.
 Both arms use isolated Pi Durable sessions and the actual private memory store and read tool.
 All provider inputs contain public benchmark data or explicitly synthetic lifecycle notes.
 The full arm provides the complete note map.
-The bounded arm uses the production note context and the same complete-read fallback.
+The bounded arm uses bounded note selection and the same complete-read fallback.
 Arm execution order alternates across questions.
 
 Eligibility uses the actual explicit-note storage gate before inference.
@@ -126,10 +127,31 @@ Total reported input tokens decreased by 52.06%, including complete-read fallbac
 Initial memory context decreased by 95.11%.
 These measurements establish input reduction for this sample, rather than billed savings.
 All three same-session lifecycle answers matched the current saved state.
-The final runner and kernel hashes match the tested source files.
+The receipt contains hashes of the runner and kernel used for that run.
 The small sample can show regressions and input costs, but cannot establish general model superiority.
 The oracle corpus supplies relevant sessions, so this test cannot establish end-to-end retrieval over complete histories.
-The synthetic same-session lifecycle checks saved, corrected, and forgotten preferences against the current store.
+
+## Resident workflow follow-up
+
+The same configured model passed nine checks in 16 requests through the resident Durable workflow.
+The test uses an isolated store, synthetic notes, and fixed workflow selection.
+It checks save, read, correction, deletion, and read after restart.
+It also checks irrelevant requests with and without a pinned note.
+The current-note requests after deletion contain neither the original nor the corrected value.
+None of the eight inspected Durable files contains the automatic note snapshot.
+The test does not delete original conversation messages.
+
+A fresh run on the public corpus confirms 94.87% mean recall at 10 on 470 questions with evidence.
+The ranked arm returns all evidence for 90.43% of those questions.
+These results measure retrieval, not answer accuracy or real conversation retention.
+
+The Hosted integration executes a real scratch check through the SDK and task transport.
+Scripted model responses check the projected learning input and the exact saved receipt locator.
+The integration also checks cancellation and rejection of a citation to raw check output.
+An isolated probe also uses the real model for the learning step.
+One request produces one valid entry with the exact source locator.
+The resident response and original task verification remain scripted in this probe.
+The package suite passes 1712 tests and skips 11 tests.
 
 ## Reproduction
 
@@ -151,7 +173,7 @@ The live runner limits generation to 80 requests and 1536 output tokens per requ
 Each request has a 45-second timeout.
 Optional `--regrade=/private/path/answers.json` reuses saved answers with at most 16 grading requests.
 It records the source receipt and original generation provenance.
-Optional `--lifecycle-only` tests the synthetic correction and deletion sequence without question generation.
+Optional `--lifecycle-only` tests the resident saved-note workflow with a limit of 20 requests.
 
 ## Verification and acceptance boundary
 

@@ -23,7 +23,7 @@ test('plugin diagnostics preserve explicit uncertainty and unsupported lesson ev
   assert.equal(result.status, 'needs_review')
   assert.equal(result.checks[0].skill, true)
   assert.equal(result.validation, 'valid')
-  const lessons = pluginEvidenceMetadata({ receipts: [], existingExperience: [] }, JSON.stringify({ lessons: [{ title: 'private title', body: 'private body', evidence: [] }] }))
+  const lessons = pluginEvidenceMetadata({ receipts: [], scope: { kind: 'hosted_check', version: 1, profile: 'personal' } }, JSON.stringify({ lessons: [{ title: 'private title', body: 'private body', evidence: [] }] }))
   assert.equal(lessons.kind, 'learning')
   assert.equal(lessons.validation, 'invalid')
   assert.equal(lessons.failureCode, 'citation')

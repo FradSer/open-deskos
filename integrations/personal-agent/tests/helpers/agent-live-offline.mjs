@@ -14,11 +14,7 @@ export function createOfflineAcceptanceRuntime(phase) {
         const raw = typeof user?.content === 'string' ? user.content : user?.content?.filter(part => part.type === 'text').map(part => part.text).join('\n') ?? ''
         if (all.includes('Check the current Personal Agent task after') || all.includes('Extract reusable procedural lessons only')) {
           const input = parsePluginInput(raw.slice('Personal Agent request:\n'.length))
-          if ('existingExperience' in input) {
-            const source = input.receipts.find(receipt => receipt.tool === 'agent_mcp_call' && receipt.text.includes(reportProcedure))
-            return assistant(JSON.stringify({ lessons: source && phase() === 'saved-training' ? [{ title: 'Desk report conversion', body: reportProcedure,
-              evidence: [{ id: source.id, quote: reportProcedure }] }] : [] }))
-          }
+          if (input.scope?.kind === 'hosted_check') throw Error('The report fixture cannot supply Hosted check facts')
           const computed = input.receipts.find(receipt => receipt.kind === 'computation' && receipt.status === 'succeeded'
             && /RESULT=-?\d/.test(receipt.text.split('\nObserved output:\n')[1]?.split('\nDiagnostics (JSON):\n')[0] ?? ''))
           const source = computed ?? input.receipts.find(receipt => receipt.kind !== 'computation' && receipt.status === 'succeeded'

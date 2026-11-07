@@ -1,15 +1,35 @@
 import { randomUUID } from 'node:crypto'
 import { minimatch } from 'minimatch'
 import { BACKGROUND_CONTEXT, withAbortSignal } from '@earendil-works/chord/context'
-import { defineExtension, hook, LiveDoc, ToolTask } from '@earendil-works/pi-durable'
+import { defineExtension, GenerationTask, hook, LiveDoc, ToolTask } from '@earendil-works/pi-durable'
 import { createReadTool } from '@earendil-works/pi-durable/tools'
 import { createReadOnlyTools, createFindTool, createAgentSession, SessionManager } from '@earendil-works/pi-coding-agent'
 import { openDurableRuntime, durableCapability, createPiExecutionTarget } from './durable-runtime.mjs'
 import { importLegacyContext } from './durable-legacy-context.mjs'
 import { createConnectorCompletionGuard, createConnectorCompletionExtension, runBufferedConnectorSubmission } from './connector-completion-guard.mjs'
+import { stripLegacyMemoryContext } from './memory.mjs'
 
 /** @typedef {{status: 'succeeded'|'failed', output: string, diagnostics: {severity: 'info'|'warn'|'error', code?: string, message: string}[], truncated: boolean}} ComputationOutcome */
 /** @typedef {{requestId: string, taskId: string, callId: string, source: string, truncated: boolean, kind: 'computation', learningEligible: false}} ComputationStart */
+/** @typedef {{read: () => Promise<{content: string, privateData: boolean}>, currentOnly: boolean, onPrivateData?: () => void}} OwnerMemoryProjection */
+
+/** Remove only recognized snapshots from historical user input. */
+function withoutLegacyMemory(message) {
+  if (message.role !== 'user') return message
+  if (typeof message.content === 'string') {
+    const content = stripLegacyMemoryContext(message.content)
+    return content === message.content ? message : { ...message, content }
+  }
+  return { ...message, content: message.content.map(part => part.type === 'text'
+    ? { ...part, text: stripLegacyMemoryContext(part.text) } : part) }
+}
+
+/** @param {import('@earendil-works/pi-ai').Message} message */
+function ownerMessageText(message) {
+  if (message.role !== 'user') return undefined
+  if (typeof message.content === 'string') return message.content
+  if (message.content.length === 1 && message.content[0].type === 'text') return message.content[0].text
+}
 
 /** Keep executable source and results as bounded, untrusted computation evidence. */
 function computationOutcome(result) {
@@ -102,6 +122,8 @@ export async function createDurableAgentSession(options, { createTarget = create
     ...(resourceLoader?.getSkills().skills ?? []).map(skill => `Available Skill: ${skill.name}. ${skill.description}\nRead ${skill.filePath} when this Skill applies.`),
   ].filter(Boolean).join('\n\n')
   let runtime, activeRequestId, streaming = false, disposed = false, closing
+  /** @type {{requestId: string, text: string, projection: OwnerMemoryProjection} | undefined} */
+  let ownerMemory
   let connectorGuard, completedConnectorGuard, connectorBuffered = false
   const computations = new Map()
   const listeners = new Set()
@@ -129,25 +151,50 @@ export async function createDurableAgentSession(options, { createTarget = create
   })
   // A recovered run may execute concurrently with admission of a later request.
   // Match persisted submission identity, rather than borrowing mutable host intent.
-  const authority = defineExtension({ name: 'odk.owner-turn-authority', hooks: [hook(ToolTask, {
+  function isActive(requestId, context) {
+    return Boolean(requestId && activeRequestId === requestId && !disposed && !context.abortSignal?.aborted)
+  }
+  async function ownsRun(requestId, api, context) {
+    if (!runtime || !isActive(requestId, context)) return false
+    const live = await api.snapshot(LiveDoc, api.conversationId, context)
+    for (const id of live?.run?.inputs ?? []) {
+      const submission = await runtime.harness.submission(id)
+      const record = await submission?.status(context)
+      if (record?.type === 'input' && record.requestId === requestId && isActive(requestId, context)) return true
+    }
+    return false
+  }
+  const authority = defineExtension({ name: 'odk.owner-turn-authority', hooks: [hook(GenerationTask, {
+    beforeRequest: async ({ messages }, api, context) => {
+      if (!codeMode) return undefined
+      const projected = messages.map(withoutLegacyMemory)
+      const bound = ownerMemory
+      if (!bound || !await ownsRun(bound.requestId, api, context)) return { messages: projected }
+      const index = messages.findLastIndex(message => ownerMessageText(message) === bound.text)
+      if (index === -1) throw Error('Current owner memory request has no matching input')
+      const current = await bound.projection.read()
+      if (ownerMemory !== bound || !isActive(bound.requestId, context)) throw Error('Owner memory request expired')
+      if (current.privateData) bound.projection.onPrivateData?.()
+      const message = projected[index]
+      if (message.role !== 'user') throw Error('Current owner memory request has no user input')
+      if (current.content) projected[index] = { ...message, content: current.content + ownerMessageText(message) }
+      const visible = bound.projection.currentOnly
+        ? [...projected.slice(0, index).filter(message => message.role === 'system'), ...projected.slice(index)]
+        : projected
+      return { messages: visible }
+    },
+  }), hook(ToolTask, {
     beforeTool: async (call, api, context) => {
-      if (!activeRequestId || disposed || !runtime) return { block: 'No active owner request authorizes this tool call' }
       const requestId = activeRequestId
-      const live = await api.snapshot(LiveDoc, api.conversationId, context)
-      for (const id of live?.run?.inputs ?? []) {
-        const submission = await runtime.harness.submission(id)
-        const record = await submission?.status(context)
-        if (record?.requestId === requestId && activeRequestId === requestId && !disposed && !context.abortSignal?.aborted) {
-          if (call.name === 'codemode' && options.observeCodeModeExecution) {
-            const source = typeof call.arguments.code === 'string' ? call.arguments.code : ''
-            const finish = options.observeCodeModeExecution({ requestId, taskId: String(api.taskId), callId: call.id,
-              source: source.slice(0, 16000), truncated: source.length > 16000, kind: 'computation', learningEligible: false })
-            computations.set(api.taskId, { requestId, finish })
-          }
-          return undefined
-        }
+      if (!isActive(requestId, context)) return { block: 'No active owner request authorizes this tool call' }
+      if (!await ownsRun(requestId, api, context)) return { block: 'Recovered work cannot borrow another owner request authorization' }
+      if (call.name === 'codemode' && options.observeCodeModeExecution) {
+        const source = typeof call.arguments.code === 'string' ? call.arguments.code : ''
+        const finish = options.observeCodeModeExecution({ requestId, taskId: String(api.taskId), callId: call.id,
+          source: source.slice(0, 16000), truncated: source.length > 16000, kind: 'computation', learningEligible: false })
+        computations.set(api.taskId, { requestId, finish })
       }
-      return { block: 'Recovered work cannot borrow another owner request authorization' }
+      return undefined
     },
     afterTool: (call, result, api, context) => {
       if (call.name !== 'codemode') return undefined
@@ -223,7 +270,8 @@ export async function createDurableAgentSession(options, { createTarget = create
         await runtime.harness.waitForIdle(recovery)
         recovery.abortSignal?.throwIfAborted()
       },
-      async prompt(text) {
+      /** @param {string} text @param {{memory?: OwnerMemoryProjection, expandPromptTemplates?: boolean}} [turnOptions] */
+      async prompt(text, turnOptions) {
         if (disposed) throw Error('Personal Agent is closed')
         if (streaming) throw Error('Agent request already in progress')
         streaming = true
@@ -231,6 +279,7 @@ export async function createDurableAgentSession(options, { createTarget = create
         seen = new Set(view.value.entries.map(entry => entry.id))
         lastPartial = ''
         activeRequestId = randomUUID()
+        ownerMemory = turnOptions?.memory ? { requestId: activeRequestId, text, projection: turnOptions.memory } : undefined
         try {
           await configureTools()
           const admission = options.connectorAdmission ? await options.connectorAdmission() : undefined
@@ -260,13 +309,14 @@ export async function createDurableAgentSession(options, { createTarget = create
               for (const message of entry.model ?? []) if (message.role === 'assistant') emit({ type: 'message_end', message })
             }
           } finally { final.dispose() }
-        } finally { streaming = false; connectorBuffered = false; connectorGuard = undefined; activeRequestId = undefined; computations.clear(); lastPartial = '' }
+        } finally { streaming = false; connectorBuffered = false; connectorGuard = undefined; activeRequestId = undefined; ownerMemory = undefined; computations.clear(); lastPartial = '' }
       },
-      abort: () => { activeRequestId = undefined; completedConnectorGuard = undefined; computations.clear(); return runtime.abort() },
+      abort: () => { activeRequestId = undefined; ownerMemory = undefined; completedConnectorGuard = undefined; computations.clear(); return runtime.abort() },
       dispose() {
         if (!closing) {
           disposed = true
           activeRequestId = undefined
+          ownerMemory = undefined
           computations.clear()
           unsubscribe(); view.dispose(); listeners.clear()
           closing = (async () => { try { await runtime.close() } finally { await target?.close() } })()

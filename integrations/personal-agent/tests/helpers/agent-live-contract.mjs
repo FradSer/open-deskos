@@ -6,7 +6,7 @@ const MAX_LIVE_DEADLINE_MS = 1800000
 export const agentLivePlan = Object.freeze({ maxRequests: 80, maxOutputTokens: 2048, deadlineMs: 900000,
   syntheticData: true, providerCallsRequireLiveFlag: true, productionWrites: false, physicalCapture: false,
   scenarios: ['natural-language Skill installation', 'natural-language MCP installation', 'saved identity creation',
-    'saved child report, completion and learning', 'saved identity restart and active avatar metadata', 'temporary child isolation',
+    'saved child report and completion', 'saved identity restart, seeded experience retrieval and active avatar metadata', 'temporary child isolation',
   ],
 })
 

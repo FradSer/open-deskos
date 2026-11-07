@@ -233,6 +233,7 @@ Set `ODK_PERSONAL_AGENT_CONFIG` to a private canonical absolute JSON path:
   "profile": "personal",
   "skillPaths": [],
   "memoryFile": "/home/orangepi/.local/state/odk-personal-agent/personal/MEMORY.md",
+  "pinnedMemoryCategories": ["language"],
   "capabilities": {
     "didi": {
       "environment": "sandbox",
@@ -269,6 +270,8 @@ Memory accepts explicit current-turn commands:
 - `忘记 回答偏好`
 
 A named write replaces that note.
+An unnamed write keeps the first note at `note` and assigns a separate name to each different value.
+The host returns the assigned name.
 Verbatim current-turn content grants one write.
 Private `MEMORY.md` contains an atomic JSON note map, limited to 16 KiB.
 Each mutation holds a filesystem lock across its read and write.
@@ -276,14 +279,24 @@ An expired turn cannot write after it waits for that lock.
 Tools expose notes as data, never instructions.
 Memory cannot authorize purchases or establish the current pickup point.
 Credential detection is heuristic; do not store passwords, tokens, or sensitive account data.
-Forget removes a note, not earlier conversation entries.
-The operator owns session retention and deletion.
+Forget removes the current saved note.
+Original user messages, answers, and tool results remain subject to conversation retention.
+The operator owns conversation retention and deletion.
+
+The resident reads notes again for each model request in the current owner turn.
+It adds the note data to the model input without writing the automatic snapshot to the conversation.
+It also removes recognized older snapshot frames from model input.
+This filter preserves the original conversation files.
+The saved-note workflow uses the current store and current turn without earlier conversation messages or summaries.
 
 Automatic note context has a 4096-byte UTF-8 limit, including its framing.
-Small stores provide every note to retain preferences and references across languages.
-Larger stores provide up to eight relevant whole notes and a bounded category index.
-The category index has a 1024-byte limit.
-Large notes remain available through `memory_read`.
+The saved-note workflow includes the complete map if it fits.
+A larger map supplies up to eight relevant whole notes and a category index of up to 1024 bytes.
+Other workflows include relevant notes and notes named in `pinnedMemoryCategories`.
+This optional personal-profile setting accepts up to eight distinct names.
+An unrelated turn without pins receives no automatic note context.
+Child agents do not inherit the pins.
+The complete notes remain available through `memory_read`.
 Its optional `query` accepts up to 512 characters.
 Its optional `limit` accepts 1 through 32 results.
 An omitted query returns the complete existing note map.
@@ -291,22 +304,49 @@ Query results include exact values and content revision hashes.
 These hashes identify content; they cannot establish current observations or grant actions.
 
 Note tools mark their output as private data.
-The resident also marks a turn private when its note context reads a nonempty store.
-Such turns skip automatic procedural learning, including when another public tool succeeds.
-This conservative boundary preserves private notes outside automatic experience.
-Explicit note writes and scoped recommendation feedback retain their separate gates.
+An injected note value or category also marks its turn as private.
+The resident omits separate completion inference for private turns and saved-note workflows.
+Explicit note writes and recommendation feedback keep their separate controls.
 
-### Learned experience retrieval
+### Learned experience
+
+Automatic learning uses only fixed facts from cited Hosted Pi checks that passed verification.
+The verifier reads the selected Hosted task through its existing history contract.
+The learning request contains the check facts and a scope for the resident profile and fact schema.
+It excludes raw requests, answers, commands, task history, note values, and earlier lessons.
+A private turn can supply an independently verified check through the same projection.
+Ordinary tool output and completion alone cannot create experience.
 
 `experience_list` ranks terms across stored titles and bodies with local BM25.
 The shared index normalizes Unicode and separates Chinese text from adjacent Latin identifiers.
 Chinese character pairs support search without a space separator.
 An empty query retains storage order and the existing pagination contract.
-The automatic title index follows the current owner request within its existing 8192-byte limit.
-Only `experience_read` returns the complete method and its recorded evidence sources.
-The in-process index refreshes when the complete validated store changes.
-It adds no external service, persistent index, or new storage format.
+The automatic title index follows the current owner request within its 8192-byte limit.
+The resident supplies this index during inference without adding it to the conversation.
+`experience_read` returns the complete method and an opaque reference for each new source receipt.
+The private version 1 `experience.json` file stores the exact target, project, task, and tool call for each new source.
+The model can retrieve active entries for its profile and the current fact schema.
+Earlier unscoped entries remain readable.
 Lexical retrieval cannot guarantee matches across languages or paraphrases without shared terms.
+
+The operator can inspect, withdraw, replace, or restore records in the service state directory:
+
+```sh
+pnpm agent:experience --state-dir=/absolute/state list
+pnpm agent:experience --state-dir=/absolute/state show ID
+pnpm agent:experience --state-dir=/absolute/state withdraw ID REVISION
+pnpm agent:experience --state-dir=/absolute/state replace ID REVISION REPLACEMENT_ID
+pnpm agent:experience --state-dir=/absolute/state restore ID REVISION
+```
+
+Use the `expectedRevision` from `list` or `show`.
+A replacement must be active and have the same scope.
+A withdrawn or replaced record stays available to the operator.
+The model tools and automatic index omit retired records.
+A later write with the same scoped body cannot recreate a retired record.
+Restore makes the retained entry active again.
+The store accepts up to 256 active entries, 512 total entries, and 1 MiB.
+Older builds can reject records with scope or retirement fields.
 
 The [memory evaluation](MEMORY_EVALUATION.md) owns comparisons, commands, results, and remaining acceptance limits.
 

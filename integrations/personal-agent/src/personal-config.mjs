@@ -3,7 +3,11 @@ import { isAbsolute, normalize, extname } from 'node:path';
 import { validateAgentPlugins } from './agent-plugins/selection.mjs';
 import { normalizeCapabilityDeclarations } from './reviewed-capabilities.mjs';
 
-/** @typedef {{profile: 'coding'|'personal', skillPaths: string[], memoryFile?: string, capabilities?: Record<string, object>, didi?: {environment: 'sandbox'|'production', keyFile: string}, desktop?: {socketPath: string, timeoutMs?: number}, browser?: {executablePath: string, timeoutMs?: number, maxOutputChars?: number}, agentPlugins?: {enabled: string[], autoLearn?: boolean}}} PersonalConfig */
+/** @typedef {{profile: 'coding'|'personal', skillPaths: string[], memoryFile?: string, pinnedMemoryCategories?: string[], capabilities?: Record<string, object>, didi?: {environment: 'sandbox'|'production', keyFile: string}, desktop?: {socketPath: string, timeoutMs?: number}, browser?: {executablePath: string, timeoutMs?: number, maxOutputChars?: number}, agentPlugins?: {enabled: string[], autoLearn?: boolean}}} PersonalConfig */
+
+export function isMemoryCategory(value) {
+  return typeof value === 'string' && /^[\p{L}\p{N}_-]{1,40}$/u.test(value) && !['__proto__', 'constructor', 'prototype'].includes(value)
+}
 
 /** @param {unknown} path @returns {path is string} */
 export function isLocalAbsolutePath(path) {
@@ -48,13 +52,16 @@ export async function loadPersonalConfig(env = process.env) {
   if (env.ODK_PERSONAL_AGENT_CONFIG === undefined) return { profile: 'coding', skillPaths: [] };
   try {
     const value = JSON.parse(readLocalFile(env.ODK_PERSONAL_AGENT_CONFIG, 16384));
-    if (!objectWithKeys(value, ['profile', 'skillPaths', 'memoryFile', 'didi', 'browser', 'desktop', 'capabilities', 'agentPlugins']) || !['coding', 'personal'].includes(value.profile)) throw new Error();
+    if (!objectWithKeys(value, ['profile', 'skillPaths', 'memoryFile', 'pinnedMemoryCategories', 'didi', 'browser', 'desktop', 'capabilities', 'agentPlugins']) || !['coding', 'personal'].includes(value.profile)) throw new Error();
     const agentPlugins = value.agentPlugins === undefined ? undefined : validateAgentPlugins(value.agentPlugins);
     if (value.profile !== 'personal' && agentPlugins?.enabled.includes('intent')) throw new Error();
     const skillPaths = value.skillPaths ?? [];
     if (!Array.isArray(skillPaths) || skillPaths.length > 32 || new Set(skillPaths).size !== skillPaths.length || !skillPaths.every((path) => isLocalAbsolutePath(path) && extname(path) === '.md')) throw new Error();
     if (value.profile === 'personal' && !isLocalAbsolutePath(value.memoryFile)) throw new Error();
     if (value.memoryFile !== undefined && !isLocalAbsolutePath(value.memoryFile)) throw new Error();
+    const pins = value.pinnedMemoryCategories;
+    if (pins !== undefined && (value.profile !== 'personal' || !Array.isArray(pins) || pins.length > 8
+      || new Set(pins).size !== pins.length || !pins.every(isMemoryCategory))) throw new Error();
     const capabilities = normalizeCapabilityDeclarations({ ...value, skillPaths }, { configPath: env.ODK_PERSONAL_AGENT_CONFIG });
     if (value.profile === 'coding' && (skillPaths.length || value.memoryFile !== undefined)) throw new Error();
     if (value.memoryFile === env.ODK_PERSONAL_AGENT_CONFIG || skillPaths.includes(value.memoryFile) || skillPaths.includes(env.ODK_PERSONAL_AGENT_CONFIG)) throw new Error();

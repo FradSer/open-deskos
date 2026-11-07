@@ -22,6 +22,7 @@
     "test:memory:live": "node scripts/test-memory-live.mjs",
     "start": "node src/main.mjs",
     "agent:packages": "node src/agent-catalog/cli.mjs",
+    "agent:experience": "node scripts/maintain-experience.mjs",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

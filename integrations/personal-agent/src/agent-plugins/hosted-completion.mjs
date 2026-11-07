@@ -9,6 +9,19 @@ const DIGEST = /^sha256:[a-f0-9]{64}$/
 const READS = new Set(['read', 'grep', 'find', 'ls', 'tool_search'])
 const LIMITATIONS = 'Historical task evidence only. Matching source samples are not an immutable checkout, current source verification, test adequacy, or physical acceptance.'
 const review = () => ({ status: 'needs_review', summary: 'The finished task lacks complete, stable, supported verification evidence.', checks: [] })
+const checksByResult = new WeakMap()
+const checkLabels = new Map([
+  ['pnpm test', 'Package tests (pnpm test)'],
+  ['pnpm typecheck', 'Type check (pnpm typecheck)'],
+  ['pnpm lint', 'Lint (pnpm lint)'],
+  ['git diff --check', 'Patch whitespace check (git diff --check)'],
+  ['uv run pytest', 'Python tests (uv run pytest)'],
+])
+
+/** Only the host verifier can attach checks; tool details do not grant trust. */
+export function verifiedHostedChecks(result) {
+  return checksByResult.get(result)
+}
 
 function stableTask(task, identity) {
   if (!task || task.taskId !== identity.taskId || task.project !== identity.project || task.turnOutcome !== 'finished'
@@ -31,7 +44,8 @@ function checkReceipt(event, project, index) {
     || check.outcome !== 'exited' || check.exitCode !== 0) throw Error('Unsupported check evidence')
   const text = JSON.stringify({ codingCheck: check, output: event.text })
   if (Buffer.byteLength(text) > 32768) throw Error('Check evidence exceeds its budget')
-  return { id: `check-${index}`, tool: 'coding_check', status: 'succeeded', text, truncated: false, sourceDigest: check.after.digest }
+  return { id: `check-${index}`, tool: 'coding_check', status: 'succeeded', text, truncated: false, sourceDigest: check.after.digest,
+    toolCallId: check.toolCallId, checkLabel: checkLabels.get(check.command.trim()) ?? 'Hosted coding check' }
 }
 
 function completionReceipts(events, task) {
@@ -63,7 +77,7 @@ function completionReceipts(events, task) {
       const nested = event.nestedCalls
       if (event.isError !== false || !nested?.complete || !Array.isArray(nested.calls) || !nested.calls.length
         || nested.calls.some(call => call.status !== 'ok' || (!READS.has(call.name) && call.name !== 'coding_check'))
-        || nested.calls.some(call => call.name === 'coding_check' && !checks.some(receipt => JSON.parse(receipt.text).codingCheck.toolCallId === call.id))) checks = []
+        || nested.calls.some(call => call.name === 'coding_check' && !checks.some(receipt => receipt.toolCallId === call.id))) checks = []
     } else if (name !== 'codemode' && !READS.has(name)) checks = []
   }
   if (pending.size || !checks.length || checks.length > 16 || checks.some(receipt => receipt.sourceDigest !== checks.at(-1).sourceDigest)) throw Error('No final candidate checks')
@@ -135,7 +149,16 @@ export function createHostedCompletionTool({ targets, request = taskRequest, inf
         verification = review()
       }
       const value = { ...identity, verification, limitations: LIMITATIONS }
-      return { content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value, details: { completionReceipts: receipts } }
+      const result = { content: [{ type: /** @type {const} */ ('text'), text: JSON.stringify(value) }], structuredContent: value, details: {} }
+      if (receipts.length) {
+        const cited = new Set(verification.checks.flatMap(check => check.evidence.map(evidence => evidence.id)))
+        const learningFacts = receipts.filter(receipt => cited.has(receipt.id)).map(receipt => ({
+          text: `${receipt.checkLabel} exited successfully with matching source samples before and after. Source samples establish sampled source consistency only.`,
+          receipt: { target: identity.target, project: identity.project, taskId: identity.taskId, toolCallId: receipt.toolCallId },
+        }))
+        checksByResult.set(result, { receipts, learningFacts })
+      }
+      return result
     },
   })
 }

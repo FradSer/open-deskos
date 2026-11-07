@@ -1,6 +1,7 @@
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import { experienceDigest } from './experience.mjs'
+import { verifiedHostedChecks } from './hosted-completion.mjs'
 import { AgentValidationError, validateCompletion, validateLessons } from './completion.mjs'
 import { validateAgentPlugins } from './selection.mjs'
 import { createMemoryIndex } from '../memory-retrieval.mjs'
@@ -34,16 +35,18 @@ function resultEvidence(result, durable) {
 }
 
 /** Fixed host-owned implementations. A selection never resolves a package or imports a path.
- * @param {{store: ReturnType<typeof import('./experience.mjs').createExperienceStore>, config?: {enabled: string[], autoLearn?: boolean},
+ * @param {{store: ReturnType<typeof import('./experience.mjs').createExperienceStore>, config?: {enabled: string[], autoLearn?: boolean}, profile?: 'personal'|'coding',
  * infer: (kind: 'completion'|'learning', input: object, signal?: AbortSignal) => Promise<unknown>}} options
  */
-export function createAgentPluginRuntime({ store, config, infer }) {
+export function createAgentPluginRuntime({ store, config, infer, profile: residentProfile = 'personal' }) {
   const selection = validateAgentPlugins(config)
   const enabled = id => selection.enabled.includes(id)
   let turn, epoch = 0
   let indexedState = '', experienceIndex
   function indexedEntries() {
-    const entries = store.load().entries
+    const profile = turn?.profile ?? residentProfile
+    const entries = store.load().entries.filter(entry => !entry.retired
+      && (!entry.scope || (entry.scope.profile === profile && entry.scope.version === 1)))
     const state = JSON.stringify(entries)
     if (state !== indexedState) { experienceIndex = createMemoryIndex(entries); indexedState = state }
     return { entries, index: experienceIndex }
@@ -55,7 +58,8 @@ export function createAgentPluginRuntime({ store, config, infer }) {
   async function observe(name, execute, durable = false) {
     const owner = turn
     const receipt = { id: `tool-${(owner?.receipts.length ?? 0) + 1}`, tool: name, status: 'running', text: '', truncated: false,
-      admissionOnly: ['coding_task_start', 'coding_task_prompt', 'agent_start', 'agent_input', 'remote_pi_followup', 'desktop_task_start', 'desktop_task_resume'].includes(name), learningEligible: !['coding_task_verify','remote_pi_updates','remote_pi_followup','desktop_task_start','desktop_task_resume','desktop_task_status','desktop_task_result','desktop_task_cancel'].includes(name), privateData: false }
+      admissionOnly: ['coding_task_start', 'coding_task_prompt', 'agent_start', 'agent_input', 'remote_pi_followup', 'desktop_task_start', 'desktop_task_resume'].includes(name),
+      learningEligible: false, privateData: false }
     // Reserve before awaiting; custom and inspection calls share one inventory.
     if (owner && !owner.finished && owner.receipts.length < 64) owner.receipts.push(receipt)
     else if (owner) owner.overflow = true
@@ -63,20 +67,22 @@ export function createAgentPluginRuntime({ store, config, infer }) {
       const result = await execute()
       if (owner === turn && owner && !owner.finished) {
         receipt.privateData = result.details?.privateData === true
-        if (receipt.privateData) { receipt.learningEligible = false; owner.privateData = true }
-        const evidence = resultEvidence(result, durable)
+        if (receipt.privateData) owner.privateData = true
+        const evidence = receipt.privateData ? { text: '', truncated: false } : resultEvidence(result, durable)
         const budget = Math.max(0, Math.min(RECEIPT_LIMIT, TURN_LIMIT - owner.bytes))
         receipt.text = Buffer.from(evidence.text).subarray(0, budget).toString('utf8')
         receipt.truncated = evidence.truncated || Buffer.byteLength(evidence.text) > budget
         receipt.status = result.isError ? 'failed' : 'succeeded'
         owner.bytes += Buffer.byteLength(receipt.text)
-        if (name === 'coding_task_verify') {
-          for (const source of result.details?.completionReceipts ?? []) {
+        const hosted = name === 'coding_task_verify' && receipt.status === 'succeeded' && !receipt.privateData ? verifiedHostedChecks(result) : undefined
+        if (hosted) {
+          owner.learningFacts.push(...hosted.learningFacts)
+          for (const source of hosted.receipts) {
             if (owner.receipts.length >= 64) { owner.overflow = true; break }
             const budget = Math.max(0, Math.min(RECEIPT_LIMIT, TURN_LIMIT - owner.bytes))
-            const text = Buffer.from(source.text).subarray(0, budget).toString('utf8')
+            const text = owner.privateData ? '' : Buffer.from(source.text).subarray(0, budget).toString('utf8')
             owner.receipts.push({ id: `tool-${owner.receipts.length + 1}`, tool: 'coding_check', kind: 'host_check', status: source.status,
-              text, truncated: source.truncated || Buffer.byteLength(source.text) > budget })
+              text, truncated: source.truncated || (!owner.privateData && Buffer.byteLength(source.text) > budget), learningEligible: false })
             owner.bytes += Buffer.byteLength(text)
           }
         }
@@ -92,10 +98,10 @@ export function createAgentPluginRuntime({ store, config, infer }) {
     markPrivateData() {
       if (turn && !turn.finished) turn.privateData = true
     },
-    beginTurn(request, intent = 'agent_execute', profile = 'personal') {
+    beginTurn(request, intent = 'agent_execute', profile = residentProfile) {
       turn?.controller.abort()
       epoch++
-      turn = request ? { epoch, request, workKind: pluginWorkKind(intent, profile), receipts: [], bytes: 0, finished: false, overflow: false, controller: new AbortController() } : undefined
+      turn = request ? { epoch, request, intent, profile, workKind: pluginWorkKind(intent, profile), receipts: [], learningFacts: [], bytes: 0, finished: false, overflow: false, controller: new AbortController() } : undefined
     },
     context() {
       if (!enabled('experience')) return ''
@@ -128,9 +134,10 @@ export function createAgentPluginRuntime({ store, config, infer }) {
         outputSchema: Type.Object({ referenceData: Type.Unknown() }),
         parameters: Type.Object({ id: Type.String({ pattern: '^[a-f0-9]{32}$' }) }, { additionalProperties: false }),
         execute: async (_id, { id }) => {
-          const entry = store.load().entries.find(entry => entry.id === id)
+          const entry = indexedEntries().entries.find(entry => entry.id === id)
           if (!/^[a-f0-9]{32}$/.test(id) || !entry) throw Error('Learned experience entry is unavailable')
-          const result = { referenceData: entry }
+          const result = { referenceData: { ...entry, sources: entry.sources.map(({ receipt, ...source }) => receipt
+            ? { ...source, receiptId: experienceDigest(JSON.stringify(receipt)) } : source) } }
           return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result, details: {} }
         },
       })]
@@ -179,34 +186,44 @@ export function createAgentPluginRuntime({ store, config, infer }) {
       let learning = { status: 'skipped', added: [] }
       if (!enabled('completion')) return { verification, learning }
       current(owner, signal)
+      if (owner.intent === 'memory') return {
+        verification: { status: 'not_run', summary: 'Saved notes use the current private store.', checks: [] }, learning,
+      }
       if (owner.workKind === 'conversation' && !owner.receipts.length) return {
         verification: { status: 'not_run', summary: 'Conversation requested no execution verification.', checks: [] }, learning,
       }
-      if (!owner.receipts.length) return { verification: { status: 'needs_review', reason: 'missing_receipts', summary: 'No tool receipts were produced; execution was not verified.', checks: [] }, learning }
-      const workKind = owner.workKind === 'conversation' ? 'derivation' : owner.workKind
-      const input = { request: owner.request, workKind, answer, receipts: structuredClone(owner.receipts) }
-      try {
-        if (owner.overflow || owner.receipts.some(receipt => receipt.status === 'running')) throw Error('Incomplete receipt inventory')
-        verification = validateCompletion(await infer('completion', input, signal), owner.receipts)
-      } catch (error) {
-        current(owner, signal)
-        verification = { status: 'needs_review', reason: error instanceof AgentValidationError ? 'invalid_evidence' : 'unavailable',
-          summary: 'Completion verification did not establish the requested outcome.', checks: [] }
+      const incomplete = owner.overflow || owner.receipts.some(receipt => receipt.status === 'running')
+      if (owner.privateData) {
+        verification = { status: 'not_run', summary: 'Separate completion inference did not receive the private turn.', checks: [] }
+      } else {
+        if (!owner.receipts.length) return { verification: { status: 'needs_review', reason: 'missing_receipts', summary: 'No tool receipts were produced; execution was not verified.', checks: [] }, learning }
+        const workKind = owner.workKind === 'conversation' ? 'derivation' : owner.workKind
+        try {
+          if (incomplete) throw Error('Incomplete receipt inventory')
+          const input = { request: owner.request, workKind, answer, receipts: structuredClone(owner.receipts) }
+          verification = validateCompletion(await infer('completion', input, signal), owner.receipts)
+        } catch (error) {
+          current(owner, signal)
+          verification = { status: 'needs_review', reason: error instanceof AgentValidationError ? 'invalid_evidence' : 'unavailable',
+            summary: 'Completion verification did not establish the requested outcome.', checks: [] }
+        }
       }
       current(owner, signal)
-      const checkedWork = owner.workKind === 'query' && owner.receipts.some(receipt => receipt.kind === 'host_check' && receipt.status === 'succeeded' && !receipt.truncated)
-      if ((owner.workKind !== 'execution' && !checkedWork) || !enabled('learning') || verification.status !== 'passed' || verification.checks.some(check => check.scope === 'admission')) return { verification, learning }
+      if (!['execution', 'query'].includes(owner.workKind) || !enabled('learning') || incomplete
+        || (!owner.privateData && (verification.status !== 'passed' || verification.checks.some(check => check.scope === 'admission')))) return { verification, learning }
       if (!selection.autoLearn) return { verification, learning: { status: 'disabled', added: [] } }
-      // Private connector output and derived answers stay outside automatic experience.
-      if (owner.privateData || owner.receipts.some(receipt => receipt.privateData)) return { verification, learning }
+      const facts = owner.learningFacts.slice(0, 16)
+      if (!facts.length) return { verification, learning }
+      const scope = { kind: 'hosted_check', version: 1, profile: owner.profile }
+      const learningReceipts = facts.map((fact, index) => ({ id: `check-${index + 1}`, tool: 'coding_check', kind: 'host_check',
+        status: 'succeeded', truncated: false, learningEligible: true, text: fact.text }))
       try {
-        const learningReceipts = checkedWork ? owner.receipts.filter(receipt => receipt.kind === 'host_check') : owner.receipts
-        const output = await infer('learning', { ...input, receipts: structuredClone(learningReceipts), verification, existingExperience: store.load().entries.map(({ id, title }) => ({ id, title })) }, signal)
+        const output = await infer('learning', { scope, receipts: learningReceipts }, signal)
         current(owner, signal)
         const lessons = validateLessons(output, learningReceipts)
-        const candidates = lessons.map(({ title, body, evidence }) => ({ title, body, sources: evidence.map(citation => {
-          const source = owner.receipts.find(receipt => receipt.id === citation.id)
-          return { tool: source.tool, digest: experienceDigest(citation.quote) }
+        const candidates = lessons.map(({ title, body, evidence }) => ({ title, body, scope, sources: evidence.map(citation => {
+          const index = learningReceipts.findIndex(receipt => receipt.id === citation.id)
+          return { tool: 'coding_check', digest: experienceDigest(citation.quote), receipt: facts[index].receipt }
         }) }))
         const added = await store.append(candidates, signal)
         current(owner, signal)
