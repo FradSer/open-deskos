@@ -44,6 +44,12 @@ test('separate home frames preserve voice replies and stale content across recon
   assert.deepEqual(client.snapshot().agents, agents)
   assert.deepEqual(client.snapshot().jev, {status:'checking'})
   assert.deepEqual(client.snapshot().judgment,{status:'ready',provider:'model',model:'synthetic/model-v1'})
+  const replyPresentation = { text: 'Current summary', ui: { type: 'Suggestion', props: {}, children: [
+    { type: 'Text', props: { value: 'Current detail' }, children: [] },
+  ] } }
+  update = next(frame => frame.replyPresentation !== undefined)
+  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', message: reply, replyPresentation }) + '\n')
+  assert.deepEqual((await update).replyPresentation, replyPresentation)
   let history={revision:2,turns:[{id:'11111111-1111-4111-8111-111111111111',at:10,transcript:'Earlier owner input',message:'Earlier answer',state:'idle'}],omittedCount:0}
   update=next(frame=>frame.conversation?.revision===2)
   peer.write(JSON.stringify({v:1,type:'conversation',conversation:history})+'\n')
@@ -59,6 +65,7 @@ test('separate home frames preserve voice replies and stale content across recon
   const disconnected=await update
   assert.equal(disconnected.textInput,false);assert.equal(disconnected.replyInput,false)
   assert.equal(disconnected.message,'Central agent disconnected')
+  assert.equal(disconnected.replyPresentation, undefined)
   assert.deepEqual(disconnected.conversation,history,'an unavailable upstream retains history while the local pipe remains open')
   assert.equal(await client.sendText('Must not dispatch'),false)
   history={...history,revision:0}

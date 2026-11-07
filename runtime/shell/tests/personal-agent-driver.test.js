@@ -15,6 +15,38 @@ function tempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'odk-personal-agent-driver-'))
 }
 
+test('the Android frame carries bounded reply presentation with the original answer', () => {
+  const message = 'The original answer contains the result and its limits.'
+  const replyPresentation = { text: 'Result available.', ui: { type: 'Suggestion', props: {}, children: [
+    { type: 'Text', props: { value: 'The result and its limits are available.' }, children: [] },
+  ] } }
+  const status = { state: 'idle', message, replyPresentation }
+  assert.deepEqual(projectPersonalAgentFrame(status), { ...status, voiceInput: false })
+  for (const invalid of [
+    { state: 'thinking' },
+    { replyPresentation: { ...replyPresentation, text: 'x'.repeat(181) } },
+    { replyPresentation: { ...replyPresentation, ui: { type: 'Suggestion', props: { padding: 'x'.repeat(16384) } } } },
+  ]) {
+    const frame = projectPersonalAgentFrame({ ...status, ...invalid })
+    assert.equal(frame.message, message)
+    assert.equal(frame.replyPresentation, undefined)
+  }
+})
+
+test('the Android frame carries read-only alternatives in a bounded suggestion tree', () => {
+  const ui = { type: 'Suggestion', props: {}, children: [
+    { type: 'OptionSet', props: {}, children: [
+      { type: 'Option', props: { label: 'Walk', value: 'walk' } },
+      { type: 'Option', props: { label: 'Join online', value: 'online' } },
+    ] },
+  ] }
+  const proposal = { id: '76543210-3333-4444-8888-abcdef123456', status: 'pending', advice: 'Consider both routes.', evidence: [], ui }
+  const status = { state: 'idle', proposals: [proposal] }
+  assert.deepEqual(projectPersonalAgentFrame(status).proposals[0].ui, ui)
+  const malformed = { ...proposal, ui: { ...ui, children: 'not a tree' } }
+  assert.deepEqual(projectPersonalAgentFrame({ ...status, proposals: [malformed] }).proposals, [])
+})
+
 test('the source starts on the first shared fixture state', async () => {
   const driver = createPersonalAgentDriver({ fixtureFile, intervalMs: 0 })
   try {

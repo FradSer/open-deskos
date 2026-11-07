@@ -151,6 +151,14 @@
         node.addEventListener('click', callback)
         return node
       }
+      function renderGeneratedPreview(article, ui) {
+        const renderer = root.odkOpenUIDOM
+        if (!renderer?.isOpenUINode(ui)) return false
+        const rendered = renderer.renderOpenUI(ui, { document })
+        if (!rendered?.textContent?.trim() && !rendered?.children?.length) return false
+        article.append(rendered)
+        return true
+      }
       function structuredPreview(article, proposal, canRespond = true) {
         const preview = proposal.preview || proposal.ridePreview
         if (!preview || typeof preview !== 'object') return
@@ -381,7 +389,9 @@
               next.append(step)
               article.append(next)
             }
-            if (p.preview || p.ridePreview) structuredPreview(article, p, suggestionCapabilities.respond && typeof api.sendText === 'function')
+            if (!renderGeneratedPreview(article, p.ui) && (p.preview || p.ridePreview)) {
+              structuredPreview(article, p, suggestionCapabilities.respond && typeof api.sendText === 'function')
+            }
             if (current && suggestionCapabilities.respond) {
               const actions = document.createElement('div')
               actions.className = 'personal-agent-proposal-actions'

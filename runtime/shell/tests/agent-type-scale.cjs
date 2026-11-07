@@ -28,6 +28,27 @@ const proposal = {
   evidence: [{ readingId: 'commute.traffic', field: 'minutes', value: 52, state: 'live', measuredAt: new Date().toISOString() }]
 }
 
+const node = (type, props = {}, children = []) => ({ type, props, children })
+const generated = {
+  ...proposal,
+  id: '1c3462db-9800-45c9-80ef-3ebba0d47508',
+  status: 'expired',
+  preview: undefined,
+  advice: '比较两个出行方案。',
+  ui: node('Suggestion', {}, [
+    node('Heading', { value: '出行时间' }),
+    node('Badge', { value: '预计延误', tone: 'warn' }),
+    node('Readings', {}, [
+      node('Reading', { label: '预计用时', value: '52 分钟' }),
+      node('Reading', { label: '比较依据', value: '一段足够长的读数用于检查窄屏下内容能换行且不会横向溢出' }),
+    ]),
+    node('OptionSet', {}, [
+      node('Option', { label: '查看公共交通' }),
+      node('Option', { label: '查看步行方案' }),
+    ]),
+  ]),
+}
+
 const READING = ['.agent-message-body', '.personal-agent-proposal', '.personal-agent-proposal-advice',
   '.personal-agent-preview-card', '.personal-agent-preview-summary', '.personal-agent-preview-chip',
   '.personal-agent-preview-label', '.personal-agent-preview-value',
@@ -53,7 +74,7 @@ app.whenReady().then(async () => {
   const run = script => win.webContents.executeJavaScript(script)
   await delay(800)
   await run(`odkTheme.set('instrument'); document.fonts.ready`)
-  win.webContents.send('odk-personal-agent-status', { state: 'idle', proposals: [proposal], proposalCapabilities: { read: true, respond: true, acknowledge: true } })
+  win.webContents.send('odk-personal-agent-status', { state: 'idle', proposals: [proposal, generated], proposalCapabilities: { read: true, respond: true, acknowledge: true } })
   await delay(400)
 
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
@@ -102,6 +123,32 @@ app.whenReady().then(async () => {
           token: parseFloat(getComputedStyle(bubble).getPropertyValue('--agent-text-body')) || parseFloat(getComputedStyle(document.querySelector('.agent-panel')).getPropertyValue('--agent-text-body'))
         }
       })()`)
+      const structured = await run(`(() => {
+        const proposal = document.querySelector('[data-proposal-id="${generated.id}"]')
+        const bubble = proposal.closest('.agent-message-bubble')
+        const list = proposal.querySelector('ul.openui-option-set')
+        const options = [...list.children]
+        const leaves = [proposal.querySelector('.openui-heading'), proposal.querySelector('.openui-badge'),
+          ...proposal.querySelectorAll('.personal-agent-preview-label, .personal-agent-preview-value'), ...options]
+        const flat = node => {
+          const style = getComputedStyle(node)
+          return style.backgroundColor === 'rgba(0, 0, 0, 0)' && style.boxShadow === 'none' &&
+            ['Top', 'Right', 'Bottom', 'Left'].every(side => parseFloat(style['border' + side + 'Width']) === 0)
+        }
+        const parts = [proposal.querySelector('.openui-suggestion'), proposal.querySelector('.openui-options'),
+          proposal.querySelector('.personal-agent-proposal-next'), list, ...options]
+        return {
+          flat: parts.every(flat),
+          overflow: [bubble, ...parts, ...leaves].some(node => node.scrollWidth > node.clientWidth + 1),
+          textSizes: [...new Set(leaves.map(node => parseFloat(getComputedStyle(node).fontSize)))],
+          options: options.map(option => [option.tagName, option.textContent, option.checkVisibility()]),
+          interactive: !!proposal.querySelector('.openui-options :is(button, select, input, [tabindex])'),
+        }
+      })()`)
+      assert.deepEqual(structured, {
+        flat: true, overflow: false, textSizes: [17],
+        options: [['LI', '查看公共交通', true], ['LI', '查看步行方案', true]], interactive: false,
+      }, `${theme}/${width}: generated information shares one surface`)
       assert.ok(!measured.error, `${theme}/${width}: ${measured.error}`)
       const reading = measured.reading.filter(([, value]) => value !== null)
       const captions = measured.caption.filter(([, value]) => value !== null)

@@ -73,6 +73,21 @@ Feature: Independent resident Personal Agent
     And no text or chip overflows the bubble or the card
     And the same reading size holds across Instrument, Pixel, Border Beam and Liquid Glass themes
 
+  Scenario: Generated choices are visible in the recommendation message
+    Given a recommendation contains a reading and several options
+    When the Shell renders the recommendation
+    Then the message shows all options as a static list in the generated order
+    And the reading, options, and next step share the message surface
+    And only host-approved actions can be interactive
+
+  Scenario: An optional reply presentation preserves the full reply
+    Given a reply has an optional generated presentation
+    When the Shell displays the reply
+    Then ordinary details share the message surface
+    And the owner can reveal the remaining details of a long presentation
+    And an unchanged status keeps the details open
+    And the Shell shows the full reply if it cannot render the presentation
+
   Scenario: A recommendation message omits state and metadata text
     Given a recommendation has a preview and an executable action
     When the message renders in any proposal state

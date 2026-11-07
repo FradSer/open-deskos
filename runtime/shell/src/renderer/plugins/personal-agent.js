@@ -625,6 +625,35 @@
         showThread(selectedThread)
       }
 
+      // A generated card is the result, not a hidden appendix. Render it in full
+      // by default. A very long card stays a card: its bottom fades out and a
+      // text button overlays the fade to reveal the rest.
+      const DETAIL_EXPAND_CHARS = 480
+      function renderRemoteDetail(item) {
+        const api = root.odkOpenUIDOM
+        if (typeof item.text !== 'string' || !item.text.trim() || item.ui?.type !== 'Suggestion' || !api?.isOpenUINode(item.ui)) return null
+        const rendered = api.renderOpenUI(item.ui, { document })
+        if (!rendered?.textContent?.trim()) return null
+        const wrapper = document.createElement('div')
+        wrapper.className = 'agent-remote-detail'
+        const veryLong = (rendered.textContent || '').length > DETAIL_EXPAND_CHARS
+        if (veryLong) {
+          wrapper.classList.add('agent-remote-detail-clipped')
+          const toggle = document.createElement('button')
+          toggle.type = 'button'
+          toggle.className = 'agent-remote-detail-expand'
+          toggle.textContent = 'Show more'
+          toggle.setAttribute('aria-expanded', 'false')
+          toggle.addEventListener('click', () => {
+            const expanded = wrapper.classList.toggle('agent-remote-detail-expanded')
+            toggle.textContent = expanded ? 'Show less' : 'Show more'
+            toggle.setAttribute('aria-expanded', String(expanded))
+          })
+          wrapper.append(rendered, toggle)
+        } else wrapper.append(rendered)
+        return wrapper
+      }
+
       function readinessCaption(value, judgment) {
         if (judgment !== undefined) return judgment.status === 'ready' && ['model', 'jev'].includes(judgment.provider) ? '' : 'Connection unavailable'
         return value?.status === 'verified' ? '' : value?.status === 'checking' ? 'Connecting…' : 'Connection unavailable'
@@ -679,7 +708,14 @@
         const reply = status.message
         if (!status.replyTo && !turn?.bound && !turn?.historyTerminal && reply && ['thinking', 'idle', 'error'].includes(status.state)) {
           if (!turn) turn = { prompt: '', response: message('assistant', '') }
-          root.odkPersonalAgentReply.render(turn.response, reply)
+          const presentation = status.state === 'idle' ? status.replyPresentation : undefined
+          const presentationKey = presentation && JSON.stringify(presentation)
+          if (!presentationKey || turn.presentationKey !== presentationKey || !turn.response.querySelector('.agent-remote-detail')) {
+            const detail = presentation && renderRemoteDetail(presentation)
+            root.odkPersonalAgentReply.render(turn.response, detail ? presentation.text : reply)
+            if (detail) turn.response.append(detail)
+            turn.presentationKey = detail ? presentationKey : undefined
+          }
         }
         for (const notification of Array.isArray(status.notifications) ? status.notifications : []) {
           if (!notification || typeof notification.id !== 'string' || !notification.id || typeof notification.message !== 'string' || !notification.message || seenNotifications.has(notification.id)) continue

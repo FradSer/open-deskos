@@ -342,3 +342,228 @@
 .personal-agent-proposal-note { margin: 0; font-size: var(--agent-text-label); line-height: var(--agent-line-body); color: var(--odk-secondary-strong); }
 .personal-agent-proposal-error { margin: 0; font-size: var(--agent-text-label); line-height: var(--agent-line-body); color: var(--odk-accent-red); }
 .agent-recommendation .personal-agent-proposals button { width: auto; height: auto; min-width: 44px; padding: var(--odk-space-2) var(--odk-space-3); }
+
+/* OpenUI content uses the message surface and one reading size. */
+.openui-heading,
+.openui-text,
+.openui-badge,
+.openui-stack,
+.openui-readings,
+.openui-row,
+.openui-options,
+.openui-option-set,
+.openui-divider,
+.openui-unknown {
+  font-size: var(--agent-text-body);
+  line-height: var(--agent-line-body);
+}
+
+:is(.openui-heading, .openui-text, .openui-badge, .openui-stack, .openui-readings, .openui-row, .openui-option-set, .openui-unknown) :where(*) {
+  font-size: var(--agent-text-body);
+  line-height: var(--agent-line-body);
+}
+
+:is(.openui-heading, .openui-text, .openui-badge, .openui-stack, .openui-readings, .openui-row, .openui-option-set, .openui-divider, .openui-unknown)[hidden] {
+  display: none;
+}
+
+.openui-suggestion {
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.personal-agent-proposal:has(> .openui-suggestion) > .personal-agent-proposal-next {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.openui-suggestion .openui-heading {
+  color: var(--odk-primary);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.openui-text {
+  color: var(--odk-secondary-strong);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+  white-space: normal;
+}
+
+/* The card gap owns spacing in both recommendations and replies. */
+.openui-suggestion :is(p.openui-heading, p.openui-text) {
+  margin: 0;
+}
+
+.personal-agent-preview-chips.openui-readings {
+  display: grid;
+  align-content: start;
+  gap: var(--agent-gap-chip);
+  min-inline-size: 0;
+}
+
+.openui-suggestion :is(.openui-reading, .openui-metric) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) fit-content(58%);
+  align-items: baseline;
+  gap: var(--agent-gap-inline);
+  flex: 1 1 9rem;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--agent-text-body);
+}
+
+.openui-suggestion :is(.openui-reading, .openui-metric) :is(.personal-agent-preview-label, .personal-agent-preview-value) {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.openui-suggestion :is(.openui-reading, .openui-metric) .personal-agent-preview-value {
+  text-align: end;
+}
+
+.openui-suggestion .openui-readings > .openui-reading + .openui-reading {
+  padding-block-start: var(--agent-gap-chip);
+  border-block-start: thin solid var(--odk-stroke);
+}
+
+.openui-metric[data-emphasis='true'] .personal-agent-preview-value {
+  font-weight: 700;
+}
+
+.openui-badge:not(.openui-chip) {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--agent-gap-chip);
+  max-inline-size: 100%;
+  color: var(--odk-secondary-strong);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.openui-badge:not(.openui-chip)::before {
+  content: '';
+  flex: none;
+  inline-size: var(--odk-space-1);
+  block-size: var(--odk-space-1);
+  border-radius: var(--odk-radius-pill);
+  background: currentColor;
+}
+
+/* A Stack groups content by spacing. */
+.personal-agent-preview-chips.openui-stack {
+  display: grid;
+  align-content: start;
+  gap: var(--agent-gap-block);
+  min-width: 0;
+  color: var(--odk-primary);
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.personal-agent-preview-chips.openui-stack[data-direction='row'],
+.personal-agent-preview-chips.openui-stack[data-direction='horizontal'],
+.personal-agent-preview-chips.openui-stack[data-direction='inline'] {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: var(--agent-gap-inline);
+}
+
+.personal-agent-preview-chips.openui-row {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: var(--agent-gap-inline) var(--odk-space-3);
+  min-width: 0;
+  border-radius: var(--agent-radius-inset);
+  color: inherit;
+  white-space: normal;
+}
+
+.openui-options {
+  display: grid;
+  gap: var(--agent-gap-chip);
+  min-inline-size: 0;
+}
+
+.openui-options-label {
+  color: var(--odk-secondary-strong);
+}
+
+ul.openui-option-set {
+  display: grid;
+  gap: var(--agent-gap-chip);
+  min-inline-size: 0;
+  margin: 0;
+  padding-inline-start: 1.25em;
+  list-style-type: disc;
+}
+
+.openui-option {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.openui-option::marker {
+  color: var(--odk-secondary-strong);
+}
+
+/* A divider draws one hairline. Its spacing comes only from the card's named
+   gap, so it never doubles the surrounding space. A trailing divider is an
+   orphan line and adds nothing after the last primitive. */
+.openui-divider {
+  block-size: 0;
+  margin-block: 0;
+  border: 0;
+  border-block-start: thin solid var(--odk-stroke);
+}
+.openui-divider:last-child { display: none; }
+
+.openui-unknown {
+  display: inline;
+  color: var(--odk-secondary-strong);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.openui-heading[data-tone='warn'],
+.openui-text[data-tone='warn'],
+.openui-badge[data-tone='warn'],
+.openui-unknown[data-tone='warn'] {
+  color: var(--odk-accent-red);
+}
+
+.openui-heading[data-tone='good'],
+.openui-text[data-tone='good'],
+.openui-badge[data-tone='good'],
+.openui-unknown[data-tone='good'] {
+  color: var(--odk-accent-green);
+}
+
+.openui-heading[data-tone='warn'] :where(*),
+.openui-text[data-tone='warn'] :where(*),
+.openui-badge[data-tone='warn'] :where(*),
+.openui-unknown[data-tone='warn'] :where(*),
+.openui-heading[data-tone='good'] :where(*),
+.openui-text[data-tone='good'] :where(*),
+.openui-badge[data-tone='good'] :where(*),
+.openui-unknown[data-tone='good'] :where(*) {
+  color: inherit;
+}

@@ -907,3 +907,27 @@ test('a completed recommendation keeps its result without reviving operation or 
   assert.equal(f.local.value, 'Keep this draft'); assert.equal(f.local.selectionStart, 2); assert.equal(f.local.selectionEnd, 5)
   await f.controller.destroy()
 })
+
+test('generated options appear together inside one recommendation without controls', async () => {
+  const f = fixture()
+  const adapter = path.join(__dirname, '../src/renderer/core/openui-dom.js')
+  vm.runInNewContext(fs.readFileSync(adapter, 'utf8'), { window: f.window, document: f.document })
+  const option = label => ({ type: 'Option', props: { label }, children: [] })
+  const ui = { type: 'Suggestion', props: {}, children: [
+    { type: 'Advice', props: { value: 'Review both routes.' }, children: [] },
+    { type: 'OptionSet', props: { label: 'Routes' }, children: [option('Walk to the station'), option('Take the bus')] },
+  ] }
+  const p = { ...proposal(), advice: 'Review both routes.', action: null, confirmation: '', nextStep: 'Check the map', ui }
+  f.render({ state: 'idle', proposals: [p], proposalCapabilities: { read: true, respond: false, acknowledge: false } })
+  const message = f.content.querySelector('.agent-message')
+  const list = flatten(message).find(node => node.tagName === 'UL')
+  assert.ok(list, 'generated options need a visible list')
+  assert.equal(list.attributes['aria-label'], 'Routes')
+  assert.deepEqual(list.children.map(item => [item.tagName, item.textContent]), [
+    ['LI', 'Walk to the station'], ['LI', 'Take the bus'],
+  ])
+  assert.ok(!flatten(message).some(node => ['BUTTON', 'SELECT', 'OPTION'].includes(node.tagName)))
+  assert.equal(flatten(message).filter(node => node.textContent === p.advice).length, 1)
+  assert.equal(flatten(message).filter(node => node.textContent === p.nextStep).length, 1)
+  await f.controller.destroy()
+})
