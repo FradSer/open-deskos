@@ -12,8 +12,10 @@ import { ProactiveWatch } from '../src/proactive.mjs'
 import { proposalStateStore } from '../src/proactive-state.mjs'
 import { openDurableRuntime, durableCapability, createPiExecutionTarget } from '../src/durable-runtime.mjs'
 import { createDurableAgentSession } from '../src/durable-agent-session.mjs'
+import { readResidentHistory } from '../src/history-evidence.mjs'
 import { SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
+import { AssistantEntry, CompactionEntry } from '@earendil-works/pi-durable'
 
 function runtime(reply) {
   const requests = []
@@ -117,6 +119,30 @@ test('an existing Durable conversation takes precedence over legacy context with
   const bot = await createPersonalAgent(config, { createRuntime: async () => modelRuntime, createIntentRouter: () => async () => ({ intent: 'conversation' }) })
   t.after(() => bot.close())
   assert.equal(await bot.prompt('current request'), '继续已有 Durable 会话。')
+})
+
+test('history reads original legacy owner turns before compaction and stops at reset', async t => {
+  const { config } = await fixture(t)
+  const models = runtime(() => assistant('Exact retained answer.'))
+  const seed = await openDurableRuntime({ directory: join(config.stateDir, 'durable', 'personal'), models,
+    model: { provider: fixtureModel.provider, modelId: fixtureModel.id } })
+  t.after(() => seed.close())
+  const context = BACKGROUND_CONTEXT
+  const conversation = seed.conversation
+  await seed.prompt('Older workflow instructions.\nPersonal Agent request:\nOriginal decision.')
+  const entries = await conversation.entries({}, 10, undefined, context)
+  const kept = entries.items.find(AssistantEntry.is)
+  assert(kept)
+  await conversation.commit(tx => tx.appendEntry(conversation.id, { kind: CompactionEntry.kind, head: kept.id,
+    data: { reason: 'manual' }, model: [{ role: 'user', content: 'Personal Agent request:\nSynthetic compaction.', timestamp: Date.now() }] }), context)
+  assert.deepEqual((await readResidentHistory(conversation, context)).sources.map(source => source.body), [
+    'user: Original decision.\nassistant: Exact retained answer.',
+  ])
+  await conversation.reset('Personal Agent request:\nSynthetic handoff.', context)
+  await seed.prompt('Personal Agent request:\nDecision after reset.')
+  assert.deepEqual((await readResidentHistory(conversation, context)).sources.map(source => source.body), [
+    'user: Decision after reset.\nassistant: Exact retained answer.',
+  ])
 })
 
 test('production proactive advice uses scoped tools while briefing and phrasing stay isolated', async t => {

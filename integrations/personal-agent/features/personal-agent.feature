@@ -53,6 +53,22 @@ Feature: Explicit personal assistant configuration and private opt-in note memor
     Then a request for current saved notes sees only current note state
     And an earlier injected snapshot cannot supply a forgotten value
 
+  Scenario: An owner can read evidence from retained conversations
+    Given a completed owner turn in the resident conversation and a separate saved note
+    When the owner asks about the past conversation after a restart
+    Then the resident shows a bounded evidence preview with a source and a date
+    And the model can read the exact retained text using a reference from this turn
+    And the preview does not become a new history source
+    And the history workflow cannot read or change saved notes
+    And a reference from a previous turn cannot read any source
+
+  Scenario: Compaction preserves access to original history until reset
+    Given Durable retains an older complete owner turn and a compaction summary
+    When an owner asks about the retained turn
+    Then history evidence includes the original turn without the summary
+    When the resident conversation resets
+    Then history evidence only includes turns after the reset
+
   Scenario: Unnamed saves preserve unrelated notes
     Given the owner has saved an unnamed note
     When the owner saves another unnamed note with different content

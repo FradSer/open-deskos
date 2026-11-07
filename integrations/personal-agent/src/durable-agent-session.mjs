@@ -8,6 +8,7 @@ import { openDurableRuntime, durableCapability, createPiExecutionTarget } from '
 import { importLegacyContext } from './durable-legacy-context.mjs'
 import { createConnectorCompletionGuard, createConnectorCompletionExtension, runBufferedConnectorSubmission } from './connector-completion-guard.mjs'
 import { stripLegacyMemoryContext } from './memory.mjs'
+import { readResidentHistory } from './history-evidence.mjs'
 
 /** @typedef {{status: 'succeeded'|'failed', output: string, diagnostics: {severity: 'info'|'warn'|'error', code?: string, message: string}[], truncated: boolean}} ComputationOutcome */
 /** @typedef {{requestId: string, taskId: string, callId: string, source: string, truncated: boolean, kind: 'computation', learningEligible: false}} ComputationStart */
@@ -263,6 +264,7 @@ export async function createDurableAgentSession(options, { createTarget = create
         if (completedConnectorGuard?.finalize(await connectorAdmission()).kind === 'cancel') throw Error('Connector admission changed before publication')
       },
       subscribe(callback) { listeners.add(callback); return () => listeners.delete(callback) },
+      readHistory: (signal) => readResidentHistory(runtime.conversation, signal ? withAbortSignal(signal, context) : context),
       async recover(signal) {
         if (disposed) throw Error('Personal Agent is closed')
         const recovery = signal ? withAbortSignal(signal, context) : context
@@ -270,7 +272,7 @@ export async function createDurableAgentSession(options, { createTarget = create
         await runtime.harness.waitForIdle(recovery)
         recovery.abortSignal?.throwIfAborted()
       },
-      /** @param {string} text @param {{memory?: OwnerMemoryProjection, expandPromptTemplates?: boolean}} [turnOptions] */
+      /** @param {string} text @param {{memory?: OwnerMemoryProjection, expandPromptTemplates?: boolean, entry?: import('@earendil-works/pi-durable').InputEntry}} [turnOptions] */
       async prompt(text, turnOptions) {
         if (disposed) throw Error('Personal Agent is closed')
         if (streaming) throw Error('Agent request already in progress')
@@ -287,7 +289,7 @@ export async function createDurableAgentSession(options, { createTarget = create
           connectorBuffered = Boolean(connectorGuard?.shouldBuffer(admission))
           if (connectorBuffered) {
             const result = await runBufferedConnectorSubmission({ runtime, guard: connectorGuard,
-              getAdmission: connectorAdmission, text, requestId: activeRequestId, context })
+              getAdmission: connectorAdmission, text, requestId: activeRequestId, context, entry: turnOptions?.entry })
             const final = await runtime.conversation.viewState(context)
             try {
               const message = final.value.entries.find(entry => entry.id === result.answerEntryId)?.model?.find(message => message.role === 'assistant')
@@ -298,7 +300,7 @@ export async function createDurableAgentSession(options, { createTarget = create
             } finally { final.dispose() }
             return
           }
-          await runtime.prompt(text, { requestId: activeRequestId })
+          await runtime.prompt(text, { requestId: activeRequestId, entry: turnOptions?.entry })
           // Chord listeners can coalesce revisions. Read the committed final view
           // before resolving the port, so final assistant text is always delivered.
           const final = await runtime.conversation.viewState(context)

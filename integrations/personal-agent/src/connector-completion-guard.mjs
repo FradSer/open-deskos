@@ -163,13 +163,13 @@ export function createConnectorCompletionExtension({ getBinding, submissionStatu
  * getAdmission must read current session capabilities and the complete visible catalog, not a cached routing description.
  * @param {{runtime: Awaited<ReturnType<typeof import('./durable-runtime.mjs').openDurableRuntime>>,
  * guard: ReturnType<typeof createConnectorCompletionGuard>, getAdmission: () => ConnectorAdmission | Promise<ConnectorAdmission>,
- * text: string, requestId: string, context: import('@earendil-works/chord').Context,
+ * text: string, requestId: string, context: import('@earendil-works/chord').Context, entry?: import('@earendil-works/pi-durable').InputEntry,
  * afterTurn?: (answer: string) => string | Promise<string>, publish?: (answer: string) => void}} options
  */
-export async function runBufferedConnectorSubmission({ runtime, guard, getAdmission, text, requestId, context, afterTurn, publish }) {
+export async function runBufferedConnectorSubmission({ runtime, guard, getAdmission, text, requestId, context, entry: inputEntry, afterTurn, publish }) {
   const first = guard.finalize(await getAdmission())
   if (first.kind === 'cancel') throw Error('Connector request admission changed or was cancelled')
-  const submission = await runtime.submit(text, { requestId, whenBusy: 'reject' })
+  const submission = await runtime.submit(text, { requestId, whenBusy: 'reject', ...(inputEntry ? { entry: inputEntry } : {}) })
   const outcome = await submission.wait(context)
   if (outcome.status !== 'done' || outcome.type !== 'input') throw Error('Connector request did not complete')
   const entry = await runtime.conversation.commit(tx => tx.entry(AssistantEntry, outcome.answer), context)

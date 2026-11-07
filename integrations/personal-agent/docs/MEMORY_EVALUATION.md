@@ -151,7 +151,62 @@ The integration also checks cancellation and rejection of a citation to raw chec
 An isolated probe also uses the real model for the learning step.
 One request produces one valid entry with the exact source locator.
 The resident response and original task verification remain scripted in this probe.
-The package suite passes 1712 tests and skips 11 tests.
+
+## Retained conversation comparison
+
+The resident keeps the original conversation as the source for history lookup.
+The comparison tests a fixed ranked context and a preview with readback.
+The fixed arm sends exact passages from up to ten ranked sessions in one model request.
+The readback arm starts with up to five excerpts.
+It permits two additional model requests for tool results and the final answer.
+It uses the same ranking and tools as the resident.
+The benchmark calls the tools directly with full benchmark sessions as sources.
+The resident regression separately checks Durable retention, intent dispatch, and Code Mode.
+
+Both arms have a 32 KiB evidence budget and use the same answer model.
+The benchmark replaces dataset session IDs with sequential labels before retrieval.
+Only the judge receives the reference answer.
+The runner uses the [upstream prompts](https://github.com/xiaowu0162/LongMemEval/blob/main/src/evaluation/evaluate_qa.py) and records the configured judge model.
+The run completed all 500 paired questions, including 30 abstention cases.
+Both arms used `cliproxyapi/gpt-6.1-sol` to answer and grade.
+The accuracy comparison applies to this model and judge configuration.
+
+| Question type | Questions | Fixed context correct | Readback correct |
+| --- | ---: | ---: | ---: |
+| Multiple sessions | 121 | 37 | 77 |
+| Temporal reasoning | 127 | 62 | 102 |
+| Knowledge update | 72 | 59 | 61 |
+| Assistant information | 56 | 51 | 53 |
+| User information | 64 | 54 | 60 |
+| Preference | 30 | 19 | 24 |
+| Abstention | 30 | 28 | 27 |
+| **All questions** | **500** | **310 (62.0%)** | **404 (80.8%)** |
+
+Readback alone answered 107 questions correctly, and fixed context alone answered 13 correctly.
+The paired gain was 18.8 percentage points, with a 95% paired bootstrap interval from 14.8 to 22.8 points.
+One abstention error connected a conference poster to a different research event.
+
+| Answer generation metric | Fixed context | Readback |
+| --- | ---: | ---: |
+| Model requests | 501 | 994 |
+| Input tokens, including reported cache use | 2,889,944 | 2,239,642 |
+| Output tokens | 24,200 | 51,074 |
+| Median elapsed time | 4.09 s | 8.27 s |
+| 95th-percentile elapsed time | 8.92 s | 17.96 s |
+
+These costs cover answer stages with valid results.
+The provider returned rate limits and HTTP 500 errors during the run.
+Resumption kept each successful receipt and retried missing or failed stages with the same protocol.
+Concurrency changed during recovery, so the elapsed times describe this run.
+The final journal has one answer and one judgment per arm for each dataset question.
+Its SHA-256 is `8ef874ad32a1ad4057be6947af96f37c239fd12902afa855bec88bca39d5545e`.
+
+The local resident probe uses the configured ordinary intent model and synthetic Chinese owner input.
+The model found the original answer after restart and read the separate current note.
+It reported insufficient evidence for an unknown past fact.
+The model reported a Code Mode error in the first probe and identified the preview as its source.
+Two traced probes then returned the exact original text through `history_read` in Code Mode.
+The inspected Durable files had no automatic preview.
 
 ## Reproduction
 
@@ -164,6 +219,7 @@ pnpm test:memory:evaluate --dataset=/private/path/longmemeval_s_cleaned.json --o
 pnpm test:memory:evaluate --dataset=/private/path/longmemeval_s_cleaned.json --output=/private/path/retrieval-10.json --top-k=10
 pnpm test:memory:live
 pnpm test:memory:live --live --dataset=/private/path/longmemeval_oracle.json --output=/private/path/answers.json --provider=cliproxyapi --model=gpt-6.1-sol
+pnpm test:memory:history --live --dataset=/private/path/longmemeval_s_cleaned.json --judge-source=/private/path/evaluate_qa.py --output=/private/path/history.jsonl --provider=cliproxyapi --model=gpt-6.1-sol --concurrency=4
 PI_ODK_PACKAGE=/path/to/pi-packages/packages/open-deskos pnpm test
 pnpm typecheck
 ```
@@ -174,6 +230,12 @@ Each request has a 45-second timeout.
 Optional `--regrade=/private/path/answers.json` reuses saved answers with at most 16 grading requests.
 It records the source receipt and original generation provenance.
 Optional `--lifecycle-only` tests the resident saved-note workflow with a limit of 20 requests.
+For the retained conversation runner, add `--resume` to continue missing stages in an existing journal.
+The manifest must match the dataset, judge prompts, models, and source files.
+The runner keeps terminal errors in the journal.
+To retry failed stages, keep the original journal.
+Copy its protocol line and successful receipts to a new private journal.
+Use `--resume` with the new journal.
 
 ## Verification and acceptance boundary
 
@@ -181,8 +243,8 @@ Regression coverage includes private-data isolation, lock contention, expired gr
 The full package suite requires the existing Pi extension checkout through `PI_ODK_PACKAGE` in an isolated worktree.
 The initial run exposed an unsafe-file error-message regression, which was repaired.
 Its remaining checkout-path failure passed with the explicit extension path.
-The final package run passed 1711 tests, skipped 11 platform-dependent tests, and failed zero tests.
-The affected memory checks passed 122 tests, skipped five platform-dependent tests, and failed zero tests.
+The latest package run passed 1714 tests, skipped 11 platform-dependent tests, and failed zero tests.
+The history regressions also check source expiration, compaction, and reset.
 
 Typecheck retains the pre-existing `src/main.mjs:249` source-admission type error.
 The same error reproduces against the unchanged main checkout.

@@ -308,6 +308,33 @@ An injected note value or category also marks its turn as private.
 The resident omits separate completion inference for private turns and saved-note workflows.
 Explicit note writes and recommendation feedback keep their separate controls.
 
+### Retained conversation evidence
+
+The parent Personal Agent can read past exchanges in its own Durable conversation.
+An explicit history request uses the current owner input and private evidence from that conversation.
+The history workflow has access to `history_search` and `history_read` only.
+Current saved notes use the separate `memory` workflow.
+Hosted Pi task history uses `task_query`.
+
+The resident scans up to 2048 retained entries after the most recent reset.
+It indexes up to 4 MiB of text from complete owner turns.
+The scan can find original turns before compaction if Durable still has their entries.
+The resident excludes compaction summaries, tool results, and earlier history lookup turns.
+The reader accepts older owner input with the resident request marker.
+The resident records an input offset and a history lookup flag on new owner inputs.
+
+Each preview gives up to five exact excerpts with a conversation ID, date, and source reference.
+`history_search` can change the search terms or get the next page of up to twenty candidates per query.
+`history_read` reads exact text from a source that the current request received.
+Offsets use UTF-16 code units.
+The source references expire at the end of the request.
+
+The preview and all reads share a 32 KiB evidence limit.
+Each request allows three additional searches and six reads.
+The automatic preview stays outside the saved conversation input.
+The resident omits separate completion and learning inference for a history request.
+The reply must identify missing evidence when the available text cannot support an answer.
+
 ### Learned experience
 
 Automatic learning uses only fixed facts from cited Hosted Pi checks that passed verification.
@@ -406,6 +433,7 @@ Private memory files, credentials, and live readings are excluded.
 | `proposal_response` | Validate the displayed phrase and subsequent turn |
 | `odk_data` | Read current measurements, state, and time |
 | `memory` | Apply explicit current-turn remember/forget policy |
+| `history` | Read dated evidence from past exchanges in the current resident conversation |
 | `ride` | Use the reviewed quote/order transaction |
 | `browse` | Use the reviewed browser session and requested page actions |
 | `extension` | Invoke reviewed capabilities or installed MCP tools |

@@ -20,6 +20,7 @@
     "test:proactive:evaluate": "node scripts/evaluate-proactive.mjs",
     "test:memory:evaluate": "node scripts/evaluate-memory.mjs",
     "test:memory:live": "node scripts/test-memory-live.mjs",
+    "test:memory:history": "node scripts/test-history-live.mjs",
     "start": "node src/main.mjs",
     "agent:packages": "node src/agent-catalog/cli.mjs",
     "agent:experience": "node scripts/maintain-experience.mjs",

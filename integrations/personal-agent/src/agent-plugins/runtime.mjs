@@ -189,6 +189,9 @@ export function createAgentPluginRuntime({ store, config, infer, profile: reside
       if (owner.intent === 'memory') return {
         verification: { status: 'not_run', summary: 'Saved notes use the current private store.', checks: [] }, learning,
       }
+      if (owner.intent === 'history') return {
+        verification: { status: 'not_run', summary: 'Conversation history is private evidence.', checks: [] }, learning,
+      }
       if (owner.workKind === 'conversation' && !owner.receipts.length) return {
         verification: { status: 'not_run', summary: 'Conversation requested no execution verification.', checks: [] }, learning,
       }

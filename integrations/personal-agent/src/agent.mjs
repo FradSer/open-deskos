@@ -42,6 +42,7 @@ import { createAgentCatalogRuntime } from './agent-catalog/tools.mjs'
 import { loadPrivateRecommendationConfig, createConfiguredPrivateSources } from './private-recommendation-sources.mjs'
 import { openAgentTasks } from './agent-tasks/runtime.mjs'
 import { createAgentTaskTools } from './agent-tasks/tools.mjs'
+import { OWNER_HISTORY_ENTRY, createHistoryEvidence, createHistoryTools, renderHistoryPreview } from './history-evidence.mjs'
 
 const PROPOSAL_ACTIONS = new Set(['memory_update', 'user_app_install', 'coding_task_start', 'coding_task_history'])
 const PROPOSAL_TASK_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
@@ -241,6 +242,9 @@ export async function createPersonalAgent(config, { createSession = createDurabl
     let sessionMutationAttempted = false
     let hostedContinuation
     let hostedDeliveryUncertain = false
+    const historyEnabled = personal && !config.childAgent
+    /** @type {ReturnType<typeof createHistoryEvidence> | undefined} */
+    let historyEvidence
     const intentJudgment = !config.childAgent && config.personal?.agentPlugins?.enabled.includes('intent') ? createIntentJudgment({ env: config.env ?? process.env, request: judgment.request }) : undefined
     const intents = intentJudgment ? createIntentRuntime({ store: createIntentStore(join(config.stateDir, 'personal-agent', 'intent.md')),
       memory: async () => JSON.parse(await memory.read()), memoryVersion: keys => memory.version(keys),
@@ -254,6 +258,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
     // Both catalogs expose the shared desk reader; register it only once.
     if (!config.childAgent && config.personal?.agentPlugins?.enabled.includes('remote_conversation')) customTools.push(createRemoteUpdatesTool((offset, limit, sourceKey) => remoteHistory(offset, limit, sourceKey)),createRemoteFollowupTool((params,signal)=>remoteFollowup(params,signal,activeReply,ownerTurn)))
     if (personal) customTools.push(...createPersonalTools({ memory, skillPaths }).filter(tool => tool.name !== 'odk_data'))
+    if (historyEnabled) customTools.push(...createHistoryTools(() => historyEvidence))
     customTools.push(...(reviewed?.tools ?? []))
     if (plugins) customTools.push(...plugins.tools())
     if (config.personal?.agentPlugins?.enabled.includes('completion')) customTools.push(createHostedCompletionTool({ targets: undefined, infer: inferPlugin }))
@@ -385,6 +390,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         lastTaskResult = null
         const prepared = await intentTurn.prepare(text, signal,reply)
         if(reply && !intentTurn.getIntent())throw Error('Reply requires an available intent decision; no instruction was sent')
+        if (intentTurn.getIntent() === 'history' && (!historyEnabled || !session.readHistory)) return { answer: '当前无法查询保留的对话历史。' }
         signal.throwIfAborted()
         if (!prepared.answer) await packages?.refresh(signal)
         signal.throwIfAborted()
@@ -394,15 +400,26 @@ export async function createPersonalAgent(config, { createSession = createDurabl
       },
       completeTurn: intentTurn.complete,
       streamResponse: () => intentTurn.getIntent()!=='session_continue',
-      beginTurn: async (text, owner) => {
+      ownerHistory: historyEnabled && session.readHistory ? () => intentTurn.getIntent() === 'history' : undefined,
+      beginTurn: async (text, owner, signal) => {
+        historyEvidence = undefined
         if(text && intentTurn.getIntent()==='session_continue')owner?.requireDeliveryAcknowledgement?.()
         currentTurn = text.trim(); ownerTurn = text ? Object.freeze({text:intentTurn.getRequestText(),turn:intentTurn.getTurn(),id:owner?.id??randomUUID(),applications:owner?.applications,bind:bound=>{activeReply=bound;owner?.bind(bound)}}) : undefined; memory?.beginTurn(text); reviewed?.beginTurn(text)
         plugins?.beginTurn(text, intentTurn.getIntent(), profile)
         packages?.beginTurn(text, intentTurn.getIntent())
+        if (text && intentTurn.getIntent() === 'history') {
+          const retained = await session.readHistory(signal)
+          signal?.throwIfAborted()
+          historyEvidence = createHistoryEvidence({ ...retained, query: text })
+        }
         if (!text) { connectorRequestReady=false;activeReply=undefined;intentTurn.clear(); await session.setActiveToolsByName(baseTools) }
       },
-      context: async () => `${ownerTurn?.applications ? `Application destination for this owner turn: ${JSON.stringify(ownerTurn.applications.host)}. All user_apps_* and user_app_* tools operate on this originating desk. Draft source remains in the configured ODK_WORKSPACE on the central host; ask Hosted Pi to edit that existing source. Connection loss never permits fallback to the central desk.\n` : ''}${packages?.context() ?? ''}${remoteContext()}`,
+      context: async () => intentTurn.getIntent() === 'history' ? '' : `${ownerTurn?.applications ? `Application destination for this owner turn: ${JSON.stringify(ownerTurn.applications.host)}. All user_apps_* and user_app_* tools operate on this originating desk. Draft source remains in the configured ODK_WORKSPACE on the central host; ask Hosted Pi to edit that existing source. Connection loss never permits fallback to the central desk.\n` : ''}${packages?.context() ?? ''}${remoteContext()}`,
       memory: () => {
+        if (historyEvidence) {
+          const content = renderHistoryPreview(historyEvidence.preview)
+          return { currentOnly: true, read: async () => ({ content, privateData: true }), onPrivateData: () => plugins?.markPrivateData() }
+        }
         if (!memory && !plugins) return undefined
         const query = currentTurn
         const currentOnly = Boolean(memory && intentTurn.getIntent() === 'memory')
@@ -642,8 +659,8 @@ export async function createPersonalAgent(config, { createSession = createDurabl
   }
 }
 
-/** @param {Pick<import('@earendil-works/pi-coding-agent').AgentSession, 'isStreaming'|'subscribe'|'abort'|'dispose'> & {prompt: (text: string, options?: { expandPromptTemplates?: boolean, memory?: import('./durable-agent-session.mjs').OwnerMemoryProjection }) => Promise<void>, recover?: (signal: AbortSignal) => Promise<void>, hasBufferedConnectorCompletion?: () => boolean, validateConnectorPublication?: () => Promise<void>}} session
- * @param {{beginTurn: (text: string, owner?: import('./session-replies.mjs').OwnerTurn) => void | Promise<void>, context?: () => Promise<string>, memory?: () => import('./durable-agent-session.mjs').OwnerMemoryProjection | undefined, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal, reply?: import('./session-replies.mjs').BoundSessionReply) => Promise<{answer?: string, context?: string}>, streamResponse?: () => boolean, completeTurn?: (text: string, answer: string) => void, afterTurn?: (text: string, answer: string, signal: AbortSignal) => Promise<string>}} hooks */
+/** @param {Pick<import('@earendil-works/pi-coding-agent').AgentSession, 'isStreaming'|'subscribe'|'abort'|'dispose'> & {prompt: (text: string, options?: { expandPromptTemplates?: boolean, memory?: import('./durable-agent-session.mjs').OwnerMemoryProjection, entry?: import('@earendil-works/pi-durable').InputEntry }) => Promise<void>, recover?: (signal: AbortSignal) => Promise<void>, hasBufferedConnectorCompletion?: () => boolean, validateConnectorPublication?: () => Promise<void>}} session
+ * @param {{beginTurn: (text: string, owner?: import('./session-replies.mjs').OwnerTurn, signal?: AbortSignal) => void | Promise<void>, ownerHistory?: () => boolean, context?: () => Promise<string>, memory?: () => import('./durable-agent-session.mjs').OwnerMemoryProjection | undefined, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal, reply?: import('./session-replies.mjs').BoundSessionReply) => Promise<{answer?: string, context?: string}>, streamResponse?: () => boolean, completeTurn?: (text: string, answer: string) => void, afterTurn?: (text: string, answer: string, signal: AbortSignal) => Promise<string>}} hooks */
 export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
   let prompting = false
   let controller
@@ -665,13 +682,15 @@ export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
         if (answer !== undefined) { hooks.completeTurn?.(text, answer); onResponseSnapshot?.(answer); return answer }
         await session.recover?.(controller.signal)
         controller.signal.throwIfAborted()
-        await hooks.beginTurn(text,owner)
+        await hooks.beginTurn(text, owner, controller.signal)
         unsubscribe = session.subscribe(event => { if (active) response.accept(event) })
         const context = hooks.context ? await hooks.context() : ''
         controller.signal.throwIfAborted()
         const memory = hooks.memory?.()
-        await session.prompt(composeConnectorOwnerPrompt({ referenceContext: context, workflowContext: prepared?.context ?? '', request: text }),
-          { expandPromptTemplates: false, ...(memory ? { memory } : {}) })
+        const input = composeConnectorOwnerPrompt({ referenceContext: context, workflowContext: prepared?.context ?? '', request: text })
+        const entry = hooks.ownerHistory ? { kind: OWNER_HISTORY_ENTRY,
+          data: { ownerOffset: input.length - text.length, historyQuery: hooks.ownerHistory() } } : undefined
+        await session.prompt(input, { expandPromptTemplates: false, ...(memory ? { memory } : {}), ...(entry ? { entry } : {}) })
         controller.signal.throwIfAborted()
         const draft = response.result()
         const result = hooks.afterTurn ? await hooks.afterTurn(text, draft, controller.signal) : draft

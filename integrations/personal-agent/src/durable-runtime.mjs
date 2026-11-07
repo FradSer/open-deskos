@@ -107,9 +107,9 @@ export async function openDurableRuntime({ directory, ephemeral = false, models,
     let closing
     return {
       harness, conversation, registry,
-      submit: (text, { requestId = undefined, whenBusy = 'reject' } = {}) => conversation.submit({ type: 'input', content: text, requestId, whenBusy }, context),
-      async prompt(text, { requestId = undefined } = {}) {
-        const submission = await conversation.submit({ type: 'input', content: text, requestId, whenBusy: 'reject' }, context)
+      submit: (text, { requestId = undefined, whenBusy = 'reject', entry = undefined } = {}) => conversation.submit({ type: 'input', content: text, requestId, whenBusy, entry }, context),
+      async prompt(text, { requestId = undefined, entry: inputEntry = undefined } = {}) {
+        const submission = await conversation.submit({ type: 'input', content: text, requestId, whenBusy: 'reject', entry: inputEntry }, context)
         const outcome = await submission.wait(context)
         if (outcome.status !== 'done' || outcome.type !== 'input') throw Error('Durable agent request failed')
         const entry = await conversation.commit(tx => tx.entry(AssistantEntry, outcome.answer), context)

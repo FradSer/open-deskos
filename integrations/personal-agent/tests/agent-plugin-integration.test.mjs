@@ -9,6 +9,7 @@ import { loadPersonalConfig } from '../src/personal-config.mjs'
 import { assistant, offlineRuntime as offline, visibleTools } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
 import { RemoteConversation } from '../src/remote-conversation.mjs'
+import { createMemoryStore } from '../src/memory.mjs'
 
 async function fixture(t) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'odk-agent-plugin-integration-')))
@@ -124,6 +125,66 @@ test('explicit owner notes reach real Durable context after restart and reflect 
   const files = (await readdir(state)).filter(name => name.endsWith('.jsonl'))
   assert(files.length > 0)
   for (const file of files) assert.doesNotMatch(await readFile(join(state, file), 'utf8'), /Current saved MEMORY data/)
+})
+
+test('retained owner history uses private per-turn evidence across a Durable restart', async t => {
+  const { config } = await fixture(t)
+  config.personal.pinnedMemoryCategories = ['fixture']
+  const notes = createMemoryStore(config.personal.memoryFile)
+  notes.beginTurn('remember fixture: independent note marker')
+  await notes.update({ category: 'fixture', value: 'independent note marker' })
+  const first = 'In the Atlas drawer discussion I selected the copper hinge.'
+  const other = 'Unrelated fixture detail about a bicycle wheel.'
+  let priorSource, calls = 0, modelError
+  function fixtureReply(context) {
+    const messages = JSON.stringify(context.messages)
+    const raw = context.messages.findLast(message => message.role === 'user').content
+    if (!raw.includes('Recall the Atlas')) return assistant('Noted.')
+    assert.match(raw, /workflow: history/)
+    assert.match(raw, /Current allowed capability names \(JSON data\): \["history_search","history_read"\]/)
+    assert.doesNotMatch(messages, /independent note marker|bicycle wheel|Check the current Personal Agent task after/)
+    assert.equal(context.messages.filter(message => message.role === 'user').length, 1)
+    if (context.messages.at(-1).role !== 'toolResult') {
+      const preview = /Retained history evidence[^\n]*\n([^\n]*)\nEnd history evidence\./.exec(raw)
+      assert(preview, 'History preview is missing from the current provider request')
+      const result = JSON.parse(preview[1]).results[0]
+      assert.match(result.text, /copper hinge/)
+      assert.match(result.date, /^\d{4}-\d{2}-\d{2}/)
+      assert(result.conversationId)
+      if (calls === 0) priorSource = result.source
+      else assert.notEqual(result.source, priorSource)
+      calls++
+      const code = calls === 1
+        ? `const found = await tools.history_search({query:"Atlas drawer copper"}); const exact = await tools.history_read({source:found.results[0].source,offset:0}); text(exact);`
+        : `text(await tools.history_read({source:${JSON.stringify(priorSource)},offset:0}));`
+      return assistant([{ type: 'toolCall', id: 'history-' + calls, name: 'codemode', arguments: { code } }], 'toolUse')
+    }
+    const receipt = JSON.stringify(context.messages.at(-1).content)
+    assert.match(receipt, calls === 1 ? /In the Atlas drawer discussion I selected the copper hinge\./ : /History source is unavailable in this turn/)
+    return assistant(calls === 1 ? 'Copper hinge.' : 'That earlier reference has expired.')
+  }
+  const modelRuntime = offline(context => {
+    try { return fixtureReply(context) } catch (error) { modelError = error; throw error }
+  })
+  const dependencies = { createRuntime: async () => modelRuntime, createIntentRouter: () => async ({ text }) => ({
+    intent: text.startsWith('Recall the Atlas') ? 'history' : 'conversation',
+  }) }
+  let bot = await createPersonalAgent(config, dependencies)
+  try {
+    await bot.prompt(first)
+    await bot.prompt(other)
+  } finally { await bot.close() }
+  bot = await createPersonalAgent(config, dependencies)
+  try {
+    assert.equal(await bot.prompt('Recall the Atlas drawer hinge from our conversation.'), 'Copper hinge.')
+    assert.equal(bot.lastTaskResult.verification.status, 'not_run')
+    assert.equal(await bot.prompt('Recall the Atlas drawer hinge again.'), 'That earlier reference has expired.')
+  } catch (error) { throw modelError ?? error } finally { await bot.close() }
+  assert.equal(calls, 2)
+  const state = join(config.stateDir, 'durable', 'personal')
+  for (const file of (await readdir(state)).filter(name => name.endsWith('.jsonl'))) {
+    assert.doesNotMatch(await readFile(join(state, file), 'utf8'), /Retained history evidence/)
+  }
 })
 
 test('configured Durable query verifies, skips procedural learning, and clears shortcut outcomes across restart', async t => {
