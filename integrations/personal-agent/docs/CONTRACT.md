@@ -323,17 +323,25 @@ The resident excludes compaction summaries, tool results, and earlier history lo
 The reader accepts older owner input with the resident request marker.
 The resident records an input offset and a history lookup flag on new owner inputs.
 
-Each preview gives up to five exact excerpts with a conversation ID, date, and source reference.
+The preview gives up to eight exact excerpts with a conversation ID, date, and source reference.
+The two highest-ranked excerpts each keep up to 1800 bytes of nearby text from one source.
+The other excerpts each keep up to 560 bytes.
+The preview has a 9 KiB limit, including metadata.
+Each later search gives up to five compact excerpts within 4 KiB.
 `history_search` can change the search terms or get the next page of up to twenty candidates per query.
 `history_read` reads exact text from a source that the current request received.
 Offsets use UTF-16 code units.
-The source references expire at the end of the request.
+Each reference keeps the offset of its original excerpt until the request ends.
 
 The preview and all reads share a 32 KiB evidence limit.
 Each request allows three additional searches and six reads.
 The automatic preview stays outside the saved conversation input.
 The resident omits separate completion and learning inference for a history request.
-The reply must identify missing evidence when the available text cannot support an answer.
+The model uses the preview directly when it supports the requested fact.
+The model checks that a fact belongs to the requested event before it uses that fact.
+The prompt asks for a targeted search when a named fact is missing from the preview.
+The model checks every required value before it gives a total or comparison.
+The prompt asks the model to state missing facts before it gives related details.
 
 ### Learned experience
 

@@ -12,7 +12,7 @@ import { ProactiveWatch } from '../src/proactive.mjs'
 import { proposalStateStore } from '../src/proactive-state.mjs'
 import { openDurableRuntime, durableCapability, createPiExecutionTarget } from '../src/durable-runtime.mjs'
 import { createDurableAgentSession } from '../src/durable-agent-session.mjs'
-import { readResidentHistory } from '../src/history-evidence.mjs'
+import { createHistoryEvidence, readResidentHistory } from '../src/history-evidence.mjs'
 import { SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { AssistantEntry, CompactionEntry } from '@earendil-works/pi-durable'
@@ -143,6 +143,38 @@ test('history reads original legacy owner turns before compaction and stops at r
   assert.deepEqual((await readResidentHistory(conversation, context)).sources.map(source => source.body), [
     'user: Decision after reset.\nassistant: Exact retained answer.',
   ])
+})
+
+test('history previews keep nearby evidence in its original source', () => {
+  const filler = '说明🧪'.repeat(600)
+  const otherEvent = 'user: The riverbank rally involved 92 coupons.\n'
+  const leading = `${otherEvent}${filler}\nuser: The cap was 17 credits.\n${'context '.repeat(28)}`
+  const exact = 'For the Atlas launch review, the approval applied to the north site.'
+  const sources = [
+    { id: 'launch', conversationId: 'desk', date: '2026-11-01', body: leading + exact + filler },
+    { id: 'training', conversationId: 'desk', date: '2026-11-02', body: 'user: The Atlas training review had a cap of 42 credits.' },
+  ]
+  const { preview, read, search } = createHistoryEvidence({ sources, query: 'What was the cap for the Atlas launch review at the north site?' })
+  const launch = preview.results.find(result => result.date === sources[0].date)
+  const training = preview.results.find(result => result.date === sources[1].date)
+  assert.match(launch.text, /The cap was 17 credits/)
+  assert(launch.text.includes(exact))
+  assert.equal(launch.text, sources[0].body.slice(launch.offset, launch.nextOffset ?? undefined))
+  assert(!/[\uD800-\uDBFF]$/.test(launch.text))
+  assert.notEqual(launch.source, training.source)
+  assert.equal(training.text, sources[1].body)
+  const rally = search({ query: 'riverbank rally' }).results[0]
+  assert.match(rally.text, /92 coupons/)
+  assert.notEqual(rally.source, launch.source)
+  assert(read({ source: launch.source }).text.startsWith(launch.text))
+  assert(read({ source: rally.source }).text.startsWith(rally.text))
+
+  const manySources = Array.from({ length: 10 }, (_, i) => ({ id: `candidate-${i}`,
+    conversationId: 'desk', date: '2026-11-02', body: 'user: Launch review notes. ' + filler }))
+  const packed = createHistoryEvidence({ sources: manySources, query: 'launch review' }).preview.results
+  assert.equal(packed.length, 8)
+  assert(packed.slice(0, 2).every(result => Buffer.byteLength(result.text) > 560))
+  assert(packed.slice(2).every(result => Buffer.byteLength(result.text) <= 560))
 })
 
 test('production proactive advice uses scoped tools while briefing and phrasing stay isolated', async t => {

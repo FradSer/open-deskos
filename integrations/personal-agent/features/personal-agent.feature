@@ -62,6 +62,21 @@ Feature: Explicit personal assistant configuration and private opt-in note memor
     And the history workflow cannot read or change saved notes
     And a reference from a previous turn cannot read any source
 
+  Scenario: Nearby text can answer a history question without another model request
+    Given two retained exchanges describe different events with a common topic
+    When the owner asks about one event
+    Then the initial evidence keeps the event wording and its nearby fact in the same excerpt
+    And the preview gives more space to the highest-ranked excerpts
+    And excerpts from the different exchanges have different source references
+    And the model checks that each required fact belongs to the requested event
+    And a later search for different wording keeps earlier references bound to their excerpts
+
+  Scenario: A history preview can omit a fact needed for a comparison
+    Given a history question needs evidence from multiple events
+    When the preview does not establish a required fact
+    Then the workflow asks the model to search for the missing fact before it answers
+    And the reply states any remaining missing fact before it gives related context
+
   Scenario: Compaction preserves access to original history until reset
     Given Durable retains an older complete owner turn and a compaction summary
     When an owner asks about the retained turn

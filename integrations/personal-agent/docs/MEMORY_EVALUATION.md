@@ -152,7 +152,7 @@ An isolated probe also uses the real model for the learning step.
 One request produces one valid entry with the exact source locator.
 The resident response and original task verification remain scripted in this probe.
 
-## Retained conversation comparison
+## Initial retained conversation comparison
 
 The resident keeps the original conversation as the source for history lookup.
 The comparison tests a fixed ranked context and a preview with readback.
@@ -208,6 +208,109 @@ The model reported a Code Mode error in the first probe and identified the previ
 Two traced probes then returned the exact original text through `history_read` in Code Mode.
 The inspected Durable files had no automatic preview.
 
+## Expanded history preview comparison
+
+The previous readback design often needed another model request to recover text near a match.
+The expanded preview includes nearby original text in each of up to six excerpts.
+The model can answer from the preview or get the missing evidence through the existing tools.
+The prompt requires evidence for the requested event before it accepts a detail from a related exchange.
+
+An offline comparison uses the marked answer messages of the 470 questions with evidence.
+The previous preview contained every marked message in 89 questions.
+The expanded preview contained every marked message in 183 questions.
+The mean preview size increased from 3623 to 11588 bytes.
+The markings are used only to score the previews after retrieval.
+
+The live protocol pairs the readback code from `7e97830a` with the expanded preview.
+Both arms use the same model through the same Chat Completions URL.
+Both arms use the same corpus, date fields, evidence limit, and upstream judging prompts.
+The runner assigns arm order from a hash of the question ID.
+Elapsed time includes local evidence preparation, model requests, and tool handling for each answer.
+
+The first expanded variant also used longer excerpts in later search results.
+Its model was `auto/gpt-6-luna`.
+Its live comparison saved 164 paired answers and judgments before the endpoint returned HTTP 404 for the model.
+Both arms used a concurrency of eight for the saved pairs.
+The initial curl adapter omitted the assistant role in tool continuations.
+
+| First variant, partial run | Previous readback | Expanded preview and search |
+| --- | ---: | ---: |
+| Correct answers | 110/164 | 107/164 |
+| Correct abstentions | 23/23 | 21/23 |
+| Answer requests | 409 | 298 |
+| Median answer time | 9.98 s | 7.19 s |
+| 95th-percentile answer time | 17.10 s | 19.15 s |
+
+One expanded answer assigned a duration to a master's degree without evidence for that stage.
+Both arms gave similar fare estimates in another abstention case and received different judgments.
+The revised candidate uses compact follow-up searches and binds each source reference to its original offset.
+Its prompt requires support for every value before a total.
+The partial result applies to the first variant.
+
+The next comparison used `hunyuan-eval/hy4-dev` for both answers and judgments.
+The corrected curl adapter preserves the assistant role in tool continuations.
+The final request contains the exact evidence from the preview and successful lookups.
+This format removes tool call markup from the answer stage.
+The run reused 425 pairs that did not use the changed request.
+It ran both arms again for the other 75 questions.
+
+The six-excerpt expanded preview gave 263 correct answers against 276 for the previous readback.
+Both arms passed all 30 abstention cases.
+The 95th-percentile answer time decreased from 4.74 to 3.11 seconds.
+The expanded preview lost correct answers on multiple sessions and temporal reasoning.
+
+The selective candidate expands the first three excerpts and adds up to five compact excerpts.
+Its offline replay contained every marked message in 185 of 470 questions.
+It included all required evidence sessions in 416 questions, compared with 404 for the six-excerpt preview.
+The mean preview size decreased from 11588 to 9406 bytes.
+The prompt asks for a targeted search when the preview lacks a required part.
+
+The three-excerpt variant gave 308 correct answers against 295 for the previous readback.
+Its median answer time increased from 1.53 to 1.63 seconds.
+Its 95th-percentile answer time decreased from 5.51 to 5.12 seconds.
+It gave 29 correct abstentions against 30 for the previous readback.
+One answer gave the frequency of a different activity before it explained the evidence gap.
+
+The compact variant expands the first two excerpts and adds up to six compact excerpts.
+The prompt requires an explicit statement of any missing fact before related context.
+It uses a targeted lookup for missing named items and other gaps with a distinctive search term.
+The mean preview size was 8201 bytes.
+It kept all required evidence sessions in 416 of 470 questions.
+
+### Compact preview results
+
+The final run compares `7e97830a` and the compact variant on all 500 LongMemEval-S questions.
+Both arms used `hunyuan-eval/hy4-dev` for answers and grading, with eight concurrent question workers.
+The journal has 1000 answers and 1000 judgments, with no failed stages.
+
+| Metric | Previous readback | Compact preview |
+| --- | ---: | ---: |
+| Correct answers | 284/500 (56.8%) | 285/500 (57.0%) |
+| Correct abstentions | 29/30 | 29/30 |
+| Model requests for answers | 682 | 553 |
+| Answers from one model request | 398 | 468 |
+| Answer input tokens, including reported cache use | 1,396,940 | 1,606,040 |
+| Mean answer time | 2.22 s | 1.63 s |
+| Median answer time | 1.54 s | 1.36 s |
+| 95th-percentile answer time | 5.24 s | 3.14 s |
+
+The compact variant was faster on 357 of the 500 paired questions.
+The mean time decreased by 26.6%, and the 95th percentile decreased by 40.1%.
+The paired accuracy difference was 0.2 percentage points.
+The 95% paired bootstrap interval was from -3.2 to 3.8 points.
+
+For an airport trip, the previous reader calculated savings from fare estimates in different contexts.
+The compact reader said it lacked both prices for the same trip.
+Both readers explicitly reported missing evidence for the iPad price in a different abstention case.
+The judge marked only the previous answer correct in that case.
+The compact reader still gave the tennis frequency before it stated that the table tennis frequency was unknown.
+
+A separate model probe used four synthetic evidence gaps and two supported controls.
+The compact reader kept the events separate and answered all six cases as expected.
+This probe supplied the same exact excerpts to both arms.
+
+The final journal SHA-256 is `184eadb48add386683f5a4a9da314186925da3ee36129cde5400c4efec086b07`.
+
 ## Reproduction
 
 The commands run from `integrations/personal-agent/`.
@@ -230,12 +333,30 @@ Each request has a 45-second timeout.
 Optional `--regrade=/private/path/answers.json` reuses saved answers with at most 16 grading requests.
 It records the source receipt and original generation provenance.
 Optional `--lifecycle-only` tests the resident saved-note workflow with a limit of 20 requests.
-For the retained conversation runner, add `--resume` to continue missing stages in an existing journal.
+For the retained conversation runner, add `--resume` to continue missing or failed stages in an existing journal.
 The manifest must match the dataset, judge prompts, models, and source files.
-The runner keeps terminal errors in the journal.
-To retry failed stages, keep the original journal.
-Copy its protocol line and successful receipts to a new private journal.
-Use `--resume` with the new journal.
+The runner keeps earlier errors and successful stage receipts in the journal.
+
+For the expanded preview comparison, use `curl` 8.3 or later.
+Set `ODK_HISTORY_CURL_KEY` from the approved credential source.
+Set `ODK_HISTORY_CURL_URL` to the Chat Completions URL.
+Set `ODK_HISTORY_EVAL_MODEL` to the model identifier.
+Use one worker process per output journal.
+
+The curl runner sends `reasoning_effort` as `none` for both answer generation and grading.
+
+```sh
+reference=$(mktemp -d)
+git -C ../.. archive 7e97830a integrations/personal-agent/src | tar -x -C "$reference"
+ln -s "$PWD/node_modules" "$reference/integrations/personal-agent/node_modules"
+pnpm test:memory:history --live \
+  --dataset=/private/path/longmemeval_s_cleaned.json \
+  --judge-source=/private/path/evaluate_qa.py \
+  --output=/private/path/expanded-history.jsonl \
+  --curl-url="$ODK_HISTORY_CURL_URL" --model="$ODK_HISTORY_EVAL_MODEL" \
+  --reference-history="$reference/integrations/personal-agent/src/history-evidence.mjs" \
+  --concurrency=8
+```
 
 ## Verification and acceptance boundary
 
@@ -243,7 +364,7 @@ Regression coverage includes private-data isolation, lock contention, expired gr
 The full package suite requires the existing Pi extension checkout through `PI_ODK_PACKAGE` in an isolated worktree.
 The initial run exposed an unsafe-file error-message regression, which was repaired.
 Its remaining checkout-path failure passed with the explicit extension path.
-The latest package run passed 1714 tests, skipped 11 platform-dependent tests, and failed zero tests.
+The latest package run passed 1715 tests, skipped 11 platform-dependent tests, and failed zero tests.
 The history regressions also check source expiration, compaction, and reset.
 
 Typecheck retains the pre-existing `src/main.mjs:249` source-admission type error.
