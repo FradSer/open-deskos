@@ -456,6 +456,15 @@ Timeout and cancellation retain their response deadline while cleanup failures r
 
 <a id="hosted-pi"></a>
 
+### Completed reply presentation
+
+The resident keeps the original reply in the status and in conversation history.
+An optional tool-free model turn can supply a short lead and a read-only OpenUI card.
+The resident checks the component tree, its size, and numeric literals before it sends the lead and card together.
+The Shell shows the original reply when the card is absent or invalid.
+A task reply keeps its original answer or its host delivery receipt.
+The original answer remains available when projection fails or exceeds its deadline.
+
 ## Hosted Pi setup
 
 Read [ADR-0013](../../../runtime/shell/docs/ARCHITECTURE.md#adr-0013) for Control Link ownership.
@@ -710,25 +719,36 @@ The host owns only:
 
 The model owns composition. It selects which of the shared primitives to use, how many, in what order and nesting; `OPENUI_EXAMPLES` shows several visibly different generic compositions, not one fixed form. Advice is the only required sentence. `HOST_RULES` ask for varied compositions and forbid only a whole-sentence restatement in a Heading/Text/Badge; they do not cap readings or ban prose. `validateGeneratedBatch` refuses a restated advice sentence, a repeated Reading/Metric pair, and any visible number -- in advice, headings, prose, badges, labels, values and option text -- that no host-issued observation supplies. Numbers are parsed canonically (times stay whole, separators/decimals normalize, signs and exponents are kept) and evidence values may be scalars or nested objects. Legacy candidates without a `ui` tree keep their identity/authority validation only. `uiText` records the strings the host validated.
 
-The proactive chain uses NO Jev classifier. `createProactiveJudge` (`src/proactive-qualification.mjs`) asks ONE narrow usefulness question of the resident ordinary zero-tool model; it constructs no Jev client, sends no grounded/unsupported question, and never passes card text or `uiText` into judgment state. Intent routing keeps its own Jev-enabled client unchanged. The judgment receipt keeps its validated shape with a `provider/model` identity and full-support signals, so older stored proposals still load. The renderer suppresses Advice/ApprovedAction/OwnerStep; the bubble renders advice once and binds the controls. Each shared primitive now has its own DOM class and visual treatment (Badge is not a chip, Metric is emphasized, Stack/Readings/Row are declared layout classes), while the single 17px size, one card surface and no concentric frames remain.
+The proactive chain uses NO Jev classifier. `createProactiveJudge` (`src/proactive-qualification.mjs`) asks ONE narrow usefulness question of the resident ordinary zero-tool model; it constructs no Jev client, sends no grounded/unsupported question, and never passes card text or `uiText` into judgment state. Intent routing keeps its own Jev-enabled client unchanged. The judgment receipt keeps its validated shape with a `provider/model` identity and full-support signals, so older stored proposals still load. The renderer suppresses Advice/ApprovedAction/OwnerStep; the bubble renders advice once and binds the controls.
+
+The message bubble supplies the frame for OpenUI content.
+Headings, rows, and status text share the 17px text size.
+The Shell shows all option labels in a read-only list.
+The host supplies the controls for approved actions.
 
 ### Safe Markdown and card spacing
 
 Advice and every conversation message render through the shared `odkPersonalAgentReply.render()` in [personal-agent-reply.js](../../../runtime/shell/src/renderer/core/personal-agent-reply.js). It uses markdown-it with `html:false`. Raw HTML stays literal, links become inert text with a URL, and images show only alt text. Plain text still goes through `textContent`. No generated or owner text is written as raw HTML.
 
-A plain Remote Pi conversation message keeps its text-and-footer surface. It does not gain a fabricated generated card. It uses the same safe Markdown as advice. Its footer shares the recommendation footer's full geometry, whether or not a generated card exists. The message keeps its own 21px body text; only recommendation bubbles collapse to 17px. Both footers use the one 17px reading size.
+A plain Remote Pi conversation message uses the same safe Markdown as advice.
+It shows its text and its own session references.
 
 The generated card owns one spacing rhythm. [personal-agent-status.css](../../../runtime/shell/src/renderer/personal-agent-status.css) clears the conversation bubble's 12px paragraph margin from card Heading and Text primitives, so the card's `--agent-gap-block` is the only gap. A Divider carries no margin of its own. A trailing Divider inside a Stack is hidden with `:last-child` so it draws no orphan line. [agent-type-scale.cjs](../../../runtime/shell/tests/agent-type-scale.cjs) measures every adjacent primitive gap against the named token.
 
-### Host-bound recommendation footer
+### Session references and Reply
 
-The model never emits a session source, a timestamp or a Reply control. `HOST_RULES` state that the host appends one footer row. `bindRecommendationFooters()` in [personal-agent.js](../../../runtime/shell/src/renderer/plugins/personal-agent.js) appends the row to `.agent-message-body`. It does this for every recommendation. The function reuses the product's `sessionLabel()` and the frame's real remote source. The `Reply` control keeps its `replyTo` target on that remote message. It does not target the proposal.
+Each remote update shows only its own session references.
+A Reply control uses the exact `replyTo` identity of its source.
+Proactive recommendations have no session reference.
+The model cannot add a source or a Reply control.
 
-[personal-agent-status.css](../../../runtime/shell/src/renderer/personal-agent-status.css) is the single footer style owner. Both the plain remote message and the recommendation build their footer from the same `sessionLabel()` DOM under `.agent-update-sources`. The rules therefore scope to that shared class, not to a generated card. Every footer gets the same values. The `Reply` control gets `--agent-radius-card`. The footer text shares `--agent-text-body`. The `gap` and `margin-block-start` use `--agent-gap-block`. The page CSP is `style-src 'self'`. No inline style can supply these values. The Reply radius rule uses an `html #personal-agent` prefix. It must outrank the theme layers that give ordinary buttons `--agent-radius-control`.
-
-The icon and the source text stay on one horizontal line. Their small text leaves a larger visual gap below. The source row grows its left inset by `--agent-pad-card` to match that gap. A 2px `translateY` gives the source group a small optical nudge below the `Reply` centre. A transform changes no layout box, so the `Reply` and the 44px touch target stay put. The scoped rule matches the base `.agent-panel` selector's specificity so the base `padding:0` does not win. A plain message keeps its own 21px body text; only recommendation bubbles collapse to 17px. Both footers still use the one 17px reading size.
-
-[agent-radius.cjs](../../../runtime/shell/tests/agent-radius.cjs) guards this contract across four themes: instrument, pixel, border-beam and liquid-glass. The gate asserts one shared radius for the recommendation `Reply`, the card and the action button. It also checks the one reading size. It checks the surface padding on all four bubble sides. It checks the named block gap. The icon and text must share one line. The source group nudge must stay in the 1–3px optical range, so a 13px layout break is refused. The left inset must grow by the card-padding token and match the gap below the text. The `Reply` keeps its bottom inset. The source keeps its 44px touch target. The gate measures both footers with one function and compares every field: gap, margin, radius, reading size, left inset, transform, touch target, icon inset and centre spread. A plain footer must equal the recommendation footer. [personal-agent.feature](../../../runtime/shell/tests/features/personal-agent.feature) holds the Given/When/Then scenario.
+[personal-agent-status.css](../../../runtime/shell/src/renderer/personal-agent-status.css) defines the footer geometry under `.agent-update-sources`.
+The footer uses `--agent-text-body` for text and `--agent-gap-block` for spacing.
+The Reply control uses `--agent-radius-card`.
+The source icon and text share one horizontal line.
+The source group uses a 2px vertical offset.
+The source and Reply controls retain their 44px touch targets.
+[agent-radius.cjs](../../../runtime/shell/tests/agent-radius.cjs) checks the controls and card geometry across four themes.
 
 Each candidate receives one independent usefulness judgment.
 Judgment receipts retain the actual `provider/model` identity across checkpoint reloads.

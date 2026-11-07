@@ -28,9 +28,8 @@ export async function generateWithinDeadline({ create, prompt, validate, signal,
     }
     stopped = true
     void session?.abort().catch(() => {})
-    const error = Error(message)
-    error.code = reason === 'timeout' ? 'generation_timeout' : 'generation_cancelled'
-    rejectDeadline(error)
+    const code = reason === 'timeout' ? 'generation_timeout' : 'generation_cancelled'
+    rejectDeadline(Object.assign(Error(message), { code }))
   }
   const cancel = () => stop('Suggestion generation cancelled', 'cancel')
   timer = setTimeout(() => stop('Suggestion generation timed out', 'timeout'), duration)

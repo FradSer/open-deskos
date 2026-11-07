@@ -320,6 +320,42 @@ test('cleanup failure is contained and produces safe error', async () => {
   assert.ok(!service.status.message.includes('private-path'))
 })
 
+test('reply presentation stays optional and belongs only to the completed turn', async () => {
+  const original = 'The report is available. It contains the exact result and its limits.'
+  const presentation = { text: 'Report available.', ui: { type: 'Suggestion', props: {}, children: [
+    { type: 'Text', props: { value: 'The report is available.' }, children: [] },
+  ] } }
+  let attempts = 0
+  const { service } = fixture({
+    prompt: async () => original,
+    projectReply: async (answer, signal) => {
+      assert.equal(answer, original)
+      assert.equal(signal.aborted, false)
+      if (++attempts === 1) return presentation
+      throw Error('Projection unavailable')
+    },
+  })
+
+  assert.equal(service.sendText('Show the report'), true)
+  await service.pending
+  assert.equal(service.status.message, original)
+  assert.deepEqual(service.status.replyPresentation, presentation)
+  service.notify('Notification')
+  assert.deepEqual(service.status.replyPresentation, presentation)
+
+  await service.toggle()
+  assert.equal(await service.cancelRecording(), true)
+  assert.equal(service.status.replyPresentation, undefined)
+
+  await service.toggle()
+  await service.toggle()
+  assert.equal(service.status.state, 'idle')
+  assert.equal(service.status.message, original)
+  assert.equal(service.status.replyPresentation, undefined)
+  assert.equal(attempts, 2)
+  await service.close()
+})
+
 test('final Markdown response is preserved up to 16384 characters', async () => {
   for (const length of [2048, 16384, 20000]) {
     const { service } = fixture({ prompt: async () => '# Result\n' + 'x'.repeat(length) })
@@ -691,16 +727,16 @@ test('typed and voice acknowledgements use only their current host receipt',asyn
   ['ran',{status:'delivered',receipt:{accepted:true,delivery:'ran'}},'原会话已受理指令并开始本轮处理，尚不代表任务完成。'],
  ]
  for(const input of ['typed','voice'])for(const [name,outcome,answer]of cases)await t.test(`${input} ${name}`,async()=>{
-  const reference={messageId:'a'.repeat(64),sourceKey:'retained-source',sourceRevision:'b'.repeat(64)},threadId='c'.repeat(64),updates=[],frames=[];let currentId
+  const reference={messageId:'a'.repeat(64),sourceKey:'retained-source',sourceRevision:'b'.repeat(64)},threadId='c'.repeat(64),updates=[],frames=[];let currentId, projections = 0
   const {service}=fixture({prompt:async(text,snapshot,_reply,owner)=>{
    currentId=owner.id;owner.requireDeliveryAcknowledgement();owner.bind({id:owner.id,text,replyTo:reference,threadId,source:{}})
    snapshot('已发送并已完成。');await new Promise(resolve=>setTimeout(resolve,120));return '已发送并已完成。'
-  }})
+  },projectReply:async()=>{projections++;return { text: 'Projected' }}})
   service.subscribe(frame=>frames.push(frame))
   service.attachRemoteUpdates({snapshot:()=>({state:'live',messages:[]}),poll:async()=>{},replyOutcome:id=>{assert.equal(id,currentId);return{id,...outcome}},completeReply:(id,patch)=>updates.push({id,...patch})})
   if(input==='typed'){assert.equal(service.sendText('继续原任务'),true);await service.pending}else{await service.toggle();await service.toggle()}
   assert.equal(service.status.state,'idle');assert.equal(service.status.message,answer)
-  assert.deepEqual(updates,[{id:currentId,status:'answered',answer}]);assert.ok(frames.every(frame=>!frame.message.includes('已发送并已完成')))
+  assert.equal(projections,0,'bound acknowledgements skip projection');assert.deepEqual(updates,[{id:currentId,status:'answered',answer}]);assert.ok(frames.every(frame=>!frame.message.includes('已发送并已完成')))
   await service.close()
  })
  await t.test('a different receipt identity cannot certify this owner turn',async()=>{

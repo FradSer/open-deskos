@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  generationSystemPrompt, parseSuggestionDocument, openuiFormatCorrection, OPENUI_EXAMPLE,
+  generationSystemPrompt, parseSuggestionDocument, openuiFormatCorrection, visibleUiText, OPENUI_EXAMPLE,
 } from '../src/openui-contract.mjs'
 import {
   REGISTERED_PRIMITIVES, EMPTY_DOCUMENT, FULL_TREE_DOCUMENT, FULL_TREE_TYPE_COUNTS,
@@ -16,12 +16,14 @@ test('the library generates the contract and carries host authority rules', () =
   for (const name of REGISTERED_PRIMITIVES) assert.match(generationSystemPrompt, new RegExp(`\\b${name}\\b`), name)
   for (const rule of [
     /Only the host binds approved actions/,
+    /Every Option label is visible as message text/i,
+    /Never use OptionSet as a dropdown/i,
     /Every number the owner can see/i,
     /Advice is one short sentence/i,
     /Omit a Suggestion.*no current need/i,
     /Compose the card freely/i,
     /Never emit source, timestamp, state or provenance metadata as card text/i,
-    /session source on the left and a Reply control on the right/i,
+    /Never generate a session source or a Reply control/i,
   ]) assert.match(generationSystemPrompt, rule)
   assert.doesNotMatch(generationSystemPrompt, /preview\.items|boundedPreview|generationInstructions/)
 })
@@ -67,6 +69,10 @@ test('the parsed ui keeps every emitted component node', () => {
   assert.equal(heading.props.value, '通勤观察')
   assert.equal(badge.props.value, '需要留意')
   assert.deepEqual(options.map(node => node.props.value), ['open', 'later'])
+  const shown = visibleUiText(s.ui)
+  assert.deepEqual(shown.filter(text => options.some(option => option.props.label === text)),
+    options.map(option => option.props.label))
+  assert.ok(options.every(option => !shown.includes(option.props.value)))
 })
 
 test('a document with no current need yields no candidates', () => {

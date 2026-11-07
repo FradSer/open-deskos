@@ -14,7 +14,8 @@ const tone = () => z.enum(['warn', 'good', 'neutral']).optional()
 const text = () => z.string().min(1)
 
 // Shared primitives only. No domain-specific card and no framework renderer.
-const COMPONENTS = [
+/** @type {[name: string, props: z.ZodObject, description: string][]} */
+const COMPONENT_SCHEMAS = [
   ['Suggestions', z.object({ children: children() }), 'Root; zero or more Suggestion nodes.'],
   ['Suggestion', z.object({
     children: children(),
@@ -33,14 +34,15 @@ const COMPONENTS = [
   ['Metric', z.object({ label: text(), value: text(), tone: tone() }), 'An emphasized observed label and cited value.'],
   ['Stack', z.object({ children: children(), direction: z.string().optional() }), 'A vertical or horizontal group; nest it freely to organize sections.'],
   ['Row', z.object({ children: children() }), 'An inline group for side-by-side items.'],
-  ['OptionSet', z.object({ children: children() }), 'A list of owner choices; no execution permission.'],
-  ['Option', z.object({ label: text(), value: text() }), 'One owner choice.'],
+  ['OptionSet', z.object({ children: children() }), 'A read-only list of alternatives in the message.'],
+  ['Option', z.object({ label: text(), value: text() }), 'One visible alternative label and its internal value.'],
   ['Divider', z.object({}), 'A visual separator between sections.'],
-].map(([name, props, description]) => defineComponent({ name, props, description, component: null }))
+]
 
+const COMPONENTS = COMPONENT_SCHEMAS.map(([name, props, description]) => defineComponent({ name, props, description, component: null }))
 const library = createLibrary({ root: 'Suggestions', components: COMPONENTS })
 const COMPONENT_NAMES = new Set(COMPONENTS.map(component => component.name))
-const SCHEMA_BY_TYPE = new Map(COMPONENTS.map(component => [component.name, component.props]))
+const SCHEMA_BY_TYPE = new Map(COMPONENT_SCHEMAS.map(([name, props]) => [name, props]))
 const HOST_SUGGESTION_PROPS = z.object({
   topicId: text(),
   key: text(),
@@ -54,10 +56,11 @@ const HOST_RULES = [
   'Every number the owner can see -- in advice, headings, prose, badges, labels, values and option text -- must be a value of a cited observation. Never invent, recompute or restate a number.',
   'Advice is one short sentence stating what changed. It is the only required text.',
   'Compose the card freely from the shared primitives: choose headings, prose, badges, stacks, rows, dividers, readings, metrics and option sets when each helps the reader.',
+  'Every Option label is visible as message text. Never use OptionSet as a dropdown or an action control.',
   'Different topics deserve different compositions. Do not reuse one fixed shape for every suggestion.',
   'Use Heading, Text and Badge for presentation and context. Do not copy the entire advice sentence into them.',
   'Reading and Metric carry observed label/value pairs; Metric emphasizes one pair. Use Stack and Row to organize sections.',
-  'Never emit source, timestamp, state or provenance metadata as card text. The host appends one footer row: the session source on the left and a Reply control on the right. Those are host-bound, not generated.',
+  'Never emit source, timestamp, state or provenance metadata as card text. Never generate a session source or a Reply control.',
   'Omit a Suggestion when observations show no current need.',
   'The host binds evidence, freshness and actions, and judges usefulness independently of presentation.',
 ]
@@ -112,7 +115,7 @@ export const generationSystemPrompt = library.prompt({
 const parser = createParser(library.toJSONSchema(), library.root)
 const fail = (message, code) => {
   const error = Error(`Invalid OpenUI document: ${message}`)
-  if (code) error.code = code
+  if (code) throw Object.assign(error, { code })
   throw error
 }
 const adviceRequired = () => fail('advice is required', 'advice_required')
@@ -224,9 +227,8 @@ function suggestionFrom(ui) {
 
 // The renderer suppresses Advice, ApprovedAction and OwnerStep: the bubble owns
 // that sentence and binds those controls. Layout and Divider nodes draw no text.
-// Option renders its label as an <option>; an unknown type renders every string
-// prop through describeProps. Collect all remaining visible strings so validation
-// and judgment cover exactly what the card shows.
+// Option renders its label as message text and keeps its value internal. Collect
+// the remaining visible strings so validation and judgment cover the card text.
 const NO_TEXT_TYPES = new Set([
   'Advice', 'ApprovedAction', 'OwnerStep', 'Suggestions', 'Suggestion',
   'Stack', 'Row', 'Divider', 'OptionSet',

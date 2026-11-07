@@ -19,9 +19,10 @@ const original = [
 ].join('\n')
 
 const readOnlyUi = { type: 'Suggestion', props: {}, children: [
-  { type: 'Heading', props: { value: '已安装' }, children: [] },
+  { type: 'Heading', props: { value: '安装状态' }, children: [] },
   { type: 'Readings', props: {}, children: [
-    { type: 'Reading', props: { label: 'cm5-api-clock', value: 'UTC Live 2.1' }, children: [] },
+    { type: 'Reading', props: { label: '名称', value: 'UTC Live' }, children: [] },
+    { type: 'Reading', props: { label: '版本', value: '2.1' }, children: [] },
   ] },
   { type: 'Text', props: { value: '但没有安装 Widget。仍需确认：读取真实测量桌面并选择未占用的一格。' }, children: [] },
 ] }
@@ -52,6 +53,40 @@ test('the host refuses malformed, oversized, or action-bearing projections', () 
   assert.throws(() => validateReplyProjection({ text: '短句', ui: { type: 'Suggestion', props: {}, children: [
     { type: 'Text', props: { value: 'x'.repeat(601) }, children: [] },
   ] } }, original), /too long/)
+})
+
+test('the host rejects empty cards and cards outside the shared transport bounds', () => {
+  const text = { type: 'Text', props: { value: '中'.repeat(600) }, children: [] }
+  const nested = Array.from({ length: 8 }).reduce(child => ({ type: 'Stack', props: {}, children: [child] }), text)
+  for (const children of [Array(10).fill(text), [nested]]) {
+    const ui = { ...readOnlyUi, children }
+    assert.throws(() => validateReplyProjection({ text: '短句', ui }, '中'.repeat(6000)), /tree too large/)
+  }
+  assert.throws(() => validateReplyProjection({ text: '短句', ui: { ...readOnlyUi, children: [] } }, original), /no text/)
+})
+
+test('the host rejects aliases and extra props outside the projection contract', () => {
+  const option = { type: 'OptionSet', props: {}, children: [] }
+  for (const ui of [
+    { ...readOnlyUi, typeName: 'OptionSet' },
+    { ...readOnlyUi, props: { children: [option] } },
+    { ...readOnlyUi, children: [{ type: 'Text', value: 'Not validated', props: {} }] },
+    { ...readOnlyUi, children: [{ type: 'Text', props: { value: { value: 'Not plain text' } } }] },
+  ]) {
+    assert.throws(() => validateReplyProjection({ text: '短句', ui }, original), /Invalid projection node/)
+  }
+})
+
+test('the host rejects changed readings and numbers cut from a longer literal', () => {
+  for (const node of [
+    { type: 'Reading', props: { label: '名称', value: 'UTC Live 2.1' }, children: [] },
+    { type: 'Metric', props: { label: '版本', value: '2' }, children: [] },
+    { type: 'Text', props: { value: '版本为 12.1。' }, children: [] },
+  ]) {
+    const ui = { ...readOnlyUi, children: [node] }
+    assert.throws(() => validateReplyProjection({ text: '短句', ui }, original), /source reply/)
+  }
+  assert.throws(() => validateReplyProjection({ text: '版本为 12.1。', ui: null }, original), /source reply/)
 })
 
 test('a failed projection publishes the exact original reply unchanged', () => {

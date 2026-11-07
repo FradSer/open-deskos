@@ -413,31 +413,26 @@ export async function createPersonalAgent(config, { createSession = createDurabl
       // Any failure publishes the exact original reply.
       projectReply: async (original, signal) => {
         if (config.childAgent || typeof original !== 'string' || original.trim().length <= 180) return fallbackReplyProjection(original)
-        const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,
-          settingsManager: SettingsManager.inMemory({}), agentsFilesOverride: () => ({ agentsFiles: [] }),
-          appendSystemPromptOverride: () => [], systemPromptOverride: () => replyProjectionInstructions })
-        await loader.reload()
-        const { session: generator } = await createSession({ cwd, resourceLoader: loader, modelRuntime, model: session.model, thinkingLevel: session.getThinkingLevel?.(), tools: [], customTools: [], ephemeral: true,
-          settingsManager: SettingsManager.inMemory({ defaultTools: [], retry: { enabled: false }, compaction: { enabled: false } }), sessionManager: SessionManager.inMemory(cwd) })
-        const abort = () => { void generator.abort().catch(() => {}) }
-        const timeout = setTimeout(abort, generationDeadlineMs((config.env ?? process.env).ODK_REPLY_PROJECTION_TIMEOUT_MS ?? 15000))
-        const combined = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal
-        combined.addEventListener('abort', abort, { once: true })
-        if (combined.aborted) abort()
         try {
           const projected = await generateWithinDeadline({
-            signal: combined, timeoutMs: (config.env ?? process.env).ODK_REPLY_PROJECTION_TIMEOUT_MS ?? 15000,
+            signal: signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal,
+            timeoutMs: (config.env ?? process.env).ODK_REPLY_PROJECTION_TIMEOUT_MS ?? 15000,
             formatCorrection: replyProjectionFormatCorrection,
-            serialize: reply => JSON.stringify({ reply }),
             validate: value => { validateReplyProjection(value, original) },
-            create: async () => generator,
+            create: async () => {
+              const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,
+                settingsManager: SettingsManager.inMemory({}), agentsFilesOverride: () => ({ agentsFiles: [] }),
+                appendSystemPromptOverride: () => [], systemPromptOverride: () => replyProjectionInstructions })
+              await loader.reload()
+              const { session: generator } = await createSession({ cwd, resourceLoader: loader, modelRuntime, model: session.model, thinkingLevel: session.getThinkingLevel?.(), tools: [], customTools: [], ephemeral: true,
+                settingsManager: SettingsManager.inMemory({ defaultTools: [], retry: { enabled: false }, compaction: { enabled: false } }), sessionManager: SessionManager.inMemory(cwd) })
+              return generator
+            },
             prompt: (worker, text) => sessionAdapter(worker).prompt(text),
-          }, original)
+          }, { reply: original })
           return validateReplyProjection(projected, original)
         } catch {
           return fallbackReplyProjection(original)
-        } finally {
-          clearTimeout(timeout); combined.removeEventListener('abort', abort); await generator.dispose?.()
         }
       },
       judge: input => judgment.request({...input, signal: input.signal ? AbortSignal.any([input.signal, lifetime.signal]) : lifetime.signal}),

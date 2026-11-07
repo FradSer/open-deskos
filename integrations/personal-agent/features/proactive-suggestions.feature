@@ -802,4 +802,4 @@ Feature: Owner controlled proactive Personal Agent proposals
     Then each primitive produces its own DOM class and visual treatment
     And Reading and Metric no longer share one identical chip
     And every visible text keeps the single 17-pixel reading size
-    And the tree still renders exactly one card surface without concentric frames
+    And the tree shares the message bubble without an inner frame

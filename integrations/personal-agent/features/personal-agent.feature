@@ -85,3 +85,9 @@ Feature: Explicit personal assistant configuration and private opt-in note memor
     When the service validates its environment or CM5 stages the release
     Then validation fails before runtime creation or service writes
     And the operator receives migration guidance without configuration values
+
+  Scenario: A projected reply keeps its detail read-only and its readings exact
+    Given a long reply contains measured values
+    When the projection adds a component alias, a second child list, or a changed reading
+    Then the host rejects the projected detail
+    And a failed correction leaves the original reply unchanged

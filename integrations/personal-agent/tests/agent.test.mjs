@@ -338,8 +338,9 @@ async function generationFixture(t, env, generatorPrompt = () => new Promise(() 
     ...(defaultRouting ? {} : {createIntentRouter: () => async () => ({ intent: 'conversation' })}),
     createSession: async options => {
       const generator = ++sessionNumber > 1
-      if (generator) inspect(options)
-      return { session: session(generator) }
+      const created = session(generator)
+      if (generator) await inspect(options, created)
+      return { session: created }
     },
   })
   t.after(() => bot.close())
@@ -1199,4 +1200,41 @@ test('a failed projection publishes the exact original long reply', async t => {
     listener({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'not json at all' }], stopReason: 'stop' } })
   })
   assert.deepEqual(await bot.projectReply(long, t.signal), { text: long, ui: undefined })
+})
+
+test('a projection retry keeps the original reply and adds the correction separately', async t => {
+  const original = '已读取 Hosted Pi 任务结果。Widget 未安装，仍需确认实际桌面的可用位置。\n'.repeat(6)
+  const projected = { text: 'Widget 未安装。', ui: null }
+  const requests = []
+  const bot = await generationFixture(t, {}, (listener, text) => {
+    requests.push(JSON.parse(text.slice('Personal Agent request:\n'.length)))
+    listener({ type: 'message_end', message: assistant(requests.length === 1 ? 'invalid' : JSON.stringify(projected)) })
+  })
+  assert.deepEqual(await bot.projectReply(original, t.signal), { text: projected.text, ui: undefined })
+  assert.equal(requests.length, 2)
+  assert.deepEqual(requests[0], { reply: original })
+  assert.equal(requests[1].reply, original)
+  assert.match(requests[1].formatCorrection, /Return only JSON/)
+})
+
+test('a projection setup or cleanup failure preserves the original reply', async t => {
+  const original = '已读取 Hosted Pi 任务结果。Widget 未安装，仍需确认实际桌面的可用位置。\n'.repeat(6)
+  const projected = { text: 'Widget 未安装。', ui: null }
+  const prompt = listener => {
+    listener({ type: 'message_end', message: assistant(JSON.stringify(projected)) })
+  }
+
+  await t.test('session setup fails', async t => {
+    const bot = await generationFixture(t, {}, prompt, () => { throw Error('setup failed') })
+    assert.deepEqual(await bot.projectReply(original, t.signal), { text: original, ui: undefined })
+  })
+
+  await t.test('session cleanup fails', async t => {
+    let disposals = 0
+    const bot = await generationFixture(t, {}, prompt, (_options, session) => {
+      session.dispose = () => { disposals++; throw Error('cleanup failed') }
+    })
+    assert.deepEqual(await bot.projectReply(original, t.signal), { text: original, ui: undefined })
+    assert.equal(disposals, 1)
+  })
 })

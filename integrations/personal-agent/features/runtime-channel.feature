@@ -30,6 +30,18 @@ Feature: Bounded requests over runtime channels
     And connection recovery subscribes without replaying an owner request
     And Windows does not initialize a model or transcribe audio
 
+  Scenario: Reply projection failure preserves a completed reply
+    Given the resident Personal Agent has completed a long reply
+    When the optional projection cannot start or clean up
+    Then the service publishes the original reply exactly
+    And the service publishes no generated card
+
+  Scenario: Reply projection retry retains its source
+    Given the first projection result is invalid
+    When the resident Personal Agent retries projection
+    Then the worker receives the same original reply
+    And the format correction remains separate from the reply
+
   Scenario: Batched input retains the limit for each command
     Given two valid commands arrive in one bounded transport batch
     When each command is smaller than the input frame limit

@@ -38,8 +38,9 @@ const sentFrames = new WeakMap()
 const sentChannels = new WeakMap()
 
 export function statusFrames(status) {
-  const { briefing, remote, conversation, ...voice } = status
-  const frames = [`${JSON.stringify(voice)}\n`]
+  const { briefing, remote, conversation, replyPresentation, ...voice } = status
+  const presented = replyPresentation && `${JSON.stringify({ ...voice, replyPresentation })}\n`
+  const frames = [presented && Buffer.byteLength(presented) <= MAX_FRAME_BYTES ? presented : `${JSON.stringify(voice)}\n`]
   if (briefing) frames.push(`${JSON.stringify({ v: 1, type: 'briefing', briefing })}\n`)
   if (remote) frames.push(`${JSON.stringify({v:1,type:'remote_conversation',remote})}\n`)
   if (conversation) frames.push(`${JSON.stringify({v:1,type:'conversation',conversation})}\n`)

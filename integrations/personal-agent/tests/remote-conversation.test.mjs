@@ -185,6 +185,16 @@ test('legal remote and RidePreview proposal payloads do not consume the owner vo
  assert.deepEqual(frames.find(frame=>frame.type==='remote_conversation').remote.messages,status.remote.messages)
 })
 
+test('the status frame drops optional reply presentation before exceeding its byte budget', async () => {
+  const { statusFrames } = await import('../src/socket.mjs')
+  const status = { v: 1, type: 'status', state: 'idle', message: '\x00'.repeat(16384), transcript: '中'.repeat(4096),
+    proposals: [{ advice: '中'.repeat(5500) }] }
+  const replyPresentation = { text: 'Summary', ui: { type: 'Suggestion', props: {}, children: Array.from({ length: 3 }, () =>
+    ({ type: 'Text', props: { value: '中'.repeat(600) }, children: [] })) } }
+  const [frame] = statusFrames({ ...status, replyPresentation })
+  assert.deepEqual(JSON.parse(frame), status)
+})
+
 test('alternating failed source revisions cannot silently replay a previous failed synthesis',async t=>{
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-held-revisions-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
  let revision='a'.repeat(64),calls=0
