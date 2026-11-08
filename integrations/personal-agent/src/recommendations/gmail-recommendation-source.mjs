@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { PRIVATE_SOURCE_PROVENANCE } from './private-mcp-observer.mjs'
 
 export const GMAIL_OBSERVATION_FIELDS = Object.freeze(['subject', 'body0', 'body1', 'body2', 'body3', 'bodyTruncated', 'receivedAt'])
-const GMAIL_REVIEW_KIND = 'private-source-review'
+export const GMAIL_REVIEW_KIND = 'private-source-review'
 const unavailable = () => Error('Private source is unavailable or changed.')
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 export const gmailMessageKey = (accountKey, id) => digest(['gmail-message', accountKey, id])

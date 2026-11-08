@@ -4,7 +4,7 @@
 // validates the result; on any failure the original reply is used unchanged.
 
 import { z } from 'zod'
-import { visibleUiText, visibleUiPairs } from './openui-contract.mjs'
+import { visibleUiText, visibleUiPairs } from './recommendations/index.mjs'
 
 const LEAD_LIMIT = 180
 const NODE_LIMIT = 64

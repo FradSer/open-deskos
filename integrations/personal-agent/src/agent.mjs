@@ -32,6 +32,7 @@ import { createJevIntentRouter, createIntentTurn, guardIntentTools, intentToolNa
 import { normalizeCapabilityDeclarations, createReviewedCapabilities, childCapabilityDeclarations } from './reviewed-capabilities.mjs'
 import { validateGeneratedBatch, modelInput } from './recommendations/index.mjs'
 import { generationSystemPrompt, parseSuggestionDocument, openuiFormatCorrection, replyDraftSystemPrompt, parseReplyDraftDocument } from './recommendations/index.mjs'
+import { replyProjectionInstructions, replyProjectionFormatCorrection, validateReplyProjection, fallbackReplyProjection } from './reply-projection.mjs'
 import { createProactiveInvestigationTools } from './proactive-investigation.mjs'
 import { createAgentPluginRuntime, pluginWorkKind } from './agent-plugins/runtime.mjs'
 import { renderPluginInput } from './agent-plugins/prompt.mjs'
@@ -524,6 +525,33 @@ export async function createPersonalAgent(config, { createSession = createDurabl
       },
     })
     const api = { ...adapter,
+      // A long resident reply becomes a short message plus an optional read-only
+      // detail card. One bounded tool-free turn reads the reply as untrusted data.
+      // Any failure publishes the exact original reply.
+      projectReply: async (original, signal) => {
+        if (config.childAgent || typeof original !== 'string' || original.trim().length <= 180) return fallbackReplyProjection(original)
+        try {
+          const projected = await generateWithinDeadline({
+            signal: signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal,
+            timeoutMs: (config.env ?? process.env).ODK_REPLY_PROJECTION_TIMEOUT_MS ?? 15000,
+            formatCorrection: replyProjectionFormatCorrection,
+            validate: value => { validateReplyProjection(value, original) },
+            create: async () => {
+              const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,
+                settingsManager: SettingsManager.inMemory({}), agentsFilesOverride: () => ({ agentsFiles: [] }),
+                appendSystemPromptOverride: () => [], systemPromptOverride: () => replyProjectionInstructions })
+              await loader.reload()
+              const { session: generator } = await createSession({ cwd, resourceLoader: loader, modelRuntime, model: session.model, thinkingLevel: session.getThinkingLevel?.(), tools: [], customTools: [], ephemeral: true,
+                settingsManager: SettingsManager.inMemory({ defaultTools: [], retry: { enabled: false }, compaction: { enabled: false } }), sessionManager: SessionManager.inMemory(cwd) })
+              return generator
+            },
+            prompt: (worker, text) => sessionAdapter(worker).prompt(text),
+          }, { reply: original })
+          return validateReplyProjection(projected, original)
+        } catch {
+          return fallbackReplyProjection(original)
+        }
+      },
       judge: input => judgment.request({...input, signal: input.signal ? AbortSignal.any([input.signal, lifetime.signal]) : lifetime.signal}),
       // The ordinary zero-tool model, without the Jev classifier. The proactive
       // chain uses this so composition decisions never enter a typed judgment.
@@ -726,7 +754,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
       },
       close: async () => { lifetime.abort(); try { await tasks?.close() } finally { try { await closeMemory() } finally { try { await adapter.close() } finally { try { await Promise.all([privateSources?.close(), scheduleConflict?.close()]) } finally { try { await packages?.close() } finally { await reviewed?.close() } } } } } } }
     // Reserve every inference entry synchronously, including background workers.
-    for (const name of ['prompt','judge','nameRemoteTasks','summarizeRemote','generateBriefing','generateProposals','executeProposal','phraseProposal']) {
+    for (const name of ['prompt','projectReply','judge','nameRemoteTasks','summarizeRemote','generateBriefing','generateProposals','executeProposal','phraseProposal']) {
       const operation=api[name]
       if(typeof operation!=='function')continue
       api[name]=async (...args)=>{

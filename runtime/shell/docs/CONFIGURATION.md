@@ -77,9 +77,19 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `ODK_TAILSCALE_BIN` | L3 device | Operator | runtime/shell/scripts/provision-tailscale.sh | /usr/bin/tailscale | Override a nonstandard Tailscale executable path. Reuse an existing host installation. |
 | `ODK_TASK_CONFIG` | L2 install | pi-tasks unit | integrations/personal-agent/src/task-store.mjs | %h/.config/odk/pi-tasks.json | Private Hosted Pi daemon configuration. Only the daemon reads and checks ownership/mode. Clients read its published endpoint descriptor. |
 | `ODK_TASK_TARGETS_FILE` | L3 device | Personal Agent environment or drop-in | integrations/personal-agent/src/task-client.mjs | Unset | Personal Agent target list. If absent, report that configuration is required. |
-| `ODK_PROACTIVE_CONFIG` | L3 device (sensitive) | perosnal-agent.env | integrations/personal-agent/src/main.mjs | Unset; empty rules and a 30-minute heartbeat | Private owner rules: thresholds, combinations, quiet hours, rate limits and mute state. File mode 0600. See the Personal Agent CONTRACT.md proposal section. |
+| `ODK_PROACTIVE_CONFIG` | L3 device (sensitive) | perosnal-agent.env | integrations/personal-agent/src/recommendations/proactive-startup.mjs | Unset | Private owner rules and limits for recommendations. Use file mode 0600. |
 | `ODK_PACKAGE_API_PUBLIC_DNS` | L3 device | runtime.env | runtime/shell/src/user-app-system.js | Unset | Set cloudflare to resolve package API hostnames through public HTTPS DNS. See USER_APPLICATIONS.md#public-api-data. |
 | `ODK_PERSONAL_AGENT_CONFIG` | L3 device (sensitive) | perosnal-agent.env | integrations/personal-agent/src/personal-config.mjs | coding profile | Private profile, reviewed capability declarations, Skill paths, and fixed plugin selection. |
+| `ODK_PERSONAL_AGENT_MEM0_CONFIG` | L3 device (sensitive) | perosnal-agent.env | integrations/personal-agent/src/mem0.mjs | Unset | Absolute path to the private Mem0 provider configuration. Use file mode 0600. |
+| `ODK_PERSONAL_AGENT_MEM0_PYTHON` | L3 device | perosnal-agent.env | integrations/personal-agent/src/mem0.mjs | Mem0 package virtual environment | Absolute path to the Python executable for the Mem0 worker. |
+| `ODK_REPLY_PROJECTION_TIMEOUT_MS` | L3 device | perosnal-agent.env | integrations/personal-agent/src/agent.mjs | 15000 | Time limit for the optional OpenUI reply projection in milliseconds. |
+| `MEM0_DIR` | Internal | Mem0 worker | integrations/personal-agent/mem0/worker.py | Private Mem0 state directory | The worker sets the path for its state. |
+| `MEM0_TELEMETRY` | Internal | Mem0 worker | integrations/personal-agent/mem0/worker.py | false | The worker disables Mem0 telemetry. |
+| `HF_HUB_DISABLE_TELEMETRY` | Internal | Mem0 worker | integrations/personal-agent/mem0/worker.py | 1 | The worker disables Hugging Face Hub telemetry. |
+| `FASTEMBED_CACHE_PATH` | Internal | Mem0 worker | integrations/personal-agent/mem0/worker.py | embedding-cache in the private Mem0 state directory | The worker sets the path for the FastEmbed model cache. |
+| `ODK_AGENT_LIVE_IMAGE` | Test | Live test process | integrations/personal-agent/scripts/test-agent-runtime-live.mjs | node:24-trixie-slim | Container image for the Personal Agent live test. Specify the image for a Mem0 live test. |
+| `ODK_AGENT_LIVE_MEM0_PYTHON` | Test | Live test process | integrations/personal-agent/scripts/test-agent-runtime-live.mjs | Unset | Python executable for Mem0 in the live test container. |
+| `ODK_HISTORY_CURL_KEY` | Test (sensitive) | History evaluation process | integrations/personal-agent/scripts/history-eval-curl.mjs | Unset | Provider credential for history evaluation with curl. |
 | `ODK_AGENT_CATALOG_DIR` | CLI | Operator | integrations/personal-agent/src/agent-catalog/cli.mjs | Unset | CLI catalog path. The resident uses its private state directory. |
 | `ODK_AGENT_PACKAGE_CANDIDATES` | L3 device | perosnal-agent.env | integrations/personal-agent/src/agent.mjs | Unset | Private staged package candidates. Required only for candidate inspection and installation. |
 | `ODK_AGENT_PLUGIN_TIMEOUT_MS` | L3 device | perosnal-agent.env | integrations/personal-agent/src/agent.mjs | 90000 | Completion and learning deadline. Accepts 1000 through 180000 milliseconds. |
@@ -141,7 +151,7 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `USERPROFILE` | Environment | Windows user session | runtime/shell/src/plugin-config.js | — | Find the plugin configuration directory when HOME is absent. |
 | `PATH` | Environment | Unit / installer | runtime/shell/scripts/cm5-install.sh | — | Units pin Node and shim directories. Do not depend on an interactive version manager PATH. |
 | `PI_AGENT_DIR` | Environment | Pi runtime | runtime/shell/src/pi-sessions.js | ~/.pi/agent | Pi session and authentication directory. |
-| `PI_CODING_AGENT_DIR` | Environment | Personal Agent verifier | integrations/personal-agent/src/agent.mjs | ~/.pi/agent | Pi settings and authentication directory for the resident runtime. |
+| `PI_CODING_AGENT_DIR` | Environment | Personal Agent verifier | integrations/personal-agent/scripts/test-agent-runtime-live.mjs | ~/.pi/agent | Pi settings and authentication directory. |
 | `ODK_FUTU_SERVICE_REVISION` | L3 device | runtime.env | runtime/shell/src/plugins/desk-runtime.js, integrations/futu-poller/poller.py | dev | Futu revision. The handshake and expected revision use this single declaration. |
 | `SystemRoot` | Environment | Windows user session | integrations/personal-agent/src/candidate-checks.mjs | — | Pass through SystemRoot and WINDIR in the minimal Windows coding_check child environment. They are session values, not host configuration. |
 | `WINDIR` | Environment | Windows user session | integrations/personal-agent/src/candidate-checks.mjs | — | Pass through with SystemRoot so Windows child processes can resolve system directories. |
