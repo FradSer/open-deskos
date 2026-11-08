@@ -18,6 +18,8 @@ test('source advice may mention the action without repeating its label alone', (
   assert.equal(result.advice, advice)
   assert.equal(result.actionId, 'inspect')
   assert.throws(() => validateGeneratedBatch({ suggestions: [suggestion('mail', '查看邮件。')] }, topics, 1), /repeats the action label/)
+  topics[0].actions[0].label = '请查看邮件'
+  assert.throws(() => validateGeneratedBatch({ suggestions: [suggestion('mail', '请查看邮件。')] }, topics, 1), /repeats the action label/)
 })
 
 function fixture(overrides = {}) {
