@@ -1,4 +1,5 @@
 import { fixtureMem0, fixtureMem0For } from './fixtures/mem0.mjs'
+import { openuiBatch, openuiDocument, openuiDocuments } from './openui-fixtures.test.mjs'
 import { endpoint, fixtureToken } from './helpers/private-channel.mjs'
 import { fixtureIntentRouter } from './helpers/intent-judge.mjs'
 import { test } from 'node:test'
@@ -23,12 +24,14 @@ const goalConfig = () => ({ version: 2, pollMs: 60000, maxAgeMs: 1800000, cooldo
   maxCandidates: 8, maxPush: 3, suppressed: [], snoozed: {},
   rules: [{ id: 'deliveries', goal: '及时处理需要我领取的物品。', observations: [{ readingId: 'thirdparty.parcels', fields: ['count'] }], delivery: 'immediate', urgent: false,
     actions: [{ id: 'save-collection', label: '记下取件事项', tool: 'memory_update', params: { category: 'deliveries', value: '领取待取物品' } }] }] })
+const collection = { topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }
+const collectionDocument = openuiDocument(collection)
+const collectionBatch = openuiBatch([collection])
 
 test('selected Agent preserves actual proactive generation, phrasing, and confirmed execution', async t => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-selected-proactive-')))
   t.after(() => rm(root, { recursive: true, force: true }))
   await isolateAgentDirectory(t, root)
-  const generated = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }] }
   for (const version of [1, 2]) {
     const reports = []
     for (const external of [false, true]) {
@@ -50,7 +53,7 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
           canExecuteProposal(action) { return action.tool === 'memory_update' },
           async generateProposals() {
             if (runtime.fail) throw Error('private proactive provider detail')
-            return ${JSON.stringify(generated)}
+            return ${JSON.stringify(collectionBatch)}
           },
           async phraseProposal({ advice }) {
             if (runtime.fail) throw Error('private proactive provider detail')
@@ -89,7 +92,7 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
             createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel }),
             createSession: async options => ({ session: (await offlineSession({ ...options, agentDir: join(root, 'agent') }, () => {
               if (runtime.fail) throw Error('private proactive provider detail')
-              return assistant(version === 1 ? '[1,0]' : JSON.stringify(generated))
+              return assistant(version === 1 ? '[1,0]' : collectionDocument)
             })).session }),
           })
           return Object.assign(runtime, { agent })
@@ -186,7 +189,6 @@ test('default and selected Agent disable cancel pending proactive consumers and 
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-proactive-cancel-')))
   t.after(() => rm(root, { recursive: true, force: true }))
   await isolateAgentDirectory(t, root)
-  const batch = { suggestions: [{ topicId: 'deliveries', key: 'collect', advice: '领取待取物品。', actionId: 'save-collection', evidenceIds: ['e0'] }] }
   for (const stage of ['phrasing', 'generation']) {
     const reports = []
     for (const external of [false, true]) {
@@ -212,7 +214,7 @@ test('default and selected Agent disable cancel pending proactive consumers and 
           }
           return { ready, get cancelled() { return cancelled }, late() { resolveWork?.() }, agent: {
             canExecuteProposal(action) { return action.tool === 'memory_update' },
-            generateProposals: ({ signal }) => run(${JSON.stringify(batch)}, signal),
+            generateProposals: ({ signal }) => run(${JSON.stringify(collectionBatch)}, signal),
             phraseProposal: ({ advice, signal }) => run(advice, signal),
             executeProposal: async () => { throw Error('no action') }, abort() {}, close() {}
           } }
@@ -233,7 +235,7 @@ test('default and selected Agent disable cancel pending proactive consumers and 
           const hold = ++instances === 1
           let enter, rejectWork, captured, disposed = 0, cancelled = false, sessions = 0
           const ready = new Promise(resolve => { enter = resolve })
-          const raw = stage === 'generation' ? JSON.stringify(batch) : '[0,1]'
+          const raw = stage === 'generation' ? collectionDocument : '[0,1]'
           const event = () => ({ type: 'message_end', message: assistant(raw) })
           const agent = await createPersonalAgent({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') }, env: {} }, {
             createIntentRouter: fixtureIntentRouter,
@@ -288,7 +290,7 @@ test('default and selected Agent disable cancel pending proactive consumers and 
         await watch.inflight
         assert.notEqual(watch, released)
         assert.equal(watch.list().length, 1)
-        assert.equal(service.status.proposals[0].advice, stage === 'phrasing' ? config().rules[0].advice : batch.suggestions[0].advice)
+        assert.equal(service.status.proposals[0].advice, stage === 'phrasing' ? config().rules[0].advice : collection.advice)
         const current = structuredClone(service.status), count = frames.length
         runtime.late()
         await Promise.resolve()
@@ -347,23 +349,27 @@ test('real SDK generator carries only scoped investigation tools and no skills, 
   t.after(() => rm(dir, { recursive: true, force: true }))
   await isolateAgentDirectory(t, dir)
   const optionsSeen = [], requests = []
-  await writeFile(join(dir, 'memory.json'), JSON.stringify({ private: 'MUST_NOT_ENTER_GENERATION' }))
-  const suggestions = [1, 2].map(i => ({ topicId: 'packages', key: `item-${i}`, advice: `待取物品 ${i} 件已到。`, actionId: 'inspect-package', evidenceIds: ['e0'] }))
-  const agent = await createPersonalAgent({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') } }, {
+  const mem0 = fixtureMem0()
+  await mem0.scope(dir, 'notes').put('private', 'MUST_NOT_ENTER_GENERATION')
+  const evidence = [1, 2].map(value => ({ id: `e${value}`, value }))
+  const document = openuiDocuments(evidence.map(({ id, value }) => ({
+    topicId: 'packages', key: `item-${value}`, advice: `待取物品 ${value} 件已到。`, actionId: 'inspect-package', evidenceIds: [id],
+  })))
+  const agent = await createPersonalAgent({ stateDir: dir, mem0, personal: { profile: 'personal', skillPaths: [] } }, {
     createIntentRouter: fixtureIntentRouter,
     createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel }),
     createSession: async options => {
       optionsSeen.push(options)
-      return { session: (await offlineSession({ ...options, agentDir: join(dir, 'agent') }, context => { requests.push(context); return assistant(JSON.stringify({ suggestions })) })).session }
+      return { session: (await offlineSession({ ...options, agentDir: join(dir, 'agent') }, context => { requests.push(context); return assistant(document) })).session }
     },
   })
   t.after(() => agent.close())
-  const result = await agent.generateProposals({ topics: [{ id: 'packages', goal: '领取物品', actions: [{ id: 'inspect-package', label: '检查物品' }], evidence: [{ id: 'e0', value: 2 }] }], maxCandidates: 8 })
+  const result = await agent.generateProposals({ topics: [{ id: 'packages', goal: '领取物品', actions: [{ id: 'inspect-package', label: '检查物品' }], evidence }], maxCandidates: 8 })
   assert.equal(result.suggestions.length, 2)
   assert.deepEqual(optionsSeen[1].tools, [])
   assert.deepEqual(optionsSeen[1].customTools.map(tool => tool.name), ['proactive_read', 'proactive_judge'])
   assert.equal(optionsSeen[1].sessionManager.getSessionFile(), undefined)
-  assert.ok(requests.every(context => visibleTools(context).every(name => ['proactive_read', 'proactive_judge'].includes(name))))
+  assert.ok(requests.every(context => visibleTools(context).every(tool => ['proactive_read', 'proactive_judge'].includes(tool.name))))
   assert.ok(JSON.stringify(requests).includes('领取物品'))
   assert.ok(!JSON.stringify(requests).includes('MUST_NOT_ENTER_GENERATION'))
 })
