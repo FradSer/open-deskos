@@ -28,6 +28,14 @@ Feature: Package appearance context
     Then the frame is told the new theme
     And the package's appearance attribute follows without a reload
 
+  Scenario: Installed Widgets and Apps show the selected card material
+    Given a Widget and an App that declare black document backgrounds
+    When the Shell selects each of its four themes
+    Then both document canvases are transparent
+    And the Shell paints their frames with the selected card material
+    And inner surfaces can still use the selected appearance tokens
+    And the App keeps its interaction state without a reload
+
   Scenario: The appearance context grants no new authority
     Given a package using the context
     When it runs

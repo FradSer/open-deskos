@@ -7,12 +7,12 @@
   initial-value: 0deg;
 }
 
-[data-theme='border-beam'] :is(.widget, .dash, .quota-card, .pi-app-wrapper) {
+[data-theme='border-beam'] :is(.widget, .dash, .quota-card, .pi-app-wrapper, .installed-app-card) {
   position: relative;
   isolation: isolate;
 }
 
-[data-theme='border-beam'] :is(.widget, .dash, .quota-card, .pi-app-wrapper)::after {
+[data-theme='border-beam'] :is(.widget, .dash, .quota-card, .pi-app-wrapper, .installed-app-card)::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -29,7 +29,7 @@
   animation: odk-beam-travel 6s linear infinite;
 }
 
-[data-theme='border-beam'] :is(.widget, .dash, .quota-card, .pi-app-wrapper):nth-child(even)::after {
+[data-theme='border-beam'] :is(.widget, .dash, .quota-card, .pi-app-wrapper, .installed-app-card):nth-child(even)::after {
   animation-delay: -3s;
 }
 
@@ -37,12 +37,12 @@
   to { --odk-beam-angle: 360deg; }
 }
 
-[data-theme-paused='true'] :is(.widget, .dash, .quota-card, .pi-app-wrapper)::after {
+[data-theme-paused='true'] :is(.widget, .dash, .quota-card, .pi-app-wrapper, .installed-app-card)::after {
   animation-play-state: paused;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-theme='border-beam'] :is(.widget, .dash, .quota-card, .pi-app-wrapper)::after {
+  [data-theme='border-beam'] :is(.widget, .dash, .quota-card, .pi-app-wrapper, .installed-app-card)::after {
     animation: none;
   }
 }

@@ -3,7 +3,7 @@
 const electron = require('electron')
 const { app, BrowserWindow, protocol, session } = electron
 const { buildUserAppDocument, USER_APP_CSP } = require('./user-app-content')
-const { fontResponse, DEFAULT_THEME } = require('./user-app-context')
+const { fontResponse, contextTokens, DEFAULT_THEME } = require('./user-app-context')
 const { USER_APP_SCHEME_PRIVILEGES } = require('./user-app-system')
 
 const TIMEOUT_MS = 8000
@@ -97,7 +97,10 @@ async function run() {
       headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': USER_APP_CSP },
     })
   })
-  const win = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, session: verificationSession } })
+  const win = new BrowserWindow({
+    show: false, backgroundColor: contextTokens(DEFAULT_THEME)['--odk-surface'],
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, session: verificationSession },
+  })
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('will-navigate', (event, destination) => {
     if (!destination.startsWith('odk-user-app://app/verify/revision')) {

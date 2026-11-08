@@ -5,7 +5,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict'
 
-  const TARGETS = '#pages-viewport .widget[data-interaction="display-only"], #app-view:not([hidden]), #personal-agent .agent-composer'
+  const TARGETS = '#pages-viewport :is(.widget[data-interaction="display-only"], .installed-app-card), #app-view:not([hidden]), #personal-agent .agent-composer'
   const MAX_SURFACES = 10
 
   function createLiquidGlassAppearance(root, doc) {

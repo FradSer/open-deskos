@@ -140,7 +140,7 @@ app.whenReady().then(async () => {
         const app = document.querySelector('[data-user-app-id="counter"]'), frame = app.querySelector('iframe')
         document.querySelectorAll('#dots .dot')[[...app.parentElement.children].indexOf(app)].click()
         document.querySelector('.dot.active').focus()
-        const css = getComputedStyle(frame), rect = frame.getBoundingClientRect()
+        const css = getComputedStyle(frame.parentElement), rect = frame.getBoundingClientRect()
         return { widgetWidth: widget.borderTopWidth, widgetColor: widget.borderTopColor, width: css.borderTopWidth, color: css.borderTopColor, size: [rect.width, rect.height] }
       })()`)
       assert.equal(rest.widgetWidth, '1px', 'installed Widget keeps a subtle static frame')
@@ -148,15 +148,17 @@ app.whenReady().then(async () => {
       assert.equal(rest.color, rest.widgetColor)
       await appFrame.executeJavaScript('counter.focus()')
       const active = await js(`(() => {
-        const frame = document.querySelector('[data-user-app-id="counter"] iframe'), css = getComputedStyle(frame), rect = frame.getBoundingClientRect()
-        return { color: css.borderTopColor, outline: css.outlineStyle, width: css.outlineWidth, size: [rect.width, rect.height], focused: document.activeElement === frame }
+        const frame = document.querySelector('[data-user-app-id="counter"] iframe'), rect = frame.getBoundingClientRect()
+        const css = getComputedStyle(frame), card = getComputedStyle(frame.parentElement)
+        return { color: card.borderTopColor, outline: css.outlineStyle, width: css.outlineWidth, size: [rect.width, rect.height], focused: document.activeElement === frame }
       })()`)
       assert.equal(active.color, rest.color, 'sandbox focus preserves the shared frame: ' + JSON.stringify(active))
+      assert.equal(active.focused, true)
       assert.equal(active.outline, 'none')
       assert.equal(active.width, '0px')
       assert.deepEqual(active.size, rest.size, 'activation does not resize the sandbox')
       await js(`document.querySelector('.dot.active').focus()`)
-      assert.equal(await js(`getComputedStyle(document.querySelector('[data-user-app-id="counter"] iframe')).borderTopColor`), rest.color, 'leaving the sandbox restores its resting frame')
+      assert.equal(await js(`getComputedStyle(document.querySelector('[data-user-app-id="counter"] .installed-app-card')).borderTopColor`), rest.color, 'leaving the sandbox restores its resting frame')
     }
   }
   await update([widget('r2', 'reading', '5'), { ...interactive, id: 'earlier', name: 'Earlier' }, interactive])

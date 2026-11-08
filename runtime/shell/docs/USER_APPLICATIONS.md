@@ -15,7 +15,7 @@ Set `ODK_WORKSPACE` to the shared writable project checkout in `~/.config/odk/ru
 ```html
 <!doctype html>
 <html lang="en"><meta charset="utf-8"><title>Desk note</title>
-<style>body{background:transparent;color:white;font:20px sans-serif}</style>
+<style>body{margin:0;padding:var(--odk-widget-inset);font-size:var(--odk-text-body)}</style>
 <body><p>Remember to take a break.</p></body></html>
 ```
 
@@ -280,10 +280,12 @@ Desktop preload exposes list/dispatch, change subscription, package field public
 
 A package is served with the Shell's appearance, so a package can look native without vendoring a palette or a face:
 
-- `<html data-theme="instrument|pixel|border-beam">` names the active appearance.
+- `<html data-theme="instrument|pixel|border-beam|liquid-glass">` names the active appearance.
+- The Shell paints the card with the selected theme. The package document canvas stays transparent.
+- Leave the `html` and `body` backgrounds transparent. Use appearance tokens for inner surfaces.
 - `--odk-*` resolves the appearance's semantic tokens (`--odk-primary`, `--odk-surface`, `--odk-stroke`, `--odk-radius-card`, `--odk-space-*`, `--odk-text-label`, `--odk-text-body`, `--odk-cell`). Every appearance's values are present at once, so a switch needs no reload.
 - `--odk-radius-tile` is the radius the frame around the package actually renders with; use it for inner surfaces.
-- The appearance's own face is declared and applied: Zpix in Pixel, Noto Sans SC with Montserrat in Instrument and Border Beam. `--odk-font` names it.
+- `--odk-font` names the active font stack. Pixel uses Zpix. The other themes use Noto Sans SC and Montserrat.
 - `data-theme` follows a live theme change, published to the frame by the Shell. A package that branches on it needs no reload handling of its own.
 
 A minimal package that inherits everything:
@@ -291,7 +293,7 @@ A minimal package that inherits everything:
 ```html
 <!doctype html>
 <html lang="en"><meta charset="utf-8"><title>Desk note</title>
-<style>body{margin:0;background:var(--odk-bg);color:var(--odk-primary);font:var(--odk-text-body)/1.4 var(--odk-font);padding:var(--odk-widget-inset)}</style>
+<style>body{margin:0;color:var(--odk-primary);font:var(--odk-text-body)/1.4 var(--odk-font);padding:var(--odk-widget-inset)}</style>
 <body><p style="border-radius:var(--odk-radius-tile);background:var(--odk-surface);padding:var(--odk-space-3)">Remember to take a break.</p></body></html>
 ```
 

@@ -1,11 +1,8 @@
 /*
  * Package appearance context, end to end.
  *
- * Boots the real Shell renderer in a hidden window, mounts an installed package in a
- * Home cell, and checks from inside the opaque frame that it received the Shell's
- * appearance: the theme attribute, the token values, the theme's own face, and a live
- * switch. Also guards the injected tokens against the rendered Shell, so the package
- * context cannot drift away from the stylesheets it mirrors.
+ * Boots the real Shell renderer in a hidden window with an installed Widget and App.
+ * Checks the host card material and the rendered appearance inside both opaque frames.
  *
  * HIDDEN ON PURPOSE: this harness must never activate a window on the desk it measures.
  */
@@ -24,15 +21,18 @@ app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'odk-user-app-cont
 const { buildUserAppDocument, USER_APP_CSP } = require('../src/user-app-content')
 const { USER_APP_SCHEME_PRIVILEGES } = require('../src/user-app-system')
 const { createUserAppResponse } = require('../src/user-app-protocol')
-const { buildContextStyle, contextTokens } = require('../src/user-app-context')
+const { buildContextStyle, contextTokens, THEMES } = require('../src/user-app-context')
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'odk-user-app', privileges: USER_APP_SCHEME_PRIVILEGES }])
 
 const REVISION = 'a'.repeat(32)
-const widget = { id: 'probe', name: 'Probe', kind: 'widget', revision: REVISION, placement: { pageId: 'home', col: '4', row: '3' } }
+const widget = { id: 'probe', name: 'Probe', kind: 'widget', revision: REVISION, placement: { pageId: 'desk', col: '1', row: '3' } }
+const interactive = { id: 'counter', name: 'Counter', kind: 'app', revision: REVISION }
 const probeHtml = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Probe</title>
-<style>body{margin:0;background:var(--odk-bg);color:var(--odk-primary);font-family:var(--odk-font);font-size:var(--odk-text-label)}</style>
-</head><body><p id="reading" style="border-radius:var(--odk-radius-card);background:var(--odk-surface)">probe 25°C</p></body></html>`
+<style>html{background:#000}body{margin:0;color:var(--odk-primary);font-family:var(--odk-font);font-size:var(--odk-text-label)}</style>
+</head><body style="background:#000"><p id="reading" style="border-radius:var(--odk-radius-card);background:var(--odk-surface)">probe 25°C</p></body></html>`
+const counterHtml = probeHtml.replace('</body>', `<button id="counter">0</button>
+<script>counter.onclick=()=>counter.textContent=Number(counter.textContent)+1</script></body>`)
 
 // Value tokens the Shell and the package context must agree on. The cell-relative
 // text roles are excluded on purpose: the Shell expresses them against the grid cell,
@@ -60,17 +60,18 @@ const fixtures = {
   'odk-app-manager-list': { ok: true, apps: [] },
   'odk-app-manager-state': { ok: true, apps: [] },
   'odk-app-manager-intent': { ok: false, error: 'harness' },
+  'odk-renderer-development-plugins': [],
 }
 
 const deadline = setTimeout(() => { console.error('USER_APP_CONTEXT_TIMEOUT'); app.exit(1) }, 60000)
 
 app.whenReady().then(async () => {
   for (const [channel, value] of Object.entries(fixtures)) ipcMain.handle(channel, () => value)
-  ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [widget] }))
+  ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [widget, interactive] }))
   ipcMain.handle('odk-user-apps-dispatch', () => ({ ok: false, error: 'harness' }))
 
-  const store = { getContent: async (id) => id === widget.id
-    ? { ok: true, app: { id, revision: REVISION }, html: probeHtml }
+  const store = { getContent: async (id) => id === widget.id || id === interactive.id
+    ? { ok: true, app: { id, revision: REVISION }, html: id === widget.id ? probeHtml : counterHtml }
     : { ok: false } }
   protocol.handle('odk-user-app', (request) => createUserAppResponse(request.url, store, buildUserAppDocument, USER_APP_CSP))
 
@@ -88,11 +89,15 @@ app.whenReady().then(async () => {
 
   await win.loadFile(path.join(__dirname, '../src/renderer/index.html'))
   await wait('Boolean(window.__odkGrid)', 'shell geometry')
-  await wait(`document.querySelector('[data-user-app-id="${widget.id}"]')?.dataset.state === 'ready'`, 'installed package ready')
+  await wait(`document.querySelectorAll('[data-user-app-id][data-state="ready"]').length === 2`, 'both packages ready')
 
-  const frame = win.webContents.mainFrame.frames.find((candidate) => candidate.url.includes(`/${widget.id}/`))
-  assert.ok(frame, 'the installed package frame must be mounted')
+  const installedFrame = id => win.webContents.mainFrame.frames.find(candidate => candidate.url.includes(`/${id}/`))
+  const frame = installedFrame(widget.id)
+  const appFrame = installedFrame(interactive.id)
+  assert.ok(frame && appFrame, 'both package frames must be mounted')
   assert.match(frame.url, /theme=/, 'the frame URL must carry the appearance')
+  await appFrame.executeJavaScript('counter.click()')
+  await js(`window.originalPackageFrames = [...document.querySelectorAll('.user-app-frame')]`)
 
   function shellTokens() {
     return js(`(() => {
@@ -101,22 +106,26 @@ app.whenReady().then(async () => {
     })()`)
   }
 
-  function frameTokens() {
-    return frame.executeJavaScript(`(() => {
+  function frameTokens(packageFrame) {
+    return packageFrame.executeJavaScript(`(() => {
       const style = getComputedStyle(document.documentElement)
+      const reading = getComputedStyle(document.getElementById('reading'))
       return { theme: document.documentElement.dataset.theme,
         tokens: Object.fromEntries(${JSON.stringify(SHARED_VALUE_TOKENS)}.map((name) => [name, style.getPropertyValue(name).trim()])),
-        font: style.getPropertyValue('--odk-font').trim(),
         tileRadius: style.getPropertyValue('--odk-radius-tile').trim(),
-        readingRadius: getComputedStyle(document.getElementById('reading')).borderRadius,
-        readingFont: getComputedStyle(document.body).fontFamily }
+        canvas: [document.documentElement, document.body].map(element => getComputedStyle(element).backgroundColor),
+        readingFill: reading.backgroundColor,
+        bodyFont: getComputedStyle(document.body).fontFamily,
+        controlFont: document.getElementById('counter') && getComputedStyle(counter).fontFamily }
     })()`)
   }
 
   const shellTheme = await js('document.documentElement.dataset.theme')
-  const frameStyle = await frameTokens()
+  const frameStyle = await frameTokens(frame)
   assert.equal(frameStyle.theme, shellTheme, 'the package must receive the Shell theme')
-  assert.equal(frameStyle.tileRadius, await js('getComputedStyle(document.querySelector("#pages-track .widget")).borderTopLeftRadius'),
+  assert.deepEqual(frameStyle.canvas,
+    ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], 'document paint must let the selected Widget material show through')
+  assert.equal(frameStyle.tileRadius, await js(`getComputedStyle(document.querySelector('.installed-widget')).borderTopLeftRadius`),
     'the package must receive the tile radius its frame actually renders with')
 
   for (const [name, value] of Object.entries(await shellTokens())) {
@@ -141,21 +150,40 @@ app.whenReady().then(async () => {
   // The context grants no network: a package still cannot reach a provider itself.
   assert.equal(await frame.executeJavaScript('fetch("https://example.invalid/secret").then(() => "reached", () => "blocked")'), 'blocked')
 
-  // A theme switch reaches the live frame without a reload. The starting theme comes
-  // from the profile, so the switch target is derived from it rather than assumed.
-  const nextTheme = shellTheme === 'pixel' ? 'instrument' : 'pixel'
-  await js(`window.odkTheme.set(${JSON.stringify(nextTheme)})`)
-  await wait(`document.documentElement.dataset.theme === ${JSON.stringify(nextTheme)}`, 'shell theme switch')
-  await wait(`document.querySelector('[data-user-app-id="${widget.id}"] iframe')?.dataset.theme === ${JSON.stringify(nextTheme)}`, 'frame theme notice')
-  const switched = await frameTokens()
-  assert.equal(switched.theme, nextTheme)
-  assert.equal(switched.tileRadius, await js('getComputedStyle(document.querySelector("#pages-track .widget")).borderTopLeftRadius'))
-  for (const [name, value] of Object.entries(await shellTokens())) {
-    assert.equal(switched.tokens[name], value, `${name} must follow the Shell after a switch`)
+  for (const theme of THEMES) {
+    await js(`odkTheme.set('${theme}')`)
+    await wait(`[...document.querySelectorAll('.user-app-frame')].every(frame => frame.dataset.theme === '${theme}')`, 'frame theme notice')
+    if (theme === 'border-beam' || theme === 'liquid-glass') {
+      await wait(`document.querySelector('link[href="themes/${theme}.css"]')?.sheet`, `${theme} stylesheet`)
+    }
+    const shell = await shellTokens()
+    const cards = await js(`[...document.querySelectorAll('.installed-widget, .installed-app-card')].map(card => {
+      const css = getComputedStyle(card)
+      return { radius: css.borderTopLeftRadius, fill: css.backgroundColor, image: css.backgroundImage,
+        beam: getComputedStyle(card, '::after').animationName, sdk: card.classList.contains('lg-surface') }
+    })`)
+    assert.equal(cards.length, 2, 'both surfaces must have a Shell-owned card')
+    for (const [index, packageFrame] of [frame, appFrame].entries()) {
+      const rendered = await frameTokens(packageFrame)
+      assert.equal(rendered.theme, theme)
+      assert.deepEqual(rendered.tokens, shell)
+      assert.deepEqual(rendered.canvas, ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'])
+      assert.match(rendered.bodyFont, theme === 'pixel' ? /^Zpix\b/ : /Noto Sans SC/)
+      if (packageFrame === appFrame) assert.equal(rendered.controlFont, rendered.bodyFont)
+      const card = cards[index]
+      assert.equal(card.beam, theme === 'border-beam' ? 'odk-beam-travel' : 'none')
+      if (theme === 'liquid-glass') {
+        assert.ok(card.sdk || card.image.includes('linear-gradient'), 'the card must display Liquid Glass or its fallback')
+      } else {
+        assert.equal(card.radius, theme === 'pixel' ? '0px' : '23.04px')
+        assert.equal(card.fill, rendered.readingFill, 'the card and token-styled reading share the surface color')
+        assert.notEqual(card.fill, 'rgb(0, 0, 0)')
+      }
+    }
+    assert.equal(await appFrame.executeJavaScript('counter.textContent'), '1')
+    assert.equal(await js(`originalPackageFrames.every(frame => frame.isConnected)`), true)
+    assert.equal(await js(`originalPackageFrames.every(frame => frame.getAttribute('sandbox') === 'allow-scripts')`), true)
   }
-  assert.notEqual(switched.font, frameStyle.font, 'each appearance declares its own face')
-  assert.equal(await js(`document.querySelector('[data-user-app-id="${widget.id}"] iframe').dataset.revision`), REVISION,
-    'a theme switch must not reload or replace the package')
 
   // The injected stylesheet is the same document the tokens were modelled from.
   const injected = await frame.executeJavaScript('document.getElementById("odk-package-context").textContent.length')

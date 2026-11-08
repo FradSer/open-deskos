@@ -61,8 +61,7 @@
       faces: ['zpix'],
       extra: 'image-rendering:pixelated;',
     },
-    // Border Beam keeps Instrument neutrals and type; only built-in surfaces get the
-    // optional perimeter, which a package frame cannot have.
+    // Border Beam keeps Instrument neutrals and type. The Shell paints the perimeter.
     'border-beam': {
       tokens: { ...SHARED_TOKENS, ...CELL_TOKENS, '--odk-font': '"Noto Sans SC", "Montserrat", "Zpix", sans-serif' },
       faces: ['noto-sans-sc', 'montserrat-bold', 'zpix'],

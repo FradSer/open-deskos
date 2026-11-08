@@ -121,7 +121,7 @@ test(`verifier runner exits after writing its ${state.visible && !state.error ? 
     require(name) {
       if (name === 'electron') return { app, session, protocol, BrowserWindow }
       if (name === './user-app-content') return { buildUserAppDocument: () => '<body>Fixture</body>' }
-      if (name === './user-app-context') return {}
+      if (name === './user-app-context') return require('../src/user-app-context')
       if (name === './user-app-system') return { USER_APP_SCHEME_PRIVILEGES: {} }
       if (name === 'node:fs') return { statSync: () => ({ size: 30 }), readFileSync: () => JSON.stringify({ html: '<body>Fixture</body>' }), writeFileSync(file, text) {
         assert.equal(file, '/result')
@@ -140,6 +140,7 @@ test(`verifier runner exits after writing its ${state.visible && !state.error ? 
   assert.equal(events.at(-1).code, ok ? 0 : 1)
   assert.equal(pendingImmediates.length, 0, 'A completed verdict must not defer its only exit request')
   assert.equal(options.show, false)
+  assert.equal(options.backgroundColor, '#171717')
   assert.equal(options.webPreferences.backgroundThrottling, false)
   assert.equal(options.webPreferences.contextIsolation, true)
   assert.equal(options.webPreferences.nodeIntegration, false)

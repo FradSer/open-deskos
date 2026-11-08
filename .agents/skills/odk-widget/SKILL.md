@@ -42,7 +42,7 @@ Use its ownership and evidence gates when a source change affects a Widget or Ap
 - Keep the desk interface calm and precise.
 - Render truthful loading, empty, unavailable, unauthorized, stale, malformed, and error states. Never present them as live data.
 - Built-in plugins use only `DESIGN.md` semantic `--odk-*` tokens.
-- Installable packages cannot inherit Shell custom properties. Define a small local palette from the design values.
+- Installable packages use the documented Appearance Context tokens inside their frames.
 - Use color for functional state. Follow the selected theme material, including Liquid Glass, with a readable fallback.
 - For theme changes, include controls and composite inputs in the [surface-family contract](references/design.md#surface-family-consistency).
 - Do not add unrelated glow, decorative tint, or another visual system.
@@ -89,8 +89,8 @@ Omit redundant headings without leaving an empty header or removing the accessib
 Preserve accepted spans, page order, and the retained Overview unless the user changes them.
 Preserve source meaning and recovery behavior.
 For installable packages, follow the selected platform guide.
-Define local CSS variables from the current `DESIGN.md` palette inside the package.
-In an installable package, do not reference unresolved Shell `--odk-*` properties from the opaque iframe.
+Keep the package document canvas transparent.
+Use the documented `--odk-*` tokens for text, controls, and inner surfaces.
 
 ### Phase B: Test difficult states
 
