@@ -1,6 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ProactiveWatch, loadProactiveConfig, ownerConfigWriter, validateOwnerConfig } from '../src/proactive.mjs'
+import { ProactiveWatch, createGmailRoutineSources, createIntervalClock, createPrivateProposalSources, gmailAccountKey,
+  loadProactiveConfig, ownerConfigWriter, validateOwnerConfig } from '../src/recommendations/index.mjs'
+import { PersonalAgentService } from '../src/service.mjs'
 const now = Date.parse('2026-10-25T01:00:00Z'),
   stamp = new Date(now).toISOString(),
   event = 'a'.repeat(64)
@@ -17,7 +19,95 @@ const config = () => ({
   generationIntervalMs: 0,
   attentionCooldownMs: 0,
 })
-function fixture({ restored, generateHook, ownerConfig = config(), injectedSource, saveOwnerConfig = async () => {} } = {}) {
+
+const workHours = { days: 'weekdays', start: '09:00', end: '18:00', everyMinutes: 15 }
+test('Weekday schedule includes 09:00 and 17:45, excludes 18:00, and wakes after the weekend', () => {
+  const clock = createIntervalClock(workHours, 'Asia/Shanghai')
+  const friday = '2026-11-06T'
+  const at = value => Date.parse(value + '+08:00')
+  assert.equal(clock.slot(at(friday + '08:59:59')), undefined)
+  assert.equal(clock.nextWake(at(friday + '08:59:59')), at(friday + '09:00:00'))
+  assert.equal(clock.slot(at(friday + '09:00:00')), '2026-11-06:0540')
+  assert.equal(clock.slot(at(friday + '17:59:59')), '2026-11-06:1065')
+  assert.equal(clock.slot(at(friday + '18:00:00')), undefined)
+  assert.equal(clock.slot(at('2026-11-07T09:00:00')), undefined)
+  assert.equal(clock.nextWake(at(friday + '17:45:00')), at('2026-11-09T09:00:00'))
+  const newYork = createIntervalClock(workHours, 'America/New_York')
+  assert.equal(newYork.nextWake(Date.parse('2026-03-06T23:00:00Z')), Date.parse('2026-03-09T13:00:00Z'))
+})
+
+test('Gmail routine checkpoints one suggestion, rebinds it after restart, and stops on pause', async t => {
+  const account = { state: 'connected', emailAddress: 'owner@example.test' }
+  const accountKey = gmailAccountKey(account)
+  let entry = { id: '00000000-0000-0000-0000-000000000001', revision: 1, enabled: true, timeZone: 'Asia/Shanghai',
+    wish: 'Suggest one next step', condition: 'Needs owner action', schedule: workHours,
+    gmail: { label: '工作', labelId: 'Label_1', accountKey, historyId: '100', since: now - 1000 } }
+  let clock = Date.parse('2026-11-09T08:59:00+08:00'), saved = { proposals: [] }, histories = 0, evaluations = 0
+  const makeObserver = () => ({
+    enabled: true, epoch: 0, isCurrent: async () => true, close: async () => {},
+    async run(fn) {
+      const value = await fn({
+        schema: () => ({ properties: { expectedAccountKey: { type: 'string', pattern: '^[a-f0-9]{64}$' }, expectedLabelId: { type: 'string' }, receivedSince: { type: 'integer' } } }),
+        connectorRevision: 'b'.repeat(64), epoch: 0,
+        async call(name, params) {
+          if (params) assert.equal(params.expectedAccountKey, accountKey)
+          let result
+          if (name === 'gmail_status') result = account
+          if (name === 'gmail_label_changes') {
+            assert.equal(params.labelId, 'Label_1')
+            histories++
+            result = { ids: ['interview', 'notice'], cursor: { historyId: String(100 + histories) }, complete: true, untrusted: true }
+          }
+          if (name === 'gmail_read') {
+            assert.equal(params.expectedLabelId, 'Label_1')
+            result = { id: params.id, untrusted: true, subject: params.id, body: 'Please review', labels: ['Label_1'],
+              internalDate: String(now), truncated: false }
+          }
+          return { structuredContent: result }
+        },
+      })
+      return { value, connectorRevision: 'b'.repeat(64), epoch: 0 }
+    },
+  })
+  const launch = () => {
+    const routines = createGmailRoutineSources({ store: { list: () => [structuredClone(entry)] }, makeObserver, clockNow: () => clock })
+    const watch = new ProactiveWatch({ config: config(), privateSources: createPrivateProposalSources([], routines),
+      now: () => now, loadState: () => saved, saveState: state => { saved = state }, publish() {},
+      generate: async ({ topics: [topic] }) => {
+        evaluations++
+        if (topic.evidence.find(e => e.field === 'subject').value === 'notice') return { suggestions: [] }
+        return { suggestions: [{ topicId: topic.id, key: 'reply', advice: 'The organizer needs your availability.',
+          actionId: 'review', evidenceIds: [topic.evidence[0].id], ui: null }] }
+      } })
+    t.after(() => watch.close())
+    return watch
+  }
+  const tick = watch => watch.tick({ kind: 'intent_due', readingIds: [] })
+  let watch = launch()
+  await tick(watch)
+  assert.equal(histories, 0)
+  clock += 60000
+  await tick(watch)
+  const [first] = watch.presentableProposals()
+  assert.equal(first.action.tool, 'private_source_review')
+  assert.equal(Object.keys(saved.gmailRoutines[entry.id].seen).length, 2)
+  assert.equal(evaluations, 2)
+  await tick(watch)
+  assert.equal(histories, 1)
+  await watch.close()
+  watch = launch()
+  assert.deepEqual(watch.presentableProposals(), [])
+  clock += 15 * 60000
+  await tick(watch)
+  assert.deepEqual(watch.presentableProposals().map(p => p.id), [first.id])
+  assert.equal(evaluations, 2)
+  entry = { ...entry, enabled: false, revision: 2 }
+  clock += 15 * 60000
+  await tick(watch)
+  assert.equal(histories, 2)
+  assert.deepEqual(watch.presentableProposals(), [])
+})
+function fixture({ restored, generateHook, ownerConfig = config(), injectedSource, saveOwnerConfig = async () => {}, prepareReply, selectedAction = 'review', dependencies = {} } = {}) {
   let active = true,
     valid = true,
     epoch = 1,
@@ -45,6 +135,7 @@ function fixture({ restored, generateHook, ownerConfig = config(), injectedSourc
         tool: 'private_source_review',
         params: { sourceId: 'mailbox', handle: event },
       },
+      { id: 'prepare_reply', label: '准备回复', tool: 'private_source_prepare_reply', params: { sourceId: 'mailbox', handle: event } },
     ],
   }
   const snapshot = () => ({
@@ -92,6 +183,7 @@ function fixture({ restored, generateHook, ownerConfig = config(), injectedSourc
   const watch = new ProactiveWatch({
     config: ownerConfig,
     privateSources: source,
+    prepareReply,
     now: () => now,
     read: async () => {
       throw Error('Private source must not enter DeskData')
@@ -114,11 +206,12 @@ function fixture({ restored, generateHook, ownerConfig = config(), injectedSourc
           topicId: t.id,
           key: 'model-key-' + generations,
           advice: '先确认这次发布是否由本人操作，确认后再准备宣传材料。',
-          actionId: 'review',
+          actionId: selectedAction,
           evidenceIds: t.evidence.map((e) => e.id),
         })),
       }
     },
+    ...dependencies,
     judge: async ({ candidates }) => ({
       model: 'jev-fixture',
       answers: Object.fromEntries(
@@ -247,7 +340,8 @@ test('withdrawal while generation awaits prevents private publication', async ()
   }
 })
 test('revision withdrawal before review expires the action without dispatch', async () => {
-  const f = fixture()
+  const frames = []
+  const f = fixture({ dependencies: { publish: frame => frames.push(frame) } })
   try {
     await f.watch.tick()
     const p = f.watch.list()[0]
@@ -256,13 +350,41 @@ test('revision withdrawal before review expires the action without dispatch', as
     f.valid(false)
     await assert.rejects(f.watch.respond(p.id, 'accept', p.confirmation))
     assert.equal(f.reads(), 0)
+    await f.watch.tick()
+    assert.equal(frames.at(-1).proposals.some(item => item.id === p.id), false)
+    assert.equal((await f.watch.readProposals()).some(item => item.id === p.id), false)
+    assert.equal(f.writes().at(-1).proposals.find(item => item.id === p.id).status, 'expired')
   } finally {
     await f.watch.close()
   }
 })
-import { createPrivateProposalSources } from '../src/private-proposal-sources.mjs'
+
+test('private email facts cannot enter the model request for an ordinary rule', async t => {
+  const inputs = []
+  const publicRule = { id: 'parcel', goal: 'Handle the pending parcel', delivery: 'immediate', urgent: false,
+    observations: [{ readingId: 'parcel', fields: ['pending'] }],
+    actions: [{ id: 'inspect', label: 'Open parcel list', tool: 'memory_update', params: { category: 'note', value: 'Check parcels' } }] }
+  const f = fixture({ ownerConfig: { ...config(), rules: [publicRule] }, dependencies: {
+    canExecute: () => true,
+    read: async id => ({ id, state: 'live', value: { pending: true, asOf: stamp } }),
+    generate: async ({ topics, recent }) => {
+      inputs.push({ topics, recent })
+      return { suggestions: topics.map(topic => ({
+        topicId: topic.id, key: 'pending', advice: 'Check the pending item.',
+        actionId: topic.actions[0].id, evidenceIds: [topic.evidence[0].id],
+      })) }
+    },
+  } })
+  t.after(() => f.watch.close())
+  await f.watch.tick()
+  assert.equal(inputs.length, 2)
+  const ordinary = inputs.find(input => input.topics.some(topic => topic.id === 'parcel'))
+  assert.deepEqual(ordinary.topics.map(topic => topic.id), ['parcel'])
+  assert.doesNotMatch(JSON.stringify(ordinary), /Release notice|private\.mailbox/)
+  assert.equal(f.watch.list().filter(proposal => proposal.status === 'pending').length, 2)
+})
 import { createProposalTools } from '../src/proactive-tools.mjs'
-import { proposalStateStore } from '../src/proactive-state.mjs'
+import { proposalStateStore } from '../src/recommendations/index.mjs'
 import { mkdtemp, chmod, rm, realpath, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -398,6 +520,7 @@ test('source adapter binds revision only as provenance and dispatches actual rea
       id: 'mailbox',
       goal: 'Recommend the next step for owner mail.',
       label: '查看通知并确认下一步',
+      replyLabel: '准备回复',
       source,
     },
   ])
@@ -405,6 +528,11 @@ test('source adapter binds revision only as provenance and dispatches actual rea
     await port.prepare()
     const [rule] = port.rules()
     assert.ok(rule)
+    assert.deepEqual(rule.actions.map(({ id, tool }) => ({ id, tool })), [
+      { id: 'review', tool: 'private_source_review' },
+      { id: 'prepare_reply', tool: 'private_source_prepare_reply' },
+    ])
+    assert.deepEqual(rule.actions[1].params, rule.actions[0].params)
     assert(!JSON.stringify(rule).includes(snap.connectorRevision))
     assert(!JSON.stringify(rule).includes('epoch'))
     assert(!rule.observations[0].fields.includes('asOf'))
@@ -450,8 +578,8 @@ test('private review remains usable with an existing version-one owner configura
 })
 
 // Offline provider double exercises the real Gmail source and application-owned port.
-import { createGmailRecommendationSource } from '../src/gmail-recommendation-source.mjs'
-import { createPrivateProposalSources as createPrivatePort } from '../src/private-proposal-sources.mjs'
+import { createGmailRecommendationSource } from '../src/recommendations/index.mjs'
+import { createPrivateProposalSources as createPrivatePort } from '../src/recommendations/index.mjs'
 test('same Gmail event refresh keeps one presented recommendation executable', async () => {
   let measuredAt = now - 1000, revision = 'b'.repeat(64), epoch = 1, body = 'A software release was reported.'
   const observer = {
@@ -502,11 +630,129 @@ test('same Gmail event refresh keeps one presented recommendation executable', a
 })
 
 test('private snapshot identifiers require strings rather than regular-expression coercion', async () => {
-  const { validPrivateSourceSnapshot } = await import('../src/private-proposal-sources.mjs')
+  const { validPrivateSourceSnapshot } = await import('../src/recommendations/index.mjs')
   const snapshot = { sourceId: 'gmail', connectorId: 'gmail', connectorRevision: 'a'.repeat(64), epoch: 1,
     accountKey: 'b'.repeat(64), bindingKey: 'c'.repeat(64), eventKey: event, handle: event, observedAt: stamp }
   assert.equal(validPrivateSourceSnapshot(snapshot), true)
   for (const field of ['sourceId', 'connectorId']) {
     for (const invalid of [12, null, undefined]) assert.equal(validPrivateSourceSnapshot({ ...snapshot, [field]: invalid }), false)
+  }
+})
+
+
+test('private reply preparation rereads current mail and persists one unsent conversation receipt', async () => {
+  let generations = 0
+  const forbidden = async () => assert.fail('A private draft uses only the approved reply preparation callback')
+  const service = new PersonalAgentService({ record: forbidden, transcribe: forbidden, prompt: forbidden })
+  const f = fixture({ selectedAction: 'prepare_reply', prepareReply: async ({ source, signal }) => {
+    generations++
+    assert.equal(source, 'Read-only review completed')
+    assert.equal(signal.aborted, false)
+    assert.equal(f.watch.busy, true)
+    return { text: 'Thank you for the invitation. I am available to discuss the interview schedule.' }
+  }, saveOwnerConfig: async () => assert.fail('A private draft cannot save owner rules') })
+  service.attachWatch(f.watch)
+  const unsubscribe = service.subscribe(status => {
+    const busy = service.starting || !['idle', 'error'].includes(status.state)
+    if (f.watch.busy !== busy) f.watch.setBusy(busy)
+  })
+  try {
+    await f.watch.tick()
+    const [p] = f.watch.list()
+    assert.equal(p.action.tool, 'private_source_prepare_reply')
+    await f.watch.presented([p.id])
+    const command = { type: 'proposal_respond', id: p.id, decision: 'accept', confirmation: p.confirmation }
+    f.watch.setBusy(true)
+    await assert.rejects(service.proposalCommand(command), /busy/)
+    assert.equal(generations, 0)
+    assert.equal(service.status.state, 'idle')
+    f.watch.setBusy(false)
+    await service.proposalCommand(command)
+    const done = f.watch.list().find(proposal => proposal.id === p.id)
+    assert.equal(service.status.state, 'idle')
+    assert.equal(service.status.ownerOnly, true)
+    assert.equal(service.status.message, done.result)
+    assert.equal(f.watch.busy, false)
+    assert.equal(done.status, 'completed')
+    assert.equal(f.reads(), 2)
+    assert.equal(generations, 1)
+    assert.equal(done.execution.receipt.tool, 'private_source_prepare_reply')
+    assert.equal(done.execution.receipt.readOnly, true)
+    assert.equal(done.execution.receipt.unsent, true)
+    assert.equal(done.execution.receipt.presentation, 'conversation')
+    assert.match(done.result, /Thank you for the invitation/)
+    await assert.rejects(f.watch.respond(p.id, 'accept', p.confirmation), /no longer pending/)
+    const directory = await realpath(await mkdtemp(join(tmpdir(), 'private-draft-checkpoint-')))
+    try {
+      await chmod(directory, 0o700)
+      const state = proposalStateStore(join(directory, 'state.json'))
+      state.save(f.writes().at(-1))
+      const restored = state.load()
+      assert.equal(restored.proposals[0].execution.receipt.unsent, true)
+      const restarted = fixture({ restored, selectedAction: 'prepare_reply', prepareReply: async () => assert.fail('A completed draft cannot replay') })
+      try { await restarted.watch.tick(); assert.equal(restarted.reads(), 0) } finally { await restarted.watch.close() }
+      const sent = structuredClone(restored)
+      sent.proposals[0].execution.receipt.unsent = false
+      assert.throws(() => state.save(sent), /reply receipt/)
+      const publicResult = structuredClone(restored)
+      publicResult.proposals[0].execution.receipt.presentation = 'public'
+      assert.throws(() => state.save(publicResult), /reply receipt/)
+      const unsafe = structuredClone(restored)
+      delete unsafe.proposals[0].privateData
+      assert.throws(() => state.save(unsafe), /private source provenance/)
+    } finally { await rm(directory, { recursive: true, force: true }) }
+  } finally { unsubscribe(); await service.close(); await f.watch.close() }
+})
+
+test('reply preparation is absent without a host callback and a failed or revoked draft cannot publish', async () => {
+  const unavailable = fixture()
+  try {
+    await unavailable.watch.tick()
+    assert.deepEqual(unavailable.watch.availableActions(unavailable.source.rules()[0]).map(action => action.id), ['review'])
+  } finally { await unavailable.watch.close() }
+  for (const failure of ['generation', 'revoked', 'closed']) {
+    let draftCalls = 0
+    const f = fixture({ selectedAction: 'prepare_reply', prepareReply: async () => {
+      draftCalls++
+      if (failure === 'generation') throw Error('Model unavailable')
+      if (failure === 'revoked') f.valid(false)
+      if (failure === 'closed') f.watch.controller.abort()
+      return { text: 'DRAFT_MUST_NOT_PUBLISH' }
+    } })
+    try {
+      await f.watch.tick()
+      const [p] = f.watch.list()
+      await f.watch.presented([p.id])
+      const result = await f.watch.respond(p.id, 'accept', p.confirmation)
+      assert.equal(result.status, 'unknown')
+      assert(!JSON.stringify(f.writes()).includes('DRAFT_MUST_NOT_PUBLISH'))
+      assert.equal(result.execution, undefined)
+      assert.equal(draftCalls, 1)
+      await assert.rejects(f.watch.respond(p.id, 'accept', p.confirmation), /no longer pending/)
+      await f.watch.tick()
+      assert.equal(draftCalls, 1)
+    } finally { await f.watch.close() }
+  }
+})
+
+
+test('a changed full source during generation or an invalid draft cannot publish', async () => {
+  for (const failure of ['changed-body', 'empty', 'oversized']) {
+    const f = fixture({ selectedAction: 'prepare_reply', prepareReply: async () => {
+      if (failure === 'changed-body') {
+        f.source.executeReview = async () => ({ outcome: 'completed', text: 'Changed full mail body', receipt: { readOnly: true } })
+        return { text: 'DRAFT_MUST_NOT_PUBLISH' }
+      }
+      return { text: failure === 'empty' ? '  ' : 'D'.repeat(4097) }
+    } })
+    try {
+      await f.watch.tick()
+      const [p] = f.watch.list()
+      await f.watch.presented([p.id])
+      const result = await f.watch.respond(p.id, 'accept', p.confirmation)
+      assert.equal(result.status, 'unknown')
+      assert.equal(result.execution, undefined)
+      assert(!JSON.stringify(f.writes()).includes('DRAFT_MUST_NOT_PUBLISH'))
+    } finally { await f.watch.close() }
   }
 })

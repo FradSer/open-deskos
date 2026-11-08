@@ -3,17 +3,26 @@ import { dirname, join, isAbsolute, normalize } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
 export const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly'
+export const CALENDAR_EVENTS_READONLY_SCOPE = 'https://www.googleapis.com/auth/calendar.events.readonly'
 const unsafe = () => Error('Gmail credentials are unavailable or unsafe.')
 const localPath = path => typeof path === 'string' && isAbsolute(path) && normalize(path) === path && !/[\x00-\x1f\x7f]/.test(path)
 const secret = value => typeof value === 'string' && value.length > 0 && value.length <= 8192 && !/[\s\x00-\x1f\x7f]/.test(value)
 
-export function validateGmailCredentials(value) {
+function validateGoogleCredentials(value, scope) {
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || Object.keys(value).sort().join(',') !== 'clientId,clientSecret,refreshToken,schemaVersion,scope'
-    || value.schemaVersion !== 1 || value.scope !== GMAIL_SCOPE
+    || value.schemaVersion !== 1 || value.scope !== scope
     || !secret(value.clientId) || !/^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(value.clientId)
     || !secret(value.clientSecret) || !secret(value.refreshToken)) throw unsafe()
   return value
+}
+
+export function validateGmailCredentials(value) {
+  return validateGoogleCredentials(value, GMAIL_SCOPE)
+}
+
+export function validateCalendarCredentials(value) {
+  return validateGoogleCredentials(value, CALENDAR_EVENTS_READONLY_SCOPE)
 }
 
 function directory(path) {
@@ -77,10 +86,10 @@ export function readGmailCredentials(path) {
 }
 
 /** Publish only a new private grant. Never replace an existing operator file. */
-export function writeGmailCredentials(path, value) {
+function writeGoogleCredentials(path, value, validate) {
   let temporary
   try {
-    validateGmailCredentials(value)
+    validate(value)
     validateGmailCredentialDestination(path)
     temporary = join(dirname(path), `.gmail-${randomUUID()}.tmp`)
     const fd = openSync(temporary, 'wx', 0o600)
@@ -89,6 +98,15 @@ export function writeGmailCredentials(path, value) {
     linkSync(temporary, path)
   } catch { throw unsafe() }
   finally { if (temporary) { try { unlinkSync(temporary) } catch {} } }
+}
+
+export function writeGmailCredentials(path, value) {
+  writeGoogleCredentials(path, value, validateGmailCredentials)
+}
+
+export function writeCalendarCredentials(path, value) {
+  try { writeGoogleCredentials(path, value, validateCalendarCredentials) }
+  catch { throw Error('Google Calendar credentials are unavailable or unsafe.') }
 }
 
 export function removeGmailCredentials(path, expectedGrant = undefined) {

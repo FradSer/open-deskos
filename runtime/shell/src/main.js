@@ -362,6 +362,7 @@ async function main() {
       } },
       'source.weread': { create: createWeReadSource, options: {
         cacheFile: require('node:path').join(app.getPath('userData'), 'weread-highlights.json'),
+        onLatestUpdate: () => servicePush(['odk.tile.weread.latest']),
       } },
       'source.weather': { create: createWeatherSource, options: smokeMode ? { latitude: null, longitude: null } : {
         cacheFile: require('node:path').join(app.getPath('userData'), 'weather-reading.json'),

@@ -91,10 +91,11 @@ test('successful suggestion snapshots clear old errors without hiding later fail
   service.setState('idle', 'Current reply', 'Current request')
   const briefing = { state: 'live', items: [], generatedAt: 1, omittedSources: 0 }
   for (const proposals of [[], [{ id: 'current-advice', advice: 'Current advice' }]]) {
-    service.propose({ proposals: [], popup: false, error: 'generation_unavailable' })
+    service.propose({ proposals: [], popup: false, error: 'generation_unavailable', partialFailure: true })
     const failure = statuses.at(-1)
     assert.equal(service.status.proposalError, 'generation_unavailable')
     assert.equal(failure.proposalError, 'generation_unavailable')
+    assert.equal(failure.proposalPartialFailure, true)
     service.publishAgents([]); service.publishBriefing(briefing)
     assert.equal(statuses.at(-1).proposalError, 'generation_unavailable')
 
@@ -102,6 +103,7 @@ test('successful suggestion snapshots clear old errors without hiding later fail
     const recovered = statuses.at(-1)
     assert.equal(Object.hasOwn(service.status, 'proposalError'), false)
     assert.equal(Object.hasOwn(recovered, 'proposalError'), false)
+    assert.equal(Object.hasOwn(recovered, 'proposalPartialFailure'), false)
     assert.deepEqual(recovered.proposals, proposals)
     assert.equal(recovered.proposalPopup, true); assert.equal(recovered.proposalInteraction, true)
     assert.equal(service.status.proposalPopup, false); assert.equal(service.status.proposalInteraction, false)
@@ -116,6 +118,14 @@ test('successful suggestion snapshots clear old errors without hiding later fail
   assert.equal(statuses.at(-1).proposalError, 'generation_unavailable')
   service.setState('thinking', 'Current reply')
   assert.equal(service.status.proposalError, 'generation_unavailable')
+})
+
+test('a Link completion wakes Intents that observe the Pi sessions reading', () => {
+  const { service } = fixture()
+  const pushed = []
+  service.attachWatch({ push: ids => { pushed.push(ids); return true } })
+  assert.equal(service.servicePush(['odk.app.pi-sessions.completed', 'odk.tile.hydra']), true)
+  assert.deepEqual(pushed, [['odk.app.pi-sessions', 'odk.tile.hydra']])
 })
 
 test('notifications stay separate from replies and flush one message per event', () => {
@@ -780,6 +790,55 @@ test('proposal capabilities follow the selected Watch without granting an action
   service.attachWatch(undefined)
   assert.deepEqual(service.status.proposalCapabilities, { read: false, respond: false, acknowledge: false })
   await assert.rejects(service.proposalCommand({ type: 'proposal_list' }), /unavailable/)
+})
+
+test('reply preparation publishes one owner-only conversation response and blocks concurrent turns', async t => {
+  const { service } = fixture()
+  let finish, calls = 0
+  const gate = new Promise(resolve => { finish = resolve })
+  t.after(() => finish())
+  const proposal = { id: '11111111-1111-4111-8111-111111111111', status: 'pending', nextStep: '准备回复',
+    privateData: true, action: { tool: 'private_source_prepare_reply' } }
+  service.attachWatch({ list: () => [proposal], setBusy() {}, interact() {}, respond: async () => {
+    calls++
+    await gate
+    return { ...proposal, status: 'completed', result: '未发送草稿\n\n感谢面试邀请，我会核对时间后回复。',
+      execution: { outcome: 'completed', receipt: { tool: 'private_source_prepare_reply', readOnly: true, unsent: true, presentation: 'conversation' } } }
+  } })
+  const preparing = service.proposalCommand({ type: 'proposal_respond', id: proposal.id, decision: 'accept', confirmation: 'confirm' })
+  assert.equal(service.status.state, 'thinking')
+  assert.equal(service.status.ownerOnly, true)
+  assert.equal(service.sendText('a concurrent request'), false)
+  await assert.rejects(service.proposalCommand({ type: 'proposal_respond', id: proposal.id, decision: 'accept' }), /in progress/)
+  finish(); await preparing
+  assert.equal(calls, 1)
+  assert.equal(service.status.state, 'idle')
+  assert.equal(service.status.transcript, '准备回复')
+  assert.match(service.status.message, /未发送草稿/)
+  assert.equal(service.status.ownerOnly, true)
+  assert.match(service.status.ownerTurnId, /^[0-9a-f-]{36}$/)
+  service.attachWatch(undefined)
+  assert.equal(service.sendText('new public turn'), true)
+  await service.pending
+  assert.equal(service.status.ownerOnly, undefined)
+  await service.close()
+})
+
+test('reply preparation never presents uncertain or late results as a draft', async () => {
+  for (const mode of ['failed', 'no-receipt', 'closed']) {
+    const { service } = fixture()
+    const proposal = { id: '11111111-1111-4111-8111-111111111111', privateData: true, action: { tool: 'private_source_prepare_reply' } }
+    const frames = []
+    service.subscribe(frame => frames.push(frame))
+    service.attachWatch({ list: () => [proposal], respond: async () => {
+      if (mode === 'failed') throw Error('private source changed')
+      if (mode === 'closed') void service.close()
+      return { ...proposal, status: 'completed', result: 'must not publish this draft' }
+    } })
+    await assert.rejects(service.proposalCommand({ type: 'proposal_respond', id: proposal.id, decision: 'accept' }))
+    assert.ok(frames.every(frame => !frame.message.includes('must not publish')))
+    await service.close()
+  }
 })
 
 

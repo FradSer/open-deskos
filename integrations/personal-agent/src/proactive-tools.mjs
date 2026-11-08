@@ -1,7 +1,10 @@
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
-import { PROPOSAL_DECISIONS } from './proactive-lifecycle.mjs'
+import { isDeskIntentProposal } from './recommendations/index.mjs'
+import { isScheduleProposal } from './recommendations/index.mjs'
+import { PROPOSAL_DECISIONS } from './recommendations/index.mjs'
 
+const availableInChat = proposal => !isScheduleProposal(proposal) && !isDeskIntentProposal(proposal)
 const result = value => ({ content: [{ type: /** @type {const} */ ('text'), text: JSON.stringify(value) }], details: {}, structuredContent: value })
 
 /** No model-supplied text can confirm a proposal: the actual Spoken Turn is retained by the host. */
@@ -22,7 +25,7 @@ export function createProposalTools(getWatch, currentTurn, { intentPreviews = fa
       execute: async () => {
         const watch = getWatch()
         if (watch?.privateSources || watch?.list().some(p=>p.privateData===true)) onPrivateData()
-        return result({ configured: !!watch, proposals: watch ? await watch.readProposals() : [] })
+        return result({ configured: !!watch, proposals: watch ? (await watch.readProposals()).filter(availableInChat) : [] })
       },
     }),
     defineTool({ name: 'personal_agent_proposal_respond', label: 'Respond to Personal Agent suggestion', exposure: 'codemode', executionMode: 'sequential',
@@ -34,6 +37,7 @@ export function createProposalTools(getWatch, currentTurn, { intentPreviews = fa
         const watch = getWatch()
         if (!watch) throw Error('Proactive suggestions are not configured')
         if (watch.privateSources || watch.list().some(p=>p.id===id&&p.privateData===true)) onPrivateData()
+        if (watch.list().some(p => p.id === id && !availableInChat(p))) throw Error('Respond to this suggestion in the conversation list')
         const turn = currentTurn()
         if (decision === 'ignore' && !/^(?:不用了|忽略|ignore)(?:\s+[0-9a-f-]{36})?$/i.test(turn)) throw Error('Explicit ignore required')
         if (decision === 'mute' && !/^(?:这类别再提|别再提|mute)(?:\s+[0-9a-f-]{36})?$/i.test(turn)) throw Error('Explicit mute required')
@@ -50,7 +54,7 @@ export function createProposalTools(getWatch, currentTurn, { intentPreviews = fa
         if (feedbackPattern && !feedbackPattern.test(turn)) throw Error('Explicit proposal feedback required')
         if (feedbackPattern) {
           const selected = /([0-9a-f-]{36})$/i.exec(turn)?.[1]
-          const displayed = watch.list().filter(p => p.status === 'pending' && p.offered && p.presented && (p.snoozedUntil ?? 0) <= watch.now())
+          const displayed = watch.list().filter(p => availableInChat(p) && p.status === 'pending' && p.offered && p.presented && (p.snoozedUntil ?? 0) <= watch.now())
           if (selected ? selected !== id || !displayed.some(p => p.id === id) : displayed.length !== 1 || displayed[0].id !== id) throw Error('Feedback requires one explicitly selected displayed proposal')
         }
         return result(await watch.respond(id, decision, turn, true))

@@ -81,7 +81,7 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 .agent-child-name { font-size: var(--agent-text-label); line-height: 1.5; color: var(--odk-primary); }
 .agent-child-state { font-size: var(--agent-text-label); line-height: 1.5; }
 .agent-message-bubble { width: fit-content; min-width: 0; max-width: 96%; padding: var(--agent-pad-surface) 20px; background: var(--odk-surface); border-radius: var(--agent-radius-surface); }
-.agent-message-body { white-space: pre-wrap; }
+.agent-message-body:not(.personal-agent-status-markdown) { white-space: pre-wrap; }
 .agent-message-body p { margin: 0 0 12px; }
 .agent-message-body details { white-space: normal; overflow-wrap: anywhere; }
 .agent-message-body details > summary { min-height: 44px; display: flex; align-items: center; color: var(--odk-secondary-strong); cursor: pointer; font-size: var(--agent-text-label); }

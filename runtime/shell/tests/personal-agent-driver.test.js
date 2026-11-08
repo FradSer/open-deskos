@@ -6,6 +6,15 @@ const path = require('node:path')
 
 const { createPersonalAgentDriver } = require('../src/personal-agent-driver')
 const { projectPersonalAgentFrame } = require('../src/personal-agent-frame')
+
+test('owner-only reply drafts do not enter remote conversation frames', () => {
+  const frame = projectPersonalAgentFrame({ state: 'idle', ownerOnly: true, ownerTurnId: '11111111-1111-4111-8111-111111111111',
+    transcript: 'PRIVATE_INTERVIEW', message: 'PRIVATE_UNSENT_REPLY', proposals: [],
+    conversation: { revision: 1, turns: [], omittedCount: 0 } })
+  assert.doesNotMatch(JSON.stringify(frame), /PRIVATE_INTERVIEW|PRIVATE_UNSENT_REPLY/)
+  assert.equal(frame.ownerTurnId, undefined)
+  assert.equal(frame.message, undefined)
+})
 const fixture = require('./fixtures/personal-agent-v1.json')
 const { androidPath } = require('./helpers/repo-root')
 
@@ -14,38 +23,6 @@ const fixtureFile = path.join(__dirname, 'fixtures', 'personal-agent-v1.json')
 function tempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'odk-personal-agent-driver-'))
 }
-
-test('the Android frame carries bounded reply presentation with the original answer', () => {
-  const message = 'The original answer contains the result and its limits.'
-  const replyPresentation = { text: 'Result available.', ui: { type: 'Suggestion', props: {}, children: [
-    { type: 'Text', props: { value: 'The result and its limits are available.' }, children: [] },
-  ] } }
-  const status = { state: 'idle', message, replyPresentation }
-  assert.deepEqual(projectPersonalAgentFrame(status), { ...status, voiceInput: false })
-  for (const invalid of [
-    { state: 'thinking' },
-    { replyPresentation: { ...replyPresentation, text: 'x'.repeat(181) } },
-    { replyPresentation: { ...replyPresentation, ui: { type: 'Suggestion', props: { padding: 'x'.repeat(16384) } } } },
-  ]) {
-    const frame = projectPersonalAgentFrame({ ...status, ...invalid })
-    assert.equal(frame.message, message)
-    assert.equal(frame.replyPresentation, undefined)
-  }
-})
-
-test('the Android frame carries read-only alternatives in a bounded suggestion tree', () => {
-  const ui = { type: 'Suggestion', props: {}, children: [
-    { type: 'OptionSet', props: {}, children: [
-      { type: 'Option', props: { label: 'Walk', value: 'walk' } },
-      { type: 'Option', props: { label: 'Join online', value: 'online' } },
-    ] },
-  ] }
-  const proposal = { id: '76543210-3333-4444-8888-abcdef123456', status: 'pending', advice: 'Consider both routes.', evidence: [], ui }
-  const status = { state: 'idle', proposals: [proposal] }
-  assert.deepEqual(projectPersonalAgentFrame(status).proposals[0].ui, ui)
-  const malformed = { ...proposal, ui: { ...ui, children: 'not a tree' } }
-  assert.deepEqual(projectPersonalAgentFrame({ ...status, proposals: [malformed] }).proposals, [])
-})
 
 test('the source starts on the first shared fixture state', async () => {
   const driver = createPersonalAgentDriver({ fixtureFile, intervalMs: 0 })
@@ -280,6 +257,64 @@ test('the Android projection carries bounded readable suggestions without respon
   assert.equal(projected.proposalPopup, true)
   assert.equal(JSON.stringify(projected).includes('private action'), false)
   assert.equal(JSON.stringify(projected).includes('PRIVATE_TOOL_RESULT'), false)
+})
+
+test('the Android projection keeps Calendar sources and omits private Gmail recommendations', () => {
+  const base = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', status: 'pending', advice: 'Review the schedule.', offered: true, evidence: [], action: null }
+  const calendar = { ...base, sources: [{ kind: 'calendar', label: 'Calendar', readingId: 'calendar.events', privateData: 'drop' }] }
+  const gmail = { ...base, id: '0325c4b0-0066-4811-957f-6502fc761145', advice: 'Private message', sources: [{ kind: 'gmail', label: 'Gmail', messageId: 'private-message-id' }] }
+  const legacy = { ...base, privateData: true }
+  const status = { state: 'idle', proposalPopup: true, proposals: [gmail, calendar, legacy] }
+  const projected = projectPersonalAgentFrame(status)
+  assert.deepEqual(projected.proposalCapabilities, { read: true, respond: false, acknowledge: false })
+  assert.equal(projected.proposals.length, 1)
+  assert.deepEqual(projected.proposals[0].sources, [{ kind: 'calendar', label: 'Calendar', readingId: 'calendar.events' }])
+  assert.equal(JSON.stringify(projected).includes('private-message-id'), false)
+  const privateOnly = projectPersonalAgentFrame({ ...status, proposals: [gmail, legacy] })
+  assert.deepEqual(privateOnly.proposals, [])
+  assert.equal(privateOnly.proposalPopup, false)
+})
+
+test('the Android projection omits read-only Intent cards with owner-selected source evidence', () => {
+  const ruleId = 'intent-e311a280-c0b9-4411-96cd-4e1e92385349'
+  const synthetic = { readingId: 'intent.e311a280-c0b9-4411-96cd-4e1e92385349', field: 'wish', value: 'Legacy wish',
+    state: 'live', measuredAt: '2026-10-23T00:00:00Z' }
+  const legacy = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId, status: 'pending', advice: 'Legacy advice',
+    offered: true, action: null, evidence: [synthetic] }
+  const intent = { ...legacy, id: '0325c4b0-0066-4811-957f-6502fc761145', advice: 'Private recommendation',
+    nextStep: 'Private follow-up', evidence: [{ ...synthetic, readingId: 'odk.app.selected', field: 'reading', value: 'Private selected reading' }, synthetic] }
+  const ordinary = { ...intent, id: 'a1234567-0066-4811-957f-6502fc761145', ruleId: 'owner-rule', advice: 'Ordinary recommendation',
+    nextStep: 'Ordinary follow-up', evidence: [{ ...intent.evidence[0], value: 'Ordinary reading' }] }
+
+  const frame = projectPersonalAgentFrame({ state: 'idle', proposalPopup: true, proposals: [intent, legacy, ordinary] })
+  assert.deepEqual(frame.proposalCapabilities, { read: true, respond: false, acknowledge: false })
+  assert.deepEqual(frame.proposals.map(p => p.id), [legacy.id, ordinary.id])
+  assert.doesNotMatch(JSON.stringify(frame), /Private recommendation|Private selected reading|Private follow-up/)
+  const privateOnly = projectPersonalAgentFrame({ state: 'idle', proposalPopup: true, proposals: [intent] })
+  assert.deepEqual(privateOnly.proposals, [])
+  assert.equal(privateOnly.proposalPopup, false)
+})
+
+test('the Android frame carries the full OpenUI component tree without leaking private fields', () => {
+  const base = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', status: 'pending', advice: 'Inspect the soil.', evidence: [] }
+  const ui = { type: 'Suggestions', children: [{ type: 'Suggestion', children: [
+    { type: 'Heading', props: { value: 'Soil' } },
+    { type: 'Advice', props: { value: 'Inspect the soil.' } },
+    { type: 'Stack', children: [{ type: 'Metric', props: { label: 'Moisture', value: '12%' } }] },
+  ] }] }
+  const projected = projectPersonalAgentFrame({ state: 'idle', proposals: [{ ...base, ui,
+    action: { tool: 'memory_update', params: { value: 'private action' } }, result: 'PRIVATE_TOOL_RESULT' }] })
+  assert.equal(projected.proposalCapabilities.read, true)
+  assert.deepEqual(projected.proposals[0].ui, ui, 'every OpenUI node must cross the link')
+  assert.equal(JSON.stringify(projected).includes('private action'), false)
+  assert.equal(JSON.stringify(projected).includes('PRIVATE_TOOL_RESULT'), false)
+  assert.equal(projected.proposals[0].action, null)
+  // A malformed tree must not silently pass as readable.
+  for (const bad of [{ type: '' }, { type: 'Suggestions', children: 'nope' }, { type: 'Suggestions', children: [{ nope: 1 }] }]) {
+    const frame = projectPersonalAgentFrame({ state: 'idle', proposals: [{ ...base, ui: bad }] })
+    assert.equal(frame.proposalCapabilities.read, false, JSON.stringify(bad))
+    assert.deepEqual(frame.proposals, [])
+  }
 })
 
 test('the Android desk projection rejects malformed next steps and preserves actionless legacy data', () => {

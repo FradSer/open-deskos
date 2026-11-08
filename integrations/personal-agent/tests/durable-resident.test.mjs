@@ -8,8 +8,8 @@ import { createPersonalAgent, sessionAdapter } from '../src/agent.mjs'
 import { createIntentTurn, guardIntentTools } from '../src/intent-routing.mjs'
 import { assistant, fixtureModel, visibleTools } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
-import { ProactiveWatch } from '../src/proactive.mjs'
-import { proposalStateStore } from '../src/proactive-state.mjs'
+import { ProactiveWatch } from '../src/recommendations/index.mjs'
+import { proposalStateStore } from '../src/recommendations/index.mjs'
 import { openDurableRuntime, durableCapability, createPiExecutionTarget } from '../src/durable-runtime.mjs'
 import { createDurableAgentSession } from '../src/durable-agent-session.mjs'
 import { createHistoryEvidence, readResidentHistory, OWNER_HISTORY_ENTRY } from '../src/history-evidence.mjs'
@@ -174,12 +174,12 @@ test('production proactive advice uses scoped tools while briefing and phrasing 
   const modelRuntime = runtime(context => {
     requests.push(context)
     const names = visibleTools(context).map(tool => tool.name).sort()
-    // Only the generation session carries the two scoped investigation tools.
-    assert.ok(names.length === 0 || JSON.stringify(names) === JSON.stringify(['proactive_judge', 'proactive_read']),
+    // Only the generation session carries one scoped investigation tool.
+    assert.ok(names.length === 0 || JSON.stringify(names) === JSON.stringify(['proactive_read']),
       `unexpected model tools: ${JSON.stringify(names)}`)
     assert(!context.messages.some(message => message.role === 'user' && message.content.includes('resident private fixture')))
     if (JSON.stringify(context.messages).includes('Organize the owner-approved')) return assistant('[0,1]')
-    if (names.includes('proactive_read')) return assistant(EMPTY_DOCUMENT)
+    if (/openui-lang/i.test(JSON.stringify(context.messages))) return assistant(EMPTY_DOCUMENT)
     return assistant('{"items":[{"sources":[0]}]}')
   })
   const bot = await createPersonalAgent(config, { createRuntime: async () => modelRuntime, createIntentRouter: () => async () => ({ intent: 'conversation' }) })
@@ -190,10 +190,9 @@ test('production proactive advice uses scoped tools while briefing and phrasing 
   assert.deepEqual(briefing.items[0].readingIds, ['mail'])
   assert.equal(await bot.phraseProposal({ advice: '观察读数。检查来源。' }), '观察读数。检查来源。')
   assert.equal(requests.length, 3)
-  const generation = requests.find(context => visibleTools(context).some(tool => tool.name === 'proactive_read'))
-  assert.ok(generation)
-  assert.deepEqual(visibleTools(generation).map(tool => tool.name).sort(), ['proactive_judge', 'proactive_read'],
-    'the generation session exposes both scoped tools')
+  const generation = requests.find(context => /openui-lang/i.test(JSON.stringify(context.messages)))
+  assert.deepEqual(visibleTools(generation).map(tool => tool.name), ['proactive_read'],
+    'the generation session exposes one scoped tool')
 })
 
 test('default Durable resident keeps exact-turn private memory authorization', async t => {
@@ -222,7 +221,7 @@ test('a proactive heartbeat uses production Durable generation and preserves ded
   const frames = []
   let generations = 0
   const modelRuntime = runtime(context => {
-    assert.deepEqual(visibleTools(context).map(tool => tool.name).sort(), ['proactive_judge', 'proactive_read'])
+    assert.deepEqual(visibleTools(context).map(tool => tool.name), ['proactive_read'])
     const request = JSON.parse(context.messages.findLast(message => message.role === 'user').content.split('Personal Agent request:\n')[1])
     generations++
     const evidenceIds = request.topics[0].evidence.map(item => item.id)

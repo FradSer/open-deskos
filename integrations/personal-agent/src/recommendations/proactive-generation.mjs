@@ -1,15 +1,17 @@
-import { visibleUiText, visibleUiPairs } from './openui-contract.mjs'
-import { validOpenUITree } from './proactive-state.mjs'
 import { feedbackFor, feedbackPending } from './proactive-feedback-memory.mjs'
-import { isJudgmentModel } from './judgment-client.mjs'
+import { visibleUiText, visibleUiPairs, validateSuggestionUI, walkUi } from './openui-contract.mjs'
 import { randomUUID } from 'node:crypto'
 import {privateRule,privateEventReceiptKey} from './private-proposal-sources.mjs'
 import { generationKey, identifyCandidate, observationKey, sameOccurrence, timeWindow } from './proactive-lifecycle.mjs'
 
 const KEY = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/
+// Unresolved prompt/secret templates ({{x}}, ${x}, {%x%}, {x}) never name a host key.
+const TEMPLATE_MARKER = /[{}]/
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(k => keys.includes(k))
 const text = (value, max) => typeof value === 'string' && value.trim() && value.length <= max && !/[\x00-\x08]/.test(value)
 const TECHNICAL_DETAIL = /sha[\s_-]*256|[0-9a-f]{32,}/i
+
+/** Preserve the stable diagnostic code when a candidate has no Advice text. */
 class MissingAdviceError extends Error {
   constructor() { super('Invalid generated suggestion: advice is required'); this.code = 'advice_required' }
 }
@@ -23,12 +25,13 @@ export function modelInput(input) {
   const { topics, ...rest } = input ?? {}
   if (!Array.isArray(topics)) return input
   const projected = topics.map(topic => {
-    const { cacheKey, observationKey, episodeSequence, urgent, delivery, at, evidence, ...keep } = topic
+    const { cacheKey, observationKey, episodeSequence, urgent, delivery, at, intentCondition, evidence, ...keep } = topic
     const rows = Array.isArray(evidence) ? evidence : []
     const state = rows[0]?.state
     const measuredAt = rows[0]?.measuredAt
     const uniform = rows.length > 0 && rows.every(row => row.state === state && row.measuredAt === measuredAt)
     return { ...keep,
+      ...(keep.intentPreview === true && intentCondition ? { intentConditionMet: true } : {}),
       ...(uniform && state !== undefined ? { state } : {}),
       ...(uniform && measuredAt !== undefined ? { measuredAt } : {}),
       evidence: rows.map(row => {
@@ -39,26 +42,9 @@ export function modelInput(input) {
   return { ...rest, topics: projected }
 }
 
-const PREVIEW_TONES = new Set(['warn', 'good', 'neutral'])
-/** Bounded generic preview shape shared by generation validation and in-process draft checks. */
-export const boundedPreview = value => {
-  if (value === undefined) return null
-  if (!value || typeof value !== 'object' || Array.isArray(value) || !exact(value, ['summary', 'items'])) return null
-  if (value.summary !== undefined && !text(value.summary, 120)) return null
-  if (!Array.isArray(value.items) || !value.items.length || value.items.length > 3) return null
-  // An observed value may arrive as the number the source holds; both forms are the same observation.
-  if (!value.items.every(item => exact(item, ['label', 'value', 'tone']) && text(item.label, 40)
-    && (typeof item.value === 'number' ? Number.isFinite(item.value) : text(item.value, 40))
-    && (item.tone === undefined || PREVIEW_TONES.has(item.tone)))) return null
-  return { ...(value.summary === undefined ? {} : { summary: value.summary }), items: value.items.map(i => ({ label: i.label, value: typeof i.value === 'number' ? String(i.value) : i.value, ...(i.tone && i.tone !== 'neutral' ? { tone: i.tone } : {}) })) }
-}
-
-// A sentence restatement is decidable only for prose nodes, and only when the
-// whole normalized sentence matches. Short reading labels such as 温度 are
-// legitimate even when they occur inside the advice. Every NUMBER the owner can
-// see -- in advice, headings, prose, badges, labels, values and option text --
-// must be a value of one of THIS candidate's cited observations. The host owns
-// facts mechanically; no LLM judgment stands between the card and the owner.
+// Prose repeats advice only when it contains the complete normalized sentence.
+// Short headings, badges and reading labels can share words with the advice.
+// The host binds facts mechanically without a model judgment.
 const PROSE_TYPES = new Set(['Heading', 'Text', 'Badge'])
 const normalize = value => value.normalize('NFKC').replace(/[\p{P}\p{Z}\s]/gu, '').toLowerCase()
 
@@ -72,24 +58,75 @@ function canonicalNumber(token) {
   return Number.isFinite(n) ? String(n) : null
 }
 
-function evidenceNumbers(entry) {
-  const values = []
+// Host-issued ground values: numbers and ISO timestamps that an observation
+// actually holds. Free prose, labels, badges and headings are presentation, not
+// measured claims; they stay outside this binding.
+function evidenceGrounds(entry) {
+  const out = new Set()
   const collect = value => {
-    if (typeof value === 'number' || typeof value === 'boolean') { values.push(String(value)); return }
-    if (typeof value === 'string') { for (const t of value.match(/[+-]?\d[\d,.:]*/g) ?? []) values.push(t); return }
+    if (typeof value === 'number' && Number.isFinite(value)) { out.add(String(value)); return }
+    if (typeof value === 'boolean') { return }
+    if (typeof value === 'string') {
+      for (const token of value.match(/[+-]?\d[\d,.:]*/g) ?? []) {
+        const n = canonicalNumber(token)
+        if (n) out.add(n)
+      }
+      const trimmed = value.trim()
+      if (/^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?$/.test(trimmed)) out.add(normalize(trimmed))
+      return
+    }
     if (value && typeof value === 'object') for (const item of Object.values(value)) collect(item)
   }
   collect(entry?.value)
-  return values.map(canonicalNumber).filter(Boolean)
+  return out
 }
 
-function visibleNumbers(strings) {
-  const out = new Set()
-  for (const text of strings) for (const token of String(text).match(/[+-]?\d[\d,.:]*/g) ?? []) {
-    const n = canonicalNumber(token)
-    if (n) out.add(n)
+function formatReadingUnits(ui, cited) {
+  const sources = cited.map(entry => {
+    let unit = ''
+    if (typeof entry.value === 'number') {
+      const field = String(entry.field ?? '').split('.').at(-1)
+      if (field === 'temperatureC') unit = '°C'
+      else if (field?.endsWith('Percent')) unit = '%'
+    }
+    return { unit, values: evidenceGrounds(entry) }
+  })
+  if (!sources.some(source => source.unit)) return ui
+  const copy = structuredClone(ui)
+  let changed = false
+  walkUi(copy, node => {
+    if (node.type !== 'Reading' && node.type !== 'Metric') return
+    const measurement = /^([+-]?\d+(?:[.,]\d+)?)\s*(°\s*C|℃|摄氏度|[%％])?$/i.exec(node.props.value.trim())
+    if (!measurement) return
+    const [, value, explicitUnit] = measurement
+    const number = canonicalNumber(value)
+    const units = new Set(sources.filter(source => source.values.has(number)).map(source => source.unit))
+    if (explicitUnit) {
+      const displayed = /[%％]/.test(explicitUnit) ? '%' : '°C'
+      if (units.size && !units.has('') && !units.has(displayed)) throw Error('Card states a unit no cited observation supplies')
+      return
+    }
+    const [unit] = units
+    if (units.size === 1 && unit && !node.props.label.includes(unit)) {
+      node.props.value = `${value}${unit}`
+      changed = true
+    }
+  })
+  return changed ? copy : ui
+}
+
+// Canonical numeric or timestamp tokens that the owner can read as measurements.
+function visibleClaims(strings) {
+  const numbers = new Set(), times = new Set()
+  for (const text of strings) {
+    for (const token of String(text).match(/[+-]?\d[\d,.:]*/g) ?? []) {
+      const n = canonicalNumber(token)
+      if (n) numbers.add(n)
+    }
+    const value = String(text).trim()
+    if (/^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?$/.test(value)) times.add(normalize(value))
   }
-  return out
+  return { numbers, times }
 }
 
 function proseUiText(ui) {
@@ -108,24 +145,24 @@ function proseUiText(ui) {
   return out
 }
 
-function validateCardText(s, topic) {
+function validateCardText(s, evidence) {
   const advice = normalize(s.advice)
   const text = visibleUiText(s.ui)
   if (advice.length >= 4 && proseUiText(s.ui).some(value => {
     const n = normalize(value)
-    return n.length >= 4 && (n === advice || advice.includes(n) || n.includes(advice))
+    return n.includes(advice)
   })) throw Error('Card text restates advice')
   const pairs = visibleUiPairs(s.ui).map(([label, value]) => `${normalize(label)}:${normalize(value)}`)
   if (new Set(pairs).size !== pairs.length) throw Error('Card repeats a reading')
-  // The host binds the full approved observation set to every candidate, not
-  // just the model's cited subset. Any of those host-issued values can ground a
-  // visible number; a number outside them is an invented fact.
-  const cited = new Set(topic.evidence.flatMap(evidenceNumbers))
-  const shown = visibleNumbers([s.advice, ...text])
-  for (const n of shown) if (!cited.has(n)) throw Error('Card states a number no cited observation supplies')
+  const grounds = new Set(evidence.flatMap(entry => [...evidenceGrounds(entry)]))
+  // OwnerStep is model-authored but excluded from visibleUiText. Bind it too.
+  const shown = visibleClaims([s.advice, s.nextStep ?? '', ...text])
+  for (const n of shown.numbers) if (!grounds.has(n)) throw Error('Card states a number no cited observation supplies')
+  for (const t of shown.times) if (!grounds.has(t)) throw Error('Card states a time no cited observation supplies')
   return text
 }
 
+/** OpenUI owns the tree; the host validates only its visible claims before publication. */
 export function validateGeneratedBatch(raw, topics, maxCandidates) {
   if (!exact(raw, ['suggestions']) || !Array.isArray(raw.suggestions) || raw.suggestions.length > maxCandidates || Buffer.byteLength(JSON.stringify(raw)) > 16384) throw Error('Invalid generated suggestions')
   const seen = new Set()
@@ -135,29 +172,42 @@ export function validateGeneratedBatch(raw, topics, maxCandidates) {
     const key = `${s.topicId}:${s.key}`
     const intent = topic?.intentPreview === true
     const action = !intent && topic?.actions?.find(action => action.id === s.actionId)
-    const preview = boundedPreview(s.preview)
-    if (s.preview !== undefined && preview === null) throw Error('Invalid generated preview')
     if (typeof s.advice === 'string') {
       const label = action?.label?.trim()
       // The label is already the button text. Copy is a decidable duplicate, not a style score.
       if (label && label.length >= 2 && s.advice.includes(label)) throw Error('Advice repeats the action label')
     }
-    if (!exact(s, ['topicId', 'key', 'advice', intent ? 'nextStep' : 'actionId', 'evidenceIds', 'preview', 'ui']) || !topic || typeof s.key !== 'string' || !KEY.test(s.key) || seen.has(key) || !text(s.advice, 400) || TECHNICAL_DETAIL.test(s.advice)
+    if (!exact(s, ['topicId', 'key', 'advice', intent ? 'nextStep' : 'actionId', 'evidenceIds', 'ui']) || !topic || typeof s.key !== 'string' || TEMPLATE_MARKER.test(s.key) || !KEY.test(s.key) || seen.has(key) || !text(s.advice, 400) || TECHNICAL_DETAIL.test(s.advice)
       || (intent ? !text(s.nextStep, 240) || /[\x00-\x1f\x7f]/.test(s.nextStep) || TECHNICAL_DETAIL.test(s.nextStep) : typeof s.actionId !== 'string' || !action)
       || !Array.isArray(s.evidenceIds) || !s.evidenceIds.length || s.evidenceIds.length > 8 || new Set(s.evidenceIds).size !== s.evidenceIds.length || !s.evidenceIds.every(id => topic.evidence.some(e => e.id === id))) throw Error('Invalid generated suggestion')
-    if (s.ui !== undefined && (s.preview !== undefined || !validOpenUITree(s.ui)))
-      throw Error('Invalid generated OpenUI tree')
-    const uiText = s.ui === undefined ? undefined : validateCardText(s, topic)
+    // A scoped Intent may use more observations than a card can carry. Bind
+    // each displayed claim to its selected citations. Other topics retain
+    // their existing whole-topic evidence contract.
+    const cited = topic.evidence.filter(entry => s.evidenceIds.includes(entry.id))
+    const evidence = topic.intentCondition ? cited : topic.evidence
+    if (!s.ui) {
+      const grounds = new Set(evidence.flatMap(entry => [...evidenceGrounds(entry)]))
+      const shown = visibleClaims([s.advice, s.nextStep ?? ''])
+      for (const n of shown.numbers) if (!grounds.has(n)) throw Error('Candidate states a number no cited observation supplies')
+      for (const t of shown.times) if (!grounds.has(t)) throw Error('Candidate states a time no cited observation supplies')
+    }
+    let candidate = s
+    let uiText = s.ui ? validateCardText(s, evidence) : []
+    if (s.ui) {
+      validateSuggestionUI(s)
+      const ui = formatReadingUnits(s.ui, cited)
+      if (ui !== s.ui) {
+        candidate = { ...s, ui }
+        uiText = validateCardText(candidate, evidence)
+      }
+    }
     seen.add(key)
-    // The owner already approved these observation fields for the topic. A model
-    // may cite a subset, but judgment needs the full approved set: otherwise a
-    // stated relationship appears unsupported and a useful candidate is dropped.
-    return { ...s, ...(preview ? { preview } : {}), nextStep: intent ? s.nextStep : action.label,
-      evidence: topic.evidence.map(entry => ({ ...entry })), ...(uiText ? { uiText } : {}) }
+    return { ...candidate, nextStep: intent ? s.nextStep : action.label,
+      evidence: evidence.map(entry => ({ ...entry })), uiText }
   })
 }
 
-/** Generation proposes; judgment qualifies needs; the watch separately schedules attention. */
+/** Generation proposes; host validation binds facts; the watch separately schedules attention. */
 export async function pollGenerated(watch, trigger, context, rules = watch.rules()) {
   const interactionRevision = watch.interactionRevision
   const current = () => !watch.closed && !watch.responding && interactionRevision === watch.interactionRevision
@@ -165,21 +215,23 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
   const topicCurrent = id => watch.rules().some(rule => rule.id === id)
     && revisions.get(id)?.every(([source, revision]) => (watch.sourceRevisions.get(source) ?? 0) === revision)
   const topics = [], codingReceipts = []
-  let evidenceIndex = 0, cachedTopics = 0, generationCalls = 0, judgmentCalls = 0
+  let evidenceIndex = 0, cachedTopics = 0, generationCalls = 0
   const auditGeneration = record => {
-    try { watch.onGeneration({ trigger: trigger.kind, at: new Date(watch.now()).toISOString(), ...record, generationCalls, judgmentCalls }) } catch { /* Diagnostics cannot change generation state. */ }
+    try { watch.onGeneration({ trigger: trigger.kind, at: new Date(watch.now()).toISOString(), ...record, generationCalls }) } catch { /* Diagnostics cannot change generation state. */ }
   }
   for (const rule of rules) {
+    if (rule.intentRevision && watch.intents?.awaitingEvidence?.(rule.id)) continue
     const dependencies = rule.coding ? [`pi-tasks.${rule.coding.target}`] : rule.observations.map(o => o.readingId)
     if (trigger.kind === 'service_push' && !dependencies.some(id => trigger.readingIds.includes(id))) continue
     revisions.set(rule.id, dependencies.map(source => [source, watch.sourceRevisions.get(source) ?? 0]))
     if (watch.config.suppressed.includes(rule.id) || (watch.config.snoozed[rule.id] ?? 0) > watch.now()) {
-      watch.clearJudgmentFailure(rule.id); continue
+      watch.clearGenerationFailure(rule.id); continue
     }
-    if (privateRule(rule) && watch.privateHandledEvents.has(privateEventReceiptKey(rule.privateSourceId,rule.privateEventKey))) continue
+    if (privateRule(rule) && (watch.privateSources?.shouldGenerate?.(rule) === false
+      || watch.privateHandledEvents.has(privateEventReceiptKey(rule.privateSourceId,rule.privateEventKey)))) continue
     const actions = rule.intentRevision ? [] : watch.availableActions(rule)
     if (!rule.intentRevision && !actions.length) {
-      watch.clearJudgmentFailure(rule.id)
+      watch.clearGenerationFailure(rule.id)
       for (const p of watch.proposals) if (p.ruleId === rule.id && p.status === 'pending' && p.action !== null) p.status = 'expired'
       continue
     }
@@ -202,15 +254,15 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
     if (!evidence) {
       for (const p of watch.proposals) if (p.ruleId === rule.id && p.status === 'pending') p.status = 'expired'
       delete watch.generationCache[rule.id]
-      watch.clearJudgmentFailure(rule.id)
+      watch.clearGenerationFailure(rule.id)
       continue
     }
     const observed = observationKey(evidence)
     const previousEpisode = watch.observationEpisodes[rule.id]
     const episodeSequence = previousEpisode ? previousEpisode.sequence + Number(previousEpisode.key !== observed) : 0
     if (!Number.isSafeInteger(episodeSequence)) {
-      watch.failedJudgments.add(rule.id)
-      watch.judgmentError = '建议事件容量已满；请更新主题配置。已有记录已保留。'
+      watch.failedGeneration.add(rule.id)
+      watch.generationError = '建议事件容量已满；请更新主题配置。已有记录已保留。'
       continue
     }
     watch.observationEpisodes[rule.id] = { key: observed, sequence: episodeSequence }
@@ -223,7 +275,8 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
     const feedbackMemory = await feedbackFor(watch, rule)
     if (!current()) return
     if (!topicCurrent(rule.id)) continue
-    const cacheKey = generationKey(['executable-card-v2', feedbackMemory, actions.map(({ id, label }) => ({ id, label })), JSON.stringify(rule), observed, episodeSequence, context.local.date,
+    const cacheVersion = rule.intentCondition ? 'qualified-intent-v1' : 'executable-card-v3'
+    const cacheKey = generationKey([cacheVersion, feedbackMemory, actions.map(({ id, label }) => ({ id, label })), JSON.stringify(rule), observed, episodeSequence, context.local.date,
       rule.delivery === 'routine' ? context.local.time >= rule.at : null, context.quiet, timeWindow(evidence, watch.now())])
     const cached = watch.generationCache[rule.id]
     const interval = watch.config.generationIntervalMs ?? 300000
@@ -231,7 +284,7 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
       cachedTopics++
       continue
     }
-    topics.push({ ...(rule.intentRevision ? { intentPreview: true } : { actions: actions.map(({ id, label }) => ({ id, label })) }), id: rule.id, ...(privateRule(rule) ? { sourceSnapshot: watch.privateSources.snapshot(rule) } : {}), goal: rule.goal, ...(feedbackMemory ? { feedbackMemory } : {}), urgent: rule.urgent, delivery: rule.delivery, ...(rule.at ? { at: rule.at } : {}),
+    topics.push({ ...(rule.intentRevision ? { intentPreview: true, ...(rule.intentCondition ? { intentCondition: rule.intentCondition } : {}) } : { actions: actions.map(({ id, label }) => ({ id, label })) }), id: rule.id, ...(privateRule(rule) ? { sourceSnapshot: watch.privateSources.snapshot(rule) } : {}), goal: rule.goal, ...(feedbackMemory ? { feedbackMemory } : {}), urgent: rule.urgent, delivery: rule.delivery, ...(rule.at ? { at: rule.at } : {}),
       observationKey: observed, episodeSequence, cacheKey, evidence: evidence.map(e => ({ id: `e${evidenceIndex++}`, ...e })) })
   }
   if (!current()) return
@@ -248,14 +301,14 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
   const batches = []
   let batch = []
   for (const topic of topics) {
-    if (watch.isolatedTopics.has(topic.id)) {
+    if (Object.hasOwn(topic, 'sourceSnapshot') || watch.isolatedTopics.has(topic.id)) {
       if (batch.length) { batches.push(batch); batch = [] }
       if (fits([topic])) batches.push([topic])
-      else { watch.failedJudgments.add(topic.id); watch.judgmentError = '部分建议生成暂不可用。' }
+      else { watch.failedGeneration.add(topic.id); watch.generationError = '部分建议生成暂不可用。' }
       continue
     }
-    if (batch.length && !fits([...batch, topic])) { batches.push(batch); batch = [] }
-    if (!fits([topic])) { watch.failedJudgments.add(topic.id); watch.judgmentError = '部分建议生成暂不可用。'; continue }
+    if (batch.length && (Boolean(batch[0].intentCondition) !== Boolean(topic.intentCondition) || !fits([...batch, topic]))) { batches.push(batch); batch = [] }
+    if (!fits([topic])) { watch.failedGeneration.add(topic.id); watch.generationError = '部分建议生成暂不可用。'; continue }
     batch.push(topic)
   }
   if (batch.length) batches.push(batch)
@@ -264,25 +317,24 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
   const fail = selected => {
     const applicable = selected.filter(t => topicCurrent(t.id))
     if (!applicable.length) return
-    for (const topic of applicable) watch.failedJudgments.add(topic.id)
-    watch.judgmentError = '部分建议生成暂不可用或判断失败；其他建议仍可查看。'
+    for (const topic of applicable) watch.failedGeneration.add(topic.id)
+    watch.generationError = '部分建议生成暂不可用；其他建议仍可查看。'
   }
-  const complete = async (selected, candidates, result) => {
+  const complete = async (selected, candidates) => {
     if (!current()) return
     const active = selected.filter(t => topicCurrent(t.id))
     for (const t of active) {
-      watch.failedJudgments.delete(t.id)
+      watch.failedGeneration.delete(t.id)
       watch.isolatedTopics.delete(t.id)
       watch.generationCache[t.id] = { key: t.cacheKey, at: watch.now() }
     }
-    if (!watch.failedJudgments.size) watch.judgmentError = ''
-    for (const candidate of candidates.filter(c => topicCurrent(c.ruleId)).sort((a, b) => result.answers[b.id].probability - result.answers[a.id].probability)) {
+    if (!watch.failedGeneration.size) watch.generationError = ''
+    for (const candidate of candidates.filter(c => topicCurrent(c.ruleId))) {
       if (candidate.privateData === true && !await watch.privateSources?.validate(candidate.sourceSnapshot,watch.controller.signal)) continue
       if (!current()) return
-      const judgment = result.answers[candidate.id]
+      if (!topicCurrent(candidate.ruleId)) continue
       const existing = watch.proposals.findLast(p => sameOccurrence(p, candidate))
-      const supported = judgment.probability >= judgment.threshold && judgment.groundingProbability >= judgment.threshold && watch.fresh(candidate)
-      if (!supported) { if (existing?.status === 'pending') existing.status = 'expired'; continue }
+      if (!watch.fresh(candidate)) { if (existing?.status === 'pending') existing.status = 'expired'; continue }
       // Handled and uncertain occurrences are host-owned receipts, never model-overridable advice.
       if (watch.handledOccurrences[candidate.occurrenceKey] || (existing && ['ignored', 'completed', 'executing', 'unknown'].includes(existing.status))) continue
       if (watch.proposals.some(p => p.needKey === candidate.needKey && p.action !== null && ['executing', 'unknown'].includes(p.status))) continue
@@ -290,11 +342,8 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
         && p.subject === `${candidate.ruleId}:${candidate.key}` && !sameOccurrence(p, candidate)) p.status = 'expired'
       const record = { needKey: candidate.needKey, observationKey: candidate.observationKey, occurrenceKey: candidate.occurrenceKey,
         evidence: candidate.evidence, advice: candidate.advice, nextStep: candidate.nextStep,
-        ...(candidate.preview ? { preview: structuredClone(candidate.preview) } : {}),
-        ...(candidate.ui ? { ui: structuredClone(candidate.ui) } : {}),
-        ...(candidate.privateData?{privateData:true,privateSourceId:candidate.privateSourceId,privateEventKey:candidate.privateEventKey,sourceSnapshot:structuredClone(candidate.sourceSnapshot)}:{}),
-        judgment: { model: result.model, probability: judgment.probability, groundingProbability: judgment.groundingProbability, threshold: judgment.threshold,
-          trigger: trigger.kind, judgedAt: new Date(watch.now()).toISOString() } }
+        ui: candidate.ui,
+        ...(candidate.privateData?{privateData:true,privateSourceId:candidate.privateSourceId,privateEventKey:candidate.privateEventKey,sourceSnapshot:structuredClone(candidate.sourceSnapshot)}:{}) }
       const rule = watch.rules().find(rule => rule.id === candidate.ruleId)
       const approved = rule?.intentRevision ? undefined : watch.availableActions(rule).find(action => action.id === candidate.actionId)
       if (!rule?.intentRevision && (!approved || candidate.nextStep !== approved.label)) continue
@@ -305,8 +354,6 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
       const binding = { action, confirmation, ...(approved ? { actionId: approved.id, nextStep: approved.label } : {}) }
       if (existing) {
         if (!rule?.intentRevision && (existing.actionId !== candidate.actionId || JSON.stringify(existing.action) !== JSON.stringify(action))) continue
-        if (record.ui) delete existing.preview
-        else delete existing.ui
         Object.assign(existing, record, binding, { status: 'pending' }); continue
       }
       watch.proposals.push({ id, ruleId: candidate.ruleId, ruleVersion: candidate.ruleVersion, subject: `${candidate.ruleId}:${candidate.key}`,
@@ -320,16 +367,17 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
         else {
           watch.proposals.pop()
           delete watch.generationCache[candidate.ruleId]
-          watch.judgmentError = '建议容量已满；请先处理已有建议。未删除已有建议或执行状态。'
+          watch.generationError = '建议容量已满；请先处理已有建议。未删除已有建议或执行状态。'
         }
       }
     }
     for (const receipt of codingReceipts.filter(r => active.some(t => t.id === r.rule.id))) watch.consumeCoding(receipt.rule, receipt.identity, receipt.evidence)
-  }
-  const validAnswer = (result, c) => {
-    const a = result?.answers?.[c.id]
-    return isJudgmentModel(result?.model) && [a?.probability, a?.groundingProbability, a?.threshold].every(n => Number.isFinite(n) && n >= 0 && n <= 1) && a.threshold > 0.5
-      && (a.unsupportedProbability === undefined || (Number.isFinite(a.unsupportedProbability) && a.unsupportedProbability >= 0 && a.unsupportedProbability <= 1))
+    for (const topic of active.filter(t => t.sourceSnapshot && topicCurrent(t.id))) {
+      const candidate = candidates.find(c => c.ruleId === topic.id)
+      if (!candidate || watch.proposals.some(p => sameOccurrence(p, candidate))) {
+        watch.privateSources?.consume?.(watch.rules().find(rule => rule.id === topic.id), Boolean(candidate))
+      }
+    }
   }
   const evaluate = async selected => {
     if (!current() || attempts >= budget) return
@@ -362,40 +410,10 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
       }
       return
     }
-    let result = { model: '', answers: {} }
     try {
-      if (candidates.length) {
-        judgmentCalls++
-        result = await watch.judge({ candidates, trigger, context, recent: recentFor(selected), signal: watch.controller.signal })
-      }
-      if (!current()) return
-      const healthy = selected.filter(t => candidates.filter(c => c.ruleId === t.id).every(c => validAnswer(result, c)))
-      const failed = selected.filter(t => !healthy.includes(t))
-      if (failed.length) fail(failed)
-      const usable = candidates.filter(c => healthy.some(t => t.id === c.ruleId))
-      if (usable.length) {
-        try { watch.onJudgment({ trigger: trigger.kind, model: result.model, at: new Date(watch.now()).toISOString(), decisions: usable.map(c => ({ ruleId: c.ruleId, candidateId: c.id,
-          probability: result.answers[c.id].probability, groundingProbability: result.answers[c.id].groundingProbability, threshold: result.answers[c.id].threshold })) }) } catch { /* Diagnostics cannot affect selection. */ }
-      }
-      await complete(healthy, usable, result)
+      await complete(selected, candidates)
     } catch {
-      if (!current()) return
-      fail(selected)
-      // A batch transport can hide the failing member. Retry read-only judgments per topic within the same round budget.
-      if (selected.length > 1) {
-        for (const t of selected) watch.isolatedTopics.add(t.id)
-        for (const t of selected) {
-          if (attempts >= budget) break
-          attempts++
-          const own = candidates.filter(c => c.ruleId === t.id)
-          try {
-            if (own.length) judgmentCalls++
-            const judged = own.length ? await watch.judge({ candidates: own, trigger, context, recent: recentFor([t]), signal: watch.controller.signal }) : result
-            if (!own.every(c => validAnswer(judged, c))) throw Error('Invalid topic judgment')
-            complete([t], own, judged)
-          } catch { if (current()) fail([t]) }
-        }
-      }
+      if (current()) fail(selected)
     }
   }
   for (const selected of batches) { if (!current() || attempts >= budget) break; await evaluate(selected) }

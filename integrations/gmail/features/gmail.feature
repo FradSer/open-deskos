@@ -124,7 +124,7 @@ Feature: Gmail access for Personal Agent
   Scenario: Install Gmail as an optional MCP connector
     Given Gmail is not installed in the agent package catalog
     When the owner installs the reviewed Gmail MCP manifest
-    Then discovery exposes only Gmail status, search, and read tools
+    Then discovery exposes only Gmail status, search, read, and schedule change tools
     And missing credentials return an unconfigured result
     And Gmail call receipts are marked as private data
 
@@ -144,6 +144,8 @@ Feature: Gmail access for Personal Agent
     Given the Gmail plugin source and its dependency lockfile
     When the operator creates a local plugin archive
     Then the archive contains the lockfile and required runtime files
+    And the extracted connector discovers the schedule change tool
+    And the Docker service inventory includes the schedule change module hash
     And the archive excludes credentials, tests, and installed dependencies
     And an existing archive cannot be overwritten
 
@@ -175,3 +177,51 @@ Feature: Gmail access for Personal Agent
     Then the first request fails if the second grant remains selected
     And restoring the first grant uses its original token for profile and message access
     And account keys do not enter provider request URLs
+
+  Scenario: Read structured schedule changes
+    Given the owner pins the connected Gmail account
+    When Gmail history returns new mail with a calendar request or cancellation
+    Then the tool returns only bounded, untrusted calendar fields and message identifiers
+    And the tool ignores prose, recurrence, and ambiguous dates
+    And the tool does not write to Gmail
+
+  Scenario: Read an invitation sent to the connected account's inbox
+    Given Gmail marks an invitation as both sent and in the inbox
+    When the tool finds its calendar attachment
+    Then the tool returns the structured change
+    And the tool skips sent-only, draft, spam, and trash messages
+
+  Scenario: Read an attached invitation with named time zones
+    Given Gmail returns a long calendar attachment identifier
+    And the event specifies a named IANA time zone
+    When the tool reads the attachment
+    Then the tool reports the event start and end in UTC
+    And the tool skips unknown time zones and ambiguous or nonexistent local times
+    And the tool ignores time zone rules from the attachment
+
+  Scenario: Resume schedule change discovery
+    Given a history cursor for the connected account
+    When the result spans more than one bounded batch
+    Then the tool returns a continuation cursor for the next batch
+    And the tool issues a new history checkpoint after the final batch
+
+  Scenario: Recover an expired schedule cursor
+    Given Gmail returns an expired history cursor error
+    When the tool resumes discovery
+    Then the tool searches for recent calendar attachments
+    And the tool keeps the recovery checkpoint until the final search page
+
+  Scenario: Connect a separate read-only Calendar grant
+    Given the operator selects a private Calendar credential path
+    When the operator runs calendar-login with a Google Desktop OAuth client
+    Then the OAuth request uses only the Calendar events read scope
+    And the tool requires the exact scope in the token response
+    And the tool saves the Calendar grant in a new private file
+    And the tool preserves the Gmail grant
+
+  Scenario: Discover new mail for a selected Gmail label
+    Given the owner selected an exact user label on the connected Gmail account
+    When the routine reads changes since its saved checkpoint
+    Then Gmail resolves the name to the label ID
+    And discovery returns bounded message IDs for that label without message bodies
+    And an account change prevents further reads

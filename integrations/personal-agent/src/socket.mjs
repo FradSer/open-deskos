@@ -1,7 +1,7 @@
 import { readFrames, writeFrame } from './channel-frames.mjs'
 import { APPS_FRAME_BYTES, createDisplayAppsBroker } from './display-apps.mjs'
 import { validReplyTo } from './session-replies.mjs'
-import { PROPOSAL_DECISIONS } from './proactive-lifecycle.mjs'
+import { PROPOSAL_DECISIONS } from './recommendations/index.mjs'
 import fs from 'node:fs/promises'
 import net from 'node:net'
 import { dirname, isAbsolute, join } from 'node:path'

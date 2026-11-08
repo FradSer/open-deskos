@@ -1,5 +1,6 @@
 'use strict'
 
+const { parseProposalSources, isGmailMessageId } = require('../personal-agent-frame')
 const { parseReplyTo } = require('../personal-agent-reply-reference')
 
 const SYSTEM_PORTS = Object.freeze({
@@ -172,6 +173,17 @@ function createSystemChannelPlugins() {
           if (ctx.signal.aborted || config.isConsumerFrame?.(event) !== true || typeof url !== 'string'
             || authLinks.get(event.sender) !== url || !config.openExternal) return false
           try { await config.openExternal(url); return true } catch { return false }
+        })
+        bind(ctx, 'odk-personal-agent-gmail-open', async (event, proposalId, messageId) => {
+          if (ctx.signal.aborted || config.isConsumerFrame?.(event) !== true || !config.openExternal
+            || typeof proposalId !== 'string' || !isGmailMessageId(messageId)) return false
+          const status = client.snapshot()
+          if (status.state === 'unavailable' || status.proposalCapabilities?.read === false) return false
+          const proposal = status.proposals?.find(p => p?.id === proposalId)
+          if (!proposal || proposal.status !== 'pending' || !proposal.offered || proposal.snoozedUntil > Date.now() || proposal.action !== null
+            || (proposal.scheduleExpiresAt !== undefined && !(Date.parse(proposal.scheduleExpiresAt) > Date.now()))
+            || parseProposalSources(proposal.sources)?.find(source => source.kind === 'gmail')?.messageId !== messageId) return false
+          try { await config.openExternal(`https://mail.google.com/mail/#all/${messageId}`); return true } catch { return false }
         })
         bind(ctx, 'odk-personal-agent-text', async (_event, text, replyTo) => {
           const reference = replyTo === undefined ? undefined : parseReplyTo(replyTo)

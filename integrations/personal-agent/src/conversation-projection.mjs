@@ -107,7 +107,7 @@ export async function createConversationProjection({file}) {
  return {
   observe(status) {
    try {
-    if(closed || status?.v!==1 || status.type!=='status' || !uuid(status.ownerTurnId) || !states.includes(status.state) || status.state==='unconfirmed')return
+    if(closed || status?.ownerOnly===true || status?.v!==1 || status.type!=='status' || !uuid(status.ownerTurnId) || !states.includes(status.state) || status.state==='unconfirmed')return
     if(terminal(status.state) && status.transcript==='' && status.message==='')return
     const previous=data.turns.find(turn=>turn.id===status.ownerTurnId)
     if(previous && terminal(previous.state))return

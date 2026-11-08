@@ -192,3 +192,44 @@ test('CLI permits a new login after forgetting local credentials', async t => {
   await runGmailCli(['forget', '--credentials', credentialsPath], options)
   await runGmailCli(['login', '--client', clientPath, '--credentials', credentialsPath], options)
 })
+
+const calendarScope = 'https://www.googleapis.com/auth/calendar.events.readonly'
+
+test('Calendar login requests only the events read scope and uses the shared PKCE callback', async () => {
+  const { authorizeCalendar } = await import('../src/oauth.mjs')
+  let authorization
+  const credentials = await authorizeCalendar({ ...client, timeoutMs: 1000,
+    openBrowser: async url => {
+      authorization = new URL(url)
+      assert.equal(authorization.searchParams.get('scope'), calendarScope)
+      assert.equal(authorization.searchParams.get('code_challenge_method'), 'S256')
+      assert.equal((await accept(url)).status, 200)
+    }, fetch: async (_url, request) => {
+      assert.equal(createHash('sha256').update(request.body.get('code_verifier')).digest('base64url'), authorization.searchParams.get('code_challenge'))
+      return tokenResponse({ scope: calendarScope })
+    } })
+  assert.deepEqual(credentials, { schemaVersion: 1, ...client, refreshToken: 'private-refresh', scope: calendarScope })
+  for (const scope of [GMAIL_READONLY_SCOPE, `${calendarScope} ${GMAIL_READONLY_SCOPE}`]) {
+    await assert.rejects(authorizeCalendar({ ...client, timeoutMs: 1000, openBrowser: accept,
+      fetch: async () => tokenResponse({ scope }) }), /required read-only refresh token/)
+  }
+})
+
+test('CLI calendar-login saves a separate private file with the exact Calendar scope', async t => {
+  const { directory, credentialsPath, clientPath } = await cliFixture(t)
+  const calendarPath = join(directory, 'calendar-grant.json')
+  const { readFile, stat } = await import('node:fs/promises')
+  const gmailGrant = { schemaVersion: 1, ...client, refreshToken: 'gmail-refresh', scope: GMAIL_READONLY_SCOPE }
+  const calendarGrant = { ...gmailGrant, refreshToken: 'calendar-refresh', scope: calendarScope }
+  await runGmailCli(['login', '--client', clientPath, '--credentials', credentialsPath], { authorize: async () => gmailGrant, output: () => {} })
+  const output = []
+  const args = ['calendar-login', '--client', clientPath, '--credentials', calendarPath]
+  const options = { authorizeCalendar: async () => calendarGrant, output: value => output.push(value) }
+  await assert.rejects(runGmailCli(args, { ...options, authorizeCalendar: async () => gmailGrant }), /unsafe/)
+  await runGmailCli(args, options)
+  await assert.rejects(runGmailCli(args, { ...options, authorizeCalendar: async () => assert.fail('existing grant must block authorization') }), /already exist/)
+  assert.deepEqual(JSON.parse(await readFile(calendarPath, 'utf8')), calendarGrant)
+  assert.deepEqual(JSON.parse(await readFile(credentialsPath, 'utf8')), gmailGrant)
+  assert.equal((await stat(calendarPath)).mode & 0o777, 0o600)
+  assert.deepEqual(output, ['Google Calendar connected with read-only event access.'])
+})

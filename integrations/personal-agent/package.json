@@ -15,14 +15,14 @@
     "test:intents:live": "node scripts/test-intents-live.mjs",
     "test:agent:live": "node scripts/test-agent-runtime-live.mjs",
     "test:overview:live": "node scripts/test-home-briefing-live.mjs",
-    "test:proactive:jev:live": "node scripts/test-proactive-jev-live.mjs",
-    "test:proactive:docker:live": "node scripts/test-proactive-docker-live.mjs",
     "test:proactive:evaluate": "node scripts/evaluate-proactive.mjs",
     "test:memory:live": "node scripts/test-memory-live.mjs",
     "start": "node src/main.mjs",
     "agent:packages": "node src/agent-catalog/cli.mjs",
     "agent:experience": "node scripts/maintain-experience.mjs",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test:recommendations": "node scripts/test-recommendations.mjs",
+    "typecheck:recommendations": "tsc -p tsconfig.recommendations.json"
   },
   "dependencies": {
     "@earendil-works/chord": "1.4.0",
@@ -39,6 +39,7 @@
     "opencc-js": "1.4.2",
     "proper-lockfile": "4.1.2",
     "typebox": "^1.3.28",
+    "yaml": "2.9.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ProactiveWatch, validateOwnerConfig } from '../src/proactive.mjs'
+import { ProactiveWatch, validateOwnerConfig } from '../src/recommendations/index.mjs'
 
 const time = Date.parse('2026-10-23T10:00:00Z')
 const action = { id: 'inspect', label: 'Inspect the current task history.', tool: 'coding_task_history', params: { target: 'cm5', project: '/workspace/example', taskId: 'e311a280-c0b9-4411-96cd-4e1e92385349' } }
@@ -210,7 +210,7 @@ test('owner and generated action identifiers must be explicit strings', async ()
   }
   const c = config(); delete c.rules[0].actions[0].id
   assert.throws(() => validateOwnerConfig(c), /Invalid proactive owner configuration/)
-  const { validateGeneratedBatch } = await import('../src/proactive-generation.mjs')
+  const { validateGeneratedBatch } = await import('../src/recommendations/index.mjs')
   for (const actionId of [undefined, null, 7, {}, ['inspect']]) {
     const topic = { id: 'work', actions: [{ id: actionId, label: 'Inspect task.' }], evidence: [{ id: 'e0' }] }
     assert.throws(() => validateGeneratedBatch({ suggestions: [{ topicId: 'work', key: 'work', advice: 'Task changed.', actionId, evidenceIds: ['e0'] }] }, [topic], 1), /Invalid generated suggestion/)

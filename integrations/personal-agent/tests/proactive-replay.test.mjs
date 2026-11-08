@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ProactiveWatch } from '../src/proactive.mjs'
+import { ProactiveWatch } from '../src/recommendations/index.mjs'
 import { evaluateProactiveReplay } from '../scripts/evaluate-proactive.mjs'
 
 test('offline replay covers lifecycle outcomes without provider or action calls', async () => {

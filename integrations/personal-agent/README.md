@@ -1,6 +1,6 @@
 # Personal Agent
 
-Resident Pi SDK service with MIC/STT input, streamed Markdown feedback, mandatory typed intent routing and optional proactive proposals.
+Resident Pi Durable service with MIC/STT input, streamed Markdown feedback, mandatory typed intent routing and default proactive proposals.
 Electron is the control/status client.
 There is no TTS or wake word.
 CM5 owns inference, transcription, memory, and task state.
@@ -10,6 +10,7 @@ Windows uses ffmpeg DirectShow for capture; CM5 transcribes its audio.
 Read the [unified architecture](docs/UNIFIED_ARCHITECTURE.md) for authority and reconnect rules.
 
 Read [CONTRACT.md](docs/CONTRACT.md) for authorization, intent routing, Hosted Pi, proposals, and open acceptance limits.
+Use [repository commands](../../docs/MONOREPO.md) for separate recommendation tests, type checks, and module boundary checks.
 Use the [Linux deployment runbook](../../runtime/shell/docs/PERSONAL_AGENT_DEPLOYMENT.md) or [Windows runbook](../../runtime/shell/docs/WINDOWS_HOST.md) for host operations.
 
 ## Install and configure
@@ -32,7 +33,11 @@ Configuration files are private (0600 on POSIX; protected user ACLs on Windows):
 
 - `~/.config/odk/runtime.env`: shared `ODK_WORKSPACE` and optional `ODK_STT_PORT` (default 17840).
 - `~/.config/odk/perosnal-agent.env`: Agent service and device settings. Pi owns model selection and credentials under `PI_CODING_AGENT_DIR`, which defaults to `~/.pi/agent`.
-- Both profiles use the configured ordinary model when Jev is disabled, unavailable, or not configured. Set `ODK_JEV_PROVIDER=disabled` to avoid Jev requests.
+- Typed judgments use the configured ordinary model when Jev is unavailable.
+  Set `ODK_JEV_PROVIDER=disabled` to avoid Jev requests for Intent routing and Overview.
+  The Watch starts regardless of that setting, with a 30-minute heartbeat and no owner rules.
+  `ODK_PROACTIVE_CONFIG` selects an owner rule file with its own heartbeat.
+  If an enabled Jev request fails, Overview uses local facts and reports an error state.
 - Jev credentials are optional. Opt into the personal profile through `ODK_PERSONAL_AGENT_CONFIG`; otherwise coding coordination is the default.
 
 STT defaults to the [device-local bridge](../local-stt-bridge/README.md) at `http://127.0.0.1:<ODK_STT_PORT>/inference`, which needs no key.
@@ -167,7 +172,6 @@ The [runtime contract](docs/CONTRACT.md#durable-runtime) owns storage, legacy co
 The [Mem0 contract](docs/CONTRACT.md#mem0-setup) gives configuration, scope, and migration instructions.
 The [memory evaluation](docs/MEMORY_EVALUATION.md) gives the public dataset test and its limits.
 The [design research](docs/PERSONAL_AGENT_RESEARCH.md) records 24 surveyed repositories, Pi integration choices, and remaining host acceptance.
-The [dsh-superagent comparison](docs/DSH_SUPERAGENT_COMPARISON.md) compares this design with a team coding agent prototype.
 Read its [SSH acceptance procedure](docs/PERSONAL_AGENT_RESEARCH.md#ssh-acceptance) to test the isolated real SSH transport.
 Project settings are untrusted; only the operator agent directory supplies session configuration.
 Generic write/edit/bash/powershell definitions are denied even on resume. [Managed sessions](docs/CONTRACT.md) owns discovery, batching, partial-effect recovery, loader settings and check-history details; [intent routing](docs/CONTRACT.md) owns active/direct tool behavior.
@@ -243,15 +247,20 @@ Configuration changes require an idle Agent. Close cancels an unfinished login.
 
 Use Pi `/login` on CM5 as the service user to configure credentials outside the Shell.
 OpenCode Zen and Go retain native Pi provider IDs and authentication precedence.
-Custom endpoints belong in Pi `models.json`. Personal Agent does not override provider endpoints or keys.
-
+Configure generation endpoints in Pi `models.json`.
 Jev remains optional. `ODK_JEV_PROVIDER` selects `typesafe`, `opencode`, or `disabled`.
+`disabled` does not register or remove the Watch. Use the plugin disable path for that.
 `ODK_JEV_MODEL` selects a registered Pi classifier model. The defaults are `jev-latest` and `jev-1.13`, respectively.
-Jev resolves credentials, headers, and endpoint overrides through Pi ModelRuntime.
+Set `ODK_JEV_MODEL=jev-free` to use the OpenCode free model.
+`ODK_JEV_BASE_URL` can select a separate System One endpoint.
+Jev uses Pi provider credentials and headers for that address.
+A remote address requires HTTPS. Authentication address conflicts cause an error.
 Pi serializes and parses classifier requests through `ModelRuntime.classify()`.
 The host retains deadlines, response limits, and the existing typed judgment contract.
 Only `stopReason: "stop"` supplies answers. Jev is not a chat model and is excluded from `/model`.
-Unavailable Jev uses ordinary model judgment. No OpenCode-specific key file is required.
+Other typed judgments use the ordinary model if Jev is unavailable.
+Overview uses local facts and reports an error if an enabled Jev request fails.
+No OpenCode-specific key file is required.
 
 The service environment file is `~/.config/odk/perosnal-agent.env`.
 This exact filename retains the requested spelling.

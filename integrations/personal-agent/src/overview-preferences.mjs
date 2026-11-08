@@ -50,7 +50,7 @@ export function compileOwnerMarkdown(body) {
 
 /** A missing or invalid owner Markdown file keeps the privacy-safe default. */
 export async function loadOwnerMarkdownPreferences({ env = process.env, platform = process.platform, read = readFile } = {}) {
-  const fallback = { version: 1, mustShow: [...DEFAULT_OVERVIEW_PREFERENCES.mustShow], privateSources: [...DEFAULT_OVERVIEW_PREFERENCES.privateSources] }
+  const fallback = { version: DEFAULT_OVERVIEW_PREFERENCES.version, mustShow: [...DEFAULT_OVERVIEW_PREFERENCES.mustShow], privateSources: [...DEFAULT_OVERVIEW_PREFERENCES.privateSources] }
   try {
     const body = await read(ownerMarkdownPath(env, platform), 'utf8')
     if (typeof body !== 'string' || Buffer.byteLength(body) > MAX_FILE_BYTES) return fallback

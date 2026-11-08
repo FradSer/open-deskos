@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import { pathToFileURL } from 'node:url'
-import { ProactiveWatch } from '../src/proactive.mjs'
+import { ProactiveWatch } from '../src/recommendations/index.mjs'
 
 const start = Date.parse('2026-10-23T10:00:00Z')
 
 /** Replay host behavior with local fixtures. This does not evaluate model quality. */
 export async function evaluateProactiveReplay({ createWatch = options => new ProactiveWatch(options) } = {}) {
-  const calls = { generation: 0, judgment: 0, actions: 0 }
+  const calls = { generation: 0, actions: 0 }
   const scenarios = []
   const watches = []
   function fixture({ count: initialCount = 2, config: overrides = {}, stale = false } = {}) {
@@ -23,10 +23,6 @@ export async function evaluateProactiveReplay({ createWatch = options => new Pro
           calls.generation++
           return { suggestions: topics.filter(topic => topic.evidence[0].value > 0).map(topic => ({ topicId: topic.id, key: 'collect',
             advice: 'Check pending parcels.', actionId: 'inspect', evidenceIds: [topic.evidence[0].id] })) }
-        },
-        judge: async ({ candidates }) => {
-          calls.judgment++
-          return { model: 'jev-offline-fixture', answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.95, groundingProbability: 0.95, threshold: 0.8 }])) }
         },
         publish: frame => frames.push(structuredClone(frame)), save: async () => {}, phrase: async ({ advice }) => advice,
         execute: async () => { calls.actions++; throw Error('Offline replay must not execute actions') },
@@ -65,7 +61,6 @@ export async function evaluateProactiveReplay({ createWatch = options => new Pro
       f.clock(start + 1000); await watch.tick()
       assert.deepEqual(watch.list().map(p => p.id), [first.id])
       assert.equal(calls.generation - before.generation, 1)
-      assert.equal(calls.judgment - before.judgment, 1)
       assert.equal(f.frames.filter(frame => frame.popup).length, 1)
     })
     await scenario('completion-survives-checkpoint-and-fact-change-creates-new-occurrence', async () => {
@@ -124,7 +119,6 @@ export async function evaluateProactiveReplay({ createWatch = options => new Pro
       await watch.tick()
       assert.equal(watch.list().length, 0)
       assert.equal(calls.generation, before.generation)
-      assert.equal(calls.judgment, before.judgment)
       assert(!f.frames.some(frame => frame.popup))
     })
   } finally { await Promise.all(watches.map(watch => watch.close())) }

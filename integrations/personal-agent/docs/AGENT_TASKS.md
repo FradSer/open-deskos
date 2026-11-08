@@ -2,7 +2,7 @@
 
 The `subagents` plugin is a fixed DeskOS implementation.
 It does not install or load `pi-subagents` or another native Pi extension.
-Pi Durable 1.2 owns each child conversation and its tool execution.
+Pi Durable owns each child conversation and its tool execution.
 
 ## Task lifecycle
 

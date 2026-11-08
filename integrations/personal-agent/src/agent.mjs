@@ -4,7 +4,7 @@ import {DEFAULT_OVERVIEW_PREFERENCES} from './overview-preferences.mjs'
 import {createJudgmentClient, judgmentInstructions, validateOrdinaryJudgmentAnswers} from './judgment-client.mjs'
 import { guardReplyTools, hostedPromptAcknowledgement } from './session-replies.mjs'
 import { remoteTaskNamesInstructions, remoteTaskNamesReviewInstructions, validateRemoteTaskNames, remoteSummaryInstructions, validateRemoteSummary, remoteReviewInstructions, validateRemoteReview } from './remote-conversation.mjs'
-import { createIntentStore, createIntentRuntime } from './intents.mjs'
+import { createIntentStore, createIntentRuntime, ROUTINE_FILENAME } from './recommendations/index.mjs'
 import { createIntentJudge } from './intent-jev.mjs'
 import { createIntentTools } from './intent-tools.mjs'
 import { odkDataRequest } from './odk-data.mjs'
@@ -30,10 +30,8 @@ import { createPersonalTools } from './personal-tools.mjs'
 import { createProposalTools } from './proactive-tools.mjs'
 import { createJevIntentRouter, createIntentTurn, guardIntentTools, intentToolNames, proposalConfirmations, isExtensionTool } from './intent-routing.mjs'
 import { normalizeCapabilityDeclarations, createReviewedCapabilities, childCapabilityDeclarations } from './reviewed-capabilities.mjs'
-import { validateGeneratedBatch, modelInput } from './proactive-generation.mjs'
-import { generationSystemPrompt, parseSuggestionDocument, openuiFormatCorrection } from './openui-contract.mjs'
-import { replyProjectionInstructions, replyProjectionFormatCorrection, validateReplyProjection, fallbackReplyProjection } from './reply-projection.mjs'
-import { createJevJudge } from './proactive-jev.mjs'
+import { validateGeneratedBatch, modelInput } from './recommendations/index.mjs'
+import { generationSystemPrompt, parseSuggestionDocument, openuiFormatCorrection, replyDraftSystemPrompt, parseReplyDraftDocument } from './recommendations/index.mjs'
 import { createProactiveInvestigationTools } from './proactive-investigation.mjs'
 import { createAgentPluginRuntime, pluginWorkKind } from './agent-plugins/runtime.mjs'
 import { renderPluginInput } from './agent-plugins/prompt.mjs'
@@ -42,7 +40,7 @@ import { createHostedCompletionTool } from './agent-plugins/hosted-completion.mj
 import { completionInstructions, completionNotice, hostedCompletionInstructions, validateCompletion, pluginFormatCorrection } from './agent-plugins/completion.mjs'
 import { openAgentCatalog } from './agent-catalog/catalog.mjs'
 import { createAgentCatalogRuntime } from './agent-catalog/tools.mjs'
-import { loadPrivateRecommendationConfig, createConfiguredPrivateSources } from './private-recommendation-sources.mjs'
+import { loadPrivateRecommendationConfig, createConfiguredPrivateSources, createConfiguredScheduleConflict, createGmailRoutineSources, createPrivateMcpObserver } from './recommendations/index.mjs'
 import { openAgentTasks } from './agent-tasks/runtime.mjs'
 import { createAgentTaskTools } from './agent-tasks/tools.mjs'
 import { OWNER_HISTORY_ENTRY, createHistoryEvidence, createHistoryIndexer, createHistoryTools, renderHistoryPreview } from './history-evidence.mjs'
@@ -90,6 +88,31 @@ function homeGenerationModels(source) {
     return source.streamSimple(selected, context, { ...options,
       maxTokens: Math.min(2048, options?.maxTokens > 0 ? options.maxTokens : 2048) })
   }
+  return new Proxy(source, { get(target, key) {
+    if (key === 'streamSimple') return stream
+    const value = Reflect.get(target, key, target)
+    return typeof value === 'function' ? value.bind(target) : value
+  } })
+}
+
+/** Bound short, tool-free work without changing the owner's conversation model settings.
+ * @param {import('@earendil-works/pi-coding-agent').ModelRuntime} source
+ * @param {number} maxTokens
+ */
+function boundedDecisionModels(source, maxTokens) {
+  const stream = /** @type {typeof source.streamSimple} */ ((model, context, options = {}) => {
+    // The Magpie route enables Hy4 reasoning by default even when Pi lists this model as non-reasoning.
+    const needsExplicitOff = model.provider === 'magpie' && model.id === 'hunyuan-eval/hy4-dev' && model.api === 'openai-completions'
+    if (!needsExplicitOff) return source.streamSimple(model, context, options)
+    return source.streamSimple(model, context, { ...options, reasoning: undefined, maxRetries: 0,
+      maxTokens: Math.min(maxTokens, options.maxTokens > 0 ? options.maxTokens : maxTokens),
+      onPayload: async (payload, effectiveModel) => {
+        const transformed = await options.onPayload?.(payload, effectiveModel)
+        const body = transformed === undefined ? payload : transformed
+        return body && typeof body === 'object' && !Array.isArray(body) ? { ...body, reasoning_effort: 'none' } : body
+      },
+    })
+  })
   return new Proxy(source, { get(target, key) {
     if (key === 'streamSimple') return stream
     const value = Reflect.get(target, key, target)
@@ -199,6 +222,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
   let packages
   let packageCatalog
   let privateSources
+  let scheduleConflict
   let tasks
   let historyIndexer
   const backend = config.mem0 ?? createMem0Backend({ stateDir: config.stateDir, env: config.env })
@@ -235,10 +259,6 @@ export async function createPersonalAgent(config, { createSession = createDurabl
       await packages.refresh(signal)
       signal?.throwIfAborted()
     }
-    if (!config.childAgent && packageCatalog && config.personal?.agentPlugins?.enabled.includes('mcp')) {
-      const selected = loadPrivateRecommendationConfig(config.env ?? process.env)
-      if (selected.sources.length) privateSources = createConfiguredPrivateSources({ config: selected, catalog: packageCatalog, env: config.env ?? process.env })
-    }
     reviewed = personal ? await createReviewedCapabilities({ declarations, stateDir: config.stateDir,
       signal: signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal, onRideUpdate: config.onRideUpdate }) : undefined
     signal?.throwIfAborted()
@@ -257,10 +277,20 @@ export async function createPersonalAgent(config, { createSession = createDurabl
     let conversationMemory
     let ownerMarkdown = ''
     const intentJudgment = !config.childAgent && config.personal?.agentPlugins?.enabled.includes('intent') ? createIntentJudgment({ env: config.env ?? process.env, request: judgment.request }) : undefined
-    const intents = intentJudgment ? createIntentRuntime({ store: createIntentStore(join(config.stateDir, 'personal-agent', 'intent.md')),
-      memory: async () => JSON.parse(await memory.read()), memoryVersion: keys => memory.version(keys),
+    const intents = intentJudgment ? createIntentRuntime({ store: createIntentStore(join(config.stateDir, 'personal-agent', ROUTINE_FILENAME)),
+      memory: (keys, signal) => withDeadline(deadline => memory.readNamed(keys, deadline), signal, 3000),
+      memoryVersion: keys => memory.version(keys),
       read: async (id, signal) => (await odkDataRequest('read', { id, signal, env: config.env ?? process.env })).reading,
       judge: intentJudgment.condition, previewRide: (route, signal, valid) => reviewed.previewRide(route, signal, valid) }) : undefined
+    let gmailRoutines
+    if (!config.childAgent && packageCatalog && config.personal?.agentPlugins?.enabled.includes('mcp')) {
+      const env = config.env ?? process.env
+      const selected = loadPrivateRecommendationConfig(env)
+      if (intents) gmailRoutines = createGmailRoutineSources({ store: intents.store,
+        makeObserver: readOnlyTools => createPrivateMcpObserver({ catalog: packageCatalog, connectorId: 'gmail', readOnlyTools, env }) })
+      if (selected.sources.length || gmailRoutines) privateSources = createConfiguredPrivateSources({ config: selected, catalog: packageCatalog, env, routines: gmailRoutines })
+      if (selected.scheduleConflict) scheduleConflict = createConfiguredScheduleConflict({ config: selected, catalog: packageCatalog, env })
+    }
     /** @type {NonNullable<import('@earendil-works/pi-coding-agent').CreateAgentSessionOptions['customTools']>} */
     const customTools = await loadCapabilities(personal ? [] : config.capabilityPaths, {
       applications: (command, params) => originatingAppsRequest(ownerTurn?.applications, command, params, config.workspace),
@@ -330,7 +360,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
       try { return eligibility?.(action.params) === true ? tool : undefined } catch { return undefined }
     }
     if (config.getWatch) customTools.push(...createProposalTools(config.getWatch, () => currentTurn, { intentPreviews: Boolean(intents), currentTurnId: () => intentTurn.getTurn(), onPrivateData: () => plugins?.markPrivateData() }))
-    if (intents) customTools.push(...createIntentTools({ runtime: intents, judge: intentJudgment, currentTurn: () => ({ text: currentTurn, intent: intentTurn.getIntent(), turn: intentTurn.getTurn() }), getWatch: config.getWatch ?? (() => undefined), memory: async () => JSON.parse(await memory.read()) }))
+    if (intents) customTools.push(...createIntentTools({ runtime: intents, judge: intentJudgment, currentTurn: () => ({ text: currentTurn, intent: intentTurn.getIntent(), turn: intentTurn.getTurn() }), getWatch: config.getWatch ?? (() => undefined), gmailRoutines }))
     const intentTurn = createIntentTurn({ onDiagnostic:config.childAgent?undefined:onIntentDiagnostic, route: routeIntent, profile, tools: customTools.map(tool => tool.name), childExecution: Boolean(config.childAgent), getRemoteContext: () => remoteContext(),
       getWorkReferences: () => tasks?.workReferences?.() ?? [],
       capabilities: () => customTools.map(tool => ({ name: tool.name, description: tool.description?.slice(0, 2048) || tool.name })),
@@ -356,7 +386,9 @@ export async function createPersonalAgent(config, { createSession = createDurabl
             settingsManager: SettingsManager.inMemory({}), agentsFilesOverride: () => ({ agentsFiles: [] }),
             appendSystemPromptOverride: () => [], systemPromptOverride: () => kind === 'remote_names' ? remoteTaskNamesInstructions : kind === 'remote_names_review' ? remoteTaskNamesReviewInstructions : kind === 'judgment' ? judgmentInstructions : kind === 'remote' ? remoteSummaryInstructions : kind === 'remote_review' ? remoteReviewInstructions : `${completionInstructions}\n${hostedCompletionInstructions}` })
           await loader.reload()
-          const { session: worker } = await createSession({ cwd, resourceLoader: loader, modelRuntime, model: session.model, thinkingLevel:session.getThinkingLevel?.(), tools: [], customTools: [], ephemeral: true,
+          const { session: worker } = await createSession({ cwd, resourceLoader: loader,
+            modelRuntime: kind === 'judgment' ? boundedDecisionModels(modelRuntime, Math.max(1024, 128 * Object.keys(input.questions ?? {}).length)) : modelRuntime,
+            model: session.model, thinkingLevel: session.getThinkingLevel?.(), tools: [], customTools: [], ephemeral: true,
             settingsManager: SettingsManager.inMemory({ defaultTools: [], retry: { enabled: false }, compaction: { enabled: false } }), sessionManager: SessionManager.inMemory(cwd) })
           return worker
         },
@@ -492,34 +524,9 @@ export async function createPersonalAgent(config, { createSession = createDurabl
       },
     })
     const api = { ...adapter,
-      // A long resident reply becomes a short message plus an optional read-only
-      // detail card. One bounded tool-free turn reads the reply as untrusted data.
-      // Any failure publishes the exact original reply.
-      projectReply: async (original, signal) => {
-        if (config.childAgent || typeof original !== 'string' || original.trim().length <= 180) return fallbackReplyProjection(original)
-        try {
-          const projected = await generateWithinDeadline({
-            signal: signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal,
-            timeoutMs: (config.env ?? process.env).ODK_REPLY_PROJECTION_TIMEOUT_MS ?? 15000,
-            formatCorrection: replyProjectionFormatCorrection,
-            validate: value => { validateReplyProjection(value, original) },
-            create: async () => {
-              const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,
-                settingsManager: SettingsManager.inMemory({}), agentsFilesOverride: () => ({ agentsFiles: [] }),
-                appendSystemPromptOverride: () => [], systemPromptOverride: () => replyProjectionInstructions })
-              await loader.reload()
-              const { session: generator } = await createSession({ cwd, resourceLoader: loader, modelRuntime, model: session.model, thinkingLevel: session.getThinkingLevel?.(), tools: [], customTools: [], ephemeral: true,
-                settingsManager: SettingsManager.inMemory({ defaultTools: [], retry: { enabled: false }, compaction: { enabled: false } }), sessionManager: SessionManager.inMemory(cwd) })
-              return generator
-            },
-            prompt: (worker, text) => sessionAdapter(worker).prompt(text),
-          }, { reply: original })
-          return validateReplyProjection(projected, original)
-        } catch {
-          return fallbackReplyProjection(original)
-        }
-      },
       judge: input => judgment.request({...input, signal: input.signal ? AbortSignal.any([input.signal, lifetime.signal]) : lifetime.signal}),
+      // The ordinary zero-tool model, without the Jev classifier. The proactive
+      // chain uses this so composition decisions never enter a typed judgment.
       get judgmentStatus() { return lifetime.signal.aborted ? {status: 'unavailable', provider: 'model'} : judgment.status },
       checkJevAuthentication: signal => checkJevAuthentication({ env: config.env ?? process.env, signal, runtime: modelRuntime }),
       setJevHealth: health => judgment.setJevHealth(health),
@@ -527,6 +534,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
       refreshAuthentication: () => modelRuntime.refresh({allowNetwork:false, signal:lifetime.signal}),
       agentTasks: tasks,
       privateSources,
+      scheduleConflict,
       attachRemoteContext(provider, read, followup) { remoteContext=provider??(()=>""); remoteHistory=read??remoteHistory;remoteFollowup=followup??remoteFollowup },
       remoteEnabled: !config.childAgent && config.personal?.agentPlugins?.enabled.includes('remote_conversation') === true,
       nameRemoteTasks: async input => {
@@ -592,11 +600,13 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         if(thinkingLevel!==undefined)await session.setThinkingLevel(thinkingLevel)
       },
       generateProposals: async ({ signal, ...input }) => {
-        // The Agent investigates and revises inside its process; the judgment client
-        // keeps the documented Jev-or-ordinary degrade path for every judgment.
-        const investigation = createProactiveInvestigationTools({
+        // The host checks Intent prerequisites before the model composes the UI.
+        // The model proposes next steps and the host validates its draft.
+        const scopedIntent = input.topics.some(topic => topic.intentCondition)
+        const scopedPrivate = input.topics.some(topic => topic.evidence?.some(entry => entry.readingId?.startsWith('private.')))
+        const scopedInput = scopedIntent || scopedPrivate
+        const investigation = scopedInput ? { tools: [] } : createProactiveInvestigationTools({
           input,
-          judge: createJevJudge({ env: config.env ?? process.env, request: judgment.request }),
           read: (id, callSignal) => odkDataRequest('read', { id, signal: callSignal, env: config.env ?? process.env }),
         })
         return generateWithinDeadline({
@@ -610,12 +620,37 @@ export async function createPersonalAgent(config, { createSession = createDurabl
             settingsManager: SettingsManager.inMemory({}), agentsFilesOverride: () => ({ agentsFiles: [] }),
             appendSystemPromptOverride: () => [], systemPromptOverride: () => generationSystemPrompt })
           await loader.reload()
-          const { session: generator } = await createSession({ cwd, resourceLoader: loader, modelRuntime, model: session.model, thinkingLevel:session.getThinkingLevel?.(), tools: [], customTools: investigation.tools, ephemeral: true,
+          const { session: generator } = await createSession({ cwd, resourceLoader: loader,
+            modelRuntime: scopedInput ? boundedDecisionModels(modelRuntime, 2048 * Math.max(1, Math.min(input.topics.length, input.maxCandidates ?? 8))) : modelRuntime,
+            model: session.model, thinkingLevel: session.getThinkingLevel?.(), tools: [], customTools: investigation.tools, ephemeral: true,
             settingsManager: SettingsManager.inMemory({ defaultTools: [], retry: { enabled: false }, compaction: { enabled: false } }), sessionManager: SessionManager.inMemory(cwd) })
           return generator
         },
         prompt: (generator, text) => sessionAdapter(generator).prompt(text),
         }, input)
+      },
+      prepareReply: async ({ source, signal }) => {
+        if (typeof source !== 'string' || !source.trim() || source.length > 4096) throw Error('Reply source unavailable')
+        const combined = AbortSignal.any([lifetime.signal, ...(signal ? [signal] : [])])
+        return generateWithinDeadline({
+          signal: combined, timeoutMs: (config.env ?? process.env).ODK_PROACTIVE_GENERATION_TIMEOUT_MS,
+          parse: parseReplyDraftDocument,
+          serialize: request => JSON.stringify(request),
+          formatCorrection: () => 'Return one complete OpenUI Suggestions document with the fixed reply-draft identity, one Advice and Text paragraphs. No action or owner step. The reply is an unsent draft.',
+          validate: value => { if (typeof value?.text !== 'string' || !value.text.trim() || value.text.length > 4000) throw Error('Reply draft unavailable') },
+          create: async () => {
+            const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,
+              settingsManager: SettingsManager.inMemory({}), agentsFilesOverride: () => ({ agentsFiles: [] }),
+              appendSystemPromptOverride: () => [], systemPromptOverride: () => replyDraftSystemPrompt })
+            await loader.reload()
+            const { session: generator } = await createSession({ cwd, resourceLoader: loader,
+              modelRuntime: boundedDecisionModels(modelRuntime, 2048), model: session.model,
+              thinkingLevel: session.getThinkingLevel?.(), tools: [], customTools: [], ephemeral: true,
+              settingsManager: SettingsManager.inMemory({ defaultTools: [], retry: { enabled: false }, compaction: { enabled: false } }), sessionManager: SessionManager.inMemory(cwd) })
+            return generator
+          },
+          prompt: (generator, text) => sessionAdapter(generator).prompt(text),
+        }, { source })
       },
       feedbackMemoryEnabled,
       feedbackStore: personal && !config.childAgent && backend.enabled ? backend.scope(config.stateDir, 'feedback') : undefined,
@@ -689,9 +724,9 @@ export async function createPersonalAgent(config, { createSession = createDurabl
           return order.map(i => sentences[i]).join('')
         } finally { clearTimeout(timeout); signal?.removeEventListener('abort', abort); await phrasing.dispose() }
       },
-      close: async () => { lifetime.abort(); try { await tasks?.close() } finally { try { await closeMemory() } finally { try { await adapter.close() } finally { try { await privateSources?.close() } finally { try { await packages?.close() } finally { await reviewed?.close() } } } } } } }
+      close: async () => { lifetime.abort(); try { await tasks?.close() } finally { try { await closeMemory() } finally { try { await adapter.close() } finally { try { await Promise.all([privateSources?.close(), scheduleConflict?.close()]) } finally { try { await packages?.close() } finally { await reviewed?.close() } } } } } } }
     // Reserve every inference entry synchronously, including background workers.
-    for (const name of ['prompt','projectReply','judge','nameRemoteTasks','summarizeRemote','generateBriefing','generateProposals','executeProposal','phraseProposal']) {
+    for (const name of ['prompt','judge','nameRemoteTasks','summarizeRemote','generateBriefing','generateProposals','executeProposal','phraseProposal']) {
       const operation=api[name]
       if(typeof operation!=='function')continue
       api[name]=async (...args)=>{
@@ -708,7 +743,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         abortSession()
         try { await aborting } finally { await session.dispose() }
       }
-    } finally { try { await tasks?.close() } finally { try { await closeMemory() } finally { try { await privateSources?.close() } finally { try { await packages?.close() } finally { await reviewed?.close() } } } } }
+    } finally { try { await tasks?.close() } finally { try { await closeMemory() } finally { try { await Promise.all([privateSources?.close(), scheduleConflict?.close()]) } finally { try { await packages?.close() } finally { await reviewed?.close() } } } } }
     throw error
   } finally {
     signal?.removeEventListener('abort', abortSession)

@@ -362,3 +362,25 @@ test('native Pi configuration and auth links remain scoped to the trusted Shell 
   assert.equal(await stale, null, 'a superseded response cannot return an old auth link')
   assert.equal(await open(trusted, 'https://provider.example/stale'), false)
 })
+
+
+test('native Gmail source navigation only opens a currently offered message from the trusted Shell', async t => {
+  const trusted = {}, opened = []
+  const f = fixture({ isConsumerFrame: event => event === trusted, openExternal: async url => opened.push(url) })
+  t.after(() => f.host.stop())
+  const p = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', status: 'pending', offered: true, action: null,
+    sources: [{ kind: 'gmail', label: 'Gmail', messageId: '18b123abcd' },
+      { kind: 'gmail', label: 'Gmail', messageId: '18b456ef' }] }
+  let status = { state: 'idle', proposals: [p] }
+  f.bot.snapshot = () => status
+  await f.host.start()
+  const open = f.handlers.get('odk-personal-agent-gmail-open')
+  assert.equal(await open({}, p.id, '18b123abcd'), false)
+  assert.equal(await open(trusted, p.id, '18b123abcd?x=y'), false)
+  assert.equal(await open(trusted, p.id, '18b456ef'), false)
+  assert.equal(await open(trusted, 'different-proposal', '18b123abcd'), false)
+  assert.equal(await open(trusted, p.id, '18b123abcd'), true)
+  status = { ...status, proposals: [{ ...p, status: 'expired' }] }
+  assert.equal(await open(trusted, p.id, '18b123abcd'), false)
+  assert.deepEqual(opened, ['https://mail.google.com/mail/#all/18b123abcd'])
+})

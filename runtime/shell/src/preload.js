@@ -62,6 +62,7 @@ contextBridge.exposeInMainWorld('odkPersonalAgent', {
   sendText: (text, replyTo) => replyTo === undefined ? ipcRenderer.invoke('odk-personal-agent-text', text) : ipcRenderer.invoke('odk-personal-agent-text', text, replyTo),
   getStatus: () => ipcRenderer.invoke('odk-personal-agent-status'),
   consumerReady: (id) => ipcRenderer.invoke('odk-personal-agent-consumer-ready', id),
+  openProposalGmail: (proposalId, messageId) => ipcRenderer.invoke('odk-personal-agent-gmail-open', proposalId, messageId),
   proposalCommand: (command) => ipcRenderer.invoke('odk-personal-agent-proposal', command),
   subscribe(listener) {
     const handler = (_event, update) => listener(update)

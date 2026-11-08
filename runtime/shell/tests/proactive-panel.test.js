@@ -39,9 +39,10 @@ function fixture({ readiness = false, hidden = false } = {}) {
   class Clock extends Date { static now() { return now } }
   const surface = new Element(); surface.hidden = true
   const content = new Element()
-  const local = new Element('textarea'), commands = [], ready = [], events = {}, observers = []
+  const local = new Element('textarea'), commands = [], ready = [], events = {}, observers = [], markdown = []
   const document = { hidden, visibilityState: hidden ? 'hidden' : 'visible', addEventListener(name, cb) { events[name] = cb }, removeEventListener() {}, querySelector: () => null, getElementById: () => surface, activeElement: local, body: { children: [local, surface, content] }, createElement: tag => new Element(tag) }
-  const window = { odkPersonalAgent: { proposalCommand: async command => { commands.push(command); return { accepted: true } } } }
+  const window = { odkPersonalAgent: { proposalCommand: async command => { commands.push(command); return { accepted: true } } },
+    odkPersonalAgentReply: { render: (target, message) => { markdown.push({ target, message }); target.textContent = message } } }
   if (readiness) window.odkPersonalAgent.consumerReady = id => { ready.push(id); return Promise.resolve({ accepted: true }) }
   let sequence = 0
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/personal-agent-suggestions.js'), 'utf8'), { window, document, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++sequence).padStart(12, '0')}` }, console, Date: Clock, IntersectionObserver: class { constructor(callback) { this.callback = callback; this.nodes = new Set(); observers.push(this) } observe(node) { this.nodes.add(node) } disconnect() { this.nodes.clear() } unobserve(node) { this.nodes.delete(node) } } })
@@ -53,7 +54,7 @@ function fixture({ readiness = false, hidden = false } = {}) {
   const controller = window.odkPersonalAgentSuggestions.mount(content, { focusInput: () => local.focus() })
   const render = status => controller.update(status)
 
-  return { controller, surface, content, local, commands, ready, render, window, events, document, observers, states,
+  return { controller, surface, content, local, commands, ready, render, window, events, document, observers, states, markdown,
     state() { return states.at(-1) || { caption: '', detail: '' } },
     advance(ms) { now += ms }, visible(node, ratio = 1, { height = 44, viewportHeight = 200 } = {}) { for (const observer of observers) if (observer.nodes.has(node)) observer.callback([{ target: node, isIntersecting: ratio > 0, intersectionRatio: ratio, boundingClientRect: { width: 100, height }, rootBounds: { width: 100, height: viewportHeight }, intersectionRect: { width: ratio > 0 ? 100 : 0, height: height * ratio } }]) } }
 }
@@ -68,6 +69,96 @@ test('incoming recommendations are individual Personal Agent conversation messag
   assert.ok(message.querySelector('.personal-agent-proposal-actions'))
   assert.equal(f.surface.hidden, true, 'Recommendations do not open a popup')
   assert.equal(f.document.activeElement, f.local, 'Incoming recommendations preserve input focus')
+})
+test('a sourced recommendation offers one bound review action without a source disclosure', async () => {
+  const f = fixture(), p = { ...proposal(), action: null, confirmation: '', sources: [
+    { kind: 'gmail', label: 'Gmail', messageId: 'a123' },
+    { kind: 'calendar', label: 'Calendar', readingId: 'calendar.events' },
+    { kind: 'gmail', label: 'Gmail', messageId: 'b234' },
+  ] }
+  const opened = []
+  f.window.odkPersonalAgent.openProposalGmail = async (...args) => { opened.push(args); return true }
+  f.render({ state: 'idle', proposals: [p] })
+  const byAction = action => flatten(f.content).find(node => node.dataset.proposalAction === action)
+  assert.equal(f.content.querySelector('.personal-agent-proposal-sources'), null)
+  assert.equal(flatten(f.content).some(node => node.textContent === 'Calendar'), false)
+  const primary = flatten(f.content).filter(node => node.className === 'personal-agent-proposal-primary')
+  assert.equal(primary.length, 1)
+  assert.equal(primary[0].dataset.proposalAction, 'open-gmail')
+  assert.equal(byAction('execute'), undefined)
+  assert.ok(byAction('snooze'))
+  await byAction('open-gmail').click()
+  assert.deepEqual(opened, [[p.id, 'a123']])
+  assert.deepEqual(f.commands, [])
+  await byAction('ignore').click()
+  assert.equal(f.commands[0]?.decision, 'ignore')
+})
+test('read-only Intent advice omits evidence disclosures and raw source identifiers', () => {
+  const f = fixture(), p = { ...proposal(), ruleId: 'intent-f34352ab-094e-4efa-aa9e-cbe5ad904351', action: null,
+    confirmation: '', nextStep: 'Take a coat.', evidence: [
+      { readingId: 'odk.tile.weather', field: 'temperatureC', value: 5, state: 'live', measuredAt: '2026-11-06T08:30:00Z' },
+      { readingId: 'intent.f34352ab-094e-4efa-aa9e-cbe5ad904351', field: 'wish', value: 'Private wish context', state: 'live', measuredAt: '2026-11-06T08:30:00Z' },
+      { readingId: 'odk.tile.weather', field: 'digest', value: 'a'.repeat(64), state: 'live', measuredAt: '2026-11-06T08:30:00Z' },
+    ] }
+  f.render({ state: 'idle', proposals: [p] })
+  assert.equal(f.content.querySelector('.personal-agent-proposal-evidence'), null)
+  const shown = flatten(f.content).map(node => node.textContent).join(' ')
+  assert.doesNotMatch(shown, /Source evidence|odk\.tile\.weather|temperatureC|2026-11-06|Private wish context/)
+  assert.equal(f.content.querySelector('.personal-agent-proposal-next-step').textContent, 'Take a coat.')
+  assert.equal(flatten(f.content).some(node => ['execute', 'open-gmail', 'ride-quote'].includes(node.dataset.proposalAction)), false)
+  assert.deepEqual(f.commands, [])
+
+  f.render({ state: 'idle', proposals: [{ ...p, presented: true }] })
+  assert.equal(f.content.querySelector('.personal-agent-proposal-evidence'), null)
+})
+for (const decision of ['ignore', 'mute']) test('read-only Intent ' + decision + ' sends one exact reminder response without conflicting commands', async () => {
+  const f = fixture(), p = { ...proposal(), ruleId: 'intent-f34352ab-094e-4efa-aa9e-cbe5ad904351', action: null, confirmation: '' }
+  const render = extra => f.render({ state: 'idle', proposals: [p], ...extra })
+  render()
+  const buttons = () => flatten(f.content).filter(node => node.tagName === 'BUTTON')
+  assert.deepEqual(buttons().map(node => node.textContent), ['Later', 'Ignore', 'Pause reminder'])
+  const control = buttons().find(node => node.dataset.proposalAction === decision)
+  await control.click()
+  await control.click()
+  await buttons().find(node => node.dataset.proposalAction === (decision === 'ignore' ? 'mute' : 'ignore')).click()
+  render({ proposals: [{ ...p, presented: true }] })
+  await buttons().find(node => node.dataset.proposalAction === decision).click()
+  assert.equal(f.commands.length, 1)
+  assert.equal(f.commands[0].id, p.id)
+  assert.equal(f.commands[0].decision, decision)
+  render({ proposals: [{ ...p, status: 'ignored' }] })
+  assert.equal(f.content.querySelector('.personal-agent-proposal'), null)
+  await control.click()
+  assert.equal(f.commands.length, 1, 'Detached controls cannot send feedback')
+  render({ proposalCapabilities: { read: true, respond: false, acknowledge: false } })
+  assert.equal(buttons().length, 0)
+})
+test('a confirmed Intent snooze releases feedback controls when the same reminder returns', async () => {
+  const f = fixture(), p = { ...proposal(), ruleId: 'intent-f34352ab-094e-4efa-aa9e-cbe5ad904351', action: null, confirmation: '' }
+  const render = value => f.render({ state: 'idle', proposals: [value] })
+  const control = action => flatten(f.content).find(node => node.dataset.proposalAction === action)
+  render(p)
+  await control('snooze').click()
+  render({ ...p, offered: false, presented: false, feedback: 'snooze', snoozedUntil: Date.now() + 60000 })
+  assert.equal(f.content.querySelector('.personal-agent-proposal'), null)
+  f.advance(60000)
+  render({ ...p, feedback: 'snooze' })
+  assert.equal(control('ignore').disabled, false)
+  await control('ignore').click()
+  assert.deepEqual(f.commands.map(command => command.decision), ['snooze', 'ignore'])
+})
+test('a pre-delivery refusal releases Intent feedback while an ambiguous response remains reserved', async () => {
+  const f = fixture(), p = { ...proposal(), ruleId: 'intent-f34352ab-094e-4efa-aa9e-cbe5ad904351', action: null, confirmation: '' }
+  let accepted = false
+  f.window.odkPersonalAgent.proposalCommand = async command => { f.commands.push(command); if (accepted) throw Error('Lost transport receipt'); return { accepted } }
+  f.render({ state: 'idle', proposals: [p] })
+  const pause = () => flatten(f.content).find(node => node.dataset.proposalAction === 'mute')
+  await pause().click()
+  assert.equal(pause().disabled, false)
+  accepted = true
+  await pause().click()
+  await pause().click()
+  assert.equal(f.commands.length, 2)
 })
 test('recommendations preserve the draft and selection during arrival and feedback updates', () => {
   const f = fixture(), p = proposal()
@@ -164,6 +255,16 @@ test('a desk-projected next step stays readable on the read-only Android surface
   f.visible(f.content.querySelector('.personal-agent-proposal-advice'))
   assert.equal(f.commands.length, 0)
 })
+test('advice renders through the safe shared Markdown renderer, not raw textContent', () => {
+  const f = fixture(), p = { ...proposal(), advice: 'Gmail 连接状态：**未配置**。' }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const advice = f.content.querySelector('.personal-agent-proposal-advice')
+  assert.ok(advice)
+  const call = f.markdown.find(entry => entry.target === advice)
+  assert.ok(call, 'advice must go through odkPersonalAgentReply.render')
+  assert.equal(call.message, 'Gmail 连接状态：**未配置**。')
+})
+
 test('technical advice remains private and cannot acknowledge an unread original', () => {
   const f = fixture(), p = { ...proposal(), action: null, advice: `Inspect expectedSHA256 ${'a'.repeat(64)}` }
   f.render({ state: 'idle', proposals: [p], proposalPopup: true })
@@ -295,14 +396,14 @@ test('actual service, private socket and Shell client deliver restored ride refr
   const { tmpdir } = require('node:os')
   const load = file => import(integrationURL(`personal-agent/src/${file}`, __dirname))
   const { PersonalAgentService } = await load('service.mjs'), { listen } = await load('socket.mjs')
-  const { createIntentStore, createIntentRuntime } = await load('intents.mjs'), { proposalStateStore } = await load('proactive-state.mjs')
-  const { createRidePreview } = await load('didi/preview.mjs'), { ProactiveWatch } = await load('proactive.mjs')
+  const { createIntentStore, createIntentRuntime, proposalStateStore, ProactiveWatch, ROUTINE_FILENAME } = await load('recommendations/index.mjs')
+  const { createRidePreview } = await load('didi/preview.mjs')
   const { createProposalTools } = await load('proactive-tools.mjs'), { guardIntentTools } = await load('intent-routing.mjs')
   const { protectProactivePath } = await load('proactive-private.mjs')
   const { createPersonalAgentClient } = require('../src/personal-agent-client.js')
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'odk-ride-wire-'))); protectProactivePath(dir)
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
-  const store = createIntentStore(path.join(dir, 'intent.md')), checkpoint = proposalStateStore(path.join(dir, 'state.json'))
+  const store = createIntentStore(path.join(dir, ROUTINE_FILENAME)), checkpoint = proposalStateStore(path.join(dir, 'state.json'))
   let now = Date.now(), turns = [], calls = 0, watch, currentText = ''
   const at = new Date(now).toISOString().slice(11, 16)
   store.save({ wish: '查看午间行程', condition: '每天提醒', at, timeZone: 'UTC', windowMinutes: 10, memoryKeys: [], observations: [], ride: { city: '测试市', from: '测试办公楼', to: '测试健身馆' } })
@@ -420,6 +521,28 @@ test('visibility acknowledgement retries are bounded and recover after a lost co
   assert.equal(f.commands.length, 4, 'A resident-confirmed visible state never resends')
 })
 
+test('one primary business action stays separate from the More reminder menu', () => {
+  const f = fixture()
+  f.render({ state: 'idle', proposals: [proposal()] })
+  const primary = flatten(f.content).filter(node => node.className === 'personal-agent-proposal-primary')
+  assert.equal(primary.length, 1)
+  const menu = f.content.querySelector('.personal-agent-proposal-more')
+  assert.ok(menu)
+  assert.equal(menu.open, false)
+  const summary = flatten(menu).find(node => node.tagName === 'SUMMARY')
+  assert.equal(summary.textContent, 'More')
+  assert.deepEqual(flatten(menu).filter(node => node.tagName === 'BUTTON').map(node => node.textContent), ['Later'])
+  menu.open = true
+  let prevented = false
+  menu.events.keydown({ key: 'Escape', preventDefault() { prevented = true }, stopPropagation() {} })
+  assert.equal(menu.open, false)
+  assert.equal(summary.focused, true)
+  assert.equal(prevented, true)
+  menu.open = true
+  f.events.pointerdown({ target: f.local })
+  assert.equal(menu.open, false)
+  assert.deepEqual(f.commands, [])
+})
 test('a recommendation offers its action and Later without rating controls', () => {
   const f = fixture(); f.render({ state: 'idle', proposals: [proposal()], proposalPopup: true })
   const labels = flatten(f.content).filter(n => n.tagName === 'BUTTON').map(n => n.textContent)
@@ -439,6 +562,23 @@ test('an explicit resident visibility failure can recover without replaying resp
   f.render(status)
   assert.equal(f.commands.length, 2)
   assert.ok(f.commands.every(row => row.type === 'proposal_presented'))
+})
+
+test('an unrelated topic failure does not suppress a visible card acknowledgement', () => {
+  const f = fixture()
+  f.render({ state: 'idle', proposals: [proposal()], proposalError: 'Some suggestions could not be generated', proposalPartialFailure: true })
+  f.visible(f.content.querySelector('.personal-agent-proposal-advice'))
+  assert.deepEqual(f.commands.map(command => [command.type, command.ids[0]]), [['proposal_presented', proposal().id]])
+})
+
+test('an expired data Intent leaves the current conversation', () => {
+  const f = fixture()
+  const intent = { ...proposal(), ruleId: 'intent-22222222-2222-4222-8222-222222222222', action: null, confirmation: '',
+    nextStep: 'Check the current reading.', evidence: [{ readingId: 'odk.tile.hydra' }] }
+  f.render({ state: 'idle', proposals: [intent] })
+  assert.ok(f.content.querySelector('.personal-agent-proposal'))
+  f.render({ state: 'idle', proposals: [{ ...intent, status: 'expired' }] })
+  assert.equal(f.content.querySelector('.personal-agent-proposal'), null)
 })
 
 
@@ -908,26 +1048,62 @@ test('a completed recommendation keeps its result without reviving operation or 
   await f.controller.destroy()
 })
 
-test('generated options appear together inside one recommendation without controls', async () => {
+test('a composed OpenUI bubble states its advice exactly once across the real DOM', () => {
   const f = fixture()
-  const adapter = path.join(__dirname, '../src/renderer/core/openui-dom.js')
-  vm.runInNewContext(fs.readFileSync(adapter, 'utf8'), { window: f.window, document: f.document })
-  const option = label => ({ type: 'Option', props: { label }, children: [] })
-  const ui = { type: 'Suggestion', props: {}, children: [
-    { type: 'Advice', props: { value: 'Review both routes.' }, children: [] },
-    { type: 'OptionSet', props: { label: 'Routes' }, children: [option('Walk to the station'), option('Take the bus')] },
-  ] }
-  const p = { ...proposal(), advice: 'Review both routes.', action: null, confirmation: '', nextStep: 'Check the map', ui }
-  f.render({ state: 'idle', proposals: [p], proposalCapabilities: { read: true, respond: false, acknowledge: false } })
-  const message = f.content.querySelector('.agent-message')
-  const list = flatten(message).find(node => node.tagName === 'UL')
-  assert.ok(list, 'generated options need a visible list')
-  assert.equal(list.attributes['aria-label'], 'Routes')
-  assert.deepEqual(list.children.map(item => [item.tagName, item.textContent]), [
-    ['LI', 'Walk to the station'], ['LI', 'Take the bus'],
-  ])
-  assert.ok(!flatten(message).some(node => ['BUTTON', 'SELECT', 'OPTION'].includes(node.tagName)))
-  assert.equal(flatten(message).filter(node => node.textContent === p.advice).length, 1)
-  assert.equal(flatten(message).filter(node => node.textContent === p.nextStep).length, 1)
-  await f.controller.destroy()
+  // Load the real component renderer into the same window the bubble module uses.
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/openui-dom.js'), 'utf8'),
+    { window: f.window, document: f.document, console })
+  const sentence = '通勤比平时多了28分钟。'
+  const ui = { type: 'Suggestion', props: { topicId: 'commute', key: 'k', evidenceIds: ['e0'], children: [
+    { type: 'Advice', props: { value: sentence }, children: [] },
+    { type: 'Readings', props: { children: [
+      { type: 'Reading', props: { label: '通勤用时', value: '52分钟' }, children: [] },
+      { type: 'Reading', props: { label: '平时用时', value: '24分钟' }, children: [] },
+    ] }, children: [] },
+  ] }, children: [] }
+  f.render({ state: 'idle', proposals: [{ ...proposal(), advice: sentence, ui }], proposalPopup: true })
+  const bubble = f.content.querySelector('.agent-message-bubble')
+  assert.ok(bubble, 'the real bubble mounted')
+  // The stub's textContent holds each node's own value, so leaf text is exact.
+  const text = flatten(bubble).map(node => node.textContent).join(' ')
+  assert.equal(text.split(sentence).length - 1, 1, 'the sentence appears once; the renderer suppresses the tree Advice node')
+  assert.ok(text.includes('通勤用时') && text.includes('52分钟') && text.includes('平时用时') && text.includes('24分钟'), 'distinct readings stay visible')
+  assert.equal(flatten(bubble).filter(node => node.className?.split(/\s+/).includes('personal-agent-preview-card')).length, 1, 'one card surface')
+})
+
+test('a restated advice sentence in a card Heading is refused before publication', async () => {
+  const { integrationURL } = require('./helpers/repo-root')
+  const { parseSuggestionDocument } = await import(integrationURL('personal-agent/src/recommendations/index.mjs'))
+  const { validateGeneratedBatch } = await import(integrationURL('personal-agent/src/recommendations/index.mjs'))
+  const sentence = '通勤比平时多了28分钟。'
+  const doc = `root = Suggestions([s1])
+s1 = Suggestion([a1, h1, r1, b1],"commute","k",["e0","e1"])
+a1 = Advice("${sentence}")
+h1 = Heading("${sentence}")
+r1 = Readings([c1, c2])
+c1 = Reading("通勤用时","52分钟")
+c2 = Reading("平时用时","24分钟")
+b1 = ApprovedAction("open")`
+  const { suggestions } = parseSuggestionDocument(doc)
+  const topics = [{ id: 'commute', actions: [{ id: 'open', label: '查看通勤安排' }],
+    evidence: [
+      { id: 'e0', readingId: 'commute.traffic', field: 'minutes', value: 52, state: 'live', measuredAt: new Date().toISOString() },
+      { id: 'e1', readingId: 'commute.traffic', field: 'baselineMinutes', value: 24, state: 'live', measuredAt: new Date().toISOString() },
+    ] }]
+  assert.throws(() => validateGeneratedBatch({ suggestions }, topics, 8), /restates advice/i)
+})
+
+test('a stored legacy preview does not redraw advice as a second summary', () => {
+  const f = fixture()
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/openui-dom.js'), 'utf8'),
+    { window: f.window, document: f.document, console })
+  const sentence = '行程缺口 22 分钟。'
+  const p = { ...proposal(), advice: sentence,
+    preview: { summary: sentence, items: [{ label: '缺口', value: '22 分钟' }] } }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const bubble = f.content.querySelector('.agent-message-bubble')
+  assert.ok(bubble)
+  const text = flatten(bubble).map(node => node.textContent).join(' ')
+  assert.equal(text.split(sentence).length - 1, 1, 'legacy preview.summary restating advice is suppressed')
+  assert.ok(text.includes('缺口') && text.includes('22 分钟'), 'distinct readings still render')
 })

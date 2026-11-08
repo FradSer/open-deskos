@@ -1,6 +1,6 @@
 import { generationKey } from './proactive-lifecycle.mjs'
 import { projectPrivateFeedback, projectPrivateRuleFeedback, privateFeedbackRuleContext, privateFeedbackSignalsSafe, privateFeedbackJobSafe } from './private-feedback-projection.mjs'
-import { sensitiveMemoryPattern } from './memory.mjs'
+import { sensitiveMemoryPattern } from '../proactive-private.mjs'
 
 const DIMENSIONS = Object.freeze({ useful: 'utility', irrelevant: 'relevance', incorrect: 'accuracy', snooze: 'timing', ignore: 'relevance', mute: 'relevance', done: 'completion' })
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
@@ -123,7 +123,7 @@ export function queueFeedback(watch, proposal, decision) {
     advice: projected?.advice ?? proposal.advice, nextStep: projected?.nextStep ?? proposal.nextStep ?? '', at: new Date(watch.now()).toISOString(), status, attempts: 0 })
 }
 
-/** The timer boundary lets the persisted feedback receipt complete before inference starts. */
+/** The timer boundary lets the persisted feedback receipt complete before the Mem0 write starts. */
 export function scheduleFeedback(watch) {
   if (watch.closed || watch.storageFailure || watch.feedbackTimer || watch.feedbackInflight || !watch.feedbackMemory.jobs.some(job => job.status === 'queued')) return
   watch.feedbackTimer = setTimeout(() => {

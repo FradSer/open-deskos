@@ -170,7 +170,8 @@ An absent setting enables no private source.
 }
 ```
 
-The host currently provides one reviewed source profile, `gmail`.
+The general recommendation path provides the reviewed `gmail` source profile.
+For read-only calendar conflicts, use the separate [Gmail calendar conflict selection](CONTRACT.md#gmail-calendar-conflicts).
 The connector must be independently installed with both privacy policies enabled.
 The profile requires the account-bound search and read schemas from Gmail 0.1.1.
 Missing or disabled optional connectors produce no private recommendations.

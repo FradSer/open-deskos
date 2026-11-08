@@ -10,7 +10,7 @@ The [unified architecture](UNIFIED_ARCHITECTURE.md) defines the five layers and 
 ## Plugin composition
 
 [plugin-composition.mjs](../src/plugin-composition.mjs) owns the resident service composition.
-The voice service, channel, Agent runtime, home briefing, and optional suggestion watcher use the common Shell plugin host.
+The voice service, channel, Agent runtime, home briefing, and default suggestion watcher use the common Shell plugin host.
 Each component has a versioned port and a local factory.
 The default Watch manifest uses version 2 and does not require Home.
 Home and Watch can stop independently.
@@ -81,7 +81,8 @@ The selection file must be regular and contain at most 16 KiB.
 Each manifest preserves the component identity, host, kind, provided ports, and required ports.
 Current resident components declare no injectable capabilities; replacements must retain an empty permissions list.
 The composition rejects duplicate identities and replacements for inactive optional components.
-The watcher remains available only when `ODK_PROACTIVE_CONFIG` selects that feature.
+The Watch is a default startup component. `ODK_JEV_PROVIDER=disabled` does not remove it.
+Use `ODK_DISABLED_PLUGINS=odk.personal-agent.watch` to disable the component.
 
 Export `create(context)` from each entry.
 Return the raw service, channel, Agent runtime, home briefing, or watcher component.
@@ -526,6 +527,7 @@ Raw metrics cannot establish assessments without applicable thresholds or source
 
 Jev is optional for both profiles, including Overview generation and owner follow-ups.
 `ODK_JEV_PROVIDER=disabled` prevents Jev client construction and network requests.
+It does not remove the default Watch. Proposals do not use a Jev classifier.
 When Jev is unavailable or not configured, the configured ordinary model supplies typed judgments in a separate zero-tool session.
 The host validates answer types, intent identifiers, probabilities, and thresholds before it activates capabilities.
 Ordinary model confidence is an estimate; it is not calibrated Jev confidence.
@@ -537,7 +539,6 @@ Jev credentials use the native Pi authentication chain for the selected classifi
 `ODK_JEV_TIMEOUT_MS` defaults to 10000; allowed range is 1000–30000.
 `ODK_JEV_INTENT_THRESHOLD` defaults to 0.8; it must exceed 0.5 and not exceed 1.
 Coordinator probability and confidence must both meet the threshold.
-Proposals use the separate `ODK_JEV_THRESHOLD` setting.
 Thresholds are operating policy, not calibrated accuracy guarantees.
 The resident service checks optional Jev once at startup with one fixed public Noul request.
 Successful owner login refreshes native authentication and requests one new public check.
@@ -555,29 +556,6 @@ Failed ordinary model judgments never fall back to regexes or capability executi
 Ambiguity asks for clarification.
 Cancel/close aborts inference and suppresses late results.
 Intent selection never replaces confirmation, identity, installation, or unknown-outcome checks.
-
-## Generated plugin creation target
-
-[ADR-0041](../../../runtime/shell/docs/ARCHITECTURE.md#adr-0041) owns the future composition, private authority, and staged implementation contract.
-Voice and text use the existing `widget_create` and `app_create` workflow direction.
-Current tools still support HTML drafting, verification, placement, and their existing lifecycle only.
-No service-runtime mutation tool or new provider-specific intent is implemented by this target.
-
-The future coordinator resolves an existing plugin and its configured target before Hosted Pi drafts a candidate.
-It reuses reviewed Service templates and reports missing capabilities without inventing endpoints or credentials.
-Candidate identity includes exact UI, Service, and data contract revisions.
-Owner-facing status distinguishes drafted, verified, awaiting operator trust, installed, active, unavailable, and unknown outcomes.
-These are workflow distinctions, not new wire values added to current status frames.
-
-The coordinator returns the admitted work receipt and follows the existing later-turn status workflow.
-A finished Hosted Pi answer does not establish independent verification or activation.
-`needs-operator-trust` identifies missing exact execution or private grants; it cannot create them.
-Credential collection uses a system-owned path, never a spoken reply or generated form.
-Direct CLI calls and Hosted Pi retain the same runtime enforcement and operational authorization requirements.
-Uncertain mutations require reconciliation, never automatic replay.
-
-The [planned scenarios](../../service-runtime/features/generated-plugins.feature) precede new lifecycle tools or intent allowlist changes.
-Their stage gates require local tests, then separately authorized provider and device acceptance.
 
 ## Durable runtime
 
@@ -626,14 +604,6 @@ Tool results and thinking do not become spoken replies.
 Closing a session releases its views, Harness, storage lease, sandbox, and owned environment connection.
 Normal isolated generation awaits Harness disposal.
 Timeout and cancellation retain their response deadline while cleanup failures remain observed.
-
-### Completed reply presentation
-
-The resident keeps the original reply text in status and conversation history within the existing limits.
-An optional model turn can supply a short lead and read-only OpenUI content.
-The resident checks the tree, its size, and numeric values before it sends the lead and content together.
-The Shell shows the original text if the optional presentation is unavailable.
-A reply to a task keeps its answer or its host delivery receipt.
 
 <a id="hosted-pi"></a>
 
@@ -832,15 +802,18 @@ Protect session logs under `stateDir` and arrange retention explicitly.
 
 <a id="proposals"></a>
 
-## Proposal configuration and judgments
+## Proposal configuration and generation
 
 The watch reads owner-selected Open DeskOS Data and configured Hosted Pi sessions.
 It adds no capture, provider connector, Open DeskOS Data write verb, TTS, wake word, or automatic action.
+The Watch starts by default with a 30-minute heartbeat and no owner rules.
 `ODK_PROACTIVE_CONFIG` selects a reviewed private absolute JSON file without symlink components.
-With no file configured, owner suggestions have no polling or proactive model request.
+An owner file supplies its own `pollMs`; the default applies only when no file is selected.
 The separate [home briefing](#home-briefing) remains enabled.
 Invalid configuration disables suggestions while ordinary voice remains available.
-Optional Jev failure does not disable the configured ordinary judgment service.
+The generation model decides alone which suggestions exist. The Watch runs no proposal classifier or score.
+A configured Intent condition still uses the shared judgment client. `ODK_JEV_PROVIDER=disabled` selects its ordinary-model fallback.
+A generation failure reports unavailable generation; no fixed advice or action follows.
 The file is read once; changes require separately authorized restart.
 Concurrent owner edits cause suppression writes to refuse overwrite.
 
@@ -851,13 +824,15 @@ The existing reviewed tool allowlist applies. The selected Agent must also suppo
 The optional runtime method `canExecuteProposal(action)` reports current capability. A missing method grants no execution capability.
 A topic without a currently supported approved action does not generate a new executable recommendation.
 An isolated in-memory Durable conversation generates zero or more candidates with the configured model.
-It carries exactly two scoped investigation tools: a read-only reread of a reading this round already cites, and a typed judgment on its own drafts.
-The ephemeral Durable session exposes both tools to the generation model. A previous host configuration cleared model-facing tools before each prompt; the session now preserves capabilities whose callers include the model.
-Reads are bounded per round and never add citable evidence. Judgment calls are bounded and grant no action permission. The host independently re-judges every returned candidate.
+It carries one scoped investigation tool: a read-only reread of a reading this round already cites.
+The ephemeral Durable session exposes that tool to the generation model. A previous host configuration cleared model-facing tools before each prompt; the session now preserves capabilities whose callers include the model.
+Reads are bounded per round and never add citable evidence. No draft self-check or score can change which suggestions the model returns.
 It has no Skills, project context, owner memory, execution environment, or persisted transcript.
 It loads no operator or project extensions.
 `ODK_PROACTIVE_GENERATION_TIMEOUT_MS` defaults to 90000; allowed range is 1000–180000.
 The deadline covers the entire generation lifecycle, including at most one format correction.
+The `magpie/hunyuan-eval/hy4-dev` transport requests direct answers for typed judgments and source-bound read-only Intent generation.
+Response budgets grow with the number of questions or possible Intent results.
 Provider errors are not retried.
 Timeout/cancellation ends waiting even if the provider ignores abort; late-created sessions are disposed.
 Agent and watch validate topic IDs, stable semantic keys, bounded text, and host-issued citation IDs.
@@ -865,31 +840,32 @@ Invalid or invented evidence leaves generation unavailable.
 Each ordinary generated candidate contains `advice`, a selected `actionId`, and cited evidence IDs.
 Generation receives only each action's ID and label. It cannot supply tool parameters, execution authority, or confirmation text.
 The host binds `nextStep` to the approved action label and retains its exact tool and parameters.
+Each recommendation proposes one next step through one `ApprovedAction` or one read-only `OwnerStep`.
+The host rejects conflicting actions or different UI and candidate bindings.
+The More control contains suggestion feedback. It adds no action permission.
 Advice has at most 400 UTF-16 code units. Action labels have at most 240 UTF-16 code units.
 Trusted Intent preview topics retain their separate read-only `nextStep` format and existing endpoint selection flow.
 Next-step validation rejects control characters, including line breaks, tabs, and DEL, across generation, storage, and display hosts.
-[openui-contract.mjs](../src/openui-contract.mjs) defines the OpenUI Lang output format for new suggestions.
-The host validates the parsed component tree and the visible readings before judgment.
-The Shell shows the generated content in one message bubble.
-It shows all alternative labels in a read-only list.
-The host supplies controls for approved actions.
-The model-visible input is a projection: host bookkeeping fields stay with the host, and a topic's shared observation state and measurement time appear once on the topic instead of on every row. Validation, investigation tools, and judgment keep the full input.
-A stored generic preview has at most three item pairs. Unrelated observations, technical identifiers, and diagnostics stay in evidence.
+The output contract is declared once in the generation system prompt. A format correction reports only the failure and the two examples; it does not repeat the contract.
+The model-visible input is a projection: host bookkeeping fields stay with the host, and a topic's shared observation state and measurement time appear once on the topic instead of on every row. Validation and investigation tools keep the full input.
+A generic preview has at most three item pairs, showing only readings behind the advice. Unrelated observations, technical identifiers, and diagnostics stay in evidence.
 Generation does not request or accept a `reason` field.
 Keep hashes, technical identifiers, tool parameters, and diagnostic values in evidence, outside advice and the next step.
 Advice and next-step validation reject SHA256 labels and hexadecimal values with 32 or more characters.
 The generation format version invalidates old generation caches without changing occurrence identity or handled receipts.
 
-Each candidate receives independent usefulness, factual-support, and unsupported-assertion judgments through the shared typed judgment service.
-Judgment receipts retain the actual `jev-*` or `provider/model` identity across checkpoint reloads.
-Ordinary model probabilities are estimates, not calibrated Jev probabilities.
-Factual qualification separates two judgments. `factualSupport` asks whether every assertion is supported, which is deliberately conservative for a sentence with several clauses. `unsupportedAssertion` asks whether any fact is invented or recomputed. The publication gate uses `1 - unsupportedAssertion`; the support value is retained as a separate signal. A conservative conjunction alone cannot veto content with no fabrication, while an identifiable invented fact still does.
-Usefulness and effective support must both meet `ODK_JEV_THRESHOLD`, default 0.8.
-Each candidate is judged independently against its own goal and cited observations in one batch. The host does not resample a near miss or return a draft for repair. Complementarity between advice and preview belongs to the generation instructions, not a separate judgment gate.
-Labels/symbols cannot add attributes; uncited rankings, causes, and aggregates are forbidden.
+The host validates every returned candidate before publication. It binds the approved action, the full observation set, freshness, and visible measured values.
+It binds every visible number and ISO timestamp to a value in the approved observation set.
+The host checks and stores the full approved set for an ordinary candidate.
+The host checks and stores only the cited observations for a generic Intent.
+For a numeric `Reading` or `Metric`, the host adds a missing unit when all matching cited values share a known unit.
+If all matching cited values have known units, the host rejects an explicit unit that none of those values has.
+A derived number that no approved observation supplies is refused. Examples do not derive a difference from two measured values.
+The host cannot bind causal, permission, completion, comparison, paraphrase, proper-name, guarantee, Chinese-numeral or relative-time claims in free prose. The generation instructions forbid those unsupported claims. They are a mitigation, not a fail-closed guarantee.
 Owner preferences do not add facts.
-Retain supported candidates independently of the presentation limit.
-Prioritize owner urgency and scheduled delivery, then deadlines, usefulness, creation time, and stable identity.
+The host publishes every structurally valid candidate. It does not resample a near miss or return a draft for repair.
+Retain published candidates independently of the presentation limit.
+Prioritize owner urgency and scheduled delivery, then deadlines, creation time, and stable identity.
 Offer at most `maxPush` candidates during one presentation round.
 Selecting none is valid.
 Ordinary generated proposals retain the host-bound action, action ID, next step, and exact confirmation phrase.
@@ -902,7 +878,7 @@ No inference failure substitutes fixed advice or automatic action.
 | Configuration | Bounds/behavior |
 | --- | --- |
 | `rules` | At most 32 owner-authored rules |
-| `pollMs` | 1 second–1 hour; source cache/refresh policy remains authoritative |
+| `pollMs` | 1 second–1 hour; defaults to 30 minutes without an owner file; source cache/refresh policy remains authoritative |
 | `maxAgeMs` | 1 second–24 hours; invalid/future/stale/unavailable values cannot trigger |
 | `cooldownMs` | 1 minute–7 days |
 | `goal` | At most 1000 characters |
@@ -932,6 +908,9 @@ Host freshness and delivery checks still run during cached rounds.
 Ending ordinary conversation retains automatic quiet-hours and attention limits; explicit suggestions queries use the separate interaction path.
 Bounded batches cover eligible sources without a fixed first-source cutoff.
 Failed batches isolate their topics across rounds; healthy topics retain their turn within the configured budget.
+Each private message has its own model request and proposal context.
+The Watch removes private cards from status and suggestion queries when their source binding becomes invalid.
+For generated topics, an unrelated model failure does not prevent acknowledgement or confirmation of a healthy card.
 The judgment service considers overlapping and recent advice; perfect semantic deduplication is not guaranteed.
 New source revisions invalidate earlier inference results.
 Receipts expose model, trigger, counts, topic/candidate labels, and probabilities, without raw values, generated text, semantic keys, or secrets.
@@ -941,6 +920,112 @@ It uses synthetic generation and judgment responses without provider requests or
 It does not measure model quality, probability calibration, user benefit, devices, or disk durability.
 Failure diagnostics expose fixed codes and scalar assertion differences without source contents or provider errors.
 
+## Gmail reply preparation
+
+An owner-selected Gmail recommendation source can offer `review` and `prepare_reply` to the model.
+OpenUI selects one action when the source shows a current need, such as an unanswered interview invitation.
+The optional `replyLabel` sets the preparation label. Its default is `准备回复`.
+The host binds that action to the observed account and message. The model cannot select another message or tool.
+The owner confirms the displayed action before preparation starts.
+The host reads the message again before and after draft generation.
+A changed source or failed read prevents publication.
+The selected model uses shared OpenUI text components in a temporary session without tools or saved context.
+The local Personal Agent conversation shows the unsent draft. Public conversation history and remote projections omit it.
+The private proposal checkpoint retains the result. A repeated confirmation does not run preparation again.
+Preparation does not send a message, create a Gmail draft, accept an invitation, or change a calendar.
+The isolated Shell check uses `electron runtime/shell/tests/proactive-panel.cjs --mail-reply-only` from the repository root.
+Set `ODK_PERSONAL_AGENT_MODEL` and the isolated Pi profile to the selected test model.
+This check uses a synthetic invitation through the Gmail adapter. Record real Gmail acceptance separately.
+
+## Gmail calendar conflicts
+
+The owner can authorize one Gmail account and one calendar for background conflict checks.
+A connection alone gives no background access.
+Enable the `catalog` and `mcp` plugins in the Personal Agent profile.
+Select a Gmail connector revision that provides `gmail_schedule_changes`.
+Set `ODK_PRIVATE_RECOMMENDATIONS_FILE` to the absolute path of the private owner file.
+Use owner-only permissions.
+
+```json
+{
+  "version": 1,
+  "sources": [],
+  "scheduleConflict": {
+    "gmailAccount": "owner@example.com",
+    "calendarReadingId": "calendar.work",
+    "timeZone": "Asia/Shanghai",
+    "googleCalendar": {
+      "calendarId": "owner@example.com",
+      "credentialsFile": "/absolute/private/calendar-grant.json"
+    }
+  }
+}
+```
+
+An empty `sources` list keeps general background email recommendations disabled.
+For Google Calendar, create a separate read-only grant with the [Calendar login command](../../gmail/README.md#authorize-google-calendar).
+Set `calendarId` to the selected calendar's full ID.
+For an Open DeskOS Data service, omit `googleCalendar`.
+Set `calendarReadingId` to the exact reading ID of the calendar service.
+Restart the Personal Agent through the authorized service procedure to apply the file.
+Remove `scheduleConflict` and restart to stop these checks.
+
+The calendar service supplies a live reading with `value.asOf`, `coverageStart`, `coverageEnd`, and `events`.
+Use timestamps with an explicit UTC offset.
+Each event supplies `uid`, `organizer`, `sequence`, `startsAt`, `endsAt`, and `busy`.
+Set `recurring: true` for occurrences that can block a slot but cannot establish the prior meeting.
+Calendar data more than five minutes old cannot establish a conflict.
+The Google adapter reads a range from one day before the check to fourteen days after it.
+The adapter refuses partial results and snapshots with more than 128 events.
+
+Gmail reads structured `text/calendar` requests and cancellations for the selected account.
+It accepts UTC times and unambiguous times with a supported IANA `TZID`.
+The first check and expired cursor recovery search for calendar attachments from the previous seven days.
+Subsequent checks use Gmail history and resume incomplete pages.
+The Watch waits for a complete pass before it displays a recommendation.
+The private proposal checkpoint keeps the Gmail cursor. It retains recent scheduling fields for up to fourteen days.
+Email content does not enter a model or the recommendation learning path for this check.
+
+A newer request must change the time of a matching meeting.
+The calendar must cover both the previous and proposed times.
+If the calendar already has the new time, an earlier matching Gmail request can establish the previous time.
+A different busy calendar event must overlap the proposed time.
+The card shows both time intervals. It identifies the calendar source and opens the exact source email in Gmail.
+The source email is a claim about the meeting. The card gives no execution permission.
+The card appears in the local Personal Agent conversation. Remote projections omit it.
+
+Repeating the same meeting and time keeps the existing card and its owner decision.
+A different proposed time replaces that card with a new response ID.
+A matching cancellation or a resolved conflict expires the pending card.
+The Watch checks Gmail every five minutes. Calendar changes invalidate the selected reading when a push is available.
+The Watch also rechecks a deferred card at its due time and expires a card when the proposed meeting starts.
+
+### CM5 acceptance
+
+Use an authorized CM5 test window and dedicated Google accounts for the organizer and attendee.
+Record the installed Shell, Personal Agent, and Gmail connector revisions.
+Enable the approved Gmail and calendar grants for the attendee.
+Use event times within the calendar adapter's coverage range.
+
+| Test | Required device observation |
+| --- | --- |
+| Initial invitation | Accept the organizer's invitation on the attendee calendar. The conversation shows no conflict card for the initial invitation. |
+| Move into a conflict | Move the organizer's event into a separate busy slot. Verify one conversation card with both time intervals. |
+| Source link | Sign in to Gmail with both test accounts. Open the card source and verify the message and attendee account. |
+| Restart and repeat | Restart the Personal Agent after the card appears. Verify that the same slot does not create a second card. |
+| Snooze and wake | Snooze the card. Suspend the test device until after the snooze deadline. Verify that the Agent checks current sources before showing it again. |
+| Expiry | Wake the device after the proposed meeting starts. Verify that the card cannot open its source as a current recommendation. |
+| Change and cancel | Move a future test event again, then cancel it. Verify that only the current card appears and the cancellation expires it. |
+| Revoke access | Revoke each grant in turn. Verify that the Agent withdraws the card and produces no new card with that grant. |
+
+Record the provider and Shell observations with test case IDs and timestamps.
+Keep credentials, message contents, and calendar details out of shared evidence.
+Run the joined regression with `electron runtime/shell/tests/proactive-panel.cjs --schedule-conflict-only`.
+Use the project's Electron and Node installations.
+The test uses synthetic provider data and runs the actual Gmail parser, Watch, checkpoint, socket, and Shell.
+A fixture run on CM5 verifies the device runtime with synthetic inputs.
+Record live provider and physical suspend results separately.
+
 ## Legacy proposals and triggers
 
 [proactive-owner.example.json](proactive-owner.example.json) preserves version 1 owner rules.
@@ -948,7 +1033,7 @@ Its example is a draft, never installed by tests.
 Migration expires incompatible pending proposals while retaining processed history and owner suppression.
 Conditions select at most eight fields with `lt`, `lte`, `gt`, `gte`, or `eq` and typed values.
 Missing fields fail closed; plugin strings/code are never evaluated.
-The judgment service decides relevance; exact owner comparisons still gate actions.
+Owner comparisons alone decide whether a legacy condition matches; the model alone decides whether a generated candidate exists.
 Owner-approved advice may only be reordered through an exact sentence-index permutation.
 That isolated phrasing session receives no plugin readings and has no tools or durable history.
 Invalid phrasing uses approved owner text.
@@ -964,14 +1049,16 @@ Real launch/prompt receipts track work that finishes between polls.
 `verification: not_run` remains unverified.
 The suggested history read retains the original target/project/task ID.
 
-There are exactly two judgment triggers: heartbeat and service push.
-Heartbeat refreshes owner-selected sources at startup and every `pollMs`.
+The Watch uses a heartbeat, source changes, and timed Intent deadlines.
+A timed Intent deadline evaluates only timed Intent rules.
+Heartbeat refreshes owner-selected sources at startup and every `pollMs` (30 minutes by default).
 Authenticated `proactive_event` push carries at most 32 source IDs, never observations or candidate advice.
 Coalesce pushes for one second without dropping remaining dependent rules.
 Reread authoritative sources and invalidate in-flight results after newer updates.
-Credentials, memory, action parameters, and plugin instruction fields never enter proactive judgment state.
-Missing/malformed/timed-out judgments report unavailability.
-Suggestions queries join existing refresh, then read the private store; they create no third trigger.
+Credentials, saved note maps, action parameters, and plugin instructions stay with the host.
+A generation topic can include feedback from its matching Mem0 scope.
+Missing, malformed, or timed-out generation reports unavailability.
+Suggestions queries join any current refresh and read the private store.
 Reading advice never accepts its action or substitutes old session tasks.
 Disabled, unavailable, and no-pending states remain distinct.
 
@@ -980,6 +1067,8 @@ Disabled, unavailable, and no-pending states remain distinct.
 Status frames declare `proposalCapabilities` for reading, responding, and presentation acknowledgement.
 These flags follow the selected Watch and grant no action authority.
 Unsupported displays must retain their own unavailable response controls.
+`proposalPartialFailure` identifies an error limited to some generated suggestions.
+The other displayed cards can still receive presentation acknowledgements.
 
 Each proposal retains durable ID, owner rule/subject, state, creation time, advice, action/confirmation, and evidence.
 New executable proposals retain `actionId` and their host-bound `nextStep`. Historical records can omit both fields.
@@ -993,7 +1082,7 @@ Existing reasons remain compatible with private storage, but current answers and
 Evidence contains `{readingId, field, value, state, measuredAt, ruleId}`.
 `pi-tasks:<target>:<taskId>` marks Hosted Pi evidence.
 Heartbeat/push rechecks freshness and relevance; action predicates are rechecked before execution.
-Invalid evidence expires the proposal; original measurement times remain visible.
+Invalid evidence expires the proposal. The private checkpoint keeps its original measurement times.
 Expired proposals cannot execute.
 
 States are `pending`, `ignored`, `expired`, `executing`, `completed`, and `unknown`.
@@ -1045,9 +1134,10 @@ Provider withdrawal or loss of read access clears suggestion content, controls, 
 A late failure from a withdrawn view cannot change replacement feedback.
 Use one scrollable surface and `textContent` for untrusted strings.
 The card puts advice and the next step before its operation controls.
-Sources and details are collapsed by default and retain complete technical evidence.
-Historical advice with hashes or technical labels moves into this disclosure without changing its stored text.
-Its visible fallback offers source inspection without inventing a new recommendation.
+The private checkpoint retains source fields and measurement times for validation.
+Generic Intent cards show advice and their next step without a technical evidence section.
+Gmail conflict cards can open their original message through the trusted source control.
+Historical advice with technical identifiers uses the unavailable-message fallback.
 Feedback is separate from the next step and does not establish execution or provider success.
 Back/Close dismisses presentation.
 Executable suggestions require explicit confirmation and support Later, Ignore, and category suppression.
@@ -1125,7 +1215,7 @@ Default `pnpm test` is offline; `pnpm typecheck` checks types.
 `pnpm test:intents:live` needs explicit provider authorization and private credentials.
 It uses synthetic cases and starts no Agent, task, app, order, or service.
 Unknown IDs and wrong routes fail.
-The proposal harness requires `--live-jev-e2e --runtime-root --personal-agent-root --receipt`.
+The proposal harness requires `--runtime-root --personal-agent-root --receipt`.
 Generated mode adds `--generated-e2e` and repeated `--env-file` options.
 Windows uses `.ps1` with `-RuntimeRoot -PersonalAgentRoot -Receipt` and optional `-GeneratedE2E -EnvFile`.
 Use an isolated interactive task; Session 0 is refused.
@@ -1538,6 +1628,15 @@ Valid Chinese text, line breaks, and tabs remain supported.
 Pi ModelRuntime owns model catalogs, provider endpoints, credentials, and authentication precedence.
 The resident reads the service user's Pi agent directory. Custom models and endpoint overrides belong in Pi `models.json`.
 OpenCode providers retain their native IDs. No Open DeskOS provider-specific configuration overrides these models.
+
+The device masks recognized private text before Pi sends a model request.
+The same boundary covers owner turns, Hosted Pi, recommendation generation, and native classification.
+The policy covers email addresses, labeled phone numbers, and recognized credential formats in prompts and tool data.
+The device keeps the placeholder map in memory for one request.
+It restores known placeholders before the local caller receives streamed text, tool arguments, or classifier answers.
+The device stops the request if masking fails.
+Provider authentication uses the configured credentials.
+Text masking operates on text fields. Image pixels and audio are outside its scope.
 
 Jev selects a native Pi classifier with `ODK_JEV_PROVIDER` and `ODK_JEV_MODEL`.
 It uses Pi `getAuth` for stored credentials, environment values, credential commands, refreshed tokens, and request headers.

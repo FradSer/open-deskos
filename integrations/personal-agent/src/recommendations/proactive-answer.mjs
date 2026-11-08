@@ -1,3 +1,6 @@
+import { isDeskIntentProposal } from './intents.mjs'
+import { isScheduleProposal } from './schedule-conflict.mjs'
+
 function measuredEvidence(evidence) {
   const value = String(evidence.value)
   let detail
@@ -14,7 +17,7 @@ export async function answerSuggestions(watch) {
   if (!watch) return '主动建议尚未启用，暂时没有实时建议可供查询。'
   let proposals
   try { proposals = await watch.readProposals() } catch { return '当前无法读取实时建议，请稍后重试。' }
-  const pending = proposals.filter(p => p.status === 'pending')
+  const pending = proposals.filter(p => p.status === 'pending' && !isScheduleProposal(p) && !isDeskIntentProposal(p))
   const uncertain = proposals.some(p => ['executing', 'unknown'].includes(p.status))
   const caution = uncertain ? '\n另有动作的执行结果尚未确认，请先核实，不要重复执行。' : ''
   if (!pending.length) return `目前没有基于最新读数触发的新建议。${caution}`

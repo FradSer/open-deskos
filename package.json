@@ -1,6 +1,13 @@
 {
-	"devDependencies": {
-		"unocss": "^66.8.1",
-		"@unocss/cli": "^66.8.1"
-	}
+  "devDependencies": {
+    "unocss": "^66.8.1",
+    "@unocss/cli": "^66.8.1"
+  },
+  "name": "@odk/repository",
+  "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "scripts": {
+    "repo": "node tools/repo.mjs",
+    "test:repo": "node --test tests/repo-management.test.mjs"
+  }
 }

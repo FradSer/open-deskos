@@ -1,9 +1,8 @@
 import { fixtureMem0 } from './fixtures/mem0.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ProactiveWatch } from '../src/proactive.mjs'
-import { feedbackFor } from '../src/proactive-feedback-memory.mjs'
-import { proposalStateStore } from '../src/proactive-state.mjs'
+import { ProactiveWatch, feedbackFor, validateFeedbackState, proposalStateStore } from '../src/recommendations/index.mjs'
+import { openuiSuggestion } from './openui-fixtures.test.mjs'
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -20,8 +19,8 @@ function fixture(beforePut, overrides = {}) {
     read: async id => ({ id, state: 'live', value: { count, measured_at: new Date(now).toISOString() } }), now: () => now,
     canExecute: () => true, execute: async () => { throw Error('Feedback must not execute') }, save: async () => {}, publish: () => {},
     feedbackMemoryEnabled: true, loadState: () => structuredClone(saved), saveState: state => { saved = structuredClone(state) }, feedbackStore,
-    generate: async input => { generation.push(structuredClone({ ...input, signal: undefined })); return { suggestions: [{ topicId: 'work', key: 'inspect', advice: 'Review pending work.', actionId: 'inspect', evidenceIds: ['e0'] }] } },
-    judge: async ({ candidates }) => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(p => [p.id, { probability: .99, groundingProbability: .99, threshold: .8 }])) }), ...overrides }
+    generate: async input => { generation.push(structuredClone({ ...input, signal: undefined })); return { suggestions: [openuiSuggestion({ topicId: 'work', key: 'inspect', advice: 'Review pending work.', actionId: 'inspect', evidenceIds: ['e0'] })] } },
+    ...overrides }
   const watch = new ProactiveWatch(options)
   return { watch, options, saved: () => saved, generation, count: n => { count = n } }
 }
@@ -243,7 +242,7 @@ test('full feedback capacity preserves all work and reports backpressure on new 
   assert.equal(f.saved().feedbackMemory.jobs.length, 64)
   assert.equal(f.watch.list().length, 64)
   assert.equal(f.watch.list().some(p => p.status === 'pending'), false)
-  assert.match(f.watch.judgmentError, /容量已满/)
+  assert.match(f.watch.generationError, /容量已满/)
   await f.watch.close()
 })
 

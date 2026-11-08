@@ -4,10 +4,10 @@ import assert from 'node:assert/strict'
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ProactiveWatch } from '../src/proactive.mjs'
-import { proposalStateStore } from '../src/proactive-state.mjs'
-import { createGmailRecommendationSource } from '../src/gmail-recommendation-source.mjs'
-import { createPrivateProposalSources } from '../src/private-proposal-sources.mjs'
+import { ProactiveWatch } from '../src/recommendations/index.mjs'
+import { proposalStateStore } from '../src/recommendations/index.mjs'
+import { createGmailRecommendationSource } from '../src/recommendations/index.mjs'
+import { createPrivateProposalSources } from '../src/recommendations/index.mjs'
 
 const timestamp = Date.parse('2026-10-25T01:00:00Z')
 const ownerConfig = () => ({ version: 2, pollMs: 60000, maxAgeMs: 300000, cooldownMs: 60000,

@@ -1,8 +1,8 @@
 import { fixtureMem0 } from './fixtures/mem0.mjs'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { projectPrivateFeedback, privateFeedbackSignalsSafe } from '../src/private-feedback-projection.mjs'
-import { queueFeedback, scheduleFeedback, resumePrivateFeedback, feedbackFor, feedbackRuleKey } from '../src/proactive-feedback-memory.mjs'
+import { projectPrivateFeedback, privateFeedbackSignalsSafe } from '../src/recommendations/index.mjs'
+import { queueFeedback, scheduleFeedback, resumePrivateFeedback, feedbackFor, feedbackRuleKey } from '../src/recommendations/index.mjs'
 
 function fixture() {
   const event = 'a'.repeat(64)

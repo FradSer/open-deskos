@@ -6,9 +6,9 @@ Feature: Personal Agent plugin composition
     Then no generation request or action runs
     When generation fails or returns invalid evidence references or action fields
     Then the service reports unavailable suggestions without a popup or private error details
-    When valid candidates pass usefulness and grounding judgments
-    Then the service publishes the same probability-ordered advice without action authority
-    And judgment receives the generated-advice marker, owner goal, and resolvable evidence references
+    When valid candidates pass host structural validation
+    Then the service publishes the same generated advice in generation order without action authority
+    And the host binds the approved action, evidence and visible measured values
     And generation receives only selected observation fields
     When the same candidates return after presentation acknowledgement
     Then their identities remain unchanged without another automatic popup
@@ -31,7 +31,7 @@ Feature: Personal Agent plugin composition
     Then the service, channel, Agent, and Home retain their identities
     And the released Watch cannot publish or accept a service push
     And a fresh Watch resumes current suggestions
-    When Watch is disabled during reading, judgment, or phrasing
+    When Watch is disabled during reading or phrasing
     Then its provider receives cancellation and pending work settles without publication
     And late provider completion cannot change the next Watch instance
     When owner delivery is silent, quiet, routine, snoozed, suppressed, or busy
@@ -52,7 +52,6 @@ Feature: Personal Agent plugin composition
     Then no action runs and corrupt data is not silently reset
     When the current owner rule changes or a saved action is not authorized
     Then initialization expires the old proposal before polling
-    And a saved proposal without its judgment also expires
     When an offered proposal restarts without presentation acknowledgement
     Then immediate delivery retries and routine delivery waits for explicit access
     And acknowledged routine delivery stays quiet for its saved owner day
@@ -100,12 +99,12 @@ Feature: Personal Agent plugin composition
     Then phrasing preserves owner advice and no action executes before presentation and exact confirmation
     And confirmation updates the same private memory data without replay
     When the Watch processes an owner goal
-    Then generated advice retains evidence and independent judgment
+    Then generated advice retains evidence and host-bound facts
     And generated advice has no action or execution authority
     When the Agent cannot phrase owner advice
     Then the Watch retains the approved original advice
     When suggestion generation fails and recovers
-    Then the Watch reports unavailable generation without exposing private errors and resumes grounded advice
+    Then the Watch reports unavailable generation without exposing private errors and resumes host-validated advice
     When an action fails after reservation
     Then its result remains unknown and provider recovery cannot replay it
 
@@ -344,3 +343,26 @@ Feature: Personal Agent plugin composition
     When producers declare the same reading identity
     Then the conflicting identity is unavailable
     And unrelated reading identities remain available
+
+  Scenario: A generated suggestion has one host-bound next step
+    Given a topic supplies approved actions or a read-only owner step
+    When a generator returns a suggestion tree
+    Then at most one action or owner step is present
+    And the tree agrees with the host candidate fields
+    And an unanswered invitation can select the supplied reply preparation action
+    And a simple reply request keeps the advice and its single next action concise
+    And its card does not repeat the message body as measured readings
+    And completed requests can produce no suggestion
+
+  Scenario: Private recommendation generation uses its supplied source facts
+    Given a recommendation batch includes private connector observations
+    When the current model composes the suggestions
+    Then generation has no desk reading or mutation tools
+    And the source adapter owns any later source validation
+
+  Scenario: A private reply draft uses shared read-only text primitives
+    Given a private generator has no tools
+    When it returns one fixed reply draft suggestion
+    Then the host accepts a short unsent draft notice and one to eight text paragraphs
+    And the complete plain text is at most four thousand characters
+    And action, option, measurement, metadata, and provenance content are rejected

@@ -77,13 +77,45 @@ function personalAgentUnavailable(message) {
   return { state: 'unavailable', message }
 }
 
+const isGmailMessageId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value)
+const isCalendarReadingId = value => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value)
+
+function parseProposalSources(value) {
+  if (!Array.isArray(value) || !value.length || value.length > 8) return null
+  const sources = []
+  for (const source of value) {
+    if (source?.kind === 'gmail' && source.label === 'Gmail' && isGmailMessageId(source.messageId)) {
+      sources.push({ kind: 'gmail', label: 'Gmail', messageId: source.messageId })
+    } else if (source?.kind === 'calendar' && source.label === 'Calendar' && isCalendarReadingId(source.readingId)) {
+      sources.push({ kind: 'calendar', label: 'Calendar', readingId: source.readingId })
+    } else return null
+  }
+  return sources
+}
+
+function privateProposal(proposal) {
+  if (proposal?.privateData === true || (Array.isArray(proposal?.sources) && proposal.sources.some(source => source?.kind === 'gmail'))) return true
+  // An owner-selected reading grants the resident context, not remote display access.
+  const ruleId = proposal?.ruleId
+  if (proposal?.action !== null || typeof ruleId !== 'string' || !/^intent-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(ruleId)
+    || !Array.isArray(proposal.evidence)) return false
+  const syntheticReading = 'intent.' + ruleId.slice('intent-'.length)
+  return proposal.evidence.some(row => typeof row?.readingId === 'string' && row.readingId !== syntheticReading)
+}
+
 function readableProposals(value) {
   if (!Array.isArray(value) || value.length > 64) return null
   const kept = []
   for (const p of value) {
     if (!p || typeof p.id !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(p.id) ||
         typeof p.advice !== 'string' || p.advice.length > 1000 || !['pending', 'ignored', 'expired', 'executing', 'completed', 'unknown'].includes(p.status)) return null
+    if (privateProposal(p)) continue
     const row = { id: p.id, status: p.status, advice: p.advice, action: null, confirmation: '', offered: p.offered === true, presented: p.presented === true }
+    if (p.sources !== undefined) {
+      const sources = parseProposalSources(p.sources)
+      if (!sources || p.action !== null) return null
+      row.sources = sources
+    }
     if (Object.hasOwn(p, 'nextStep')) {
       if (typeof p.nextStep !== 'string' || !p.nextStep.trim() || p.nextStep.length > 240 || /[\x00-\x1f\x7f]/.test(p.nextStep)) return null
       row.nextStep = p.nextStep
@@ -125,15 +157,16 @@ function projectPersonalAgentFrame(status) {
     return personalAgentUnavailable('Personal Agent state unavailable')
   }
   const frame = { state: status.state, voiceInput: false }
+  const ownerOnly = status.ownerOnly === true
   const voiceFailure = parseVoiceFailure(status)
   if (voiceFailure) frame.voiceFailure = voiceFailure
   for (const key of ['transcript', 'message', 'proposalError']) {
-    if (typeof status[key] === 'string') frame[key] = status[key]
+    if ((!ownerOnly || key === 'proposalError') && typeof status[key] === 'string') frame[key] = status[key]
   }
   for (const key of ['ownerTurnId', 'threadId']) {
-    if (typeof status[key] === 'string' && (key === 'threadId' ? /^[a-f0-9]{64}$/.test(status[key]) : /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(status[key]))) frame[key] = status[key]
+    if (!ownerOnly && typeof status[key] === 'string' && (key === 'threadId' ? /^[a-f0-9]{64}$/.test(status[key]) : /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(status[key]))) frame[key] = status[key]
   }
-  if (status.replyTo !== undefined && parseReplyTo(status.replyTo)) frame.replyTo = parseReplyTo(status.replyTo)
+  if (!ownerOnly && status.replyTo !== undefined && parseReplyTo(status.replyTo)) frame.replyTo = parseReplyTo(status.replyTo)
   if (status.conversation && parseConversation(status.conversation)) frame.conversation = parseConversation(status.conversation)
   for (const key of ['textInput', 'replyInput']) if (typeof status[key] === 'boolean') frame[key] = status[key]
   if (status.judgment && typeof status.judgment === 'object') {
@@ -153,7 +186,10 @@ function projectPersonalAgentFrame(status) {
     const readable = proposals !== null && (status.proposalCapabilities === undefined || status.proposalCapabilities?.read === true)
     frame.proposalCapabilities = { read: readable, respond: false, acknowledge: false }
     frame.proposals = readable ? proposals : []
+    // A private-only update must not announce a suggestion on the remote display.
+    const omittedPrivate = Array.isArray(status.proposals) && status.proposals.some(privateProposal)
     frame.proposalPopup = readable && status.proposalPopup === true
+      && (!omittedPrivate || proposals.some(p => p.status === 'pending' && p.offered && !p.presented))
     frame.proposalInteraction = readable && status.proposalInteraction === true
     frame.proposalRecovery = readable && status.proposalRecovery === true
     frame.proposalHiddenCount = Number.isSafeInteger(status.proposalHiddenCount) && status.proposalHiddenCount >= 0 ? status.proposalHiddenCount : 0
@@ -171,6 +207,8 @@ function projectPersonalAgentFrame(status) {
 
 module.exports = {
   projectPersonalAgentFrame,
+  parseProposalSources,
+  isGmailMessageId,
   parseVoiceFailure,
   parseReplyPresentation,
   MAX_PERSONAL_AGENT_FRAME_BYTES,

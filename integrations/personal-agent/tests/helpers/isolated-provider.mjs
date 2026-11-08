@@ -1,6 +1,5 @@
 import {ModelRuntime} from '@earendil-works/pi-coding-agent'
 import {createJevClient as client,checkJevAuthentication as check} from '../../src/jev-client.mjs'
-import {createJevJudge as judge} from '../../src/proactive-jev.mjs'
 import {createJevIntentRouter as router} from '../../src/intent-routing.mjs'
 import {createJudgmentClient as judgment} from '../../src/judgment-client.mjs'
 
@@ -18,6 +17,5 @@ async function isolatedRuntime(env = {}) {
 const options = input => ({...input,env:{TYPESAFE_API_KEY:'',OPENCODE_API_KEY:'',...input?.env},runtime:input?.runtime ?? isolatedRuntime(input?.env)})
 export const createJevClient = input => client(options(input))
 export const checkJevAuthentication = input => check(options(input))
-export const createJevJudge = input => judge(options(input))
 export const createJevIntentRouter = input => router(options(input))
 export const createJudgmentClient = input => judgment({createJev:createJevClient,...input})

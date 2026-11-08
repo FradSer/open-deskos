@@ -1,8 +1,8 @@
 // End-to-end contract: OpenUI owns syntax and the full UI tree; the host still owns authority.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseSuggestionDocument, OPENUI_EXAMPLE, OPENUI_EXAMPLES, generationSystemPrompt, visibleUiText } from '../src/openui-contract.mjs'
-import { validateGeneratedBatch } from '../src/proactive-generation.mjs'
+import { parseSuggestionDocument, OPENUI_EXAMPLE, OPENUI_EXAMPLES, generationSystemPrompt, visibleUiText } from '../src/recommendations/index.mjs'
+import { validateGeneratedBatch } from '../src/recommendations/index.mjs'
 import {
   FULL_TREE_DOCUMENT, FULL_TREE_TYPE_COUNTS, EXTRA_DOCUMENT,
   componentNames, uiNodes, uiTypes, uiTypeCounts,
@@ -95,9 +95,7 @@ test('forged evidence inside the UI tree cannot replace host-issued evidence', (
   const suggestionNode = uiNodes(forgedUi).find(node => node.type === 'Suggestion')
   assert.ok(suggestionNode)
   suggestionNode.props.evidenceIds = ['e999']
-  const [result] = validateGeneratedBatch({ suggestions: [{ ...suggestions[0], ui: forgedUi }] }, topics, 8)
-  assert.deepEqual(result.evidence.map(entry => entry.id), Object.keys(VALUES))
-  assert.deepEqual(result.ui, forgedUi, 'the host does not project OpenUI-owned nodes')
+  assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...suggestions[0], ui: forgedUi }] }, topics, 8), /UI and host candidate fields disagree/)
 })
 
 test('advice that restates the action label is still rejected after parsing', () => {
@@ -121,7 +119,10 @@ test('the host refuses unresolved template markers and non-string semantic keys'
       /Invalid generated suggestion/, `non-string key must be refused: ${String(key)}`)
   }
   // The allowlist still admits an ordinary semantic key.
-  assert.equal(validateGeneratedBatch({ suggestions: [{ ...base, key: 'commute-delay' }] }, topics, 8).length, 1)
+  const renamed = structuredClone(base)
+  renamed.key = 'commute-delay'
+  renamed.ui.props.key = renamed.key
+  assert.equal(validateGeneratedBatch({ suggestions: [renamed] }, topics, 8).length, 1)
 })
 
 // A bubble already renders advice. The host refuses a restated advice
@@ -145,6 +146,30 @@ b1 = ApprovedAction("open")`).suggestions[0]
   const repeated = structuredClone(supported)
   uiNodes(repeated.ui).find(node => node.type === 'Readings').children.push(structuredClone(uiNodes(repeated.ui).find(node => node.type === 'Reading')))
   assert.throws(() => validateGeneratedBatch({ suggestions: [repeated] }, topics, 8), /repeats a reading/i)
+})
+
+test('a concise heading or badge may name the subject of read-only Intent advice', () => {
+  const document = `root = Suggestions([s1])
+s1 = Suggestion([a1, h1, badge1, r1, n1],"intent-walk","walk-jacket",["e0"])
+a1 = Advice("当前温度适合为下次散步准备轻外套。")
+h1 = Heading("散步准备")
+badge1 = Badge("准备轻外套")
+r1 = Reading("当前温度","23.5°C")
+n1 = OwnerStep("出门前带上轻外套。")`
+  const parsed = parseSuggestionDocument(document)
+  const topic = { id: 'intent-walk', intentPreview: true, intentCondition: 'Consider a light jacket below 30°C.',
+    evidence: [{ id: 'e0', readingId: 'odk.tile.weather', field: 'temperatureC', value: 23.5, state: 'live', measuredAt: stamp }] }
+  const [result] = validateGeneratedBatch(parsed, [topic], 1)
+  assert.equal(result.nextStep, '出门前带上轻外套。')
+  assert.equal(Object.hasOwn(result, 'actionId'), false)
+  assert.deepEqual(result.evidence, topic.evidence)
+  for (const type of ['Heading', 'Badge', 'Text']) {
+    for (const value of [result.advice, '提示：' + result.advice + '请留意。']) {
+      const repeated = structuredClone(parsed)
+      repeated.suggestions[0].ui.children.push({ type, props: { value }, children: [] })
+      assert.throws(() => validateGeneratedBatch(repeated, [topic], 1), /restates advice/i)
+    }
+  }
 })
 
 test('short reading labels and distinct readings are never a style-score false positive', () => {
@@ -202,6 +227,24 @@ c1 = Reading("用时","52分钟")
 b1 = ApprovedAction("open")`
   const [s] = parseSuggestionDocument(doc).suggestions
   assert.throws(() => validateGeneratedBatch({ suggestions: [s] }, topics, 8), /number no cited observation supplies/i)
+})
+
+test('the read-only Intent example binds measured evidence without borrowing its condition threshold', () => {
+  const doc = OPENUI_EXAMPLES.find(example => example.includes('OwnerStep('))
+  assert.ok(doc)
+  const parsed = parseSuggestionDocument(doc)
+  const [suggestion] = parsed.suggestions
+  const topic = {
+    id: suggestion.topicId, intentPreview: true, intentCondition: 'Suggest a review when more than 2 items are pending.',
+    evidence: [{ id: 'e0', readingId: 'source.items', field: 'pending', value: 3, state: 'live', measuredAt: stamp }],
+  }
+  const [result] = validateGeneratedBatch(parsed, [topic], 1)
+  assert.equal(result.nextStep, suggestion.nextStep)
+  assert.equal(Object.hasOwn(result, 'actionId'), false)
+  assert.deepEqual(result.evidence, topic.evidence)
+  assert.throws(() => validateGeneratedBatch(
+    parseSuggestionDocument(doc.replace('Reading("待处理事项","3")', 'Reading("待处理事项","2")')), [topic], 1,
+  ), /number no cited observation supplies/i)
 })
 
 test('the shipped examples compose visibly different generic trees', () => {

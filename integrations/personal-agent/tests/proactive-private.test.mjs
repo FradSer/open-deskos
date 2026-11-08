@@ -7,8 +7,9 @@ import childProcess, { spawnSync } from 'node:child_process'
 import { syncBuiltinESMExports } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { createProactiveDirectory, checkProactivePath, readProactiveFile, protectProactivePath } from '../src/proactive-private.mjs'
-import { proposalStateStore } from '../src/proactive-state.mjs'
+import { proposalStateStore } from '../src/recommendations/index.mjs'
 import { fixtureNotes } from './fixtures/mem0.mjs'
+import { openuiSuggestion, uiNodes } from './openui-fixtures.test.mjs'
 
 const windows = process.platform === 'win32'
 
@@ -177,7 +178,7 @@ test('temporary private file is protected while empty before content is written'
 })
 
 test('native owner suppression writer publishes a private atomic replacement', async t => {
-  const { loadProactiveConfig, ownerConfigWriter } = await import('../src/proactive.mjs')
+  const { loadProactiveConfig, ownerConfigWriter } = await import('../src/recommendations/index.mjs')
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'odk-proactive-owner-native-')))
   t.after(() => rmSync(dir, { recursive: true, force: true })); protectProactivePath(dir)
   const file = join(dir, 'owner.json')
@@ -187,12 +188,59 @@ test('native owner suppression writer publishes a private atomic replacement', a
   assert.deepEqual(loadProactiveConfig(file).suppressed, ['owner-rule'])
 })
 
-test('ordinary model judgment identities survive private checkpoint reload without Jev aliases', t => {
+test('an older checkpoint with a legacy judgment record still loads', t => {
   const dir=realpathSync(mkdtempSync(join(tmpdir(),'odk-model-judgment-')));protectProactivePath(dir);t.after(()=>rmSync(dir,{recursive:true,force:true}))
   const store=proposalStateStore(join(dir,'state.json'))
   const id='12345678-1234-4123-8123-123456789abc',model='synthetic/model-v1'
   const proposal={id,ruleId:'synthetic',subject:'synthetic',ruleVersion:'{}',status:'pending',advice:'Synthetic advice',confirmation:'',result:'',createdAt:'2026-10-18T00:00:00Z',action:null,offered:false,presented:false,evidence:[],judgment:{model,probability:0.99,threshold:0.8,trigger:'heartbeat',judgedAt:'2026-10-18T00:00:00Z'}}
   const claim={key:id+':1:2026-10-18',intentId:id,revision:1,date:'2026-10-18',status:'condition_unknown',updatedAt:'2026-10-18T00:00:00Z',model}
-  store.save({version:1,proposals:[proposal],intentClaims:[claim]});assert.equal(store.load().proposals[0].judgment.model,model);assert.equal(store.load().intentClaims[0].model,model)
-  assert.throws(()=>store.save({version:1,proposals:[{...proposal,judgment:{...proposal.judgment,model:'https://user:secret@host/path'}}]}))
+  store.save({version:1,proposals:[proposal],intentClaims:[claim]})
+  assert.equal(store.load().proposals[0].judgment.model,model)
+  assert.equal(store.load().intentClaims[0].model,model)
+})
+
+test('a bounded OpenUI tree survives private checkpoint validation and round-trip', t => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'odk-openui-state-')))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  protectProactivePath(dir)
+  const file = join(dir, 'state.json'), store = proposalStateStore(file)
+  const boundedUi = openuiSuggestion({
+    topicId: 'synthetic', key: 'openui', advice: 'Synthetic advice.', actionId: 'open', evidenceIds: ['e0'],
+  }).ui
+  assert.ok(Buffer.byteLength(JSON.stringify(boundedUi)) < 16384, 'the fixture stays inside the UI byte budget')
+  const proposal = {
+    id: '22345678-1234-4123-8123-123456789abc', ruleId: 'synthetic', subject: 'synthetic:openui',
+    ruleVersion: '{}', status: 'pending', advice: 'Synthetic advice.', confirmation: '', result: '',
+    createdAt: '2026-10-18T00:00:00Z', action: null, offered: false, presented: false, evidence: [], ui: boundedUi,
+  }
+  const state = { version: 1, proposals: [proposal] }
+  store.save(state)
+  assert.deepEqual(store.load().proposals[0].ui, boundedUi, 'the full UI tree survives a private checkpoint round-trip')
+
+  let deepUi = { type: 'Divider', props: {} }
+  for (let index = 0; index < 11; index++) deepUi = { type: 'Stack', props: { children: [deepUi] } }
+  assert.equal(uiNodes(deepUi).length, 12, 'the fixture has twelve nested component nodes')
+  const oversizedUi = { type: 'Text', props: { value: 'x'.repeat(17000) } }
+  assert.ok(Buffer.byteLength(JSON.stringify(oversizedUi)) > 16384, 'the fixture exceeds the UI byte budget')
+  for (const [name, ui] of [['oversized', oversizedUi], ['deeply nested', deepUi]]) {
+    const invalid = { version: 1, proposals: [{ ...proposal, ui }] }
+    assert.throws(() => store.save(invalid), /Invalid proposal OpenUI tree/, `${name}: save rejects the tree`)
+    writeFileSync(file, JSON.stringify(invalid), { mode: 0o600 })
+    protectProactivePath(file)
+    assert.throws(() => store.load(), /Invalid proposal OpenUI tree/, `${name}: load rejects a forged checkpoint`)
+  }
+  store.save(state)
+  assert.deepEqual(store.load().proposals[0].ui, boundedUi, 'a valid checkpoint replaces a rejected tree')
+
+  // Structural bounds match the Shell frame contract: the service must reject
+  // the same malformed shapes rather than persisting a tree the host cannot render.
+  for (const [name, ui] of [
+    ['empty type', { type: '', children: [] }],
+    ['scalar children', { type: 'Suggestions', children: 'nope' }],
+    ['untyped child', { type: 'Suggestions', children: [{ nope: 1 }] }],
+    ['scalar props', { type: 'Suggestions', props: 'bad', children: [] }],
+  ]) {
+    assert.throws(() => store.save({ version: 1, proposals: [{ ...proposal, ui }] }),
+      /Invalid proposal OpenUI tree/, `${name}: service rejects the tree`)
+  }
 })

@@ -5,6 +5,7 @@ export const GMAIL_OBSERVATION_FIELDS = Object.freeze(['subject', 'body0', 'body
 const GMAIL_REVIEW_KIND = 'private-source-review'
 const unavailable = () => Error('Private source is unavailable or changed.')
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex')
+export const gmailMessageKey = (accountKey, id) => digest(['gmail-message', accountKey, id])
 const object = value => value && typeof value === 'object' && !Array.isArray(value)
 const clean = value => value.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '')
 function bounded(value, limit) {
@@ -26,17 +27,17 @@ function semanticReading(value) {
 }
 const semanticBindingKey = value => digest(['gmail-semantic-binding', value])
 
-function account(value) {
+export function gmailAccountKey(value) {
   if (!object(value) || value.state !== 'connected' || typeof value.emailAddress !== 'string' || value.emailAddress.length > 320
       || !/^[^\s@]+@[^\s@]+$/.test(value.emailAddress)) throw unavailable()
   return digest(['gmail-account', value.emailAddress.toLowerCase()])
 }
-function payload(result) {
+export function gmailPayload(result) {
   if (!object(result) || result.isError || !object(result.structuredContent)) throw unavailable()
   return result.structuredContent
 }
-function requireAccountPin(context) {
-  for (const name of ['gmail_search', 'gmail_read']) {
+export function requireGmailAccountPin(context, names) {
+  for (const name of names) {
     const property = context.schema(name)?.properties?.expectedAccountKey
     if (property?.type !== 'string' || property.pattern !== '^[a-f0-9]{64}$') throw unavailable()
   }
@@ -52,21 +53,21 @@ function message(value, expectedId) {
 /** Private observations never register a public producer port or alter Gmail.
  * The caller selects this source through an owner-controlled recommendation goal.
  */
-export function createGmailRecommendationSource({ observer, now = Date.now, query = 'in:inbox', maxMessages = 1 }) {
+export function createGmailRecommendationSource({ observer, now = Date.now, query = 'in:inbox', maxMessages = 1, sourceId = 'gmail', scope = undefined }) {
   if (typeof query !== 'string' || !query.trim() || query.length > 1024 || /[\x00-\x1f]/.test(query)
       || !Number.isInteger(maxMessages) || maxMessages < 1 || maxMessages > 8) throw unavailable()
   let accountKey, records = new Map()
   const clear = () => { records.clear() }
   function acceptAccount(value) {
-    const next = account(value)
+    const next = gmailAccountKey(value)
     if (accountKey !== next) { clear(); accountKey = next }
     return next
   }
   const actionRecord = action => object(action) && Object.keys(action).length === 3 && Object.keys(action).every(key => ['kind', 'sourceId', 'handle'].includes(key))
-    && action.kind === GMAIL_REVIEW_KIND && action.sourceId === 'gmail' && typeof action.handle === 'string' && /^[a-f0-9]{64}$/.test(action.handle)
+    && action.kind === GMAIL_REVIEW_KIND && action.sourceId === sourceId && typeof action.handle === 'string' && /^[a-f0-9]{64}$/.test(action.handle)
     ? records.get(action.handle) : undefined
   function sameSnapshot(snapshot) {
-    if (!object(snapshot) || !observer.enabled || snapshot.sourceId !== 'gmail' || snapshot.connectorId !== 'gmail'
+    if (!object(snapshot) || !observer.enabled || snapshot.sourceId !== sourceId || snapshot.connectorId !== 'gmail'
         || snapshot.accountKey !== accountKey || snapshot.epoch !== observer.epoch) return false
     const row = records.get(snapshot.handle)
     return !!row && Object.keys(row.sourceSnapshot).length === Object.keys(snapshot).length
@@ -82,45 +83,57 @@ export function createGmailRecommendationSource({ observer, now = Date.now, quer
     // observedAt identifies the first host binding, not the latest provider read.
     const observedAt = unchanged ? previous.sourceSnapshot.observedAt
       : asOf
-    const sourceSnapshot = Object.freeze({ sourceId: 'gmail', connectorId: 'gmail', connectorRevision: row.connectorRevision,
+    const sourceSnapshot = Object.freeze({ sourceId, connectorId: 'gmail', connectorRevision: row.connectorRevision,
       epoch: row.epoch, accountKey: row.accountKey, eventKey: row.eventKey, handle: row.eventKey, bindingKey, observedAt })
     return { eventKey: row.eventKey, provenance: PRIVATE_SOURCE_PROVENANCE, sourceSnapshot,
       reading: { id: 'private.gmail.' + row.eventKey, state: 'live', value: { ...semantic, asOf } },
-      reviewAction: Object.freeze({ kind: GMAIL_REVIEW_KIND, sourceId: 'gmail', handle: row.eventKey }) }
+      reviewAction: Object.freeze({ kind: GMAIL_REVIEW_KIND, sourceId, handle: row.eventKey }) }
   }
   return {
-    sourceId: 'gmail',
+    sourceId,
     get enabled() { return observer.enabled },
+    messageId: handle => records.get(handle)?.messageId,
     async observe({ signal = undefined } = {}) {
       if (!observer.enabled) { clear(); return { state: 'unavailable', events: [], provenance: PRIVATE_SOURCE_PROVENANCE } }
       try {
         const observed = await observer.run(async context => {
-          requireAccountPin(context)
-          const selectedAccount = acceptAccount(payload(await context.call('gmail_status')))
-          const found = payload(await context.call('gmail_search', { query, maxResults: maxMessages, expectedAccountKey: selectedAccount }))
+          requireGmailAccountPin(context, scope ? ['gmail_read', 'gmail_label_changes'] : ['gmail_search', 'gmail_read'])
+          if (scope && (context.schema('gmail_read')?.properties?.expectedLabelId?.type !== 'string'
+            || context.schema('gmail_read')?.properties?.receivedSince?.type !== 'integer')) throw unavailable()
+          const selectedAccount = acceptAccount(gmailPayload(await context.call('gmail_status')))
+          if (scope && selectedAccount !== scope.accountKey) throw unavailable()
+          const selection = scope ? await scope.select(context) : undefined
+          const found = selection?.found ?? gmailPayload(await context.call('gmail_search', { query, maxResults: maxMessages, expectedAccountKey: selectedAccount }))
           if (found.untrusted !== true || !Array.isArray(found.messages) || found.messages.length > maxMessages
               || new Set(found.messages.map(item => item?.id)).size !== found.messages.length
               || !found.messages.every(item => object(item) && typeof item.id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(item.id))) throw unavailable()
           const rows = []
           for (const item of found.messages) {
-            const value = message(payload(await context.call('gmail_read', { id: item.id, expectedAccountKey: selectedAccount })), item.id)
-            const row = { messageId: item.id, accountKey: selectedAccount, eventKey: digest(['gmail-message', selectedAccount, item.id]),
-              connectorRevision: context.connectorRevision, epoch: context.epoch }
+            const read = selection ? { expectedLabelId: scope.labelId, receivedSince: selection.since } : undefined
+            const result = gmailPayload(await context.call('gmail_read', { id: item.id, expectedAccountKey: selectedAccount, ...read }))
+            if (selection && result.id === item.id && result.untrusted === true && result.excluded === true) continue
+            if (selection && (!Array.isArray(result.labels) || !result.labels.includes(scope.labelId)
+              || typeof result.internalDate !== 'string' || !/^\d{1,16}$/.test(result.internalDate)
+              || Number(result.internalDate) > 8640000000000000 || Number(result.internalDate) < selection.since)) throw unavailable()
+            const value = message(result, item.id)
+            const row = { messageId: item.id, accountKey: selectedAccount, eventKey: gmailMessageKey(selectedAccount, item.id),
+              connectorRevision: context.connectorRevision, epoch: context.epoch, read }
             rows.push({ row, value })
           }
-          if (account(payload(await context.call('gmail_status'))) !== selectedAccount) { clear(); accountKey = undefined; throw unavailable() }
+          if (gmailAccountKey(gmailPayload(await context.call('gmail_status'))) !== selectedAccount) { clear(); accountKey = undefined; throw unavailable() }
           return rows
         }, { signal })
-        const next = new Map()
+        const next = scope ? new Map([...records].filter(([, row]) => row.epoch === observed.epoch
+          && row.connectorRevision === observed.connectorRevision)) : new Map()
         const events = observed.value.map(({ row, value }) => { const selected = event(row, value); next.set(row.eventKey, { ...row, sourceSnapshot: selected.sourceSnapshot }); return selected })
-        records = next
+        records = new Map([...next].slice(-64))
         return { state: 'live', events, provenance: PRIVATE_SOURCE_PROVENANCE }
       } catch { clear(); return { state: 'unavailable', events: [], provenance: PRIVATE_SOURCE_PROVENANCE } }
     },
     async validateSnapshot(snapshot, { signal = undefined } = {}) {
       if (!sameSnapshot(snapshot) || !await observer.isCurrent(snapshot, { signal })) { clear(); return false }
       try {
-        const selected = await observer.run(async ({ call }) => account(payload(await call('gmail_status'))), { signal })
+        const selected = await observer.run(async ({ call }) => gmailAccountKey(gmailPayload(await call('gmail_status'))), { signal })
         if (selected.value !== accountKey) { clear(); accountKey = selected.value; return false }
         return sameSnapshot(snapshot) && selected.connectorRevision === snapshot.connectorRevision && selected.epoch === snapshot.epoch
       } catch { clear(); return false }
@@ -133,12 +146,12 @@ export function createGmailRecommendationSource({ observer, now = Date.now, quer
       if (!row || !sameSnapshot(row.sourceSnapshot)) throw unavailable()
       try {
         const reviewed = await observer.run(async context => {
-          requireAccountPin(context)
+          requireGmailAccountPin(context, scope ? ['gmail_read'] : ['gmail_search', 'gmail_read'])
           if (context.connectorRevision !== row.connectorRevision || context.epoch !== row.epoch) throw unavailable()
-          if (acceptAccount(payload(await context.call('gmail_status'))) !== row.accountKey) throw unavailable()
-          const value = message(payload(await context.call('gmail_read', { id: row.messageId, expectedAccountKey: row.accountKey })), row.messageId)
+          if (acceptAccount(gmailPayload(await context.call('gmail_status'))) !== row.accountKey) throw unavailable()
+          const value = message(gmailPayload(await context.call('gmail_read', { id: row.messageId, expectedAccountKey: row.accountKey, ...row.read })), row.messageId)
           if (semanticBindingKey(semanticReading(value)) !== row.sourceSnapshot.bindingKey) throw unavailable()
-          if (account(payload(await context.call('gmail_status'))) !== row.accountKey) { clear(); accountKey = undefined; throw unavailable() }
+          if (gmailAccountKey(gmailPayload(await context.call('gmail_status'))) !== row.accountKey) { clear(); accountKey = undefined; throw unavailable() }
           return value
         }, { signal })
         if (!sameSnapshot(row.sourceSnapshot)) throw unavailable()

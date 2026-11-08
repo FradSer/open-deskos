@@ -6,6 +6,31 @@ export const PROPOSAL_DECISIONS = /** @type {const} */ (['accept', 'ignore', 'mu
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 export const generationKey = value => digest(value)
 export const observationKey = evidence => digest(evidence.map(e => [e.readingId, e.field, e.value]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))))
+
+export function observationField(value, path) {
+  for (const part of path.split('.')) {
+    if (!value || typeof value !== 'object' || !Object.hasOwn(value, part)) return undefined
+    value = value[part]
+  }
+  return value
+}
+
+export function observationMeasuredAt(reading, path, timestampPath = undefined) {
+  const separator = path.lastIndexOf('.')
+  const parent = separator < 0 ? reading?.value : observationField(reading?.value, path.slice(0, separator))
+  const field = path.slice(separator + 1)
+  if (parent?.stale === true || parent?.online === false || (field === 'soilPercent' && parent?.soilStale === true)) return undefined
+  if (timestampPath) return observationField(reading?.value, timestampPath)
+  // A plant or greenhouse measurement can be older than its enclosing snapshot.
+  if (parent && Object.hasOwn(parent, 'measuredAt')) return parent.measuredAt
+  // An installed package publishes through the host registry, which owns this clock.
+  if (reading?.kind === 'package' && Number.isFinite(reading.updatedAt)) {
+    const published = new Date(reading.updatedAt)
+    return Number.isFinite(published.valueOf()) ? published.toISOString() : undefined
+  }
+  return reading?.value?.measured_at ?? reading?.value?.asOf ?? reading?.measured_at ?? reading?.asOf
+}
+
 const deadlines = evidence => evidence.filter(e => /(?:^|\.)(?:deadline|dueAt|expiresAt|startsAt|startAt)$/i.test(e.field) && typeof e.value === 'string')
   .map(e => Date.parse(e.value)).filter(Number.isFinite)
 export const timeWindow = (evidence, now) => deadlines(evidence).map(deadline => {
@@ -62,6 +87,6 @@ export function proposalPriority(watch, a, b) {
   const rule = p => watch.rules().find(rule => rule.id === p.ruleId)
   const urgency = p => rule(p)?.urgent ? 2 : rule(p)?.delivery === 'routine' ? 1 : 0
   const deadline = p => Math.min(...deadlines(p.evidence))
-  return urgency(b) - urgency(a) || deadline(a) - deadline(b) || (b.judgment?.probability ?? 0) - (a.judgment?.probability ?? 0)
+  return urgency(b) - urgency(a) || deadline(a) - deadline(b)
     || Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.id.localeCompare(b.id)
 }

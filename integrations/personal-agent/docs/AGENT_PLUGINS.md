@@ -1,7 +1,7 @@
 # Personal Agent plugins
 
 The resident Personal Agent can select fixed Open DeskOS plugins for packages, task experience, and completion checks.
-Pi Durable 1.2 owns execution and conversation state.
+Pi Durable owns execution and conversation state.
 The selection cannot import package names, JavaScript paths, or arbitrary Pi extensions.
 
 ## Configuration

@@ -9,6 +9,16 @@ import { createWindowsPrivatePaths } from '../src/proactive-private-windows.mjs'
 import { createConversationProjection } from '../src/conversation-projection.mjs'
 async function fixture(t) { const dir=await realpath(await mkdtemp(join(tmpdir(),'odk-conversation-')));t.after(()=>rm(dir,{recursive:true,force:true}));if(process.platform==='win32')createWindowsPrivatePaths()('Protect',dir,true);return join(dir,'conversation.json') }
 const status=(id,state='thinking',message='')=>({v:1,type:'status',ownerTurnId:id,state,transcript:'你好\n原任务',message})
+test('owner-only reply preparation never enters the public conversation checkpoint',async t=>{
+ const file=await fixture(t),p=await createConversationProjection({file}),id=randomUUID()
+ p.observe({...status(id,'thinking',''),ownerOnly:true})
+ p.observe({...status(id,'idle','PRIVATE_INTERVIEW_REPLY'),ownerOnly:true})
+ assert.deepEqual(p.snapshot().conversation.turns,[])
+ p.observe(status(randomUUID(),'idle','public answer'))
+ await p.close()
+ assert.doesNotMatch(await readFile(file,'utf8'),/PRIVATE_INTERVIEW_REPLY/)
+ const q=await createConversationProjection({file});assert.equal(q.snapshot().conversation.turns.length,1);await q.close()
+})
 test('public owner turns deduplicate and restore without private service context',async t=>{
  const file=await fixture(t),id=randomUUID(),p=await createConversationProjection({file})
  const frame={...status(id),memory:'secret',agents:[{context:'secret'}],remote:{secret:true}}

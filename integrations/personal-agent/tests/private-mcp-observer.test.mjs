@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createPrivateMcpObserver, PRIVATE_SOURCE_PROVENANCE } from '../src/private-mcp-observer.mjs'
+import { createPrivateMcpObserver, PRIVATE_SOURCE_PROVENANCE } from '../src/recommendations/index.mjs'
 
 const revision = 'a'.repeat(64)
 const snapshot = () => ({ schemaVersion: 1, kind: 'mcp', id: 'mail', name: 'Private mail', policy: { ownerOnly: true, privateData: true }, transport: { type: 'stdio', command: process.execPath, args: [] } })

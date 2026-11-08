@@ -6,9 +6,8 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createPersonalAgent } from '../src/agent.mjs'
 import { loadPersonalConfig } from '../src/personal-config.mjs'
-import { assistant, offlineRuntime as offline, visibleTools } from './helpers/pi-fixture.mjs'
+import { assistant, fixtureModel, offlineRuntime as offline, visibleTools } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
-import { RemoteConversation } from '../src/remote-conversation.mjs'
 import { protectProactivePath } from '../src/proactive-private.mjs'
 import { fixtureMem0 } from './fixtures/mem0.mjs'
 
@@ -455,6 +454,7 @@ test('remote faithfulness review holds unsupported numeric, execution, and evide
    ownerCalls++;assert.fail('Unrequested provider context')
   })
   const bot=await createPersonalAgent(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('Received reports cannot create owner turns')})
+  const {RemoteConversation}=await import('../src/remote-conversation.mjs')
   const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote.json'),read:async cursor=>({ok:true,records:cursor?[]:records,total:2,omitted:1,nextCursor:'next'}),synthesize:input=>bot.summarizeRemote(input),publish(){}})
   try{
    await remote.poll();await remote.poll()
@@ -520,6 +520,7 @@ test('a real zero-tool remote reviewer can hold swapped assignments and unreadab
    return assistant(JSON.stringify({status:'needs_review',reason:'文本的任务归属或助理表达不符合要求。',citations}))
   })
   const bot=await createPersonalAgent(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
+  const {RemoteConversation}=await import('../src/remote-conversation.mjs')
   const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote.json'),read:async()=>({ok:true,records,total:2,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
   try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,0);assert.equal(remote.snapshot().heldCount,2);assert.equal(summaries,1);assert.equal(reviews,1)}finally{await remote.close();await bot.close()}
  })
@@ -546,6 +547,7 @@ test('actual zero-tool remote providers preserve conditional acceptance scope',a
   return assistant(JSON.stringify({status:'needs_review',reason:'来源说明验收条件，摘要却声称已完成比对并通过。',citations}))
  })
  const bot=await createPersonalAgent(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
+ const {RemoteConversation}=await import('../src/remote-conversation.mjs')
  const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
  try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,0);assert.equal(remote.snapshot().heldCount,1);assert.equal(summaries,1);assert.equal(reviews,1)}finally{await remote.close();await bot.close()}
 })
@@ -600,6 +602,7 @@ test('actual zero-tool remote providers preserve the scope of unavailable eviden
   return assistant(JSON.stringify({status:'needs_review',reason:'本次没有取得证据不能说明全局没有执行。',citations}))
  })
  const bot=await createPersonalAgent(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
+ const {RemoteConversation}=await import('../src/remote-conversation.mjs')
  const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote-scope.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
  try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,0);assert.equal(remote.snapshot().heldCount,1);assert.equal(summaries,1);assert.equal(reviews,1);assert.equal(contexts.length,2)}finally{await remote.close();await bot.close()}
 })
@@ -627,6 +630,7 @@ test('actual zero-tool remote providers keep missing evidence within its visible
    return assistant(JSON.stringify({status,reason:status==='passed'?'只说明本次读取不能确立验收，不推断外部记录不存在。':'摘要删掉了来源限定的本会话证据访问范围。',citations}))
   })
   const bot=await createPersonalAgent(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
+  const {RemoteConversation}=await import('../src/remote-conversation.mjs')
   const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote-local-scope.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
   try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,status==='passed'?1:0);assert.equal(remote.snapshot().heldCount,status==='passed'?0:1);assert.equal(summaries,1);assert.equal(reviews,1)}finally{await remote.close();await bot.close()}
  })
@@ -663,6 +667,7 @@ test('actual zero-tool remote providers preserve material literal deliverables',
    return assistant(JSON.stringify({status,reason:status==='passed'?'保留必要的字面结果与本次只读边界，没有执行或承诺。':'翻译或改写省略了理解与使用所需的字面交付结果。',citations}))
   })
   const bot=await createPersonalAgent(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
+  const {RemoteConversation}=await import('../src/remote-conversation.mjs')
   const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote-literal-result.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
   try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,status==='passed'?1:0);assert.equal(remote.snapshot().heldCount,status==='passed'?0:1);assert.equal(summaries,1);assert.equal(reviews,1)}finally{await remote.close();await bot.close()}
  })
@@ -682,4 +687,76 @@ test('retained task names use independent tool-free generation and review',async
  })
  const bot=await createPersonalAgent(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
  try {const value=await bot.nameRemoteTasks({records});assert.equal(value.names[0].name,'Android 客户端连接');assert.equal(generated,1);assert.equal(reviewed,1);reviewStatus='needs_review';await assert.rejects(bot.nameRemoteTasks({records}),{code:'REMOTE_NAMES_REVIEW_REQUIRED'})}finally{await bot.close()}
+})
+
+
+test('bounded zero-tool judgment and desk Intent generation isolate Hunyuan request overrides from the owner session', async t => {
+  const cases = [
+    { provider: 'magpie', id: 'hunyuan-eval/hy4-dev', api: 'openai-completions', disablesReasoning: true },
+    { provider: 'magpie', id: 'hunyuan-eval/another-model', api: 'openai-completions', disablesReasoning: false },
+    { provider: 'other-provider', id: 'hunyuan-eval/hy4-dev', api: 'openai-completions', disablesReasoning: false },
+    { provider: 'magpie', id: 'hunyuan-eval/hy4-dev', api: 'openai-responses', disablesReasoning: false },
+  ]
+  for (const { disablesReasoning, ...selection } of cases) await t.test(JSON.stringify(selection), async t => {
+    const { config } = await fixture(t)
+    config.personal.agentPlugins = undefined
+    config.env.ODK_JEV_PROVIDER = 'disabled'
+    const model = { ...fixtureModel, ...selection, reasoning: true }
+    const requests = []
+    const runtime = offline(context => {
+      const ownerMessage = context.messages.findLast(message => message.role === 'user')
+      const text = typeof ownerMessage.content === 'string' ? ownerMessage.content : ownerMessage.content.map(part => part.text).join('')
+      if (text.includes('"questions":')) {
+        const input = JSON.parse(text.slice(text.indexOf('{')))
+        return assistant(JSON.stringify({ answers: Object.fromEntries(Object.entries(input.questions).map(([id, question]) =>
+          [id, question.type === 'noul' ? { type: 'noul', noul: 0.99 } : { type: 'choice', choice: 'conversation', confidence: 0.99 }])) }))
+      }
+      if (text.includes('"intentConditionMet":true')) return assistant('root = Suggestions([])')
+      return assistant('fixture owner response')
+    })
+    const stream = runtime.streamSimple
+    Object.assign(runtime, { getAvailable: async () => [model], getAvailableSnapshot: () => [model], getModel: () => model,
+      streamSimple: (selected, context, options) => {
+        const transformed = Promise.resolve().then(async () => {
+          const payload = { reasoning_effort: 'high', unrelated: 'preserved' }
+          const projected = await options?.onPayload?.(payload, selected)
+          requests.push({ tools: visibleTools(context).map(tool => tool.name), maxTokens: options?.maxTokens, reasoning: options?.reasoning, payload: projected ?? payload })
+        })
+        const raw = stream(selected, context)
+        return { async *[Symbol.asyncIterator]() { await transformed; yield* raw }, async result() { await transformed; return raw.result() } }
+      },
+    })
+    const bot = await createPersonalAgent(config, { createRuntime: async () => runtime })
+    try {
+      await bot.configureSelection({ thinkingLevel: 'high' })
+      assert.equal(await bot.prompt('Tell me a joke.'), 'fixture owner response')
+      const topics = [{ id: 'intent-weather', goal: 'Take a coat', intentPreview: true, intentCondition: 'Below 20 degrees',
+        evidence: [{ id: 'e0', readingId: 'odk.tile.weather', field: 'temperatureC', value: 17 }] }]
+      assert.deepEqual(await bot.generateProposals({ topics, maxCandidates: 1 }), { suggestions: [] })
+      const [judgment, owner, scoped] = requests
+      assert.equal(requests.length, 3)
+      const payload = { reasoning_effort: disablesReasoning ? 'none' : 'high', unrelated: 'preserved' }
+      const reasoning = disablesReasoning ? undefined : 'high'
+      assert.deepEqual(judgment, { tools: [], maxTokens: disablesReasoning ? 1024 : undefined, reasoning, payload })
+      assert.deepEqual(scoped, { tools: [], maxTokens: disablesReasoning ? 2048 : undefined, reasoning, payload })
+      assert.deepEqual(owner.tools, ['codemode'])
+      assert.deepEqual(owner.payload, { reasoning_effort: 'high', unrelated: 'preserved' })
+      assert.notEqual(owner.maxTokens, 1024)
+      assert.notEqual(owner.maxTokens, 2048)
+      assert.equal(owner.reasoning, 'high')
+      assert.equal(bot.selection.thinkingLevel, 'high')
+      const batched = [...topics, { ...topics[0], id: 'intent-weather-other' }]
+      assert.deepEqual(await bot.generateProposals({ topics: batched, maxCandidates: 2 }), { suggestions: [] })
+      assert.deepEqual(requests[3], { tools: [], maxTokens: disablesReasoning ? 4096 : undefined, reasoning, payload })
+      if (disablesReasoning) {
+        assert.deepEqual(await bot.generateProposals({ topics: batched, maxCandidates: 1 }), { suggestions: [] })
+        assert.equal(requests[4].maxTokens, 2048)
+        const questions = Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`q${i}`, { type: 'noul', instructions: 'Is the supplied fixture ready?' }]))
+        const judged = await bot.judge({ state: { ready: true }, questions })
+        assert.equal(Object.keys(judged.answers).length, 16)
+        assert.equal(judged.answers.q15.noul, 0.99)
+        assert.deepEqual(requests.at(-1), { tools: [], maxTokens: 2048, reasoning: undefined, payload })
+      }
+    } finally { await bot.close() }
+  })
 })

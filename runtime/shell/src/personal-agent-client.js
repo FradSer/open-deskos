@@ -214,6 +214,7 @@ function createPersonalAgentClient({ socketPath, env = process.env, platform = p
           cancelInput: record.cancelInput === true,
           replyInput: record.replyInput === true,
           message: typeof record.message === 'string' ? record.message.slice(0, MAX_MESSAGE_CHARACTERS) : '',
+          ...(record.ownerOnly === true ? { ownerOnly: true } : {}),
           transcript,
           ...(typeof record.ownerTurnId === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(record.ownerTurnId) ? { ownerTurnId: record.ownerTurnId } : {}),
           ...(parseReplyTo(record.replyTo) && typeof record.threadId==='string' && /^[a-f0-9]{64}$/.test(record.threadId) ? {replyTo:parseReplyTo(record.replyTo),threadId:record.threadId} : {}),
@@ -227,6 +228,7 @@ function createPersonalAgentClient({ socketPath, env = process.env, platform = p
           ...(Array.isArray(record.proposals) && record.proposals.length <= 64 ? { proposals: record.proposals, proposalPopup: record.proposalPopup === true, proposalInteraction: record.proposalInteraction === true, proposalRecovery: record.proposalRecovery === true, proposalHiddenCount: Number.isSafeInteger(record.proposalHiddenCount) ? record.proposalHiddenCount : 0 } : {}),
           ...(record.proposalCapabilities !== undefined ? { proposalCapabilities: { read: record.proposalCapabilities?.read === true, respond: record.proposalCapabilities?.respond === true, acknowledge: record.proposalCapabilities?.acknowledge === true } } : {}),
           ...(typeof record.proposalError === 'string' ? { proposalError: record.proposalError.slice(0, 256) } : {}),
+          ...(record.proposalPartialFailure === true && typeof record.proposalError === 'string' ? { proposalPartialFailure: true } : {}),
         })
       }
     })

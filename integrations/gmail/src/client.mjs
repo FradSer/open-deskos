@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto'
 import { GMAIL_SCOPE, readGmailCredentials } from './credentials.mjs'
+import { decodeScheduleCursor, readScheduleChanges } from './schedule-changes.mjs'
+import { historyId, readLabelChanges, validLabelCursor } from './label-changes.mjs'
 
 export class GmailError extends Error {
   constructor(code) {
@@ -23,6 +25,8 @@ const identifier = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,128}$
 const accountKey = value => value === undefined || (typeof value === 'string' && /^[a-f0-9]{64}$/.test(value))
 const text = (value, max = 1024) => typeof value === 'string' ? value.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '').slice(0, max) : ''
 const boundedInteger = (value, min, max) => Number.isInteger(value) && value >= min && value <= max
+const labelName = value => typeof value === 'string' && value.trim() && value.length <= 225 && !/[\x00-\x1f\x7f]/.test(value)
+const timestamp = value => boundedInteger(value, 0, 8640000000000000)
 
 /** Never interpret HTML, fetch images, or expose attachment bytes. */
 function htmlText(value) {
@@ -175,7 +179,7 @@ export function createGmailClient({ credentialsFile, signal = undefined, fetchIm
       const value = JSON.parse(Buffer.concat(chunks).toString('utf8'))
       if (!response.ok) {
         if (response.status === 401 || value?.error === 'invalid_grant' || (response.status === 403 && value?.error?.status === 'PERMISSION_DENIED')) { cached = undefined; throw new GmailError('needs_reconnect') }
-        throw new GmailError(response.status === 429 ? 'rate_limited' : 'unavailable')
+        throw Object.assign(new GmailError(response.status === 429 ? 'rate_limited' : 'unavailable'), { status: response.status })
       }
       return value
     } catch (error) {
@@ -208,7 +212,7 @@ export function createGmailClient({ credentialsFile, signal = undefined, fetchIm
     check(requestSignal)
     return token
   }
-  async function get(path, params, requestSignal, expectedAccountKey = undefined) {
+  async function withRead(requestSignal, expectedAccountKey, operation) {
     check(requestSignal)
     const grant = credentials()
     if (!grant) throw new GmailError('unconfigured')
@@ -217,23 +221,28 @@ export function createGmailClient({ credentialsFile, signal = undefined, fetchIm
     stillCurrent(grant)
     // Both requests use this captured grant and token. Separate status calls
     // cannot bind an observation when accounts change between MCP calls.
-    async function pinnedRead(selectedPath, selectedParams) {
+    async function pinnedRead(selectedPath, selectedParams, limit = undefined) {
       check(requestSignal)
       stillCurrent(grant)
       const url = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/${selectedPath}`)
-      for (const [key, value] of Object.entries(selectedParams)) if (value !== undefined) url.searchParams.set(key, String(value))
-      const result = await request(url, { method: 'GET', headers: { Authorization: `Bearer ${token}` } }, requestSignal)
+      for (const [key, value] of Object.entries(selectedParams)) {
+        if (Array.isArray(value)) for (const item of value) url.searchParams.append(key, String(item))
+        else if (value !== undefined) url.searchParams.set(key, String(value))
+      }
+      const result = await request(url, { method: 'GET', headers: { Authorization: `Bearer ${token}` } }, requestSignal, limit)
       check(requestSignal)
       stillCurrent(grant)
       return result
     }
+    let profile
     if (expectedAccountKey !== undefined) {
-      const profile = await pinnedRead('profile', {})
+      profile = await pinnedRead('profile', {})
       if (typeof profile?.emailAddress !== 'string' || profile.emailAddress.length > 320 || !/^[^\s@]+@[^\s@]+$/.test(profile.emailAddress)) throw new GmailError('unavailable')
       if (fingerprint(['gmail-account', profile.emailAddress.toLowerCase()]) !== expectedAccountKey) throw new GmailError('account_changed')
     }
-    return pinnedRead(path, params)
+    return operation(pinnedRead, profile)
   }
+  const get = (path, params, signal, expectedAccountKey = undefined) => withRead(signal, expectedAccountKey, read => read(path, params))
   return {
     async status({ signal: requestSignal = undefined } = {}) {
       check(requestSignal)
@@ -255,9 +264,44 @@ export function createGmailClient({ credentialsFile, signal = undefined, fetchIm
       }), nextPageToken: text(value.nextPageToken, 2048) || null,
       resultSizeEstimate: boundedInteger(value.resultSizeEstimate, 0, Number.MAX_SAFE_INTEGER) ? value.resultSizeEstimate : null, untrusted: true }
     },
-    async read({ id, expectedAccountKey = undefined, signal: requestSignal = undefined }) {
+    async read({ id, expectedAccountKey = undefined, expectedLabelId = undefined, receivedSince = undefined, signal: requestSignal = undefined }) {
       if (!identifier(id) || !accountKey(expectedAccountKey)) throw new GmailError('invalid_request')
-      return publicMessage(await get(`messages/${encodeURIComponent(id)}`, { format: 'full' }, requestSignal, expectedAccountKey), id)
+      const path = `messages/${encodeURIComponent(id)}`
+      if (expectedLabelId === undefined && receivedSince === undefined) return publicMessage(await get(path, { format: 'full' }, requestSignal, expectedAccountKey), id)
+      if (!expectedAccountKey || !identifier(expectedLabelId) || !timestamp(receivedSince)) throw new GmailError('invalid_request')
+      const excluded = { id, excluded: true, untrusted: true }
+      const inScope = value => value?.id === id && /^\d{1,16}$/.test(value.internalDate) && timestamp(Number(value.internalDate)) && Number(value.internalDate) >= receivedSince
+        && Array.isArray(value.labelIds) && value.labelIds.includes(expectedLabelId) && !value.labelIds.some(label => ['TRASH', 'SPAM', 'DRAFT'].includes(label))
+      try {
+        return await withRead(requestSignal, expectedAccountKey, async read => {
+          if (!inScope(await read(path, { format: 'metadata', fields: 'id,labelIds,internalDate' }))) return excluded
+          const message = await read(path, { format: 'full' })
+          return inScope(message) ? publicMessage(message, id) : excluded
+        })
+      } catch (error) {
+        if (error.status === 404) return excluded
+        throw error
+      }
+    },
+    async resolveLabel({ label, expectedAccountKey, signal: requestSignal = undefined }) {
+      if (!labelName(label) || !expectedAccountKey || !accountKey(expectedAccountKey)) throw new GmailError('invalid_request')
+      return withRead(requestSignal, expectedAccountKey, async (read, profile) => {
+        const { labels } = await read('labels', { fields: 'labels(id,name,type)' })
+        if (!Array.isArray(labels) || !historyId(profile.historyId)) throw new GmailError('unavailable')
+        const matches = labels.filter(item => item?.name === label && item.type === 'user')
+        if (matches.length !== 1 || !identifier(matches[0].id)) return { label, state: 'missing', untrusted: true }
+        return { label, labelId: matches[0].id, historyId: profile.historyId, untrusted: true }
+      })
+    },
+    async labelChanges({ labelId, expectedAccountKey, since, cursor, signal: requestSignal = undefined }) {
+      if (!identifier(labelId) || !expectedAccountKey || !accountKey(expectedAccountKey) || !timestamp(since) || !validLabelCursor(cursor)) throw new GmailError('invalid_request')
+      return withRead(requestSignal, expectedAccountKey, (read, profile) => readLabelChanges(read, profile, labelId, since, cursor))
+    },
+    async scheduleChanges({ expectedAccountKey, cursor = undefined, signal: requestSignal = undefined }) {
+      if (expectedAccountKey === undefined || !accountKey(expectedAccountKey)) throw new GmailError('invalid_request')
+      let position
+      try { position = decodeScheduleCursor(cursor, expectedAccountKey) } catch { throw new GmailError('invalid_request') }
+      return withRead(requestSignal, expectedAccountKey, (read, profile) => readScheduleChanges(read, profile, expectedAccountKey, position))
     },
     close() { cached = undefined; lifetime.abort() },
   }

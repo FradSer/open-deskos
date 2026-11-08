@@ -38,6 +38,7 @@ export class PersonalAgentService {
     this.closing = undefined
     this.pending = Promise.resolve()
     this.cancelStreaming = () => {}
+    /** @type {{ proposals: any[], proposalPopup: boolean, proposalHiddenCount?: number, proposalError?: string, proposalPartialFailure?: true }} */
     this.proposalFrame = { proposals: [], proposalPopup: false }
     this.watch = undefined
     this.home = undefined
@@ -145,7 +146,10 @@ export class PersonalAgentService {
 
   servicePush(readingIds) {
     this.home?.invalidate()
-    if (readingIds?.includes('odk.app.pi-sessions.completed')) this.refreshRemote()
+    if (readingIds?.includes('odk.app.pi-sessions.completed')) {
+      this.refreshRemote()
+      readingIds = readingIds.map(id => id === 'odk.app.pi-sessions.completed' ? 'odk.app.pi-sessions' : id)
+    }
     if (this.closed || !this.watch) return false
     return this.watch.push(readingIds)
   }
@@ -154,10 +158,12 @@ export class PersonalAgentService {
     if (!this.closed) return this.watch?.consumerReady?.()
   }
 
-  propose({ proposals, popup, interaction, recovery, hiddenCount, error }) {
-    this.proposalFrame = { proposals, proposalPopup: false, proposalHiddenCount: hiddenCount ?? 0, ...(error ? { proposalError: error } : {}) }
+  propose({ proposals, popup, interaction, recovery, hiddenCount, error, partialFailure }) {
+    this.proposalFrame = { proposals, proposalPopup: false, proposalHiddenCount: hiddenCount ?? 0,
+      ...(error ? { proposalError: error, ...(partialFailure === true ? { proposalPartialFailure: true } : {}) } : {}) }
     const frame = { ...this.status, ...this.proposalFrame, message: boundedText(this.status.message, proposals.length ? 8192 : 16384, 'Response'), proposalPopup: popup, proposalInteraction: interaction === true, proposalRecovery: recovery === true, ...(error ? { proposalError: error } : {}) }
     if (!error) delete frame.proposalError
+    if (!this.proposalFrame.proposalPartialFailure) delete frame.proposalPartialFailure
     this.status = { ...frame, proposalPopup: false, proposalInteraction: false, proposalRecovery: false }
     for (const listener of this.listeners) listener(frame)
   }
@@ -167,7 +173,32 @@ export class PersonalAgentService {
     if (command.type === 'proposal_presented') { await this.watch.presented(command.ids); return }
     if (command.type === 'proposal_list') { this.watch.interact(true); return }
     if (this.starting || !['idle', 'error'].includes(this.status.state)) throw Error('Personal Agent turn is in progress')
-    await this.watch.respond(command.id, command.decision, command.confirmation ?? '')
+    const selected = command.decision === 'accept' ? this.watch.list?.().find(proposal => proposal.id === command.id) : undefined
+    const draftReply = selected?.privateData === true && selected.action?.tool === 'private_source_prepare_reply'
+    if (!draftReply) { await this.watch.respond(command.id, command.decision, command.confirmation ?? ''); return }
+    if (this.watch.busy) throw Error('Proposal response busy or unavailable')
+    // Bind privacy before any source read. This is a local, read-only draft turn,
+    // separate from public conversation history and remote session delivery.
+    this.replyFrame = { ownerTurnId: randomUUID(), ownerOnly: true }
+    this.setState('thinking', '', selected.nextStep || '准备回复')
+    const pending = (async () => {
+      try {
+        // This confirmation owns the turn it just marked as thinking.
+        const result = await this.watch.respond(command.id, command.decision, command.confirmation ?? '', true)
+        const receipt = result?.execution?.receipt
+        if (this.closed || result?.status !== 'completed' || result.execution?.outcome !== 'completed'
+          || receipt?.tool !== 'private_source_prepare_reply' || receipt.readOnly !== true || receipt.unsent !== true
+          || receipt.presentation !== 'conversation' || typeof result.result !== 'string' || !result.result.trim()) throw Error('Reply draft unavailable')
+        this.setState('idle', result.result)
+      } catch {
+        if (!this.closed) this.setState('error', '回复草稿未生成，请检查当前邮件和建议。')
+        throw Error('Reply draft unavailable')
+      }
+    })()
+    // Shutdown drains the operation but contains its rejection. Its command
+    // receipt still reports the original refusal to the requesting client.
+    this.pending = pending.catch(() => {})
+    await pending
   }
 
   notify(message) {

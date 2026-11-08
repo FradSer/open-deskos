@@ -16,10 +16,10 @@ import { PersonalAgentService } from './service.mjs'
 import { channelTokenFile, listen, personalAgentEndpoint, personalAgentControlEndpoint } from './socket.mjs'
 import { prepareHostDirectories } from './host-paths.mjs'
 import { loadPersonalConfig } from './personal-config.mjs'
-import { proposalStateStore } from './proactive-state.mjs'
+import { proposalStateStore } from './recommendations/index.mjs'
 import { checkJevAuthentication } from './jev-client.mjs'
-import { ProactiveWatch, loadProactiveConfig, ownerConfigWriter } from './proactive.mjs'
-import { createJevJudge } from './proactive-jev.mjs'
+import { ProactiveWatch } from './recommendations/index.mjs'
+import { resolveProactiveConfig } from './recommendations/index.mjs'
 import { odkDataRequest } from './odk-data.mjs'
 import { loadTargets, taskRequest } from './task-client.mjs'
 import { createRideNotifier } from './ride-notification.mjs'
@@ -131,15 +131,13 @@ async function main() {
   const env = personalAgentEnvironment(process.env)
   const platform = process.platform
   const control = { endpoint: personalAgentControlEndpoint(env, platform), stateDir: dirname(channelTokenFile(env, platform)), platform }
-  let intentSelected = false
-  try { intentSelected = (await loadPersonalConfig(env)).agentPlugins?.enabled.includes('intent') ?? false } catch { /* Runtime reports invalid profile through its existing boundary. */ }
   const disabled = loadPersonalAgentPluginConfig().resolveStartupDisabled(env)
   if (values.plugins) {
     const unavailable = () => { throw Error('inspection must not start providers') }
     const inspection = createPersonalAgentComposition({ replacementPlugins, disabled, control,
       createService: unavailable, openChannel: unavailable, initialize: unavailable,
       createTaskReadings: unavailable, createRemoteReadings: unavailable,
-      createHome: unavailable, ...((env.ODK_PROACTIVE_CONFIG || env.ODK_PRIVATE_RECOMMENDATIONS_FILE || intentSelected) ? { createWatch: unavailable } : {}),
+      createHome: unavailable, createWatch: unavailable,
     })
     inspection.validate()
     console.info(JSON.stringify({ host: 'personal-agent', instance: 'personal-agent', scope: 'declarations',
@@ -193,7 +191,6 @@ async function main() {
         },
         transcribe: (path, signal) => transcribe(path, runtime.stt, signal),
         prompt: (text, onResponseSnapshot, reply, owner) => runtime.agent.prompt(text, onResponseSnapshot, reply, owner),
-        projectReply: (answer, signal) => runtime.agent.projectReply(answer, signal),
       })
       service.setState('error', 'Configure Open DeskOS workspace, STT credential and Pi authentication; restart service')
       const originalToggle = service.toggle.bind(service)
@@ -261,20 +258,19 @@ async function main() {
       service.attachHome(home)
       context.onCleanup(() => { service.attachHome(undefined); home = undefined })
     },
-    ...((env.ODK_PROACTIVE_CONFIG || env.ODK_PRIVATE_RECOMMENDATIONS_FILE || intentSelected) ? { async createWatch(_runtime, _service) {
-      const config = env.ODK_PROACTIVE_CONFIG ? loadProactiveConfig(env.ODK_PROACTIVE_CONFIG) : { version: 2, pollMs: 60000, maxAgeMs: 300000, cooldownMs: 60000, maxCandidates: 8, maxPush: 3, rules: [], suppressed: [], snoozed: {} }
+    async createWatch(_runtime, _service) {
+      const { config, save: saveOwner } = resolveProactiveConfig({ env })
       const targets = await loadTargets(env.ODK_TASK_TARGETS_FILE)
       const state = proposalStateStore(join((await prepareHostDirectories(env, platform)).state, 'proactive', 'state.json'))
-      watch = new ProactiveWatch({ config, intents: runtime.agent.intents, privateSources: runtime.agent.privateSources, loadState: state.load, saveState: state.save,
+      watch = new ProactiveWatch({ config, intents: runtime.agent.intents, privateSources: runtime.agent.privateSources, scheduleConflict: runtime.agent.scheduleConflict, loadState: state.load, saveState: state.save,
         generate: runtime.agent.generateProposals,
+        prepareReply: runtime.agent.prepareReply,
         feedbackStore: runtime.agent.feedbackStore,
         feedbackMemoryEnabled: runtime.agent.feedbackMemoryEnabled === true,
         onGeneration: record => console.info(JSON.stringify({ event: 'proactive_generation', model: runtime.agent.generationModel, ...record })),
-        judge: createJevJudge({ env, request: runtime.agent.judge }),
-        onJudgment: record => console.info(JSON.stringify({ event: 'proactive_judgment', ...record })),
         ...{ onFeedback: record => console.info(JSON.stringify({ event: 'proactive_feedback', ...record })) },
         read: async (id, signal) => (await odkDataRequest('read', { id, signal, env, platform })).reading,
-        save: env.ODK_PROACTIVE_CONFIG ? ownerConfigWriter(env.ODK_PROACTIVE_CONFIG, config) : async () => { throw Error('No owner rule file selected') },
+        save: saveOwner,
         phrase: runtime.agent.phraseProposal,
         execute: runtime.agent.executeProposal,
         canExecute: action => runtime?.agent?.canExecuteProposal?.(action) === true,
@@ -291,7 +287,7 @@ async function main() {
         publish: frame => service.propose(frame),
       })
       return watch
-    } } : {}),
+    },
     onWatch(value, service, context) {
       watch = value
       service.attachWatch(watch)

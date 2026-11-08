@@ -168,7 +168,7 @@ It defers explicit access while busy, then confirms one action and saves its coo
 These cases passed locally, on CM5, and on Windows; the native Windows command completed in 469 seconds.
 A separate generated Watch comparison owns one owner goal with immediate or silent delivery and shares only the pure batch validator.
 It checks unavailable observations, generation failure, invalid citations, forbidden action fields, and a grounding veto.
-Valid advice retains probability order, selected evidence fields, stable identities, and no action authority.
+Valid advice retains generation order, approved evidence fields, stable identities, and no action authority.
 Judgment receives the generated marker, owner goal, rule identity, empty criteria, and resolvable evidence references.
 The selected implementation reads the default private checkpoint and retains identities and acknowledgement before polling and after restart.
 The comparison passed locally, on CM5, and on Windows; the native Windows command completed in 72 seconds.

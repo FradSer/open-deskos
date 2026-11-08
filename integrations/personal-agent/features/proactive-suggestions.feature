@@ -2,6 +2,78 @@ Feature: Owner controlled proactive Personal Agent proposals
   Proposals are read-only agent state, never plugin instructions or authorization.
   Generated text never supplies action authority. Owner-approved catalogs define executable actions.
 
+  Scenario: One approved Gmail action prepares an unsent reply
+    Given a current Gmail recommendation offers review and reply preparation
+    And the host has a reply preparation callback
+    When the owner confirms the selected reply preparation action
+    Then the host reads the same private message before generating a draft
+    And the draft can complete while its own turn marks the agent busy
+    And the host rechecks the same source after generation
+    And only a current source permits the draft in the local Personal Agent conversation
+    And one recommendation selects only one suggested action
+    And the draft response is marked ownerOnly
+    And public conversation checkpoints and Android projections omit that response
+    And the receipt records a read-only unsent reply
+    And a failed or revoked operation publishes no draft and cannot replay
+    And a missing reply callback withdraws only reply preparation
+
+  Scenario: A Gmail meeting change conflicts with the owner's calendar
+    Given the owner authorizes background access to one Gmail account and one calendar
+    And the calendar has the prior meeting and a different busy event
+    When a newer Gmail scheduling request moves the meeting into that busy interval
+    Then one read-only suggestion in the Personal Agent conversation identifies both sources
+    And no model or mutation tool receives the source data
+
+  Scenario: Private observations and generation failures stay within their topics
+    Given the Watch observes a private message and an ordinary reading
+    When it generates suggestions
+    Then each private message has its own model request
+    And an unrelated generation failure cannot block acknowledgement or confirmation
+    When the private source binding becomes invalid
+    Then the Watch removes the private card from status and suggestion queries
+
+  Scenario: An Intent uses the selected field's own freshness
+    Given a Hydra snapshot is current but the selected plant reading is stale
+    When the Watch evaluates a soil-moisture condition
+    Then no condition judgment or suggestion uses that stale value
+    When a fresh soil reading arrives
+    Then the suggestion retains the time of that field's measurement
+    When the source republishes the same live value
+    Then the Watch refreshes the evidence on the same suggestion
+    And it makes no new condition judgment
+    When the selected value changes
+    Then the previous suggestion expires
+
+  Scenario: A schedule conflict expires across a wall-clock jump
+    Given an offered schedule conflict has a future start time
+    When wall time passes its start while the timer is paused
+    Then the next bounded timer withdraws the pending card before reading a provider
+    And an early timer does not read a provider
+
+  Scenario: Repeated reads do not create another suggestion for the same change
+    Given a calendar conflict suggestion has been shown or ignored
+    When a poll, a source update, or a restart repeats the same meeting revision
+    Then the Watch keeps the same suggestion identity and owner decision
+    And a newer change or cancellation rechecks the same meeting
+
+  Scenario: A timer wakes a pending suggestion when it becomes due
+    Given a conflict suggestion is deferred or has a future expiry
+    When that deadline passes before the next heartbeat
+    Then the Watch rechecks a deferred suggestion or expires it without waiting for a source update
+
+  Scenario: A timed Intent starts within its window between heartbeats
+    Given a timed Intent starts at 09:30 and its window is ten minutes
+    And the Watch starts at 09:15 with a thirty-minute heartbeat
+    When the time becomes 09:30
+    Then the Watch evaluates the Intent without a source push
+    And the Watch does not evaluate a missed window after wake
+
+  Scenario: A missing grant or insufficient evidence prevents a calendar suggestion
+    Given the owner grant is absent or the current Gmail account differs from the grant
+    When the Watch runs
+    Then the Watch does not use that source for a calendar suggestion
+    And stale or incomplete calendar data cannot establish a conflict
+
   Scenario: A generated recommendation selects a currently executable owner action
     Given the owner configures a bounded action catalog for a recommendation topic
     And the selected Agent can execute one configured action
@@ -48,7 +120,7 @@ Feature: Owner controlled proactive Personal Agent proposals
   Scenario: Intent generation repairs a missing advice field without changing its authority
     Given a ready Intent has current ride preview evidence
     When the first generated candidate has a next step but omits advice
-    Then validation rejects that candidate before judgment or publication
+    Then validation rejects that candidate before publication
     And one correction identifies the missing advice field with complete valid JSON examples
     And both ordinary and Intent examples retain advice and their own evidence identifiers
     And only a corrected candidate with advice and a next step can pass
@@ -101,7 +173,7 @@ Feature: Owner controlled proactive Personal Agent proposals
     And each round has a bounded number of generation attempts
 
   Scenario: A failed topic does not disable healthy recommendations
-    Given one topic fails generation or judgment
+    Given one topic fails generation
     When another topic has a supported recommendation
     Then the healthy recommendation remains readable and dismissible
     And the failed topic remains reported as unavailable
@@ -109,48 +181,47 @@ Feature: Owner controlled proactive Personal Agent proposals
   Scenario: Recommendations do not assert that an action already happened
     Given fresh observations explicitly report a pending need and its deadline
     When generated advice recommends addressing that need without adding facts
-    Then Jev evaluates the recommendation separately from factual assertions
+    Then the host binds every visible number and timestamp to an approved observation
     And invented deadlines, causes, permissions and completed actions remain unsupported
 
-  Scenario: A judgment fluctuation cannot repeat an acknowledged suggestion
+  Scenario: A repeated generation cannot repeat an acknowledged suggestion
     Given the Shell acknowledged a generated suggestion
-    When Jev rejects it once and later accepts the same intent and observations
+    When a later heartbeat generates advice for the same intent and observations
     Then the previous proposal identity and acknowledgement are preserved
     And no automatic popup repeats after a service restart
     But materially changed observations can create a new suggestion
 
-  Scenario: Generate several suggestions before Jev selects what to push
+  Scenario: The generation model alone decides which suggestions exist
     Given owner goals and fresh observations from arbitrary subscribed services
     When a heartbeat or selected service event arrives
     Then the generation model returns zero or more evidence-referencing suggestions
-    And Jev independently judges every candidate in one batch
+    And every structurally valid candidate becomes a pending proposal without a second model judgment
     And supported candidates remain pending independently of the presentation budget
-    And due time and urgency precede judgment probability for eligible presentations
+    And due time and urgency precede creation time for eligible presentations
     And generated advice cannot supply tools, permissions or fabricated evidence
 
-  Scenario: The generation Agent investigates through scoped tools
+  Scenario: The generation Agent investigates through one scoped tool
     Given a generation round supplies topics with cited owner-selected readings
     When the ephemeral Durable session starts
-    Then both scoped tools are visible and callable by the generation model
+    Then only the scoped read-only tool is visible and callable by the generation model
     When the model needs context beyond the cited fields
-    Then it can reread a cited reading through a scoped read-only tool
+    Then it can reread a cited reading through that tool
     And a reading outside the round's citations is refused
     And read calls stay within a bounded budget
     And no Skill, project context, owner memory or persisted transcript becomes available
 
-  Scenario: The generation Agent checks drafts with Jev inside its process
-    Given the model composes a draft suggestion during generation
-    When it requests a typed judgment through the scoped judgment tool
-    Then it receives usefulness and factual-support probabilities for that exact draft
-    And judgment calls stay within a bounded budget
-    And the in-process judgment grants no action permission
+  Scenario: The generation session has no judgment tool
+    Given a generation round supplies topics with cited owner-selected readings
+    When the ephemeral Durable session starts
+    Then only the scoped read-only reread tool is visible to the model
+    And no draft self-check or score can change which suggestions the model returns
 
   Scenario: Text and visuals complement through composition, not a separate gate
     Given a generated candidate carries advice and a generic preview
     When the generation instructions shape the message
     Then the advice states meaning and the preview carries distinct readings
     And equal values for distinct facts remain valid when each part adds information
-    And the host applies usefulness and factual support, not a style score
+    And the generation instructions shape presentation, not a separate score
 
   Scenario: Advice reports only what the observations state
     Given a topic reports measured values and their difference
@@ -175,12 +246,19 @@ Feature: Owner controlled proactive Personal Agent proposals
     And the safety boundary remains in force exactly once
     And the generated output still validates against the same contract
 
+  Scenario: The host rejects unresolved template markers in a semantic key
+    Given a generated candidate names its semantic key
+    When the host validates the batch
+    Then a key containing braces or template markers is refused
+    And a missing or non-string key is refused
+    And a plain key that matches the host allowlist is accepted
+
   Scenario: A preview carries only the readings behind the advice
     Given a topic exposes more observations than the advice needs
     When the generator builds the preview
     Then preview.items contains at most three pairs that support the stated change
     And unrelated readings, technical identifiers and diagnostics stay out of the preview
-    And a preview with a fourth pair is rejected before judgment
+    And a preview with a fourth pair is rejected before publication
 
   Scenario: Advice reads as one natural sentence without repeating the action
     Given a topic supplies an approved action with a visible label
@@ -191,25 +269,56 @@ Feature: Owner controlled proactive Personal Agent proposals
     And preview labels read as plain noun phrases without bracketed units
     And a draft that restates the action label fails validation
 
-  Scenario: Batch judgments do not dilute one another
+  Scenario: One generated batch publishes every valid candidate
     Given one round supplies several distinct candidates
-    When the judgment service evaluates the batch
-    Then each candidate is judged against its own goal and cited observations
-    And the host does not resample a near miss on its own
-    And a supported candidate can publish on its batch verdict
+    When the host validates the generated batch
+    Then each candidate is checked against its own goal, actions and cited observations
+    And no candidate is dropped because another candidate in the batch is weak
+    And every structurally valid candidate can publish in the same round
 
-  Scenario: Host qualification stays independent of the Agent's self-checks
-    Given the generation Agent judged its own draft inside its process
-    When the round finishes
-    Then the host still qualifies every returned candidate through its own judgment
-    And only host-qualified candidates publish
+  Scenario: Host validation is the only gate after generation
+    Given the generation model returned a batch of candidates
+    When the host validates that batch
+    Then it binds actions, evidence, visible facts and freshness mechanically
+    And no second model judgment stands between a valid candidate and the owner
 
-  Scenario: Factual qualification separates support from fabrication
-    Given a candidate states one supported relationship and adds no invented fact
-    When the judgment service qualifies it
-    Then a low probability that every assertion is supported does not veto it alone
-    And an identifiable invented or recomputed fact still vetoes it
-    And the effective factual score records both judgments
+  Scenario: The host binds visible claims to cited observations
+    Given a candidate states a measured value and adds no invented fact
+    When the host validates the candidate
+    Then every visible number and ISO timestamp resolves to an approved observation
+    And an invented or recomputed value is refused before publication
+    And free-prose meaning stays constrained by generation rules, not by a score
+    And no model probability stands in place of that binding
+
+  Scenario: The host binds Intent next steps to cited observations
+    Given a generated Intent preview carries a model-written next step
+    When the host validates the card
+    Then every number and timestamp in the next step resolves to a cited observation
+    And an invented deadline, count or location value is refused before publication
+
+  Scenario: The host states the limit of mechanical fact binding
+    Given free-prose advice contains a causal, permission or completion claim
+    When the host validates the card
+    Then the generation instructions forbid that unsupported claim
+    And the host does not claim to bind free-prose meaning mechanically
+    And presentation labels remain outside the measured-value check
+
+  Scenario: A pending proposal without a judgment record survives restart
+    Given a generated candidate has published a pending proposal
+    When the service restarts from its private checkpoint
+    Then the proposal stays pending with its acknowledgement state
+    And no missing judgment field expires it
+
+  Scenario: The host binds values from the full approved observation set
+    Given a topic approves several observation fields for one round
+    When the generator cites only one of those fields
+    Then the host can bind a visible number supplied by any approved field
+    And the record retains the full approved observation set
+
+  Scenario: A derived number must be an approved observation value
+    Given observations report two measured numbers but not their difference
+    When the generator writes the difference as advice
+    Then the host refuses that number unless an approved observation supplies it
 
   Scenario: Every approved observation supports the generated claim
     Given a topic supplies several owner-selected observation fields
@@ -225,13 +334,12 @@ Feature: Owner controlled proactive Personal Agent proposals
     And a transport timeout is not treated as one malformed topic
     And a later round can still generate for the same topics
 
-  Scenario: In-process judgments do not make the Agent drop drafts
-    Given the generation session can judge its own drafts
-    When it submits drafts through the judgment tool
-    Then one call can carry every draft in the round
-    And the tool description does not tell the Agent to drop weak drafts
-    And the instructions ask for one suggestion for each topic with a current need
-    And the host remains the only qualification gate
+  Scenario: Generation instructions ask for one suggestion per current need
+    Given the generation contract supplies several topics
+    When the model writes suggestions
+    Then the instructions ask for one suggestion for each topic with a current need
+    And the instructions require an empty batch when no observation shows a need
+    And no tool tells the model to drop a weak draft
 
   Scenario: Generic generation preserves source and lifecycle boundaries
     Given a generated batch is in flight
@@ -240,46 +348,46 @@ Feature: Owner controlled proactive Personal Agent proposals
     And malformed generation or unavailable models produce no fixed-advice fallback
     And stable candidate keys, quiet hours and cooldown prevent repeat delivery
 
-  Scenario: Heartbeat asks Jev whether to suggest now
+  Scenario: Heartbeat asks the generation model whether to suggest now
     Given fresh owner-selected readings and an idle Personal Agent service
     When the periodic heartbeat refreshes application state
-    Then Jev judges the relevance of the candidate advice in one typed request
-    And only an affirmative Jev result may create a proposal
+    Then the generation model returns an empty batch when no need exists
+    And a non-empty batch creates proposals without a second judgment request
     And numeric owner criteria alone cannot create a proposal
 
-  Scenario: A service push asks Jev without waiting for the heartbeat
+  Scenario: A service push asks generation without waiting for the heartbeat
     Given an authenticated service reports a changed owner-selected reading
     When the Personal Agent service receives its bounded reading identifiers
-    Then it rereads authoritative Open DeskOS Data and asks Jev with a service-push trigger
-    And pushed advice, action parameters and arbitrary data cannot enter the judgment
+    Then it rereads authoritative Open DeskOS Data and generates with a service-push trigger
+    And pushed advice, action parameters and arbitrary data cannot enter generation
 
-  Scenario: Pushes during inference supersede the older observation
-    Given a heartbeat Jev request is in flight
+  Scenario: Pushes during generation supersede the older observation
+    Given a heartbeat generation is in flight
     When one or more service updates arrive
     Then the outdated result cannot activate a proposal
-    And the queued updates are coalesced into another judgment with fresh readings
+    And the queued updates are coalesced into another generation with fresh readings
 
-  Scenario: Jev failure never falls back to threshold delivery
-    Given missing credentials, timeout, invalid output or an unavailable Jev service
+  Scenario: A classifier failure cannot disable recommendations
+    Given the Jev classifier is missing, disabled or unavailable
     When a heartbeat or service update occurs
-    Then no new suggestion is presented and unavailable judgment is reported
+    Then generation and host validation still determine which proposals appear
     And ordinary voice and explicit action confirmation remain available
 
-  Scenario: An unjudged topic cannot hold suggestions unavailable
-    Given a generation or judgment failure was reported for a topic
+  Scenario: A stale generation failure cannot hold suggestions unavailable
+    Given a generation failure was reported for a topic
     When a later round has no fresh observation for that topic, or the owner muted it
-    Then its older failure cannot keep judgment unavailable
+    Then its older failure cannot keep suggestions unavailable
     And a topic with fresh observations can still produce a suggestion
-    And an empty current coding task list clears its older judgment failure
+    And an empty current coding task list clears its older generation failure
     And a superseded read cannot clear a failure before the current round runs
 
-  Scenario: Device E2E joins real Jev to the private channel and Electron panel
+  Scenario: Device E2E joins generation to the private channel and Electron panel
     Given an isolated Hydra store, private voice channel and disposable Electron profile
-    When a real Jev heartbeat judges ordinary soil and then dry soil
+    When a heartbeat generates no advice for ordinary soil and one for dry soil
     Then ordinary soil stays hidden and dry soil opens the nonmodal evidence panel
     And the Shell acknowledgement reaches the private checkpoint without another popup
     When an isolated Hydra message reports dry soil through the trusted source callback
-    Then a real Jev service-push judgment reaches the same Electron panel
+    Then a service-push generation reaches the same Electron panel
     And a UI ignore writes only the isolated owner cooldown
     And failed inference cannot produce a proposal or action
 
@@ -430,10 +538,11 @@ Feature: Owner controlled proactive Personal Agent proposals
     And broad access, links and malformed state disable suggestions
     And atomic file checkpoints work without POSIX uid or directory fsync
 
-  Scenario: Unsupported attributes are vetoed despite a high support score
-    Given a generated suggestion adds an attribute absent from selected observations
-    When Jev reports high usefulness and support but detects the unsupported assertion
-    Then no proposal is created
+  Scenario: Unsupported attributes are vetoed by host binding
+    Given a generated suggestion adds a value absent from selected observations
+    When the host validates the card
+    Then the unbound value is refused before publication
+    And no proposal is created
 
   Scenario: Large real observation batches have a bounded generation budget
     Given generation takes longer than 30 seconds but less than 90 seconds
@@ -454,9 +563,88 @@ Feature: Owner controlled proactive Personal Agent proposals
 
   Scenario: Independent service updates do not starve unrelated suggestions
     Given several owner topics depend on different live sources
-    When one source pushes while another topic is generating or being judged
+    When one source pushes while another topic is generating
     Then only candidates depending on the changed source are discarded
-    And unchanged topics can finish their judgment and delivery
+    And unchanged topics can finish their generation and delivery
+
+  Scenario: Intent changes receive a concise confirmed acknowledgement
+    Given the owner asks to save, edit, or pause an Intent
+    When the Intent tool returns the saved entry
+    Then the assistant confirms the actual result in one or two short sentences
+    And the confirmation names the goal, condition or window, and local conversation destination
+    And tool identifiers and internal revisions stay out of the reply
+    When the tool fails or its result is uncertain
+    Then the assistant reports the unconfirmed result and checks saved Intents before another write
+
+  Scenario: A saved routine separates its trigger, condition and suggestion
+    Given the owner asks to save a timed or context-based Intent
+    When the Intent store writes the routine
+    Then a YAML reader can read When, If, Then and the original request from ROUTINE.yaml
+    And the record keeps Memory references by key
+    And the Then section can specify only a suggestion
+
+  Scenario: An edit upgrades saved Intent records to the routine document
+    Given a previous JSON or Markdown routine document holds enabled and paused records
+    When the owner saves a change
+    Then ROUTINE.yaml retains each existing identity and pause state
+    And only the changed record advances its revision
+    And subsequent reads use ROUTINE.yaml
+    And the Gmail schedule and source binding keep their existing checkpoint
+
+  Scenario: Discuss an idea and pin it for a later recommendation
+    Given the owner discusses an idea in Personal Agent
+    Then the discussion creates no routine
+    When the owner explicitly pins the idea with a future time and a Weather Widget condition
+    Then ROUTINE.yaml stores the time, selected field, and suggestion
+    And no suggestion appears before the time
+    When the scheduled check reads matching live weather
+    Then the Personal Agent model generates one read-only recommendation in the conversation
+
+  Scenario: Apply the same interval trigger to a Widget observation
+    Given the owner selects an Open DeskOS Data field and an interval window
+    When the owner saves the routine
+    Then ROUTINE.yaml stores the schedule separately from its typed input
+    And the Watch checks at most once in each slot before a match
+    And a data push does not start an extra check between slots
+    And the first match produces one suggestion for the local day
+
+  Scenario: A conversational Intent uses selected Widget data
+    Given the owner saves a read-only Intent about a Widget measurement
+    And the Intent names an existing reading and one of its fields
+    When the Watch evaluates the newly saved Intent
+    And the selected field is fresh and the condition is satisfied
+    Then the Watch offers a read-only suggestion with the actual field and measurement time
+    And the generator receives only the selected field from that reading
+    And no action or ride lookup runs
+
+  Scenario: A generic Intent card stays in the local conversation list
+    Given a read-only Intent suggestion contains a selected Widget reading
+    When the owner asks for suggestions in chat or a tool reads proposals
+    Then the reply omits the suggestion and its measured value
+    And the response tool refuses to handle that suggestion
+    And ordinary suggestions and synthetic ride previews remain available
+
+  Scenario: A generic Intent publishes only bounded cited evidence
+    Given a generic Intent selects more than eight valid fields
+    When the generator cites a subset in a suggestion
+    Then the suggestion retains only the cited evidence
+    And uncited measurements cannot support the displayed numbers
+
+  Scenario: A selected source update only evaluates its dependent generic Intents
+    Given two generic Intents depend on different readings
+    When the Watch receives a change for one reading
+    Then it does not read or claim the unrelated Intent
+
+  Scenario: An offered generic Intent expires at the source measurement deadline
+    Given a generic Intent card uses a fresh desk measurement
+    When the measurement expires before the next heartbeat
+    Then the Watch publishes its expired status without a source push
+
+  Scenario: A Widget field cannot support an Intent when it is unavailable
+    Given an Intent selects a specific field in a Widget reading
+    When the reading is stale or the selected field is missing
+    Then the occurrence is unknown and no suggestion is offered
+    And a new Intent cannot bind an unverified reading field
 
   Scenario: Conversational Intent conditions precede ride discovery
     Given the owner saves a natural language daily Intent through a Jev-routed turn
@@ -544,12 +732,12 @@ Feature: Owner controlled proactive Personal Agent proposals
     Then its preserved finished outcome can establish completion
     But cold history and restoration preparation cannot establish completion
 
-  Scenario: Ordinary model judgments preserve the existing proactive evidence gates
-    Given Jev is unavailable and an ordinary typed judgment service is selected
-    When it judges candidate relevance and factual grounding
-    Then only valid supported candidates can become proposals
-    And checkpoints retain the actual provider and model identifier without a Jev alias
-    And malformed or failed judgments cannot grant action permission
+  Scenario: The proactive evidence gates do not depend on a classifier
+    Given the Jev classifier is unavailable for the resident runtime
+    When the Watch generates and validates a batch of candidates
+    Then only structurally valid candidates with bound facts become proposals
+    And intent routing and Overview keep their separate Jev-enabled clients
+    And malformed generation cannot grant action permission
 
   Scenario: First startup keeps bound source facts visible when synthesis fails
     Given current declared Home sources have exact supported template variables
@@ -589,9 +777,9 @@ Feature: Owner controlled proactive Personal Agent proposals
     And separators remain after the preceding fact without increasing segment or source limits
 
   Scenario: Offline replay measures deterministic lifecycle behavior
-    Given synthetic observations and fixed local generation and judgment fixtures
+    Given synthetic observations and fixed local generation fixtures
     When replay covers silence, repeated observations, completion, restart, snooze, quiet hours, busy state, and stale data
-    Then every scenario reports its expected lifecycle outcome and primitive call counts
+    Then every scenario reports its expected lifecycle outcome and generation call counts
     And the report records zero actions and no real model quality or calibration claim
 
   Scenario: Ending ordinary conversation preserves automatic attention policy
@@ -615,7 +803,7 @@ Feature: Owner controlled proactive Personal Agent proposals
   Scenario: A ready Shell recovers an offer that was not presented
     Given the resident offered a current suggestion before the Shell subscribed
     When the visible Shell announces a new consumer readiness episode
-    Then Watch recovers the same suggestion without generation or judgment
+    Then Watch recovers the same suggestion without generation
     And readiness does not acknowledge presentation
     And quiet, busy, routine, snooze and dismissal policies remain effective
     And diagnostic status queries do not request recovery
@@ -644,15 +832,15 @@ Feature: Owner controlled proactive Personal Agent proposals
 
   Scenario: Learning recovery does not erase accepted feedback work
     Given feedback is saved while Mem0 is unavailable or its first attempt fails
-    When the selected runtime returns after restart
+    When the Mem0 worker returns after restart
     Then its saved feedback work can resume within two worker attempts
     And the same explicit feedback can retry a failed attempt without reopening the handled occurrence
     And proposal-history eviction retains every unfinished learning job and its source policy
     And full learning capacity reports backpressure instead of silently discarding accepted work
-  Scenario: Judgment receives semantic evidence without host authorization bindings
-    Given a recommendation candidate contains private source and action bindings
-    When the host requests relevance and grounding judgments
-    Then the model receives advice, next steps, cited evidence, goals, criteria, and timing
+  Scenario: Generation receives no host authorization bindings
+    Given a generation round contains private source and action bindings
+    When the host builds the model input
+    Then the model receives advice material, cited evidence, goals, and timing
     And the model does not receive source snapshots, action parameters, confirmations, or rule versions
     And the host retains its complete candidate for publication and execution checks
 
@@ -670,15 +858,210 @@ Feature: Owner controlled proactive Personal Agent proposals
     And repeated feedback does not repeat learning or execute the action
     And failed learning can retry without reopening the completed action
 
-  Scenario: OpenUI generation carries grounded details with the proposal
-    Given an owner rule supplies observations and approved actions
-    When the resident model returns a valid OpenUI document
-    Then the host binds the action to the approved action ID
-    And the host judges the visible card text against the observations
-    And the proposal retains the component tree after restart
+  # --- OpenUI integration -------------------------------------------------
+  Scenario: The output contract comes from the OpenUI component library
+    Given the host owns a library of generic UI primitives
+    When it builds a generation session
+    Then the system prompt is generated from that library, not written by hand
+    And the prompt lists only the registered primitives and their typed props
+    And the host authority rules stay outside the generated prompt
 
-  Scenario: A malformed OpenUI document receives one correction
-    Given an OpenUI suggestion omits its advice
-    When the resident parses the generated document
-    Then the resident requests one correction with the original observations
-    And it does not publish a suggestion if the correction still omits advice
+  Scenario: The model emits OpenUI Lang and the host parses it
+    Given the generation session uses the OpenUI Lang contract
+    When the Agent returns a streamed OpenUI Lang document
+    Then the host parses it with the OpenUI parser before validation
+    And an unparsable document is corrected once against the same contract
+    And a parsed document maps to the generic preview primitives only
+
+  Scenario: Replacing the generation contract preserves host authority
+    Given OpenUI owns prompt generation, output syntax and parsing
+    When a candidate reaches validation
+    Then the host binds approved actions, evidence, visible facts and freshness
+    And no generated UI component can grant execution permission
+
+  Scenario: A malformed OpenUI document cannot reach the renderer
+    Given the parser rejects an unknown component or a dangling reference
+    When generation returns that document
+    Then the round produces no candidate and leaves other topics usable
+    And the renderer receives no unvalidated structure
+
+  # --- OpenUI full replacement (pipeline contract) ------------------------
+  Scenario: The full parsed component tree reaches the renderer
+    Given the parser returns a ui tree holding every emitted component node
+    When the host admits a candidate and publishes it
+    Then the proposal carries the full ui tree over IPC
+    And the renderer receives the tree without projection or node loss
+    And no generation code rebuilds the tree into preview items
+
+  Scenario: An unknown primitive is not dropped by the renderer
+    Given a published ui tree holds a type outside the renderer vocabulary
+    When the renderer mounts that tree
+    Then the unknown type renders as plain text
+    And every other component node still reaches the shared DOM
+    And the unknown node never disappears silently
+
+  Scenario: OpenUI needs no React runtime or remote asset
+    Given the Shell is a framework-free DOM renderer with a strict CSP
+    When the renderer builds the generic OpenUI structure
+    Then each type maps to an existing shared primitive class
+    And no React runtime, inline style, inline script or remote asset loads
+    And every text value is written with textContent
+
+  Scenario: Host authority survives the OpenUI contract
+    Given OpenUI owns prompt generation, wire syntax, parsing and component structure
+    When the host validates a returned candidate
+    Then it binds approved actions, evidence, visible facts and freshness
+    And no generated component grants execution permission or invents a fact
+    And the host independently validates every candidate
+
+  Scenario: A composed card keeps its own structure and honest numbers
+    Given a generated candidate carries advice and a freely composed OpenUI tree
+    When the host validates that candidate before publication
+    Then a prose node that contains the complete advice is refused
+    And a concise heading or badge can use words from the advice
+    And a repeated reading or metric pair is refused
+    And every number the owner can see resolves to a host-issued observation value
+    And headings, prose, badges, stacks and option sets remain available to the model
+
+  Scenario: A read-only Intent uses the matching OpenUI next step
+    Given a topic has intentPreview enabled and a current owner condition
+    When the model reads the OpenUI generation contract
+    Then the contract requires one OwnerStep for that topic
+    And the contract forbids ApprovedAction for that topic
+    And an ordinary topic selects one approved action identifier
+    And condition thresholds do not become measured facts
+    And a generic read-only example demonstrates the complete format
+
+  Scenario: The shipped examples show visibly different generic compositions
+    Given the generation contract supplies several example documents
+    When the host parses those examples
+    Then each example cites host-issued evidence and an approved action or read-only owner step
+    And no two examples use the same component shape
+    And the host rules ask for varied compositions rather than one fixed form
+
+  # --- Model owns composition, host owns facts ------------------------------
+  Scenario: The proactive chain has no judgment stage
+    Given the resident starts the proactive suggestion chain
+    When it builds the generation session and the host validator
+    Then neither path constructs a judgment client for proposals
+    And the Jev selection only governs intent routing and Overview
+    And stored proposals with an older judgment record still load
+
+  Scenario: Host validation binds measured values
+    Given a generated candidate carries advice, a next step and a composed UI tree
+    When the host validates the candidate
+    Then the generation prompt alone decides whether a need is worth mentioning now
+    And the host binds every visible number and timestamp to an approved observation
+    And semantic claims are constrained by generation rules, not by a score
+    And no probability or score stands between a valid candidate and the owner
+
+  Scenario: The host binds measured card values mechanically
+    Given the model composes a tree with headings, badges, stacks and readings
+    When the host validates that tree
+    Then every number in advice, headings, prose, badges, labels, values and options resolves to a host-issued observation value
+    And a number no observation supplies is refused
+    And measured card values are bound mechanically
+    And the model remains free to choose order, nesting and prose
+
+  Scenario: The host restores an unambiguous measurement unit
+    Given a Reading or Metric shows only a number
+    When every cited observation that supplies that number agrees on its unit
+    Then the card shows the number with that unit
+    And a number with an ambiguous unit stays unchanged
+
+  Scenario: A measured value cannot borrow another observation's unit
+    Given the cited temperature is 20 degrees Celsius and the humidity is 60 percent
+    When the model displays 60 degrees Celsius as a Reading
+    Then the host rejects the suggestion
+
+  Scenario: The model composes varied generic trees
+    Given the generation contract supplies several example documents
+    When the model writes suggestions for different topics
+    Then the examples show distinct compositions of the shared primitives
+    And no rule caps the card at one sentence plus a flat chip list
+    And every example still cites host-issued evidence and an approved action
+
+  Scenario: Each shared primitive has a distinct rendered shape
+    Given a composed tree holds Heading, Text, Badge, Reading, Metric, Stack, Row and Divider
+    When the Shell renders that tree
+    Then each primitive produces its own DOM class and visual treatment
+    And Reading and Metric no longer share one identical chip
+    And every visible text keeps the single 17-pixel reading size
+    And the tree still renders exactly one card surface without concentric frames
+
+  # --- Default startup policy ---------------------------------------------
+  Scenario: A default resident starts the Watch without owner-specific configuration
+    Given an operator configures no proactive environment value
+    And the selected Intent and private recommendation profiles are absent
+    When the resident selects its startup components
+    Then the Watch is an active component and its factory is registered
+    And the default owner configuration uses the 30-minute heartbeat
+    And the Watch publishes valid candidates without a judgment stage
+
+  Scenario: A classifier-disabled resident still starts the Watch
+    Given the operator sets ODK_JEV_PROVIDER to disabled
+    When the resident selects its startup components
+    Then the Watch is an active component and its factory is registered
+    And intent routing and Overview use their ordinary-model fallback
+    And no proposal relevance or factual-support judgment is constructed
+
+  Scenario: An owner configuration file keeps its explicit heartbeat
+    Given the operator selects ODK_PROACTIVE_CONFIG with an explicit pollMs
+    When the resident resolves the default owner configuration
+    Then the configured pollMs overrides the 30-minute default
+    And an explicit owner save writer remains available
+
+  Scenario: A classifier-disabled resident keeps every resident component
+    Given the operator sets ODK_JEV_PROVIDER to disabled
+    When the resident starts ordinary voice, the Home Briefing and the Watch
+    Then all three remain enabled
+    And a configured Intent condition uses the ordinary-model judgment fallback
+    And no proposal classifier request starts
+
+  Scenario: Read-only Widget Intent model work uses a bounded response budget
+    Given the selected model serves a Widget Intent through the ordinary judgment fallback
+    When the resident verifies the owner's request, checks its condition, and generates the suggestion
+    Then it uses the selected model for each step with a bounded response budget
+    And it requests direct answers from a configured transport that otherwise enables reasoning
+    And the interactive owner turn retains its configured model settings
+    And the resident still checks authorization, source freshness, and cited evidence
+
+  Scenario: Everyday Intent suggestions use calm and useful copy
+    Given current observations satisfy an ordinary owner preference
+    When the model proposes a read-only suggestion
+    Then the advice relates the observed situation to the owner's next step
+    And routine preferences use a neutral tone
+    And warnings require cited urgency or risk
+
+  Scenario: Recommendation modules have one subsystem boundary
+    Given the resident composes the recommendation subsystem through its public entry
+    When the resident creates the Watch, Intent runtime, and configured sources
+    Then recommendation modules resolve within one recommendations directory
+    And the public entry declares each exported symbol explicitly
+    And shared host imports use only the reviewed private-file, model-validation, preview, and catalog peers
+    And Pi Durable model execution remains in the resident adapters
+    And existing owner configuration and persisted state keep their paths and formats
+
+  Scenario: Check new labeled mail on a weekday schedule
+    Given the owner saved an enabled weekday routine for a Gmail label
+    When a scheduled check finds new mail with that label
+    Then the Personal Agent shows one suggestion with one next step for each mail that needs action
+    And it skips informational mail, older mail, and mail outside the label
+    And later checks and restarts do not repeat a suggestion for the same mail
+    And the routine makes no scheduled Gmail checks outside the window or while paused
+
+  Scenario: A Routine reads its selected named notes only
+    Given the owner keeps preferences in private MEMORY.md and notes in Mem0
+    And a saved Routine names the notes it needs
+    When Watch checks the Routine
+    Then the condition receives only the named notes selected by the Routine
+    And changing a selected note invalidates an older result
+    And the owner can save and run a Routine without note references when Mem0 is unavailable
+
+  Scenario: OpenUI receives the result of the Routine condition check
+    Given Watch verified a Routine condition with a named note and current weather
+    When Watch sends the qualified topic to the generation model
+    Then the topic reports that the condition passed
+    And it supplies the selected weather observation for factual claims
+    And the named note and condition text stay with the host
+    And the recommendation has one read-only next step

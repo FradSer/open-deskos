@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { chmod, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { loadPrivateRecommendationConfig, validatePrivateRecommendationConfig, createConfiguredPrivateSources } from '../src/private-recommendation-sources.mjs'
+import { loadPrivateRecommendationConfig, validatePrivateRecommendationConfig, createConfiguredPrivateSources } from '../src/recommendations/index.mjs'
 
 test('private recommendation sources require a private owner configuration and never repair its permissions', async t => {
   assert.deepEqual(loadPrivateRecommendationConfig({}), { version: 1, sources: [] })
@@ -43,4 +43,14 @@ test('selecting a private profile starts no provider and a missing connector lea
   assert(catalogReads > 0)
   assert.equal(opens, 0)
   await sources.close()
+})
+
+
+test('Gmail reply labels are bounded owner configuration and default to reply preparation', () => {
+  const source = { id: 'gmail', goal: 'Suggest a useful next step for incoming mail.' }
+  assert.equal(validatePrivateRecommendationConfig({ version: 1, sources: [source] }).sources[0].replyLabel, '准备回复')
+  assert.equal(validatePrivateRecommendationConfig({ version: 1, sources: [{ ...source, replyLabel: '准备面试回复' }] }).sources[0].replyLabel, '准备面试回复')
+  for (const replyLabel of ['', 'bad\nlabel', 'x'.repeat(241), 12]) {
+    assert.throws(() => validatePrivateRecommendationConfig({ version: 1, sources: [{ ...source, replyLabel }] }), /invalid/)
+  }
 })

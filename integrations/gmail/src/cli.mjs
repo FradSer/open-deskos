@@ -1,14 +1,14 @@
 import { readFile, lstat } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { authorizeGmail, parseDesktopClient, revokeGmail } from './oauth.mjs'
-import { readGmailCredentials, writeGmailCredentials, removeGmailCredentials, validateGmailCredentialDestination } from './credentials.mjs'
+import { authorizeCalendar as authorizeCalendarGrant, authorizeGmail, parseDesktopClient, revokeGmail } from './oauth.mjs'
+import { writeCalendarCredentials, readGmailCredentials, writeGmailCredentials, removeGmailCredentials, validateGmailCredentialDestination } from './credentials.mjs'
 
-const USAGE = 'Use login --client <absolute-path> --credentials <absolute-path>, status --credentials <absolute-path>, disconnect --credentials <absolute-path>, or forget --credentials <absolute-path>.'
+const USAGE = 'Use login or calendar-login with --client <absolute-path> --credentials <absolute-path>, status --credentials <absolute-path>, disconnect --credentials <absolute-path>, or forget --credentials <absolute-path>.'
 
-/** Operator-only Gmail authorization commands. */
+/** Operator-only Google authorization commands. */
 export async function runGmailCli(argv, { output = text => process.stdout.write(`${text}\n`),
-  authorize = authorizeGmail, revoke = revokeGmail, readCredentials = readGmailCredentials,
+  authorize = authorizeGmail, authorizeCalendar = authorizeCalendarGrant, revoke = revokeGmail, readCredentials = readGmailCredentials,
   writeCredentials = writeGmailCredentials, removeCredentials = removeGmailCredentials,
   prepareDestination = validateGmailCredentialDestination } = {}) {
   const [command, ...args] = argv
@@ -20,12 +20,16 @@ export async function runGmailCli(argv, { output = text => process.stdout.write(
     options.set(key, value)
   }
   const credentialsPath = options.get('--credentials')
-  if (!credentialsPath || !['login', 'status', 'disconnect', 'forget'].includes(command)
-    || (command === 'login' ? !options.has('--client') : options.has('--client'))) throw Error(USAGE)
-  if (command === 'login') {
+  const calendarLogin = command === 'calendar-login'
+  const login = command === 'login' || calendarLogin
+  if (!credentialsPath || (!login && !['status', 'disconnect', 'forget'].includes(command))
+    || login !== options.has('--client')) throw Error(USAGE)
+  if (login) {
+    const service = calendarLogin ? 'Google Calendar' : 'Gmail'
     let exists = true
-    try { await lstat(credentialsPath) } catch (error) { if (error.code === 'ENOENT') exists = false; else throw Error('Could not inspect the Gmail credential path.') }
-    if (exists) throw Error('Gmail credentials already exist. Disconnect before connecting another account.')
+    try { await lstat(credentialsPath) } catch (error) { if (error.code === 'ENOENT') exists = false; else throw Error(`Could not inspect the ${service} credential path.`) }
+    if (exists) throw Error(calendarLogin ? 'Google Calendar credentials already exist.' :
+      'Gmail credentials already exist. Disconnect before connecting another account.')
     await prepareDestination(credentialsPath)
     let client
     try {
@@ -33,9 +37,13 @@ export async function runGmailCli(argv, { output = text => process.stdout.write(
       if (!info.isFile() || info.isSymbolicLink() || info.size > 65536) throw Error('client')
       client = parseDesktopClient(JSON.parse(await readFile(options.get('--client'), 'utf8')))
     } catch { throw Error('Use a valid Google Desktop app OAuth client file.') }
-    const credentials = await authorize(client)
-    await writeCredentials(credentialsPath, credentials)
-    output('Gmail connected with read-only access.')
+    if (calendarLogin) {
+      writeCalendarCredentials(credentialsPath, await authorizeCalendar(client))
+      output('Google Calendar connected with read-only event access.')
+    } else {
+      await writeCredentials(credentialsPath, await authorize(client))
+      output('Gmail connected with read-only access.')
+    }
     return
   }
   const credentials = await readCredentials(credentialsPath)
