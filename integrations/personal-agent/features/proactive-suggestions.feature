@@ -918,7 +918,7 @@ Feature: Owner controlled proactive Personal Agent proposals
     Given the advice reports a source request that contains words from the approved action label
     When the host validates the generated card
     Then the card retains its advice and one approved action
-    And advice that only repeats the action label is refused
+    And advice that repeats the action label as a separate instruction is refused
 
   Scenario: A composed card keeps its own structure and honest numbers
     Given a generated candidate carries advice and a freely composed OpenUI tree
