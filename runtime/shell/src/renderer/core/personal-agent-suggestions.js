@@ -145,6 +145,7 @@
       let errorProposalId = ''
       // Keep dispatched operations reserved until this ID has an authoritative terminal state.
       const actionConfirmations = new Map()
+      const intentResponses = new Map()
       const rideStatusNodes = new Map()
       function releaseRideView(id) {
         const { requests, node } = rideStatusNodes.get(id) ?? {}
@@ -204,14 +205,20 @@
         if (!document.hidden) for (const node of observedAdvice.keys()) { visibility?.unobserve(node); visibility?.observe(node) }
       }
       document.addEventListener('visibilitychange', recheckVisibility)
+      const dismissMenus = event => {
+        for (const entry of messages.values()) if (entry.more?.open && !entry.more.contains(event.target)) entry.more.open = false
+      }
+      document.addEventListener('pointerdown', dismissMenus)
+
 
 
       async function command(value) {
         const epoch = proposalEpoch
+        let refused = false
         const executionAttempt = value.type === 'proposal_respond' && value.decision === 'accept' ? executionAttempts.get(value.id) : undefined
         try {
           const receipt = await api.proposalCommand(value)
-          if (!receipt?.accepted) throw Error('Unavailable')
+          if (!receipt?.accepted) { refused = receipt?.accepted === false; throw Error('Unavailable') }
         } catch {
           if (executionAttempt) {
             if (executionAttempts.get(value.id) !== executionAttempt) return
@@ -223,6 +230,7 @@
           proposalCommandError = uncertainActionWarning
           errorProposalId = value.id ?? ''
           reportState()
+          return refused ? 'refused' : undefined
         }
       }
       // State belongs to the identity capsule, never to a message bubble.
@@ -230,7 +238,7 @@
       let stateSnapshot = null
       function summarizeState(status, visible) {
         const notes = []
-        if (proposalError) notes.push({ rank: 0, caption: 'Updates unavailable', detail: String(proposalError) })
+        if (proposalError) notes.push({ rank: 0, caption: status.proposalPartialFailure === true ? 'Some suggestions unavailable' : 'Updates unavailable', detail: String(proposalError) })
         if (proposalCommandError) notes.push({ rank: 1, caption: 'Delivery not confirmed', detail: proposalCommandError })
         // A finished proposal keeps its own outcome on its card. Publishing a
         // terminal word such as Expired here would leave stale text as the
@@ -245,7 +253,7 @@
           if (activeLabels[p.status]) notes.push({ rank: p.status === 'unknown' ? 4 : 5, caption: activeLabels[p.status], detail: activeLabels[p.status] })
           if (p.status === 'pending' && !suggestionCapabilities.respond && typeof p.nextStep === 'string')
             notes.push({ rank: 6, caption: 'Read-only preview', detail: 'Read-only preview; respond from the desk.' })
-          if (p.status === 'pending' && !p.action && !p.ridePreview)
+          if (p.status === 'pending' && !p.action && !p.ridePreview && !proposalSources(p).length && !isReadOnlyIntent(p))
             notes.push({ rank: 7, caption: 'No executable action', detail: 'No executable action is available.' })
           if (preview?.sandbox === true) notes.push({ rank: 8, caption: 'Sandbox preview', detail: 'Sandbox preview, so no real trip.' })
           if (Number.isFinite(preview?.expiresAt) && preview.expiresAt <= Date.now())
@@ -421,6 +429,36 @@
         if (panel) article.append(panel)
         return actions.children.length > 0
       }
+      function proposalSources(proposal) {
+        if (proposal.action !== null || !Array.isArray(proposal.sources) || proposal.sources.length > 8) return []
+        return proposal.sources.every(source =>
+          (source?.kind === 'gmail' && source.label === 'Gmail' && typeof source.messageId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(source.messageId)) ||
+          (source?.kind === 'calendar' && source.label === 'Calendar' && typeof source.readingId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(source.readingId))) ? proposal.sources : []
+      }
+      function appendSourceAction(actions, proposal, sources) {
+        const source = sources.find(item => item.kind === 'gmail')
+        if (!source || typeof api.openProposalGmail !== 'function') return
+        const result = document.createElement('p')
+        result.className = 'personal-agent-proposal-request-status'
+        result.setAttribute('role', 'status')
+        const open = button('Open Gmail message', async () => {
+          if (closed || open.disabled || !surface.contains(open)) return
+          open.disabled = true
+          let opened = false
+          try { opened = await api.openProposalGmail(proposal.id, source.messageId) === true } catch { /* Report below. */ }
+          if (closed || !surface.contains(open)) return
+          open.disabled = false
+          result.textContent = opened ? '' : 'Gmail could not be opened.'
+        })
+        open.className = 'personal-agent-proposal-primary'
+        open.dataset.proposalId = proposal.id
+        open.dataset.proposalAction = 'open-gmail'
+        actions.append(open, result)
+      }
+      function isReadOnlyIntent(proposal) {
+        return proposal.action === null && !storedRidePreview(proposal)
+          && /^intent-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(proposal.ruleId)
+      }
       function renderProposalUI(article, p) {
         const renderer = currentRenderer() ?? requestRenderer(refreshOpenUI)
         if (renderer && typeof renderer.isOpenUINode === 'function' && renderer.isOpenUINode(p.ui)) {
@@ -455,8 +493,9 @@
         for (const p of status.proposals) if (p?.id) renderedProposalIds.add(p.id)
         for (const p of status.proposals) if (p && ['completed', 'unknown', 'ignored', 'expired'].includes(p.status)) executionAttempts.delete(p.id)
         const uncertainExecution = status.proposals.some(p => p && executionAttempts.get(p.id)?.uncertain)
-        if (visibilityFailure && !status.proposalError) visibilityAttempts.clear()
-        visibilityFailure = Boolean(status.proposalError)
+        const visibilityBlocked = Boolean(status.proposalError) && status.proposalPartialFailure !== true
+        if (visibilityFailure && !visibilityBlocked) visibilityAttempts.clear()
+        visibilityFailure = visibilityBlocked
         const commandsAvailable = typeof api.proposalCommand === 'function'
         suggestionCapabilities = status.proposalCapabilities === undefined ? { read: true, respond: commandsAvailable, acknowledge: commandsAvailable } : {
           read: status.proposalCapabilities?.read === true,
@@ -473,13 +512,20 @@
         const focusId = focused?.dataset?.proposalId || retainedFocus?.id, focusAction = focused?.dataset?.proposalAction || retainedFocus?.action
         feedbackFocus = undefined
         const previousScroll = elements.content.scrollTop
+        for (const id of intentResponses.keys()) {
+          const proposal = status.proposals.find(p => p?.id === id)
+          if (!proposal || proposal.status !== 'pending' || (proposal.feedback === 'snooze' && !proposal.offered
+            && Number.isFinite(proposal.snoozedUntil))) intentResponses.delete(id)
+        }
         const visible = status.proposals.filter(p => p && typeof p.id === 'string' && typeof p.advice === 'string' &&
+          !(isReadOnlyIntent(p) && ['ignored', 'expired'].includes(p.status)) &&
           (p.status !== 'pending' || (p.offered === true && !(p.snoozedUntil > Date.now()))))
         const visibleIds = new Set(visible.map(p => p.id))
         for (const id of messages.keys()) if (!visibleIds.has(id)) removeEntry(id)
         proposalCommandError = uncertainExecution ? uncertainActionWarning : ''
         for (const p of visible) {
             const current = p.status === 'pending'
+            const sources = proposalSources(p)
             let entry = messages.get(p.id)
             if (!entry) {
               const created = create(p)
@@ -492,6 +538,8 @@
             if (entry.advice) { visibility?.unobserve(entry.advice); observedAdvice.delete(entry.advice); visibleAdvice.delete(entry.advice); entry.advice = undefined }
             releaseRideView(p.id)
             const proposals = entry.body
+            const moreWasOpen = entry.more?.open === true
+            entry.more = undefined
             proposals.replaceChildren()
             const article = document.createElement('section')
             article.className = 'personal-agent-proposal'
@@ -503,7 +551,7 @@
             const technicalNext = typeof p.nextStep === 'string' && technicalText.test(p.nextStep)
             const executableAction = Boolean(p.action && typeof p.confirmation === 'string' && p.confirmation.trim())
             const nextStep = typeof p.nextStep === 'string' && p.nextStep.length <= 240 && !/[\x00-\x1f\x7f]/.test(p.nextStep) && !technicalNext ? p.nextStep.trim() : ''
-            const readOnlyStep = !suggestionCapabilities.respond && Boolean(nextStep)
+            const readOnlyStep = Boolean(nextStep) && (!suggestionCapabilities.respond || isReadOnlyIntent(p))
             // Advice is model text. Use the shared safe Markdown renderer so
             // strong/code/list emphasis shows, while HTML stays literal and
             // plain text still goes through textContent.
@@ -538,14 +586,50 @@
             if (current && suggestionCapabilities.respond) {
               const actions = document.createElement('div')
               actions.className = 'personal-agent-proposal-actions'
+              const feedbackControls = []
+              const more = (...controls) => {
+                const menu = document.createElement('details')
+                menu.className = 'personal-agent-proposal-more'
+                menu.open = moreWasOpen
+                const summary = document.createElement('summary')
+                summary.textContent = 'More'
+                summary.dataset.proposalId = p.id
+                summary.dataset.proposalAction = 'more'
+                summary.setAttribute('aria-label', 'More reminder controls')
+                const group = document.createElement('div')
+                group.className = 'personal-agent-proposal-more-controls'
+                group.append(...controls)
+                menu.append(summary, group)
+                menu.addEventListener('keydown', event => {
+                  if (event.key !== 'Escape' || !menu.open) return
+                  event.preventDefault(); event.stopPropagation()
+                  menu.open = false
+                  summary.focus({ preventScroll: true })
+                })
+                entry.more = menu
+                return menu
+              }
               const response = (label, decision) => {
                 const control = button(label, async () => {
-                  if (closed || control.disabled || !surface.contains(control) || !suggestionCapabilities.respond) return
+                  if (closed || control.disabled || !surface.contains(control) || !suggestionCapabilities.respond
+                    || (isReadOnlyIntent(p) && intentResponses.has(p.id))) return
+                  const request = {}
+                  if (isReadOnlyIntent(p)) {
+                    intentResponses.set(p.id, request)
+                    for (const sibling of feedbackControls) sibling.disabled = true
+                  }
                   if (document.activeElement === control) feedbackFocus = { id: p.id, action: decision }
                   control.disabled = true
-                  await command({ type: 'proposal_respond', id: p.id, decision })
+                  const result = await command({ type: 'proposal_respond', id: p.id, decision })
+                  if (result === 'refused' && intentResponses.get(p.id) === request) {
+                    intentResponses.delete(p.id)
+                    entry.snapshot = ''
+                    if (!closed && lastStatus) renderProposals(lastStatus)
+                  }
                 })
                 control.dataset.proposalId = p.id; control.dataset.proposalAction = decision
+                control.disabled = isReadOnlyIntent(p) && intentResponses.has(p.id)
+                feedbackControls.push(control)
                 return control
               }
               if (executableAction) {
@@ -587,13 +671,25 @@
                   const later = response('Later', 'snooze')
                   later.className = 'personal-agent-proposal-secondary'
                   later.disabled = accept.disabled
-                  actions.append(accept, later)
+                  actions.append(accept, more(later))
                 }
               } else {
+                appendSourceAction(actions, p, sources)
                 const later = response('Later', 'snooze')
                 later.className = 'personal-agent-proposal-secondary'
-                later.disabled = executionAttempts.has(p.id)
-                actions.append(later)
+                later.disabled = executionAttempts.has(p.id) || (isReadOnlyIntent(p) && intentResponses.has(p.id))
+                const controls = [later]
+                if (sources.length || isReadOnlyIntent(p)) {
+                  const ignore = response('Ignore', 'ignore')
+                  ignore.className = 'personal-agent-proposal-secondary'
+                  controls.push(ignore)
+                }
+                if (isReadOnlyIntent(p)) {
+                  const pause = response('Pause reminder', 'mute')
+                  pause.className = 'personal-agent-proposal-secondary'
+                  controls.push(pause)
+                }
+                actions.append(more(...controls))
               }
               article.append(actions)
             }
@@ -602,7 +698,7 @@
         }
         if (focusId && focusAction) {
           let restored = false
-          for (const node of messages.get(focusId)?.body.querySelectorAll?.('button') || []) if (node.dataset.proposalId === focusId && node.dataset.proposalAction === focusAction) {
+          for (const node of messages.get(focusId)?.body.querySelectorAll?.('button, summary') || []) if (node.dataset.proposalId === focusId && node.dataset.proposalAction === focusAction) {
             node.focus({ preventScroll: true }); restored = true; break
           }
           if (!restored) focusInput()
@@ -653,6 +749,7 @@
           for (const id of messages.keys()) removeEntry(id)
           rideStatusNodes.clear()
           observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear()
+          document.removeEventListener('pointerdown', dismissMenus)
           document.removeEventListener('visibilitychange', recheckVisibility)
           document.removeEventListener('visibilitychange', consumerVisibilityChanged)
           await announceConsumer(null)

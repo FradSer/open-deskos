@@ -6,6 +6,15 @@ const path = require('node:path')
 
 const { createPersonalAgentDriver } = require('../src/personal-agent-driver')
 const { projectPersonalAgentFrame } = require('../src/personal-agent-frame')
+
+test('owner-only reply drafts do not enter remote conversation frames', () => {
+  const frame = projectPersonalAgentFrame({ state: 'idle', ownerOnly: true, ownerTurnId: '11111111-1111-4111-8111-111111111111',
+    transcript: 'PRIVATE_INTERVIEW', message: 'PRIVATE_UNSENT_REPLY', proposals: [],
+    conversation: { revision: 1, turns: [], omittedCount: 0 } })
+  assert.doesNotMatch(JSON.stringify(frame), /PRIVATE_INTERVIEW|PRIVATE_UNSENT_REPLY/)
+  assert.equal(frame.ownerTurnId, undefined)
+  assert.equal(frame.message, undefined)
+})
 const fixture = require('./fixtures/personal-agent-v1.json')
 const { androidPath } = require('./helpers/repo-root')
 
@@ -248,6 +257,42 @@ test('the Android projection carries bounded readable suggestions without respon
   assert.equal(projected.proposalPopup, true)
   assert.equal(JSON.stringify(projected).includes('private action'), false)
   assert.equal(JSON.stringify(projected).includes('PRIVATE_TOOL_RESULT'), false)
+})
+
+test('the Android projection keeps Calendar sources and omits private Gmail recommendations', () => {
+  const base = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', status: 'pending', advice: 'Review the schedule.', offered: true, evidence: [], action: null }
+  const calendar = { ...base, sources: [{ kind: 'calendar', label: 'Calendar', readingId: 'calendar.events', privateData: 'drop' }] }
+  const gmail = { ...base, id: '0325c4b0-0066-4811-957f-6502fc761145', advice: 'Private message', sources: [{ kind: 'gmail', label: 'Gmail', messageId: 'private-message-id' }] }
+  const legacy = { ...base, privateData: true }
+  const status = { state: 'idle', proposalPopup: true, proposals: [gmail, calendar, legacy] }
+  const projected = projectPersonalAgentFrame(status)
+  assert.deepEqual(projected.proposalCapabilities, { read: true, respond: false, acknowledge: false })
+  assert.equal(projected.proposals.length, 1)
+  assert.deepEqual(projected.proposals[0].sources, [{ kind: 'calendar', label: 'Calendar', readingId: 'calendar.events' }])
+  assert.equal(JSON.stringify(projected).includes('private-message-id'), false)
+  const privateOnly = projectPersonalAgentFrame({ ...status, proposals: [gmail, legacy] })
+  assert.deepEqual(privateOnly.proposals, [])
+  assert.equal(privateOnly.proposalPopup, false)
+})
+
+test('the Android projection omits read-only Intent cards with owner-selected source evidence', () => {
+  const ruleId = 'intent-e311a280-c0b9-4411-96cd-4e1e92385349'
+  const synthetic = { readingId: 'intent.e311a280-c0b9-4411-96cd-4e1e92385349', field: 'wish', value: 'Legacy wish',
+    state: 'live', measuredAt: '2026-10-23T00:00:00Z' }
+  const legacy = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId, status: 'pending', advice: 'Legacy advice',
+    offered: true, action: null, evidence: [synthetic] }
+  const intent = { ...legacy, id: '0325c4b0-0066-4811-957f-6502fc761145', advice: 'Private recommendation',
+    nextStep: 'Private follow-up', evidence: [{ ...synthetic, readingId: 'odk.app.selected', field: 'reading', value: 'Private selected reading' }, synthetic] }
+  const ordinary = { ...intent, id: 'a1234567-0066-4811-957f-6502fc761145', ruleId: 'owner-rule', advice: 'Ordinary recommendation',
+    nextStep: 'Ordinary follow-up', evidence: [{ ...intent.evidence[0], value: 'Ordinary reading' }] }
+
+  const frame = projectPersonalAgentFrame({ state: 'idle', proposalPopup: true, proposals: [intent, legacy, ordinary] })
+  assert.deepEqual(frame.proposalCapabilities, { read: true, respond: false, acknowledge: false })
+  assert.deepEqual(frame.proposals.map(p => p.id), [legacy.id, ordinary.id])
+  assert.doesNotMatch(JSON.stringify(frame), /Private recommendation|Private selected reading|Private follow-up/)
+  const privateOnly = projectPersonalAgentFrame({ state: 'idle', proposalPopup: true, proposals: [intent] })
+  assert.deepEqual(privateOnly.proposals, [])
+  assert.equal(privateOnly.proposalPopup, false)
 })
 
 test('the Android frame carries the full OpenUI component tree without leaking private fields', () => {

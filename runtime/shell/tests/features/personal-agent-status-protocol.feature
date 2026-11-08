@@ -12,11 +12,11 @@ Feature: Voice feedback status transport
     Then the pending status retains that child activity
     And only a transport failure marks the retained activity unavailable
 
-  Scenario: Source updates wake the Jev judgment path
+  Scenario: Source updates wake the generation path
     Given a Hydra message, Service Plugin snapshot or declared package publication
     When the trusted Shell commits the source update
     Then the Shell sends only changed reading identifiers through the authenticated voice channel
-    And the agent rereads its selected sources before Jev evaluates them
+    And the agent rereads its selected sources before generation
     And arbitrary pushed text cannot become advice or authorization
   Scenario: Transcription and streaming response remain separate
     Given the resident Personal Agent has transcribed a spoken request
@@ -75,7 +75,55 @@ Feature: Voice feedback status transport
     And opening details sends no conversation turn or order command
     And ambiguous endpoints require explicit selection before requesting a current quote
     And an expired preview cannot request a quote
-    And a current quote request uses the existing owner text channel through Jev
+    And a current quote request uses the existing owner text channel
+
+  Scenario: A read-only recommendation exposes its verified sources
+    Given a pending offered recommendation cites Gmail and Calendar
+    When the owner opens its Gmail source from the conversation
+    Then the trusted Shell opens the bound message in the browser
+    And opening the source sends no Agent turn or action command
+    And the card shows no source disclosure
+    And the card offers Later and Ignore
+
+  Scenario: A schedule conflict survives the private source and Shell lifecycle
+    Given a synthetic Gmail invitation proposes a change that overlaps a busy Calendar event
+    When the private connector and resident publish the recommendation to the Shell
+    Then the conversation shows one read-only card
+    And the resident retains both source bindings
+    And Open Gmail message requests only the bound browser link
+    When Gmail repeats or revises the invitation across a resident restart
+    Then replay preserves one card and a changed slot receives a new identity
+    When Gmail cancels the invitation
+    Then the previous source cannot open from the Shell
+    When the owner removes authorization
+    Then the Shell removes the full card from the conversation
+    And the previous source cannot open from the Shell
+    When a later suggestion reaches its scheduled start
+    Then the Shell withdraws its source control without another Gmail poll
+
+  Scenario: A read-only Intent recommendation shows concise advice
+    Given a recommendation comes from an owner Intent that selects a Widget reading
+    When the recommendation appears in the conversation
+    Then the card shows advice and a read-only next step
+    And the card omits evidence disclosures and raw source identifiers
+    And the card does not offer an execution or navigation action
+    And Later defers this occurrence while Ignore dismisses this occurrence
+    And Pause reminder disables the exact owner Intent
+    And one feedback request prevents duplicate or conflicting feedback until its result
+    And a confirmed Later result permits feedback after the reminder returns
+    And a refusal before delivery permits the owner to retry
+
+  Scenario: Owner-selected Intent readings remain on the resident Shell
+    Given a read-only Intent recommendation cites an owner-selected Widget reading
+    When the resident status reaches the remote display
+    Then the remote frame omits the recommendation and its evidence
+    And legacy Intent recommendations with synthetic evidence retain their existing projection
+
+  Scenario: A remote display receives calendar-only recommendations
+    Given one recommendation cites Calendar and another cites Gmail
+    When the resident status reaches the remote display
+    Then the calendar-only recommendation shows its source label
+    And the Gmail recommendation and its message ID remain on the resident Shell
 
   Scenario: A prepared recommendation exposes its executable next action
     Given a pending ride preview with exactly one actual pickup and destination
@@ -109,3 +157,11 @@ Feature: Voice feedback status transport
     When the card renders
     Then the card offers source inspection instead of a quote or refresh action
     And no malformed handle reaches the Agent channel
+
+  Scenario: An approved reply preparation returns a private conversation response
+    Given a presented email suggestion offers one host-bound reply preparation action
+    When the owner confirms that action
+    Then the local Personal Agent shows the resulting unsent draft as a conversation response
+    And the response remains owner-only before the source read starts
+    And public conversation history and remote projections exclude that response
+    And a failed, duplicate, or interrupted preparation cannot publish a late draft

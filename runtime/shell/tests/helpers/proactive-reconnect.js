@@ -19,8 +19,8 @@ async function until(check, message, timeout = 5000) {
 async function createProactiveReconnectFixture(options = {}) {
   const [{ PersonalAgentService }, { ProactiveWatch }, { proposalStateStore }, { listen }] = await Promise.all([
     import(integrationURL('personal-agent/src/service.mjs')),
-    import(integrationURL('personal-agent/src/proactive.mjs')),
-    import(integrationURL('personal-agent/src/proactive-state.mjs')),
+    import(integrationURL('personal-agent/src/recommendations/index.mjs')),
+    import(integrationURL('personal-agent/src/recommendations/index.mjs')),
     import(integrationURL('personal-agent/src/socket.mjs')),
   ])
   const { createPersonalAgentClient } = require('../../src/personal-agent-client')

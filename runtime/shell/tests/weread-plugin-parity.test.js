@@ -88,6 +88,21 @@ function api(calls, state) {
   }
 }
 
+test('the latest WeRead reading is stable and does not rotate the Widget', async t => {
+  const calls = []
+  const f = await fixture(t, false, { fetchImpl: api(calls, {}) })
+  await f.ipc()
+  const older = await f.ipc()
+  assert.equal(older.highlight.markText, 'Text 1')
+  const readLatest = () => f.host.get(DESK_PORTS.data).control.dispatch({ command: 'read', readingId: 'odk.tile.weread.latest' })
+  const before = calls.length
+  const first = await readLatest()
+  assert.equal(first.reading.value.highlight.text, 'Text 2')
+  assert.deepEqual(await readLatest(), first)
+  assert.equal(calls.length, before)
+  assert.deepEqual(f.host.get(DATA_PORTS.weread).snapshot(), older)
+})
+
 for (const replacement of [false, true, 'signed']) {
   const name = replacement === 'signed' ? 'signed independent WeRead' : replacement ? 'independently linked WeRead' : 'default WeRead'
   test(`${name} preserves live output, selection, cache, resync, and consumer lifecycle`, async t => {

@@ -44,6 +44,14 @@ test('separate home frames preserve voice replies and stale content across recon
   assert.deepEqual(client.snapshot().agents, agents)
   assert.deepEqual(client.snapshot().jev, {status:'checking'})
   assert.deepEqual(client.snapshot().judgment,{status:'ready',provider:'model',model:'synthetic/model-v1'})
+  update = next(frame => frame.message === 'PRIVATE_DRAFT')
+  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', ownerOnly: true, message: 'PRIVATE_DRAFT', transcript: '准备回复' }) + '\n')
+  assert.equal((await update).ownerOnly, true, 'the local client preserves host privacy for remote projection')
+  const { projectPersonalAgentFrame } = require('../src/personal-agent-frame')
+  assert.doesNotMatch(JSON.stringify(projectPersonalAgentFrame(client.snapshot())), /PRIVATE_DRAFT/)
+  update = next(frame => frame.message === reply)
+  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', message: reply, agents }) + '\n')
+  assert.equal((await update).ownerOnly, undefined, 'a new public turn clears the previous privacy marker')
   let history={revision:2,turns:[{id:'11111111-1111-4111-8111-111111111111',at:10,transcript:'Earlier owner input',message:'Earlier answer',state:'idle'}],omittedCount:0}
   update=next(frame=>frame.conversation?.revision===2)
   peer.write(JSON.stringify({v:1,type:'conversation',conversation:history})+'\n')
@@ -209,9 +217,13 @@ test('proposals cross the existing private voice link and decisions return on it
   const connection = once(server, 'connection'); client.start(); [peer] = await connection; await once(peer, 'data')
   const proposal = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry', status: 'pending', advice: '检查盆土', evidence: [], confirmation: '记住 watering：检查盆土' }
   const received = new Promise(resolve => { const off = client.subscribe(status => { if (status.proposals?.length) { off(); resolve(status) } }) })
-  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', proposals: [proposal], proposalPopup: true, proposalCapabilities: { read: true, respond: false, acknowledge: false } }) + '\n')
+  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', proposals: [proposal], proposalPopup: true,
+    proposalError: 'Some suggestions could not be generated', proposalPartialFailure: true,
+    proposalCapabilities: { read: true, respond: false, acknowledge: false } }) + '\n')
   const frame = await received
   assert.equal(frame.proposalPopup, true); assert.deepEqual(frame.proposals, [proposal]); assert.deepEqual(frame.proposalCapabilities, { read: true, respond: false, acknowledge: false })
+  assert.equal(frame.proposalError, 'Some suggestions could not be generated')
+  assert.equal(frame.proposalPartialFailure, true)
   const command = once(peer, 'data'); assert.equal(client.proposalCommand({ type: 'proposal_respond', id: proposal.id, decision: 'accept', confirmation: proposal.confirmation }), true)
   assert.deepEqual(JSON.parse((await command)[0]), { v: 1, type: 'proposal_respond', id: proposal.id, decision: 'accept', confirmation: proposal.confirmation })
 })

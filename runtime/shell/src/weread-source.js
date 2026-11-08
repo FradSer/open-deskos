@@ -2,6 +2,7 @@ const API_URL = 'https://i.weread.qq.com/api/agent/gateway'
 const SKILL_VERSION = '1.0.4'
 const RECENT_LIMIT = 20
 const RESYNC_MS = 30 * 60 * 1000
+const LATEST_RESYNC_MS = 4 * 60 * 1000
 const MAX_COVER_BYTES = 512 * 1024
 const CACHE_VERSION = 2
 
@@ -12,6 +13,7 @@ function createWeReadSource({
   random = Math.random,
   cacheFile,
   fsImpl = require('node:fs'),
+  onLatestUpdate = () => {},
   signal,
 } = {}) {
   const lifetime = new AbortController()
@@ -28,6 +30,8 @@ function createWeReadSource({
   let state = { status: apiKey ? 'loading' : 'unconfigured', highlight: null, updatedAt: null }
   let recents = []
   let lastSync = 0
+  let syncInFlight
+  let notifiedLatest
   let lastIndex = -1
   const recentBooks = []
   const BOOK_COOLDOWN = 4
@@ -124,11 +128,10 @@ function createWeReadSource({
     return ''
   }
 
-  async function refreshCurrent() {
-    if (!apiKey || lifetime.signal.aborted) return state
-    const nowMs = now()
-    try {
-      if (recents.length === 0 || nowMs - lastSync >= RESYNC_MS) {
+  function syncRecents(nowMs, resyncMs) {
+    if (recents.length > 0 && nowMs >= lastSync && nowMs - lastSync < resyncMs) return
+    if (!syncInFlight) {
+      syncInFlight = (async () => {
         const notebooks = await request({ api_name: '/user/notebooks', count: 100 })
         const books = notebooks.books || []
         const candidates = books.filter((entry) => entry.bookId && entry.noteCount).slice(0, 8)
@@ -139,7 +142,7 @@ function createWeReadSource({
             .map((note) => ({ ...note, title: entry.book?.title || '微信读书', author: entry.book?.author || entry.book?.writer || '', cover: entry.book?.cover || entry.book?.coverUrl || '' }))
         }))
         const highlights = results.flat()
-        if (lifetime.signal.aborted) return state
+        lifetime.signal.throwIfAborted()
         highlights.sort((a, b) => (b.createTime || 0) - (a.createTime || 0))
         recents = highlights.slice(0, RECENT_LIMIT)
         coverCache.clear()
@@ -147,7 +150,16 @@ function createWeReadSource({
         lastIndex = -1
         recentBooks.length = 0
         saveCache()
-      }
+      })().finally(() => { syncInFlight = undefined })
+    }
+    return syncInFlight
+  }
+
+  async function refreshCurrent() {
+    if (!apiKey || lifetime.signal.aborted) return state
+    const nowMs = now()
+    try {
+      await syncRecents(nowMs, RESYNC_MS)
       const entry = pickRandom()
       const highlight = entry ? { ...entry, cover: await resolveCover(entry.cover) } : null
       if (lifetime.signal.aborted) return state
@@ -156,7 +168,26 @@ function createWeReadSource({
       if (lifetime.signal.aborted) return state
       state = { status: 'error', highlight: null, updatedAt: nowMs, error: error.message }
     }
+    const latest = recents[0]
+    const latestKey = JSON.stringify([state.status, latest?.title, latest?.markText, latest?.range, latest?.createTime])
+    if (notifiedLatest !== latestKey) {
+      notifiedLatest = latestKey
+      try { onLatestUpdate() } catch { /* Notification failure does not change the reading. */ }
+    }
     return state
+  }
+
+  async function readLatestCurrent() {
+    if (!apiKey) return { status: 'unconfigured', highlight: null, updatedAt: null }
+    try {
+      lifetime.signal.throwIfAborted()
+      await syncRecents(now(), LATEST_RESYNC_MS)
+      lifetime.signal.throwIfAborted()
+      const highlight = recents[0] ?? null
+      return { status: highlight ? 'live' : 'empty', highlight, updatedAt: lastSync }
+    } catch {
+      return { status: 'error', highlight: null, updatedAt: null }
+    }
   }
 
   function refresh() {
@@ -170,7 +201,7 @@ function createWeReadSource({
     await Promise.allSettled([...active])
   }
 
-  return { refresh, snapshot: () => state, stop }
+  return { refresh, snapshot: () => state, readLatest: () => track(readLatestCurrent()), stop }
 }
 
 module.exports = { createWeReadSource }

@@ -305,7 +305,7 @@ The external Agent owns generation, phrasing, and execution; it reuses the memor
 The check passed locally and on the isolated CM5 candidate; the complete local Bot suite and type checking also passed.
 Both staged test and scenario files retained their recorded updated hashes during the CM5 command.
 The extended proactive check compares provider failures and recovery for default and selected Agents.
-Failed phrasing retains approved owner advice; failed generation reports unavailable suggestions without publishing private errors, and recovered generation resumes grounded advice.
+Failed phrasing retains approved owner advice; failed generation reports unavailable suggestions without publishing private errors, and recovered generation resumes host-validated advice.
 An isolated invalid memory file makes confirmed execution fail after reservation; the Watch retains unknown status after the file recovers.
 Execution call counts confirm that recovery and another confirmation cannot replay that action.
 The extended check passed locally and on CM5; the complete local Bot suite retained 595 passes and two skips with unchanged inputs.
@@ -432,8 +432,8 @@ A separate Watch factory now compares generated advice for one owner goal with i
 It owns observation selection, generation requests, judgment selection, proposal storage, presentation, and lifecycle without constructing the default Watch.
 Only the pure generated batch validator is shared.
 Unavailable observations cause no generation request; failed generation and invalid citations or action fields publish no advice.
-A high usefulness score cannot defeat a low grounding score.
-Accepted advice retains probability order, selected evidence fields, stable proposal identities, and no action authority.
+A generated candidate publishes only when host structural validation accepts it.
+Accepted advice retains generation order, approved evidence fields, stable proposal identities, and no action authority.
 Judgment requests retain the generated marker, owner goal, rule identity, empty criteria, and resolvable evidence references.
 The added marker assertion first failed the selected fixture; the fixture now supplies the existing judgment contract.
 The selected factory reads the actual default private checkpoint and retains identities and acknowledgement before another poll.

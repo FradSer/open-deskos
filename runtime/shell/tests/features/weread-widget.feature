@@ -1,4 +1,10 @@
 Feature: WeRead highlight widget
+  Scenario: The latest highlight for a saved Intent stays separate from display rotation
+    Given the WeRead source has newer and older highlights
+    When an Intent reads the latest highlight through Open DeskOS Data
+    Then the reading returns the newest available excerpt
+    And the read does not rotate the excerpt shown on the Widget
+
   Scenario: Reading retains its design from before the interface experiment
     Given the Reading Widget displays a source excerpt with an author and cover
     When the Widget renders at a supported Cell size

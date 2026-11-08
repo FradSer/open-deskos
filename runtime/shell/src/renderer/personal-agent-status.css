@@ -272,15 +272,12 @@ html #personal-agent .agent-update-sources .agent-message-session .agent-session
   font-size: var(--agent-text-body);
   line-height: var(--agent-line-body);
 }
-/* One 17px reading size for every visible text inside a recommendation bubble.
-   iOS-style hierarchy comes from weight and colour, not a second size. Scoped so
-   other conversation messages and the nonmodal panel retain their own scale. */
-.agent-recommendation .agent-message-bubble,
-.agent-recommendation .agent-message-body,
+/* Card content uses the conversation reading size. The shared session footer
+   and disclosure labels keep their own text roles. */
+.agent-recommendation .personal-agent-proposal { --agent-text-body: var(--agent-text-heading); }
 .agent-recommendation .personal-agent-proposal,
 .agent-recommendation .personal-agent-proposal-advice,
 .agent-recommendation .personal-agent-proposal-state,
-.agent-recommendation .personal-agent-proposal-evidence,
 .agent-recommendation .personal-agent-proposal-capability,
 .agent-recommendation .personal-agent-proposal-note,
 .agent-recommendation .personal-agent-proposal-error,
@@ -302,24 +299,28 @@ html #personal-agent .agent-update-sources .agent-message-session .agent-session
 .agent-recommendation .personal-agent-proposals .personal-agent-proposal-primary { font-size: var(--agent-text-body); }
 /* Advice leads by weight; the Pixel theme keeps its single weight by order and colour. */
 .agent-recommendation .personal-agent-proposal-advice { font-weight: 500; }
-/* The advice is the only leading line. A preview summary names what the items
-   show, so it sits at the supporting label colour; chips keep one reading size
-   and hold each label/value pair on one line. */
+/* Advice leads. Preview summaries and reading labels use supporting emphasis. */
 .agent-recommendation .personal-agent-preview-summary { font-weight: 400; color: var(--odk-secondary-strong); text-wrap: pretty; }
 .agent-recommendation .personal-agent-preview-chip { padding: 8px 12px; gap: var(--agent-gap-inline); align-items: center; }
 .agent-recommendation .personal-agent-preview-value { white-space: nowrap; }
 .agent-recommendation .personal-agent-preview-label { text-wrap: pretty; }
 .personal-agent-proposal { display: grid; gap: var(--agent-gap-block); min-width: 0; white-space: normal; }
 .personal-agent-proposal p { margin: 0; }
-.personal-agent-proposal-state, .personal-agent-proposal-evidence { color: var(--odk-secondary-strong); font-size: var(--agent-text-label); font-variant-numeric: tabular-nums; }
+.personal-agent-proposal-state { color: var(--odk-secondary-strong); font-size: var(--agent-text-label); font-variant-numeric: tabular-nums; }
 .personal-agent-proposal-actions { display: flex; flex-wrap: wrap; gap: var(--agent-gap-inline); align-items: center; }
 .personal-agent-proposals button { min-height: 44px; padding: var(--odk-space-2) var(--odk-space-3); border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-control); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: var(--agent-text-label); white-space: normal; overflow-wrap: anywhere; text-align: start; cursor: pointer; }
+.personal-agent-proposal-more { min-width: 0; }
+.personal-agent-proposal-more[open] { flex-basis: 100%; }
+.personal-agent-proposal-more summary { display: flex; align-items: center; min-height: 44px; width: fit-content; padding: var(--odk-space-2) var(--odk-space-3); color: var(--odk-secondary-strong); font-size: var(--agent-text-label); cursor: pointer; list-style: none; }
+.personal-agent-proposal-more summary::-webkit-details-marker { display: none; }
+.personal-agent-proposal-more summary:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; border-radius: var(--agent-radius-control); }
+.personal-agent-proposal-more-controls { display: flex; flex-wrap: wrap; gap: var(--agent-gap-inline); padding-block: var(--odk-space-2); }
 .personal-agent-proposals button:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 .personal-agent-proposals button:disabled { color: var(--odk-secondary-strong); }
 
 /* Generic structured preview primitives for generative agent content */
 .personal-agent-preview-card,
-.personal-agent-ride-card { display: grid; gap: var(--agent-gap-block); padding: var(--agent-pad-card); background: color-mix(in srgb, var(--odk-elevated) 65%, transparent); border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-card); margin-block: 2px; }
+.personal-agent-ride-card { min-width: 0; max-inline-size: 100%; display: grid; gap: var(--agent-gap-block); padding: var(--agent-pad-card); background: color-mix(in srgb, var(--odk-elevated) 65%, transparent); border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-card); margin-block: 2px; }
 .personal-agent-preview-summary,
 .personal-agent-ride-route-display { margin: 0; font-size: var(--agent-text-body); font-weight: 500; line-height: var(--agent-line-body); color: var(--odk-primary); overflow-wrap: anywhere; }
 .personal-agent-preview-chips,
@@ -430,6 +431,28 @@ html #personal-agent .agent-update-sources .agent-message-session .agent-session
   gap: var(--agent-gap-chip);
   min-width: 0;
   color: var(--odk-primary);
+}
+
+/* Long readings wrap without taking width from their labels. */
+:is(.openui-reading, .openui-metric) {
+  min-width: 0;
+  max-inline-size: 100%;
+  flex-wrap: wrap;
+}
+:is(.openui-reading, .openui-metric) .personal-agent-preview-label {
+  flex: 0 0 auto;
+  max-inline-size: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.agent-recommendation :is(.openui-reading, .openui-metric) .personal-agent-preview-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-inline-size: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 /* A Metric is an emphasized reading, distinct from a plain Reading chip. */

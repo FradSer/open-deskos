@@ -17,17 +17,25 @@ const projectWeread = snapshot => {
 
 function createWereadReadings(weread) {
   if (!weread?.refresh) return []
-  return [{
+  const read = snapshot => {
+    const state = stateFrom(snapshot?.status, WEREAD_STATES)
+    return { state, value: measured(state, projectWeread(snapshot)), updatedAt: snapshot?.updatedAt }
+  }
+  const readings = [{
     id: 'odk.tile.weread',
     home: { mode: 'optional', priority: 0, icon: 'reading', fields: ['book', 'highlight'] },
     label: 'WeRead highlight',
     kind: 'tile',
-    read: async () => {
-      const snapshot = await weread.refresh()
-      const state = stateFrom(snapshot?.status, WEREAD_STATES)
-      return { state, value: measured(state, projectWeread(snapshot)), updatedAt: snapshot?.updatedAt }
-    },
+    read: async () => read(await weread.refresh()),
   }]
+  if (typeof weread.readLatest === 'function') readings.push({
+    id: 'odk.tile.weread.latest',
+    home: { mode: 'hidden', priority: 0, icon: 'reading', fields: [] },
+    label: 'WeRead latest highlight',
+    kind: 'tile',
+    read: async () => read(await weread.readLatest()),
+  })
+  return readings
 }
 
 const getWereadHealth = source => sourceHealth(source, snapshot => snapshot?.status,

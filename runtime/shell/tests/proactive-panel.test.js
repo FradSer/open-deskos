@@ -70,6 +70,96 @@ test('incoming recommendations are individual Personal Agent conversation messag
   assert.equal(f.surface.hidden, true, 'Recommendations do not open a popup')
   assert.equal(f.document.activeElement, f.local, 'Incoming recommendations preserve input focus')
 })
+test('a sourced recommendation offers one bound review action without a source disclosure', async () => {
+  const f = fixture(), p = { ...proposal(), action: null, confirmation: '', sources: [
+    { kind: 'gmail', label: 'Gmail', messageId: 'a123' },
+    { kind: 'calendar', label: 'Calendar', readingId: 'calendar.events' },
+    { kind: 'gmail', label: 'Gmail', messageId: 'b234' },
+  ] }
+  const opened = []
+  f.window.odkPersonalAgent.openProposalGmail = async (...args) => { opened.push(args); return true }
+  f.render({ state: 'idle', proposals: [p] })
+  const byAction = action => flatten(f.content).find(node => node.dataset.proposalAction === action)
+  assert.equal(f.content.querySelector('.personal-agent-proposal-sources'), null)
+  assert.equal(flatten(f.content).some(node => node.textContent === 'Calendar'), false)
+  const primary = flatten(f.content).filter(node => node.className === 'personal-agent-proposal-primary')
+  assert.equal(primary.length, 1)
+  assert.equal(primary[0].dataset.proposalAction, 'open-gmail')
+  assert.equal(byAction('execute'), undefined)
+  assert.ok(byAction('snooze'))
+  await byAction('open-gmail').click()
+  assert.deepEqual(opened, [[p.id, 'a123']])
+  assert.deepEqual(f.commands, [])
+  await byAction('ignore').click()
+  assert.equal(f.commands[0]?.decision, 'ignore')
+})
+test('read-only Intent advice omits evidence disclosures and raw source identifiers', () => {
+  const f = fixture(), p = { ...proposal(), ruleId: 'intent-f34352ab-094e-4efa-aa9e-cbe5ad904351', action: null,
+    confirmation: '', nextStep: 'Take a coat.', evidence: [
+      { readingId: 'odk.tile.weather', field: 'temperatureC', value: 5, state: 'live', measuredAt: '2026-11-06T08:30:00Z' },
+      { readingId: 'intent.f34352ab-094e-4efa-aa9e-cbe5ad904351', field: 'wish', value: 'Private wish context', state: 'live', measuredAt: '2026-11-06T08:30:00Z' },
+      { readingId: 'odk.tile.weather', field: 'digest', value: 'a'.repeat(64), state: 'live', measuredAt: '2026-11-06T08:30:00Z' },
+    ] }
+  f.render({ state: 'idle', proposals: [p] })
+  assert.equal(f.content.querySelector('.personal-agent-proposal-evidence'), null)
+  const shown = flatten(f.content).map(node => node.textContent).join(' ')
+  assert.doesNotMatch(shown, /Source evidence|odk\.tile\.weather|temperatureC|2026-11-06|Private wish context/)
+  assert.equal(f.content.querySelector('.personal-agent-proposal-next-step').textContent, 'Take a coat.')
+  assert.equal(flatten(f.content).some(node => ['execute', 'open-gmail', 'ride-quote'].includes(node.dataset.proposalAction)), false)
+  assert.deepEqual(f.commands, [])
+
+  f.render({ state: 'idle', proposals: [{ ...p, presented: true }] })
+  assert.equal(f.content.querySelector('.personal-agent-proposal-evidence'), null)
+})
+for (const decision of ['ignore', 'mute']) test('read-only Intent ' + decision + ' sends one exact reminder response without conflicting commands', async () => {
+  const f = fixture(), p = { ...proposal(), ruleId: 'intent-f34352ab-094e-4efa-aa9e-cbe5ad904351', action: null, confirmation: '' }
+  const render = extra => f.render({ state: 'idle', proposals: [p], ...extra })
+  render()
+  const buttons = () => flatten(f.content).filter(node => node.tagName === 'BUTTON')
+  assert.deepEqual(buttons().map(node => node.textContent), ['Later', 'Ignore', 'Pause reminder'])
+  const control = buttons().find(node => node.dataset.proposalAction === decision)
+  await control.click()
+  await control.click()
+  await buttons().find(node => node.dataset.proposalAction === (decision === 'ignore' ? 'mute' : 'ignore')).click()
+  render({ proposals: [{ ...p, presented: true }] })
+  await buttons().find(node => node.dataset.proposalAction === decision).click()
+  assert.equal(f.commands.length, 1)
+  assert.equal(f.commands[0].id, p.id)
+  assert.equal(f.commands[0].decision, decision)
+  render({ proposals: [{ ...p, status: 'ignored' }] })
+  assert.equal(f.content.querySelector('.personal-agent-proposal'), null)
+  await control.click()
+  assert.equal(f.commands.length, 1, 'Detached controls cannot send feedback')
+  render({ proposalCapabilities: { read: true, respond: false, acknowledge: false } })
+  assert.equal(buttons().length, 0)
+})
+test('a confirmed Intent snooze releases feedback controls when the same reminder returns', async () => {
+  const f = fixture(), p = { ...proposal(), ruleId: 'intent-f34352ab-094e-4efa-aa9e-cbe5ad904351', action: null, confirmation: '' }
+  const render = value => f.render({ state: 'idle', proposals: [value] })
+  const control = action => flatten(f.content).find(node => node.dataset.proposalAction === action)
+  render(p)
+  await control('snooze').click()
+  render({ ...p, offered: false, presented: false, feedback: 'snooze', snoozedUntil: Date.now() + 60000 })
+  assert.equal(f.content.querySelector('.personal-agent-proposal'), null)
+  f.advance(60000)
+  render({ ...p, feedback: 'snooze' })
+  assert.equal(control('ignore').disabled, false)
+  await control('ignore').click()
+  assert.deepEqual(f.commands.map(command => command.decision), ['snooze', 'ignore'])
+})
+test('a pre-delivery refusal releases Intent feedback while an ambiguous response remains reserved', async () => {
+  const f = fixture(), p = { ...proposal(), ruleId: 'intent-f34352ab-094e-4efa-aa9e-cbe5ad904351', action: null, confirmation: '' }
+  let accepted = false
+  f.window.odkPersonalAgent.proposalCommand = async command => { f.commands.push(command); if (accepted) throw Error('Lost transport receipt'); return { accepted } }
+  f.render({ state: 'idle', proposals: [p] })
+  const pause = () => flatten(f.content).find(node => node.dataset.proposalAction === 'mute')
+  await pause().click()
+  assert.equal(pause().disabled, false)
+  accepted = true
+  await pause().click()
+  await pause().click()
+  assert.equal(f.commands.length, 2)
+})
 test('recommendations preserve the draft and selection during arrival and feedback updates', () => {
   const f = fixture(), p = proposal()
   f.local.value = 'A draft with 未完成输入'; f.local.selectionStart = 4; f.local.selectionEnd = 9
@@ -306,14 +396,14 @@ test('actual service, private socket and Shell client deliver restored ride refr
   const { tmpdir } = require('node:os')
   const load = file => import(integrationURL(`personal-agent/src/${file}`, __dirname))
   const { PersonalAgentService } = await load('service.mjs'), { listen } = await load('socket.mjs')
-  const { createIntentStore, createIntentRuntime } = await load('intents.mjs'), { proposalStateStore } = await load('proactive-state.mjs')
-  const { createRidePreview } = await load('didi/preview.mjs'), { ProactiveWatch } = await load('proactive.mjs')
+  const { createIntentStore, createIntentRuntime, proposalStateStore, ProactiveWatch, ROUTINE_FILENAME } = await load('recommendations/index.mjs')
+  const { createRidePreview } = await load('didi/preview.mjs')
   const { createProposalTools } = await load('proactive-tools.mjs'), { guardIntentTools } = await load('intent-routing.mjs')
   const { protectProactivePath } = await load('proactive-private.mjs')
   const { createPersonalAgentClient } = require('../src/personal-agent-client.js')
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'odk-ride-wire-'))); protectProactivePath(dir)
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
-  const store = createIntentStore(path.join(dir, 'intent.md')), checkpoint = proposalStateStore(path.join(dir, 'state.json'))
+  const store = createIntentStore(path.join(dir, ROUTINE_FILENAME)), checkpoint = proposalStateStore(path.join(dir, 'state.json'))
   let now = Date.now(), turns = [], calls = 0, watch, currentText = ''
   const at = new Date(now).toISOString().slice(11, 16)
   store.save({ wish: '查看午间行程', condition: '每天提醒', at, timeZone: 'UTC', windowMinutes: 10, memoryKeys: [], observations: [], ride: { city: '测试市', from: '测试办公楼', to: '测试健身馆' } })
@@ -431,6 +521,28 @@ test('visibility acknowledgement retries are bounded and recover after a lost co
   assert.equal(f.commands.length, 4, 'A resident-confirmed visible state never resends')
 })
 
+test('one primary business action stays separate from the More reminder menu', () => {
+  const f = fixture()
+  f.render({ state: 'idle', proposals: [proposal()] })
+  const primary = flatten(f.content).filter(node => node.className === 'personal-agent-proposal-primary')
+  assert.equal(primary.length, 1)
+  const menu = f.content.querySelector('.personal-agent-proposal-more')
+  assert.ok(menu)
+  assert.equal(menu.open, false)
+  const summary = flatten(menu).find(node => node.tagName === 'SUMMARY')
+  assert.equal(summary.textContent, 'More')
+  assert.deepEqual(flatten(menu).filter(node => node.tagName === 'BUTTON').map(node => node.textContent), ['Later'])
+  menu.open = true
+  let prevented = false
+  menu.events.keydown({ key: 'Escape', preventDefault() { prevented = true }, stopPropagation() {} })
+  assert.equal(menu.open, false)
+  assert.equal(summary.focused, true)
+  assert.equal(prevented, true)
+  menu.open = true
+  f.events.pointerdown({ target: f.local })
+  assert.equal(menu.open, false)
+  assert.deepEqual(f.commands, [])
+})
 test('a recommendation offers its action and Later without rating controls', () => {
   const f = fixture(); f.render({ state: 'idle', proposals: [proposal()], proposalPopup: true })
   const labels = flatten(f.content).filter(n => n.tagName === 'BUTTON').map(n => n.textContent)
@@ -450,6 +562,23 @@ test('an explicit resident visibility failure can recover without replaying resp
   f.render(status)
   assert.equal(f.commands.length, 2)
   assert.ok(f.commands.every(row => row.type === 'proposal_presented'))
+})
+
+test('an unrelated topic failure does not suppress a visible card acknowledgement', () => {
+  const f = fixture()
+  f.render({ state: 'idle', proposals: [proposal()], proposalError: 'Some suggestions could not be generated', proposalPartialFailure: true })
+  f.visible(f.content.querySelector('.personal-agent-proposal-advice'))
+  assert.deepEqual(f.commands.map(command => [command.type, command.ids[0]]), [['proposal_presented', proposal().id]])
+})
+
+test('an expired data Intent leaves the current conversation', () => {
+  const f = fixture()
+  const intent = { ...proposal(), ruleId: 'intent-22222222-2222-4222-8222-222222222222', action: null, confirmation: '',
+    nextStep: 'Check the current reading.', evidence: [{ readingId: 'odk.tile.hydra' }] }
+  f.render({ state: 'idle', proposals: [intent] })
+  assert.ok(f.content.querySelector('.personal-agent-proposal'))
+  f.render({ state: 'idle', proposals: [{ ...intent, status: 'expired' }] })
+  assert.equal(f.content.querySelector('.personal-agent-proposal'), null)
 })
 
 
@@ -944,8 +1073,8 @@ test('a composed OpenUI bubble states its advice exactly once across the real DO
 
 test('a restated advice sentence in a card Heading is refused before publication', async () => {
   const { integrationURL } = require('./helpers/repo-root')
-  const { parseSuggestionDocument } = await import(integrationURL('personal-agent/src/openui-contract.mjs'))
-  const { validateGeneratedBatch } = await import(integrationURL('personal-agent/src/proactive-generation.mjs'))
+  const { parseSuggestionDocument } = await import(integrationURL('personal-agent/src/recommendations/index.mjs'))
+  const { validateGeneratedBatch } = await import(integrationURL('personal-agent/src/recommendations/index.mjs'))
   const sentence = '通勤比平时多了28分钟。'
   const doc = `root = Suggestions([s1])
 s1 = Suggestion([a1, h1, r1, b1],"commute","k",["e0","e1"])

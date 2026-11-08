@@ -1,4 +1,11 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
+const scheduleConflictOnly = process.argv.includes('--schedule-conflict-only')
+const weatherMem0Only = process.argv.includes('--weather-mem0-routine-only')
+const weatherIntervalOnly = weatherMem0Only || process.argv.includes('--weather-interval-routine-only')
+const weatherRoutineIdeaOnly = weatherIntervalOnly || process.argv.includes('--weather-routine-idea-only')
+const weatherIntentOnly = weatherRoutineIdeaOnly || process.argv.includes('--weather-intent-only')
+const mailReplyOnly = process.argv.includes('--mail-reply-only')
+const gmailRoutineOnly = process.argv.includes('--gmail-routine-only')
 if (!process.argv.includes('--reconnect-only')) ipcMain.handle('odk-personal-agent-consumer-ready', () => ({ accepted: false }))
 ipcMain.handle('odk-renderer-development-plugins', () => [])
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
@@ -12,7 +19,7 @@ const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-proactive-ui-'))
 app.setPath('userData', profile)
 app.on('will-quit', () => { try { fs.rmSync(profile, { recursive: true, force: true }) } catch {} })
 const reconnectOnly = process.argv.includes('--reconnect-only')
-const timer = setTimeout(() => app.exit(1), reconnectOnly ? 120000 : 60000)
+const timer = setTimeout(() => app.exit(1), (weatherIntentOnly || mailReplyOnly || gmailRoutineOnly) ? 750000 : reconnectOnly || scheduleConflictOnly ? 120000 : 60000)
 const delay = () => new Promise(resolve => setTimeout(resolve, 100))
 async function waitForAdviceEnd(run, timeoutMs = 2000) {
   const deadline = performance.now() + timeoutMs
@@ -34,6 +41,12 @@ app.whenReady().then(async () => {
   const reconnect = reconnectOnly ? await require('./helpers/proactive-reconnect').createProactiveReconnectFixture() : undefined
   const commands = []
   const ownerTurns = []
+  let recordGmailOpen
+  const gmailOpen = new Promise(resolve => { recordGmailOpen = resolve })
+  ipcMain.handle('odk-personal-agent-gmail-open', (_event, proposalId, messageId) => {
+    recordGmailOpen({ proposalId, messageId })
+    return true
+  })
   let rejectResponse = false
   for (const channel of ['odk-opencode-go-status', 'odk-pi-sessions', 'odk-hydra-status', 'odk-weread-highlight', 'odk-futu-holdings', 'odk-weather-status', 'odk-user-apps-list', 'odk-camera-frame', 'odk-app-manager-list', 'odk-personal-agent-status', 'odk-remote-publish-page-state']) ipcMain.handle(channel, () => ({ ok: false, sessions: [], workspaces: [], apps: [] }))
   ipcMain.handle('odk-personal-agent-text', (_event, text) => { ownerTurns.push(text); return { accepted: true } })
@@ -57,6 +70,26 @@ app.whenReady().then(async () => {
   await viewport(480, 854)
   if (reconnect) {
     try { await reconnect.verify(win, run) } finally { await reconnect.close() }
+    clearTimeout(timer); win.destroy(); app.exit(0); return
+  }
+  if (scheduleConflictOnly) {
+    for (const name of ['odk-personal-agent-status', 'odk-personal-agent-text', 'odk-personal-agent-proposal', 'odk-personal-agent-gmail-open', 'odk-personal-agent-consumer-ready']) ipcMain.removeHandler(name)
+    await require('./helpers/schedule-conflict').verifyScheduleConflict(ipcMain, win, run)
+    clearTimeout(timer); win.destroy(); app.exit(0); return
+  }
+  if (gmailRoutineOnly) {
+    for (const name of ['odk-personal-agent-status', 'odk-personal-agent-text', 'odk-personal-agent-proposal', 'odk-personal-agent-gmail-open', 'odk-personal-agent-consumer-ready']) ipcMain.removeHandler(name)
+    await require('./helpers/gmail-routine').verifyGmailRoutine(ipcMain, win, run)
+    clearTimeout(timer); win.destroy(); app.exit(0); return
+  }
+  if (weatherIntentOnly) {
+    for (const name of ['odk-weather-status', 'odk-personal-agent-status', 'odk-personal-agent-text', 'odk-personal-agent-proposal', 'odk-personal-agent-gmail-open', 'odk-personal-agent-consumer-ready']) ipcMain.removeHandler(name)
+    await require('./helpers/weather-intent').verifyWeatherIntent(ipcMain, win, run, { pinIdea: weatherRoutineIdeaOnly, useInterval: weatherIntervalOnly, useMem0: weatherMem0Only })
+    clearTimeout(timer); win.destroy(); app.exit(0); return
+  }
+  if (mailReplyOnly) {
+    for (const name of ['odk-personal-agent-status', 'odk-personal-agent-text', 'odk-personal-agent-proposal', 'odk-personal-agent-gmail-open', 'odk-personal-agent-consumer-ready']) ipcMain.removeHandler(name)
+    await require('./helpers/mail-reply').verifyMailReply(ipcMain, win, run)
     clearTimeout(timer); win.destroy(); app.exit(0); return
   }
   const send = async status => { win.webContents.send('odk-personal-agent-status', status); await delay() }
@@ -112,6 +145,112 @@ app.whenReady().then(async () => {
     console.log('PROACTIVE_LONG_ADVICE_VISIBLE_PASS')
     clearTimeout(timer); win.destroy(); app.exit(0); return
   }
+  async function readingWrap() {
+    const values = ['The current observation contains a long readable sentence that should wrap inside the available reading width. '.repeat(3), 'LongUnbrokenObservation'.repeat(15)]
+    const labels = ['当前进展', 'Current observation details']
+    for (const theme of ['instrument', 'pixel']) {
+      await run(`odkTheme.set(${JSON.stringify(theme)}); document.fonts.ready.then(() => true)`)
+      for (const width of [320, 480]) {
+        await viewport(width, 854)
+        const wrapped = { ...p, ui: { type: 'Suggestion', children: [{ type: 'Stack', children: [
+          { type: 'Reading', props: { label: labels[0], value: values[0] } },
+          { type: 'Row', children: [{ type: 'Metric', props: { label: labels[1], value: values[1] } }] },
+        ] }] } }
+        for (const status of ['pending', 'completed']) {
+          await send({ state: 'idle', proposals: [{ ...wrapped, status }], proposalCapabilities: { read: true, respond: true, acknowledge: false } })
+          const geometry = await run(`(() => {
+            const conversation = document.querySelector('.agent-conversation')
+            const card = conversation.querySelector('.personal-agent-proposal')
+            const context = document.createElement('canvas').getContext('2d')
+            return { overflow: conversation.scrollWidth > conversation.clientWidth + 1,
+              cardOverflow: card.scrollWidth > card.clientWidth + 1,
+              rows: [...card.querySelectorAll('.openui-reading, .openui-metric')].map(row => {
+                const label = row.querySelector('.personal-agent-preview-label')
+                const value = row.querySelector('.personal-agent-preview-value')
+                context.font = getComputedStyle(label).font
+                const minimum = context.measureText(label.textContent === '当前进展' ? label.textContent : 'observation').width
+                return { label: label.textContent, value: value.textContent, width: label.getBoundingClientRect().width, minimum,
+                  overflow: row.scrollWidth > row.clientWidth + 1 || value.scrollWidth > value.clientWidth + 1,
+                  wrapped: value.getBoundingClientRect().height > parseFloat(getComputedStyle(value).lineHeight) * 1.5 }
+              }) }
+          })()`)
+          assert.equal(geometry.overflow, false, JSON.stringify({ theme, width, status, geometry }))
+          assert.equal(geometry.cardOverflow, false, JSON.stringify({ theme, width, status, geometry }))
+          assert.deepEqual(geometry.rows.map(row => row.value), values.map(value => value.trim()))
+          for (const row of geometry.rows) {
+            assert.equal(row.overflow, false, JSON.stringify({ theme, width, status, row }))
+            assert.ok(row.width + 1 >= row.minimum, JSON.stringify({ theme, width, status, row }))
+            assert.equal(row.wrapped, true, JSON.stringify({ theme, width, status, row }))
+          }
+        }
+      }
+    }
+    console.log('PROACTIVE_OPENUI_READING_WRAP_PASS')
+  }
+  if (process.argv.includes('--reading-wrap-only')) {
+    await readingWrap()
+    clearTimeout(timer); win.destroy(); app.exit(0); return
+  }
+  const sourced = { id: '68ec68a4-21f1-4832-9b52-d7d9f4ed5ff0', ruleId: 'schedule-conflict', status: 'pending',
+    action: null, confirmation: '', offered: true, presented: false, advice: 'The proposed meeting overlaps a busy period.',
+    sources: [{ kind: 'gmail', label: 'Gmail', messageId: 'fixture-message' }, { kind: 'calendar', label: 'Calendar', readingId: 'calendar.events' }] }
+  const generic = { ...sourced, ruleId: 'intent-68ec68a4-21f1-4832-9b52-d7d9f4ed5ff0', sources: undefined,
+    advice: 'Bring a light jacket.', nextStep: 'Take a jacket before your walk.',
+    evidence: [{ readingId: 'odk.tile.weather', field: 'temperatureC', value: 5, measuredAt: '2026-11-06T08:30:00Z', state: 'live' }] }
+  await send({ state: 'idle', proposals: [generic], proposalCapabilities: { read: true, respond: true, acknowledge: false } })
+  assert.deepEqual(await run(`(() => {
+    const card = document.querySelector('.agent-conversation .agent-message-assistant .personal-agent-proposal')
+    return { advice: card.querySelector('.personal-agent-proposal-advice').textContent,
+      nextStep: card.querySelector('.personal-agent-proposal-next-step').textContent,
+      evidence: Boolean(card.querySelector('.personal-agent-proposal-evidence')),
+      technicalText: /odk\\.tile|temperatureC|2026-11-06|Source evidence/.test(card.textContent),
+      execute: Boolean(card.querySelector('[data-proposal-action="execute"]')),
+      controls: [...card.querySelectorAll('button')].map(button => button.textContent) }
+  })()`), { advice: generic.advice, nextStep: generic.nextStep, evidence: false, technicalText: false, execute: false, controls: ['Later', 'Ignore', 'Pause reminder'] })
+  await send({ state: 'idle', proposals: [sourced], proposalCapabilities: { read: true, respond: true, acknowledge: false } })
+  assert.deepEqual(await run(`(() => {
+    const card = document.querySelector('.agent-conversation .agent-message-assistant .personal-agent-proposal')
+    return { advice: card.querySelector('.personal-agent-proposal-advice').textContent,
+      hasSourceDisclosure: Boolean(card.querySelector('.personal-agent-proposal-sources')),
+      primaryCount: card.querySelectorAll('.personal-agent-proposal-primary').length,
+      buttons: [...card.querySelectorAll('button')].map(button => button.dataset.proposalAction) }
+  })()`), { advice: sourced.advice, hasSourceDisclosure: false, primaryCount: 1, buttons: ['open-gmail', 'snooze', 'ignore'] })
+  await run(`document.querySelector('button[data-proposal-action="open-gmail"]').click()`)
+  assert.deepEqual(await gmailOpen, { proposalId: sourced.id, messageId: 'fixture-message' })
+  assert.deepEqual(commands, [])
+  assert.deepEqual(ownerTurns, [])
+  const business = { ...p, id: '5113aa40-5f48-45c9-adb2-aaebc0418c75', nextStep: 'Prepare reply',
+    actionId: 'prepare-reply', action: { tool: 'fixture_prepare_reply', params: {} }, advice: 'Prepare a reply to the invitation.',
+    ui: { type: 'Suggestion', children: [{ type: 'Advice', props: { text: 'Prepare a reply to the invitation.' } },
+      { type: 'ApprovedAction', props: { actionId: 'prepare-reply' } }] } }
+  await send({ state: 'idle', proposals: [business], proposalCapabilities: { read: true, respond: true, acknowledge: false } })
+  assert.deepEqual(await run(`(() => {
+    const card = document.querySelector('.personal-agent-proposal')
+    return { primary: card.querySelectorAll('.personal-agent-proposal-primary').length,
+      evidence: !!card.querySelector('.personal-agent-proposal-evidence'),
+      moreOpen: card.querySelector('.personal-agent-proposal-more').open,
+      visible: [...card.querySelectorAll('button')].filter(button => button.checkVisibility()).map(button => button.textContent) }
+  })()`), { primary: 1, evidence: false, moreOpen: false, visible: ['Prepare reply'] })
+  await run(`document.querySelector('.personal-agent-proposal-more summary').click()`)
+  assert.equal(await run(`document.querySelector('.personal-agent-proposal-more').open`), true)
+  await run(`document.querySelector('.personal-agent-proposal-more button').focus()`)
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+  win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+  await delay()
+  assert.equal(await run(`!document.querySelector('.personal-agent-proposal-more').open && document.activeElement === document.querySelector('.personal-agent-proposal-more summary')`), true)
+  await run(`document.querySelector('.personal-agent-proposal-more summary').click(); document.querySelector('.agent-composer').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`)
+  assert.equal(await run(`document.querySelector('.personal-agent-proposal-more').open`), false)
+  assert.deepEqual(commands, [], 'More navigation cannot accept the business action')
+  await run(`document.querySelector('.personal-agent-proposal-more summary').click(); document.querySelector('[data-proposal-action="snooze"]').click()`)
+  await waitForCommand(command => command.type === 'proposal_respond', 'reminder control through More')
+  assert.deepEqual(commands.map(({ type, decision }) => ({ type, decision })), [{ type: 'proposal_respond', decision: 'snooze' }])
+  assert.deepEqual(ownerTurns, [])
+  commands.length = 0
+  if (process.argv.includes('--source-only')) {
+    console.log('PROACTIVE_READONLY_SOURCE_PASS')
+    clearTimeout(timer); win.destroy(); app.exit(0); return
+  }
+  await send({ state: 'idle', proposals: [] })
   await run(`(() => { const composer = document.querySelector('.agent-composer'); if (composer.dataset.mode !== 'keyboard') composer.querySelector('.agent-keys').click(); const input = composer.querySelector('textarea'); input.value = 'Keep this unfinished draft.'; input.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#dots .dot').focus() })()`)
   await send({ state: 'idle', proposals: [p], proposalPopup: true })
   assert.equal(await run(`document.activeElement.matches('#dots .dot')`), true)
@@ -208,17 +347,17 @@ app.whenReady().then(async () => {
       const layout = await run(`(() => {
         const card = document.querySelector('.personal-agent-proposal'), advice = card.querySelector('.personal-agent-proposal-advice'), primary = card.querySelector('.personal-agent-proposal-primary'), actions = card.querySelector('.personal-agent-proposal-actions'), state = card.querySelector('.personal-agent-proposal-state');
         const authoritative = !!state && !!state.textContent;
-        return { advice: advice.textContent, action: primary.textContent, duplicateNext: !!card.querySelector('.personal-agent-proposal-next-step'), secondary: actions.querySelector('.personal-agent-proposal-secondary')?.textContent, reason: !!card.querySelector('.personal-agent-proposal-reason') || card.textContent.includes('Legacy reason must not render.'), sourcesAbsent: !card.querySelector('.personal-agent-proposal-sources'), hashAbsent: !card.textContent.includes('a'.repeat(64)), ordered: advice.getBoundingClientRect().bottom <= actions.getBoundingClientRect().top, adviceSize: parseFloat(getComputedStyle(advice).fontSize), stateSize: state ? parseFloat(getComputedStyle(state).fontSize) : null, pendingLabel: /suggest(ed|ion)/i.test(card.textContent), authoritative, actionSize: parseFloat(getComputedStyle(primary).fontSize), primaryHeight: primary.getBoundingClientRect().height, inline: !!card.closest('.agent-conversation .agent-message-assistant .agent-message-bubble') && !card.closest('.agent-composer'), popupHidden: document.getElementById('personal-agent-status').hidden, overflow: card.scrollWidth > card.clientWidth + 1, controls: [...actions.querySelectorAll('button')].every(b => b.getBoundingClientRect().height >= 44),
-          ratingControls: [...card.querySelectorAll('button')].filter(b => ['Feedback','Done','Useful','Not relevant','Incorrect','Ignore','Never suggest this category'].includes(b.textContent)).length, disclosure: !!card.querySelector('details') }
+        const readingSize = parseFloat(getComputedStyle(card.closest('.agent-message')).fontSize);
+        return { advice: advice.textContent, action: primary.textContent, duplicateNext: !!card.querySelector('.personal-agent-proposal-next-step'), secondary: actions.querySelector('.personal-agent-proposal-more > summary')?.textContent, reason: !!card.querySelector('.personal-agent-proposal-reason') || card.textContent.includes('Legacy reason must not render.'), sourcesAbsent: !card.querySelector('.personal-agent-proposal-sources'), hashAbsent: !card.textContent.includes('a'.repeat(64)), ordered: advice.getBoundingClientRect().bottom <= actions.getBoundingClientRect().top, readingSize, adviceSize: parseFloat(getComputedStyle(advice).fontSize), pendingLabel: /suggest(ed|ion)/i.test(card.textContent), authoritative, actionSize: parseFloat(getComputedStyle(primary).fontSize), primaryHeight: primary.getBoundingClientRect().height, inline: !!card.closest('.agent-conversation .agent-message-assistant .agent-message-bubble') && !card.closest('.agent-composer'), popupHidden: document.getElementById('personal-agent-status').hidden, overflow: card.scrollWidth > card.clientWidth + 1, controls: [...actions.querySelectorAll('button, summary')].filter(b => b.checkVisibility()).every(b => b.getBoundingClientRect().height >= 44),
+          ratingControls: [...card.querySelectorAll('button')].filter(b => ['Feedback','Done','Useful','Not relevant','Incorrect','Ignore','Never suggest this category'].includes(b.textContent)).length, disclosure: !!card.querySelector('details:not(.personal-agent-proposal-more)') }
       })()`)
       assert.equal(layout.advice, actionCard.advice); assert.equal(layout.action, actionCard.nextStep)
-      assert.equal(layout.duplicateNext, false); assert.equal(layout.secondary, 'Later')
+      assert.equal(layout.duplicateNext, false); assert.equal(layout.secondary, 'More')
       assert.equal(layout.ratingControls, 0, 'no rating control renders'); assert.equal(layout.disclosure, false, 'no rating disclosure renders')
       for (const key of ['sourcesAbsent', 'hashAbsent', 'ordered', 'controls', 'inline', 'popupHidden']) assert.equal(layout[key], true, JSON.stringify({ theme, width, height, key, ...layout }))
       assert.equal(layout.reason, false); assert.equal(layout.overflow, false)
-      // iOS-style 17px reading size for every text in the bubble; no Suggested label.
-      assert.equal(layout.adviceSize, 17); assert.equal(layout.adviceSize, layout.actionSize, 'advice and primary action share one reading size')
-      if (layout.stateSize !== null) assert.equal(layout.stateSize, 17, 'any visible state shares the reading size')
+      assert.equal(layout.adviceSize, layout.readingSize, 'advice uses the conversation reading size')
+      assert.equal(layout.actionSize, layout.readingSize, 'the primary action uses the conversation reading size')
       assert.equal(layout.pendingLabel, false, 'no internal suggestion wording appears')
       assert.equal(layout.authoritative, false, 'a pending actionable card carries no state label')
       assert.ok(layout.actionSize >= 16); assert.ok(layout.primaryHeight >= 48)
@@ -287,10 +426,10 @@ app.whenReady().then(async () => {
   // Rating controls are gone; a pending read-only card keeps Later.
   const ratingLabels = await run(`[...document.querySelectorAll('.personal-agent-proposals button')].map(b => b.textContent).filter(t => ['Feedback','Done','Useful','Not relevant','Incorrect','Ignore','Never suggest this category'].includes(t))`)
   assert.deepEqual(ratingLabels, [], 'no rating control exists anywhere in the panel')
-  assert.equal(await run(`!!document.querySelector('.personal-agent-proposals details')`), false, 'no rating disclosure exists')
+  assert.equal(await run(`!!document.querySelector('.personal-agent-proposals details:not(.personal-agent-proposal-more)')`), false, 'no rating disclosure exists')
   const laterCard = { ...p, id: 'd311a280-c0b9-4411-96cd-4e1e92385360', action: null, confirmation: '' }
   await send({ state: 'idle', proposals: [laterCard], proposalPopup: true })
-  await run(`(() => { const control = [...document.querySelectorAll('.personal-agent-proposal button')].find(b => b.textContent === 'Later'); control.scrollIntoView({block:'center'}); control.focus(); return control.getBoundingClientRect().height })()`)
+  await run(`(() => { const menu = document.querySelector('.personal-agent-proposal-more'); if (menu && !menu.open) menu.querySelector('summary').click(); const control = [...document.querySelectorAll('.personal-agent-proposal button')].find(b => b.textContent === 'Later'); control.scrollIntoView({block:'center'}); control.focus(); return control.getBoundingClientRect().height })()`)
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
   await delay()
   const lastResponse = () => commands.filter(c => c.type === 'proposal_respond').at(-1)
@@ -300,7 +439,7 @@ app.whenReady().then(async () => {
   assert.equal(await run(`document.querySelector('.agent-composer textarea').value`), 'Keep this unfinished draft.')
   const touched = { ...p, id: 'f311a280-c0b9-4411-96cd-4e1e92385349', action: null, confirmation: '' }
   await send({ state: 'idle', proposals: [touched], proposalPopup: true })
-  const touch = await run(`(() => { const node = [...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === 'Later'); node.scrollIntoView({block:'center'}); const r = node.getBoundingClientRect(); return { x: r.x+r.width/2, y: r.y+r.height/2 } })()`)
+  const touch = await run(`(() => { const menu = document.querySelector('.personal-agent-proposal-more'); if (menu && !menu.open) menu.querySelector('summary').click(); const node = [...document.querySelectorAll('.personal-agent-proposals button')].find(b => b.textContent === 'Later'); node.scrollIntoView({block:'center'}); const r = node.getBoundingClientRect(); return { x: r.x+r.width/2, y: r.y+r.height/2 } })()`)
   await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: true })
   await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...touch, id: 1 }] })
   await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
@@ -322,7 +461,7 @@ app.whenReady().then(async () => {
   assert.equal(await run(`!!document.querySelector('.agent-conversation .agent-message-assistant .personal-agent-proposal') && document.getElementById('personal-agent-status').hidden`), true, 'A new read-only recommendation stays in the conversation')
   assert.equal(commands.length, beforeReadOnly, 'Read-only recovery grants no acknowledgement or response authority')
   await send({ state: 'idle', proposals: [{ ...p, id: '11111111-1111-4111-8111-111111111112', action: null, confirmation: '' }], proposalCapabilities: { read: true, respond: true, acknowledge: true } })
-  assert.equal(await run(`!!document.querySelector('.personal-agent-proposal-feedback-options, .personal-agent-proposals details')`), false, 'a read-only card exposes no rating disclosure')
+  assert.equal(await run(`!!document.querySelector('.personal-agent-proposal-feedback-options, .personal-agent-proposals details:not(.personal-agent-proposal-more)')`), false, 'a read-only card exposes no rating disclosure')
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     await run(`odkTheme.set(${JSON.stringify(theme)})`)
     for (const revoked of [{ state: 'unavailable' }, { state: 'idle', proposalCapabilities: { read: false, respond: false, acknowledge: false } }]) {

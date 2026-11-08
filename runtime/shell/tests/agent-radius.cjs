@@ -90,7 +90,7 @@ app.whenReady().then(async () => {
       tokens: {
         padSurface: token('--agent-pad-surface'), padCard: token('--agent-pad-card'),
         surface: token('--agent-radius-surface'), card: token('--agent-radius-card'),
-        inset: token('--agent-radius-inset'), control: token('--agent-radius-control'), chip: token('--agent-radius-chip')
+        inset: token('--agent-radius-inset'), chip: token('--agent-radius-chip'), pill: token('--odk-radius-pill')
       },
       markdown: (() => {
         const advice = document.querySelector('.agent-recommendation .personal-agent-proposal-advice')
@@ -142,8 +142,6 @@ app.whenReady().then(async () => {
         const rect = n => n ? n.getBoundingClientRect() : null
         const B = rect(bubble)
         return {
-          replyFont: reply ? parseFloat(cs(reply).fontSize) : null,
-          nameFont: name ? parseFloat(cs(name).fontSize) : null,
           bubblePad: bubble ? [cs(bubble).paddingTop, cs(bubble).paddingRight, cs(bubble).paddingBottom, cs(bubble).paddingLeft] : null,
           groupGap: group ? cs(group).rowGap : null,
           // Plain conversation footers and recommendation footers are symmetric.
@@ -183,7 +181,6 @@ app.whenReady().then(async () => {
             }
           })(),
           gapBlock: getComputedStyle(document.querySelector('.agent-panel')).getPropertyValue('--agent-gap-block').trim(),
-          bodyFont: parseFloat(getComputedStyle(sel('.agent-message-body')).fontSize),
           // Icon and source text stay strictly on one line. The group may take a
           // tiny optical nudge below the Reply centre (a transform, not a layout
           // move), so the Reply and the touch target stay put.
@@ -246,8 +243,6 @@ app.whenReady().then(async () => {
     const footerR = footerReply.radius
     assert.equal(footerR, card, `${theme}: footer Reply ${footerR} must share the card radius ${card}`)
     assert.equal(footerR, control, `${theme}: footer Reply must share the action button radius ${control}`)
-    assert.equal(m.footer.replyFont, m.footer.bodyFont, `${theme}: footer Reply uses the recommendation's one reading size`)
-    assert.equal(m.footer.nameFont, m.footer.bodyFont, `${theme}: session source uses the recommendation's one reading size`)
     const [padTop, padRight, padBottom, padLeft] = m.footer.bubblePad.map(parseFloat)
     assert.equal(padTop, padSurface, `${theme}: bubble top padding keeps the surface token`)
     assert.equal(padBottom, padSurface, `${theme}: bubble bottom padding is not reduced below the surface token`)
@@ -286,8 +281,7 @@ app.whenReady().then(async () => {
     assert.equal(pad.summaryLine, pad.chipLine, `${theme}: chips share the same line height`)
     assert.ok(parseFloat(pad.chip[0]) >= parseFloat(pad.gapChip), `${theme}: chip text does not crowd its corners`)
     assert.equal(m.parts.composer.radius, bubble, `${theme}: composer and bubble share one surface radius`)
-    const controlToken = parseFloat(m.tokens.control) || (theme === 'pixel' ? 0 : m.parts.latest.radius)
-    assert.equal(m.parts.latest.radius, controlToken, `${theme}: the latest overlay keeps its own control radius`)
+    assert.equal(m.parts.latest.tl, m.tokens.pill, `${theme}: the latest overlay uses the theme's pill radius`)
     // A field control inside the inset panel shares the panel radius so the control reads as
     // part of its container. The concentric surface chain stops at the panel.
     assert.equal(m.parts.select.radius, inset, `${theme}: a field control matches its inset panel (inset ${inset}, select ${m.parts.select.tl}, control ${control})`)
@@ -297,7 +291,7 @@ app.whenReady().then(async () => {
     } else {
       // No level may fall back to a pill or an unrelated fixed value.
       for (const [name, part] of Object.entries(m.parts)) {
-        if (!part || name === 'composerButton') continue
+        if (!part || name === 'composerButton' || name === 'latest') continue
         assert.ok(Number.isFinite(part.radius) && part.radius < 40, `${theme}/${name}: ${part.tl} is not part of the concentric scale`)
       }
       // A square icon control reads as a circle, so it is not part of the surface chain.

@@ -31,6 +31,7 @@ Feature: Independent resident Personal Agent
     Given a recommendation message shows actions near the end of the conversation
     When the owner scrolls earlier messages and the latest overlay appears
     Then the overlay keeps its position and stays out of the conversation flow
+    And the overlay uses the theme's pill radius
     And the message padding keeps the last controls clear of the overlay
     When the owner returns to the latest message
     Then the overlay disappears and the padding returns to the base inset
@@ -42,7 +43,7 @@ Feature: Independent resident Personal Agent
     And a chip inside the card matches the inset radius
     And a field control matches its inset panel
     And an action button shares the card radius with the card it sits beside
-    And no Agent surface falls back to an unrelated fixed or pill radius
+    And each surface in the nested group uses the concentric scale
     And the Pixel theme collapses every level of that scale to zero
 
   Scenario: Every nested surface is concentric and shares one spacing rhythm
@@ -61,7 +62,7 @@ Feature: Independent resident Personal Agent
     Then the host appends one session footer row at the bottom of the message capsule
     And the footer shows the session source on the left and a Reply control on the right
     And the Reply control shares the card radius with the action button and the card
-    And the footer uses the recommendation's one reading size
+    And the footer uses the same text size as a plain message footer
     And the bubble keeps its surface padding on all four sides
     And the footer spacing comes from the named block gap
     And the icon and source text keep one horizontal centre line
@@ -75,7 +76,7 @@ Feature: Independent resident Personal Agent
   Scenario: A message without a generated card shares the recommendation footer
     Given a status frame supplies a plain remote message and a recommendation with a card
     When the Shell renders both messages across all themes
-    Then both session footers use the one reading size and the named block gap
+    Then both session footers use the same text size and the named block gap
     And both source rows carry the same left inset and optical nudge
     And both Reply controls share the card radius and keep their full touch target
     And neither footer depends on the presence of a generated card
@@ -85,9 +86,9 @@ Feature: Independent resident Personal Agent
     Given a recommendation message shows advice, a preview summary and attribute chips
     When the owner reads the card across themes and compact widths
     Then the advice leads by weight and the preview summary stays a supporting label
-    And a chip keeps its label and value on one line with a readable gap
-    And no chip label or value wraps, clips or overflows its card
-    And the card text uses one reading size from the shared scale
+    And a chip keeps its label and value on one line when both fit
+    And long labels and values wrap within the card
+    And the card text uses the conversation reading size
 
   Scenario: An OpenUI message states its advice once and nests one card
     Given a recommendation message renders a composed OpenUI tree
@@ -123,15 +124,21 @@ Feature: Independent resident Personal Agent
     And a trailing divider inside a stack draws no orphan line near the card edge
     And every gap between adjacent primitives follows the same named scale
 
-  Scenario: One message bubble uses one reading size for its text and card
-    Given a recommendation message shows advice above a generic preview card
-    When the owner reads the message and its card
-    Then every visible text in the bubble uses the 17-pixel reading size
-    And no element falls back to a smaller caption size inside the bubble
+  Scenario: Recommendations use the same reading size as other replies
+    Given a conversation shows a plain reply and a recommendation with an OpenUI card
+    When the owner reads the conversation
+    Then the advice, OpenUI content and primary action match the plain reply's text size
+    And the More disclosure uses the shared label size
     And the advice keeps visual priority through weight where the theme permits synthetic weight
     And the Pixel theme keeps its single weight hierarchy through order and colour instead
     And no text or chip overflows the bubble or the card
-    And the same reading size holds across Instrument, Pixel, Border Beam and Liquid Glass themes
+    And the sizes match at compact and wide widths in all four themes
+
+  Scenario: A calendar conflict offers one review action
+    Given a current conflict has authorized Gmail and Calendar sources
+    When the Shell displays the recommendation
+    Then the primary action opens one bound Gmail message
+    And the card has no source disclosure or Calendar label
 
   Scenario: A recommendation message omits state and metadata text
     Given a recommendation has a preview and an executable action
@@ -160,9 +167,11 @@ Feature: Independent resident Personal Agent
   Scenario: Recommendation messages offer no rating controls
     Given a current recommendation message is visible in the conversation
     When the owner inspects its controls
-    Then it offers only its authorized action and Later
+    Then it offers one authorized primary action and a More control
+    And More opens the reminder controls without executing the action
     And no Useful, Not relevant, Incorrect, Ignore, Never suggest, or Done control appears
-    And a read-only recommendation offers only Later
+    And a read-only recommendation has no executable primary action
+    And its More control contains the available reminder controls
     And a completed recommendation offers no control
     And no feedback label or learning status text appears in the message
 
@@ -424,6 +433,10 @@ Feature: Independent resident Personal Agent
     And repeated identical replies retain their DOM and scroll position
     And Instrument, Pixel, and Border Beam retain meaningful emphasis without synthesizing Pixel weights or styles
     And long English, CJK, code, and tables remain readable and bounded at native and compact sizes
+
+  Scenario: A saved-memory confirmation keeps its list close to the introduction
+    Given the Personal Agent conversation shows a Markdown confirmation with an introduction and a list
+    Then the space above the list and between its items fits within the theme's paragraph spacing
 
   Scenario: Reply to a specific Pi session from its incoming update
     Given an incoming update contains retained references for two Pi sessions
@@ -693,6 +706,24 @@ Feature: Independent resident Personal Agent
     And duplicate clicks, wrong routes, and missing or disabled actions cannot send another request
     And Useful feedback and independent MCP receipt checks remain separate gates
 
+  Scenario: OpenUI readings keep long text readable in a compact conversation
+    Given Reading and Metric contain long English and Chinese labels and values
+    When the conversation is 320 or 480 pixels wide
+    Then each complete value wraps inside the conversation
+    And a short Chinese label stays on one line
+    And an English label keeps its longest word together
+    And a continuous long value does not widen its parent
+
+  Scenario: Recommendation controls stay inside a generic More menu
+    Given a recommendation has one host-approved business action
+    When the conversation displays its OpenUI content
+    Then the message shows exactly one primary business action
+    And More contains only the available reminder controls
+    When the owner presses Escape inside More
+    Then the menu closes and More receives focus
+    And opening or closing More sends no command
+    And an outside press closes the menu
+
   Scenario: Completed recommendations keep their result without rating controls
     Given a completed recommendation is in the conversation
     When its message renders
@@ -727,13 +758,23 @@ Feature: Independent resident Personal Agent
     When the renderer maps each type to a concentric shared primitive class
     Then rendered text uses textContent and never innerHTML
     And no React runtime, inline style, inline script or remote asset is required
-    And the concentric radius scale and one 17-pixel reading size stay unchanged
+    And the primitives use the concentric radius scale and the conversation reading size
 
   Scenario: Host authority survives the OpenUI renderer
     Given OpenUI owns the component vocabulary and the rendered structure
     When a candidate with an approved action reaches the renderer
     Then only the host binds the approved action label and tool
     And evidence provenance, freshness and lifecycle receipts stay with the host
-    And Jev still judges the candidate before publication
+    And the host validates the candidate before publication
     And the identity capsule keeps all authoritative state
+
+  Scenario: A conversation Intent offers a Weather Widget suggestion
+    Given the Weather Widget and Open DeskOS Data share a live temperature reading
+    And no Intent or suggestion exists in the test profile
+    When the owner saves a temperature condition through the conversation composer
+    Then the resident stores the Intent with only the Weather temperature field
+    And one read-only suggestion appears in the conversation when the condition is true
+    And the suggestion advice matches the model reply's text size in the same conversation
+    And the resident retains the exact Widget reading, selected field, value, and time
+    And the card omits evidence disclosures and raw source identifiers
 
