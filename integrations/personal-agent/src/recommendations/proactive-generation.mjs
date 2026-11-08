@@ -174,8 +174,11 @@ export function validateGeneratedBatch(raw, topics, maxCandidates) {
     const action = !intent && topic?.actions?.find(action => action.id === s.actionId)
     if (typeof s.advice === 'string') {
       const label = normalize(action?.label ?? '')
-      // The same words can occur in an observation. Only the label alone duplicates the button.
-      if (label && normalize(s.advice) === label) throw Error('Advice repeats the action label')
+      // An observation can contain the same words. A separate instruction duplicates the button.
+      if (label && s.advice.split(/[.!?。！？,，;；\n]+/).some(clause => {
+        const words = normalize(clause)
+        return words === label || words === `请${label}` || words === `please${label}`
+      })) throw Error('Advice repeats the action label')
     }
     if (!exact(s, ['topicId', 'key', 'advice', intent ? 'nextStep' : 'actionId', 'evidenceIds', 'ui']) || !topic || typeof s.key !== 'string' || TEMPLATE_MARKER.test(s.key) || !KEY.test(s.key) || seen.has(key) || !text(s.advice, 400) || TECHNICAL_DETAIL.test(s.advice)
       || (intent ? !text(s.nextStep, 240) || /[\x00-\x1f\x7f]/.test(s.nextStep) || TECHNICAL_DETAIL.test(s.nextStep) : typeof s.actionId !== 'string' || !action)
