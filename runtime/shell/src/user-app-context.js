@@ -13,9 +13,8 @@
  *   [data-theme='pixel'] { … }         every appearance's overrides, so a switch is instant
  *   @font-face { … }                   the theme's own faces, served by this process
  *
- * The values here mirror src/renderer/shell.css and src/renderer/themes/pixel.css.
- * tests/user-app-desktop.cjs compares them against the rendered Shell so the two
- * cannot drift apart silently.
+ * The Shell paints the card behind the transparent package document.
+ * tests/user-app-context.cjs compares the rendered Shell and package tokens.
  *
  * This grants no new capability: still no network, no Shell DOM, no preload. It only
  * closes the appearance gap between a built-in tile and an installed package.
@@ -69,7 +68,12 @@ function buildContextStyle({ radius, appearancePlugins } = {}) {
   const measured = tileRadius(radius)
   const fallback = tokenBlock(':root', declarations.find(appearance => appearance.theme === DEFAULT_THEME).tokens)
   const tile = measured ? `:root{--odk-radius-tile:${measured}}` : ':root{--odk-radius-tile:var(--odk-radius-card)}'
-  return `${faces}${fallback}${blocks}${tile}:root{font-family:var(--odk-font);color:var(--odk-primary);background:var(--odk-bg)}`
+  // A legacy document may set a background on either element, including inline.
+  // Reserve the canvas for the Shell and let inner surfaces keep their own styles.
+  const canvas = '@layer odk-package-canvas{:root,:root>body{background:transparent!important}}'
+  const type = ':root{color-scheme:dark;font-family:var(--odk-font);color:var(--odk-primary)}'
+    + ':where(button,input,select,textarea){font:inherit;color:inherit;accent-color:var(--odk-accent-blue)}'
+  return `${faces}${fallback}${blocks}${tile}${canvas}${type}`
 }
 
 function contextTokens(theme, { appearancePlugins } = {}) {

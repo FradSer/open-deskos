@@ -1012,7 +1012,8 @@ async function main() {
     ['--theme=pixel'],
     ['--theme=border-beam'],
   ].map(args => runFixture('widget-density.cjs', args))
-  const themeUiRuns = ['system-overlay-alerts-style.cjs', 'agent-home.cjs', 'page-indicator.cjs', 'pixel-font.cjs', 'pixel-icons.cjs', 'voice-input-ui.cjs', 'user-app-desktop.cjs'].map(file =>
+  const themeUiRuns = ['system-overlay-alerts-style.cjs', 'agent-home.cjs', 'page-indicator.cjs', 'pixel-font.cjs', 'pixel-icons.cjs',
+    'voice-input-ui.cjs', 'user-app-desktop.cjs', 'user-app-context.cjs'].map(file =>
     runFixture(file, [], {
       timeout: file === 'page-indicator.cjs' && process.platform === 'win32'
         ? 960000 : process.arch === 'arm64' ? 300000 : 120000,

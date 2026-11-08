@@ -88,11 +88,10 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
     ? { list: async () => [], getContent: async () => ({ ok: false, error: 'not-found' }) }
     : selectedStore || createUserAppStore({ workspace: env.ODK_WORKSPACE, stateDir: surface.stateDir, verify: bundle => verifier.verify(bundle),
       ...(desktopGeometry ? { getDesktopGeometry: desktopGeometry.read } : {}) })
-  packageApi = createUserAppApi({ store, publicDns: env.ODK_PACKAGE_API_PUBLIC_DNS === 'cloudflare' })
-  packageDevices = createUserAppDevices({ store, gateway: deviceGateway,
-    grantsFile: path.join(resolveShellHost({ env }).stateDir, 'device-grants.json'),
-    isActive: identity => !stopping() && isActiveDeviceFrame(identity.event, identity, BrowserWindow.getAllWindows(), shellDocument),
-  })
+  const hostState = resolveShellHost({ env }).stateDir
+  const isActive = identity => !stopping() && isActiveDeviceFrame(identity.event, identity, BrowserWindow.getAllWindows(), shellDocument)
+  packageApi = createUserAppApi({ store, publicDns: env.ODK_PACKAGE_API_PUBLIC_DNS === 'cloudflare', stateDir: hostState, isActive })
+  packageDevices = createUserAppDevices({ store, gateway: deviceGateway, grantsFile: path.join(hostState, 'device-grants.json'), isActive })
   const control = createUserAppControl(store, () => {
     if (stopping()) return
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-user-apps-changed')
@@ -121,7 +120,10 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
     ipcMain.on('odk-user-apps-geometry', geometryReport)
     releases.add(() => ipcMain.removeListener('odk-user-apps-geometry', geometryReport))
   }
-  bind('odk-user-apps-api', (_event, request) => packageApi.read(request?.appId, request?.revision, request?.sourceId))
+  bind('odk-user-apps-api', (event, request) => {
+    const identity = { appId: request?.appId, revision: request?.revision, frameToken: request?.frameToken, event }
+    return packageApi.read(identity.appId, identity.revision, request?.sourceId, identity)
+  })
   bind('odk-user-apps-device', (event, value) => {
     const identity = { appId: value?.appId, revision: value?.revision, frameToken: value?.frameToken, event }
     const request = value?.request

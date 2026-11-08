@@ -3,6 +3,7 @@
 const https = require('node:https')
 const dns = require('node:dns/promises')
 const { isIP, BlockList } = require('node:net')
+const { grantedSnapshot, readSnapshot } = require('./user-app-local-source')
 
 const MAX_BYTES = 64 * 1024
 const ID = /^[a-z][a-z0-9-]{0,63}$/
@@ -38,11 +39,18 @@ function parseApiSources(api) {
   const parsed = {}
   for (const [id, source] of Object.entries(api)) {
     if (!ID.test(id) || forbidden.has(id) || !source || typeof source !== 'object' || Array.isArray(source)
-      || Object.keys(source).some(key => !['url', 'refreshMs'].includes(key))
+      || Object.keys(source).length !== 2 || !Object.hasOwn(source, 'refreshMs')
       || !Number.isInteger(source.refreshMs) || source.refreshMs < 10000 || source.refreshMs > 86400000) throw Error('invalid-api-source')
-    try { publicUrl(source.url) } catch { throw Error('invalid-api-source') }
-    parsed[id] = { url: source.url, refreshMs: source.refreshMs }
+    if (Object.hasOwn(source, 'local') && source.local === true) {
+      parsed[id] = { local: true, refreshMs: source.refreshMs }
+    } else {
+      if (!Object.hasOwn(source, 'url')) throw Error('invalid-api-source')
+      try { publicUrl(source.url) } catch { throw Error('invalid-api-source') }
+      parsed[id] = { url: source.url, refreshMs: source.refreshMs }
+    }
   }
+  const localCount = Object.values(parsed).filter(source => source.local).length
+  if (localCount && localCount !== Object.keys(parsed).length) throw Error('invalid-api-sources')
   return parsed
 }
 
@@ -94,7 +102,7 @@ async function lookupPublicDns(host, { signal, request = requestPublicJson } = {
   return addresses
 }
 
-function createUserAppApi({ store, requestJson = requestPublicJson, now = Date.now, timeoutMs = 8000, publicDns = false } = {}) {
+function createUserAppApi({ store, requestJson = requestPublicJson, now = Date.now, timeoutMs = 8000, publicDns = false, stateDir, isActive = () => false } = {}) {
   let stopped = false
   const cache = new Map()
   const pending = new Set()
@@ -105,7 +113,7 @@ function createUserAppApi({ store, requestJson = requestPublicJson, now = Date.n
     return result.ok && result.app.revision === revision ? result.app : null
   }
   return {
-    async read(appId, revision, sourceId) {
+    async read(appId, revision, sourceId, identity) {
       if (stopped) return failure('runtime-stopped')
       if (!ID.test(appId) || !/^[a-f0-9]{32}$/.test(revision) || !ID.test(sourceId) || forbidden.has(sourceId)) return failure('invalid-api-request')
       const app = await current(appId, revision)
@@ -113,17 +121,35 @@ function createUserAppApi({ store, requestJson = requestPublicJson, now = Date.n
       if (!app) return failure('revision-changed')
       const sources = parseApiSources(app.api)
       if (!sources || !Object.hasOwn(sources, sourceId)) return failure('source-not-declared')
+      const source = sources[sourceId]
       const key = `${appId}:${revision}:${sourceId}`
+      if (source.local && !isActive(identity)) return failure('source-not-granted')
+      const file = source.local ? await grantedSnapshot(stateDir, key) : null
+      if (stopped) return failure('runtime-stopped')
+      if (source.local && (!file || !isActive(identity))) {
+        cache.delete(key)
+        return failure('source-not-granted')
+      }
+      const respond = async result => {
+        if (source.local) {
+          if (!await current(appId, revision)) return failure('revision-changed')
+          const grant = await grantedSnapshot(stateDir, key)
+          if (stopped) return failure('runtime-stopped')
+          if (grant !== file || !isActive(identity)) return failure('source-not-granted')
+        }
+        return structuredClone(result)
+      }
       for (const old of cache.keys()) if (old.startsWith(`${appId}:`) && !old.startsWith(`${appId}:${revision}:`)) cache.delete(old)
       let entry = cache.get(key)
+      if (entry && entry.file !== file) { cache.delete(key); entry = null }
       if (!entry && cache.size >= 256) {
         const idle = [...cache].find(([, value]) => !value.pending)
         if (!idle) return failure('api-busy')
         cache.delete(idle[0])
       }
-      if (!entry) { entry = { attemptedAt: -Infinity }; cache.set(key, entry) }
-      if (entry.pending) return entry.pending
-      if (entry.result && now() - entry.attemptedAt < sources[sourceId].refreshMs) return structuredClone(entry.result)
+      if (!entry) { entry = { attemptedAt: -Infinity, file }; cache.set(key, entry) }
+      if (entry.pending) return respond(await entry.pending)
+      if (entry.result && now() - entry.attemptedAt < source.refreshMs) return respond(entry.result)
       entry.attemptedAt = now()
       const controller = new AbortController()
       controllers.add(controller)
@@ -132,12 +158,15 @@ function createUserAppApi({ store, requestJson = requestPublicJson, now = Date.n
       const operation = (async () => {
         let result
         try {
-          const data = await Promise.race([requestJson(sources[sourceId].url, { signal: controller.signal, ...(publicDns ? { lookup: host => lookupPublicDns(host, { signal: controller.signal }) } : {}) }), deadline])
+          const request = file ? readSnapshot(file) : requestJson(source.url, {
+            signal: controller.signal, ...(publicDns ? { lookup: host => lookupPublicDns(host, { signal: controller.signal }) } : {}),
+          })
+          const data = await Promise.race([request, deadline])
           if (!data || typeof data !== 'object' || Buffer.byteLength(JSON.stringify(data)) > MAX_BYTES) throw Error('api-response-rejected')
           result = { ok: true, state: 'live', data, retrievedAt: now() }
         } catch (error) {
           const code = ['api-timeout','api-address-blocked','api-response-rejected','api-response-too-large','api-invalid-json'].includes(error.message) ? error.message : 'api-unavailable'
-          result = entry.result?.data ? { ...entry.result, ok: false, state: 'stale', error: code } : failure(code)
+          result = !file && entry.result?.data ? { ...entry.result, ok: false, state: 'stale', error: code } : failure(code)
         } finally { clearTimeout(timer); controllers.delete(controller) }
         if (stopped) return failure('runtime-stopped')
         if (!await current(appId, revision)) return failure('revision-changed')
@@ -147,7 +176,7 @@ function createUserAppApi({ store, requestJson = requestPublicJson, now = Date.n
       })()
       entry.pending = operation
       pending.add(operation)
-      try { return await operation } finally { entry.pending = null; pending.delete(operation) }
+      try { return await respond(await operation) } finally { entry.pending = null; pending.delete(operation) }
     },
     async close() {
       stopped = true

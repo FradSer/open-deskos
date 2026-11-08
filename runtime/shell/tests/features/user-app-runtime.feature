@@ -223,3 +223,21 @@ Feature: Sandboxed self-contained user applications
     And redirects, non-JSON responses, oversized responses, and timeouts fail explicitly
     And a failed refresh reports stale data without labelling it live
     And closing the runtime aborts requests and refuses later reads
+
+  Scenario: A user Widget reads a granted local Service snapshot
+    Given an installed Widget declares a local data source
+    And the operator grants that source to its exact installed revision
+    When the Service atomically replaces its bounded snapshot
+    Then the same mounted Widget can read the new snapshot after its refresh interval
+    And the Widget receives no path or credential
+
+  Scenario: A local source grant can be revoked
+    Given a local source has a cached or pending read
+    When its grant or installed revision changes
+    Then the old revision receives no successful result
+    And the broker returns no cached data without an active grant
+
+  Scenario: Private packages cannot declare public API sources
+    Given a package declares a local source
+    When it also declares a public HTTPS source
+    Then the catalog rejects the manifest

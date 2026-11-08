@@ -37,13 +37,21 @@
     const target = new URL(url, root.location?.href || 'http://localhost/')
     target.searchParams.set('token', token)
     target.searchParams.set('theme', activeTheme())
-    const radius = hostRadius(container)
+    // Widgets already have a card. An App needs a non-iframe card for its theme edge.
+    const card = container.classList?.contains('installed-app') ? container.ownerDocument.createElement('div') : null
+    if (card) {
+      card.className = 'installed-app-card'
+      container.appendChild(card)
+    }
+    const surface = card || container
+    const removeSurface = () => (card || frame).remove()
+    const radius = hostRadius(surface)
     if (radius) target.searchParams.set('radius', radius)
     const publishTheme = (theme) => {
       // The host and the package both see the appearance this frame renders under; the
       // message keeps a loading frame's copy in step with the URL it was served with.
       frame.dataset.theme = theme
-      try { frame.contentWindow?.postMessage({ type: 'odk-user-app-theme', token, theme, radius: hostRadius(container), ...(typeof onReturnHome === 'function' ? { returnHome: true } : {}) }, '*') } catch {}
+      try { frame.contentWindow?.postMessage({ type: 'odk-user-app-theme', token, theme, radius: hostRadius(surface), ...(typeof onReturnHome === 'function' ? { returnHome: true } : {}) }, '*') } catch {}
     }
     let resolveReady
     let rejectReady
@@ -71,7 +79,7 @@
       settled = true
       teardown()
       const error = new Error(message)
-      frame.remove()
+      removeSurface()
       rejectReady(error)
       if (typeof onError === 'function') onError(error)
     }
@@ -91,7 +99,7 @@
       }
       if (data.type === 'odk-user-app-api-read') {
         if (disposed || !Number.isSafeInteger(data.requestId) || typeof data.sourceId !== 'string' || data.sourceId.length > 64) return
-        void Promise.resolve().then(() => root.odkUserApps?.readApi?.(id, revision, data.sourceId)).then(
+        void Promise.resolve().then(() => root.odkUserApps?.readApi?.(id, revision, data.sourceId, token)).then(
           result => { if (!disposed) frame.contentWindow?.postMessage({ type: 'odk-user-app-api-result', token, requestId: data.requestId, result: result || { ok: false, state: 'unavailable', error: 'api-unavailable' } }, '*') },
           () => { if (!disposed) frame.contentWindow?.postMessage({ type: 'odk-user-app-api-result', token, requestId: data.requestId, result: { ok: false, state: 'unavailable', error: 'api-unavailable' } }, '*') },
         ).catch(() => {})
@@ -117,7 +125,7 @@
     root.addEventListener('resize', resizeListener)
     timer = setTimeout(() => fail('user app readiness timed out'), timeoutMs)
     frame.src = target.href
-    container.appendChild(frame)
+    surface.appendChild(frame)
     return {
       frame,
       ready,
@@ -125,8 +133,10 @@
         // A settled frame still holds the theme observer and the resize listener; both
         // belong to the frame's lifetime, not to readiness.
         if (!settled) fail('user app disposed')
-        else teardown()
-        frame.remove()
+        else {
+          teardown()
+          removeSurface()
+        }
       },
     }
   }

@@ -47,9 +47,9 @@ test('Liquid Glass uses the local SDK stylesheet and static accessibility fallba
   assert.match(appearance, /prefers-reduced-transparency/)
 })
 
-test('Liquid Glass keeps Widgets visible while SDK clip paths are prepared', () => {
+test('Liquid Glass keeps Widgets and installed Apps visible while SDK clip paths are prepared', () => {
   const css = fs.readFileSync(path.join(renderer, 'card-frame.css'), 'utf8')
-  assert.match(css, /html\[data-theme='liquid-glass'\] #home-desk :is\(\.widget, #app-view\)\.lg-surface\s*\{[^}]*visibility:\s*inherit;/)
+  assert.match(css, /html\[data-theme='liquid-glass'\] #home-desk :is\(\.widget, #app-view, \.installed-app-card\)\.lg-surface\s*\{[^}]*visibility:\s*inherit;/)
 })
 
 test('Liquid Glass states the Agent identity without a capsule frame', () => {

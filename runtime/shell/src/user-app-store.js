@@ -67,6 +67,7 @@ function parseManifest(bytes, id) {
   try { devices = parseDevices(manifest.devices, manifest.kind) } catch { throw Error('invalid-manifest') }
   let home
   try { home = parseHome(manifest.home) } catch { throw Error('invalid-manifest') }
+  if (Object.values(api ?? {}).some(source => source.local) && (manifest.kind !== 'widget' || data || devices)) throw Error('invalid-manifest')
   if (home && home.fields.some(field => !Object.hasOwn(data?.fields ?? {}, field))) throw Error('invalid-manifest')
   return { ...manifest, ...(service === undefined ? {} : { service }), ...(data === undefined ? {} : { data }), ...(home === undefined ? {} : { home }), ...(api === undefined ? {} : { api }), ...(devices === undefined ? {} : { devices }) }
 }
