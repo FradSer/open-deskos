@@ -35,7 +35,7 @@ contextBridge.exposeInMainWorld('odkUserApps', {
   deviceRequest: (appId, revision, frameToken, request) => ipcRenderer.invoke('odk-user-apps-device', { appId, revision, frameToken, request }),
   reportGeometry: pages => ipcRenderer.send('odk-user-apps-geometry', pages),
   list: () => ipcRenderer.invoke('odk-user-apps-list'),
-  readApi: (appId, revision, sourceId) => ipcRenderer.invoke('odk-user-apps-api', { appId, revision, sourceId }),
+  readApi: (appId, revision, sourceId, frameToken) => ipcRenderer.invoke('odk-user-apps-api', { appId, revision, sourceId, frameToken }),
   dispatch: (request) => ipcRenderer.invoke('odk-user-apps-dispatch', request),
   // Declared Data: a package publishes what its manifest declared, and the Shell
   // decides what of that is a reading. Publishing is not an authority to change

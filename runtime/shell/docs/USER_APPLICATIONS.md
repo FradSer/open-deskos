@@ -83,6 +83,33 @@ The default uses system DNS and never retries a rejected answer with another res
 The broker does not run a background service when frames stop reading.
 Declarations and cache state grant no access to secrets or arbitrary service executables.
 
+## Local Service data
+
+A Widget can declare local sources with `{"local":true,"refreshMs":10000}` in `api`.
+It reads them with `odkPackageApi.read(sourceId)`.
+Local sources require an active frame and a grant for its exact installed revision.
+A local source Widget cannot declare public API sources, device access, or package data publication.
+
+The operator writes `package-source-grants.json` in the Shell state directory.
+The file must belong to the Shell user and have mode `0600`.
+Each grant names an `appId`, `revision`, `sourceId`, and `file`.
+Use this file format.
+
+```json
+{"schemaVersion":1,"grants":[{"appId":"report-widget","revision":"0123456789abcdef0123456789abcdef","sourceId":"latest","file":"report/summary.json"}]}
+```
+
+The file path is relative to `package-snapshots` in the Shell state directory.
+Use one producer directory and one JSON file name for each path.
+The Service writes a bounded JSON object with an atomic file replacement.
+The broker refuses symbolic links and snapshots larger than 64 KiB.
+Keep the Service state and credentials outside this publication directory.
+A Widget receives snapshot data through the Shell bridge.
+It receives no file path.
+Revocation denies cached and pending reads.
+A failed local refresh returns unavailable.
+A local declaration does not install or start its Service.
+
 <a id="device-access"></a>
 
 ## Devices through Bridge

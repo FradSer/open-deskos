@@ -91,7 +91,7 @@
       }
       if (data.type === 'odk-user-app-api-read') {
         if (disposed || !Number.isSafeInteger(data.requestId) || typeof data.sourceId !== 'string' || data.sourceId.length > 64) return
-        void Promise.resolve().then(() => root.odkUserApps?.readApi?.(id, revision, data.sourceId)).then(
+        void Promise.resolve().then(() => root.odkUserApps?.readApi?.(id, revision, data.sourceId, token)).then(
           result => { if (!disposed) frame.contentWindow?.postMessage({ type: 'odk-user-app-api-result', token, requestId: data.requestId, result: result || { ok: false, state: 'unavailable', error: 'api-unavailable' } }, '*') },
           () => { if (!disposed) frame.contentWindow?.postMessage({ type: 'odk-user-app-api-result', token, requestId: data.requestId, result: { ok: false, state: 'unavailable', error: 'api-unavailable' } }, '*') },
         ).catch(() => {})

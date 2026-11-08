@@ -192,7 +192,7 @@ test('API requests bind frame identity and revision and reject forged or release
   receive({ source: h.frame.contentWindow, data: { ...data, token: 'wrong' } })
   await Promise.resolve(); assert.equal(requests.length, 0)
   receive({ source: h.frame.contentWindow, data })
-  await Promise.resolve(); assert.deepEqual(requests, [['clock', revision, 'clock']])
+  await Promise.resolve(); assert.deepEqual(requests, [['clock', revision, 'clock', 'token']])
   const before = h.posted.length
   disposeQuietly(mounted)
   release({ ok: true, state: 'live', data: { time: 1 } })

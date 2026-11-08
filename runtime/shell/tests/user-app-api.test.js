@@ -94,3 +94,46 @@ test('configured public DNS resolves through fixed HTTPS and retains address che
   await assert.rejects(lookupPublicDns('clock.example',{request:async()=>({Status:0,Answer:[{type:1,data:'127.0.0.1'}]})}),/address-blocked/)
   await assert.rejects(lookupPublicDns('clock.example',{request:async()=>({Status:3})}),/dns-unavailable/)
 })
+
+test('a private package can declare local snapshots and cannot mix them with public sources', () => {
+  const local = { local: true, refreshMs: 10000 }
+  assert.deepEqual(parseApiSources({ analysis: local }), { analysis: local })
+  assert.throws(() => parseApiSources({ analysis: local, clock: source }), /invalid-api/)
+  assert.throws(() => parseApiSources({ analysis: { ...local, url: source.url } }), /invalid-api/)
+})
+
+test('local reads require an exact grant, refresh in place, and lose cached data on revocation', async (t) => {
+  const fs = require('node:fs/promises')
+  const path = require('node:path')
+  const os = require('node:os')
+  const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'odk-local-source-')))
+  t.after(() => fs.rm(root, { recursive: true, force: true }))
+  const grantPath = path.join(root, 'package-source-grants.json')
+  const folder = path.join(root, 'package-snapshots', 'worker')
+  const dataPath = path.join(folder, 'summary.json')
+  await fs.mkdir(folder, { recursive: true })
+  const localApp = { ...app, api: { latest: { local: true, refreshMs: 10000 } } }
+  let active = true
+  const f = fixture({ stateDir: root, isActive: () => active, store: { getContent: async () => ({ ok: true, app: localApp }) } })
+  t.after(() => f.api.close())
+  const read = () => f.api.read('clock', revision, 'latest')
+  const grant = (value = revision) => fs.writeFile(grantPath, JSON.stringify({
+    schemaVersion: 1, grants: [{ appId: 'clock', revision: value, sourceId: 'latest', file: 'worker/summary.json' }],
+  }), { mode: 0o600 })
+  await grant('b'.repeat(32))
+  assert.deepEqual(await read(), { ok: false, state: 'unavailable', error: 'source-not-granted' })
+  await grant()
+  await fs.writeFile(dataPath, '{"completed":1}')
+  assert.deepEqual((await read()).data, { completed: 1 })
+  await fs.writeFile(dataPath + '.next', '{"completed":2}')
+  await fs.rename(dataPath + '.next', dataPath)
+  f.tick()
+  assert.deepEqual((await read()).data, { completed: 2 })
+  active = false
+  assert.equal((await read()).error, 'source-not-granted')
+  active = true
+  await read()
+  await fs.unlink(grantPath)
+  assert.deepEqual(await read(), { ok: false, state: 'unavailable', error: 'source-not-granted' })
+  assert.equal(f.count(), 0)
+})
