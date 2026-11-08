@@ -13,8 +13,7 @@ app.on('will-quit', () => { try { fs.rmSync(profile, { recursive: true, force: t
 const timer = setTimeout(() => app.exit(1), 90000)
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-// A session source from the same frame. The host binds it to the recommendation
-// footer, so the Reply keeps its real replyTo authorization target.
+// An unrelated Pi update retains its Reply target beside the recommendation.
 const remoteMessage = {
   id: '4'.repeat(64),
   at: 1000,
@@ -119,8 +118,7 @@ app.whenReady().then(async () => {
         bubble: px('.agent-message-bubble'),
         card: px('.personal-agent-preview-card'),
         chip: px('.personal-agent-preview-chip'),
-        inset: px('.personal-agent-preview-fields'),
-        select: px('.personal-agent-preview-fields select'),
+        inset: px('.personal-agent-preview-card ul.openui-option-set'),
         next: px('.personal-agent-proposal-next'),
         confirm: px('.personal-agent-proposal-primary'),
         secondary: px('.personal-agent-proposal-secondary'),
@@ -130,56 +128,24 @@ app.whenReady().then(async () => {
         footerReply: px('.agent-recommendation .agent-session-reply'),
         remoteReply: px('.agent-update .agent-session-reply')
       },
+      optionListReadOnly: (() => {
+        const options = document.querySelector('.personal-agent-preview-card ul.openui-option-set')
+        return Boolean(options?.querySelector('li')) && !options.querySelector('button, select, input')
+      })(),
       footer: (() => {
-        const sel = s => document.querySelector('.agent-recommendation ' + s)
+        const sel = s => document.querySelector('.agent-update ' + s)
         const reply = sel('.agent-session-reply')
         const name = sel('.agent-session-name')
         const bubble = sel('.agent-message-bubble')
         const group = sel('.agent-update-sources')
-        const open = sel('.agent-recommendation-footer .agent-session-open')
-        const svg = sel('.agent-recommendation-footer .agent-session-open svg')
+        const open = sel('.agent-update-sources .agent-session-open')
+        const svg = sel('.agent-update-sources .agent-session-open svg')
         const cs = n => n ? getComputedStyle(n) : null
         const rect = n => n ? n.getBoundingClientRect() : null
         const B = rect(bubble)
         return {
           bubblePad: bubble ? [cs(bubble).paddingTop, cs(bubble).paddingRight, cs(bubble).paddingBottom, cs(bubble).paddingLeft] : null,
           groupGap: group ? cs(group).rowGap : null,
-          // Plain conversation footers and recommendation footers are symmetric.
-          // Measure both with one function so every field can be compared.
-          bothFooters: (() => {
-            const metrics = article => {
-              const foot = article?.querySelector('.agent-update-sources')
-              if (!foot) return null
-              const open = foot.querySelector('.agent-session-open')
-              const name = foot.querySelector('.agent-session-name')
-              const reply = foot.querySelector('.agent-session-reply')
-              const svg = open?.querySelector('svg')
-              const c = n => n ? getComputedStyle(n) : null
-              const r = n => n ? n.getBoundingClientRect() : null
-              const B = article.querySelector('.agent-message-bubble')?.getBoundingClientRect()
-              return {
-                gap: c(foot).rowGap, marginTop: c(foot).marginTop,
-                replyRadius: reply ? parseFloat(c(reply).borderTopLeftRadius) : null,
-                replyPaddingRight: reply ? parseFloat(c(reply).paddingRight) : null,
-                replyPaddingBottom: reply ? parseFloat(c(reply).paddingBottom) : null,
-                replyFont: reply ? parseFloat(c(reply).fontSize) : null,
-                nameFont: name ? parseFloat(c(name).fontSize) : null,
-                openPaddingLeft: open ? parseFloat(c(open).paddingLeft) : null,
-                openTransform: open ? c(open).transform : null,
-                touchTarget: open ? parseFloat(c(open).minHeight) : null,
-                iconLeft: svg && B ? +(r(svg).left - B.left).toFixed(1) : null,
-                centreSpread: (() => {
-                  const cy = n => r(n).top + r(n).height / 2
-                  const cs = [svg, name, reply].filter(Boolean).map(cy)
-                  return +(Math.max(...cs) - Math.min(...cs)).toFixed(1)
-                })(),
-              }
-            }
-            return {
-              plain: metrics(document.querySelector('.agent-update')),
-              openui: metrics(document.querySelector('.agent-recommendation')),
-            }
-          })(),
           gapBlock: getComputedStyle(document.querySelector('.agent-panel')).getPropertyValue('--agent-gap-block').trim(),
           // Icon and source text stay strictly on one line. The group may take a
           // tiny optical nudge below the Reply centre (a transform, not a layout
@@ -219,6 +185,7 @@ app.whenReady().then(async () => {
     const bubble = radius('bubble'), card = radius('card'), inset = radius('inset'), control = m.parts.confirm.radius, chip = radius('chip')
     const padSurface = parseFloat(m.tokens.padSurface), padCard = parseFloat(m.tokens.padCard)
     const near = (a, b) => Math.abs(a - b) <= 0.02
+    assert.equal(m.optionListReadOnly, true, `${theme}: the inset must be a read-only option list`)
     if (theme === 'pixel') {
       assert.equal(bubble, 0, 'pixel: surface collapses')
       assert.equal(card, 0, 'pixel: card collapses')
@@ -236,11 +203,9 @@ app.whenReady().then(async () => {
     assert.equal(m.markdown.adviceStrong, '偏低', `${theme}: advice strong text renders through the safe Markdown library`)
     assert.equal(m.markdown.adviceScript, false, `${theme}: advice never injects a script element`)
     assert.ok(m.markdown.adviceText?.includes('检测到盆栽土壤湿度偏低'), `${theme}: advice keeps its full readable sentence`)
-    // The recommendation footer is host-bound and concentric with the card.
-    const footerReply = m.parts.footerReply
-    assert.ok(footerReply, `${theme}: a recommendation needs a session Reply footer`)
+    assert.equal(m.parts.footerReply, null, `${theme}: the recommendation cannot inherit an unrelated session Reply`)
     assert.ok(m.parts.remoteReply, `${theme}: a remote message keeps its own Reply`)
-    const footerR = footerReply.radius
+    const footerR = m.parts.remoteReply.radius
     assert.equal(footerR, card, `${theme}: footer Reply ${footerR} must share the card radius ${card}`)
     assert.equal(footerR, control, `${theme}: footer Reply must share the action button radius ${control}`)
     const [padTop, padRight, padBottom, padLeft] = m.footer.bubblePad.map(parseFloat)
@@ -248,14 +213,6 @@ app.whenReady().then(async () => {
     assert.equal(padBottom, padSurface, `${theme}: bubble bottom padding is not reduced below the surface token`)
     assert.equal(padRight, padLeft, `${theme}: bubble horizontal padding stays symmetric`)
     assert.equal(m.footer.groupGap, m.footer.gapBlock, `${theme}: footer spacing comes from the named block gap`)
-    // A plain message without a generated card shares the recommendation footer.
-    // Every geometry field must agree; the footer does not depend on a card.
-    const pf = m.footer.bothFooters.plain, of = m.footer.bothFooters.openui
-    assert.ok(pf && of, `${theme}: both a plain and an OpenUI message need a session footer`)
-    for (const field of ['gap', 'marginTop', 'replyRadius', 'replyPaddingRight', 'replyPaddingBottom', 'replyFont', 'nameFont', 'openPaddingLeft', 'openTransform', 'touchTarget', 'iconLeft', 'centreSpread'])
-      assert.equal(pf[field], of[field], `${theme}: plain and OpenUI footers must share ${field}: ${pf[field]} vs ${of[field]}`)
-    assert.equal(pf.replyRadius, card, `${theme}: the plain Reply shares the card radius ${card}`)
-    assert.equal(pf.replyPaddingRight, pf.replyPaddingBottom, `${theme}: Reply right padding ${pf.replyPaddingRight} must match its bottom padding ${pf.replyPaddingBottom}`)
     // Icon and source text stay strictly on one line. The source group sits a
     // small optical 2px below the Reply centre; a 13px layout break is refused.
     // The larger gap below the small text is matched by growing the left inset.
@@ -272,7 +229,6 @@ app.whenReady().then(async () => {
     assert.equal(m.footer.touchTarget, 44, `${theme}: the session source keeps its 44px touch target`)
     if (theme === 'pixel') {
       assert.equal(footerR, 0, 'pixel: footer Reply collapses')
-      assert.equal(m.parts.remoteReply.radius, 0, 'pixel: remote Reply collapses')
     }
     const pad = m.padding
     assert.deepEqual(pad.card, [pad.cardPad, pad.cardPad, pad.cardPad, pad.cardPad], `${theme}: card padding matches the concentric token on all four sides`)
@@ -282,9 +238,6 @@ app.whenReady().then(async () => {
     assert.ok(parseFloat(pad.chip[0]) >= parseFloat(pad.gapChip), `${theme}: chip text does not crowd its corners`)
     assert.equal(m.parts.composer.radius, bubble, `${theme}: composer and bubble share one surface radius`)
     assert.equal(m.parts.latest.tl, m.tokens.pill, `${theme}: the latest overlay uses the theme's pill radius`)
-    // A field control inside the inset panel shares the panel radius so the control reads as
-    // part of its container. The concentric surface chain stops at the panel.
-    assert.equal(m.parts.select.radius, inset, `${theme}: a field control matches its inset panel (inset ${inset}, select ${m.parts.select.tl}, control ${control})`)
     // Pixel collapses every level to a hard edge.
     if (theme === 'pixel') for (const [name, part] of Object.entries(m.parts)) {
       if (part) assert.equal(part.radius, 0, `pixel/${name}: expected a hard edge, got ${part.tl}`)
@@ -299,7 +252,7 @@ app.whenReady().then(async () => {
       assert.equal(cbtn.tl, '50%', `${theme}: the square send control is a circle, got ${cbtn.tl}`)
       assert.ok(Math.abs(cbtn.width - cbtn.height) < 1, `${theme}: the circle needs a square box, got ${cbtn.width}x${cbtn.height}`)
     }
-    console.log(`AGENT_RADIUS ${theme} ${JSON.stringify({ bubble, card, inset, control, chip, select: m.parts.select?.tl, send: m.parts.composerButton?.tl })}`)
+    console.log(`AGENT_RADIUS ${theme} ${JSON.stringify({ bubble, card, inset, control, chip, send: m.parts.composerButton?.tl })}`)
   }
   fs.writeFileSync(path.join(os.tmpdir(), 'odk-agent-radius.json'), JSON.stringify(record, null, 2))
   console.log('AGENT_RADIUS_PASS: concentric (radius minus padding) across 4 themes; Pixel collapses to 0')

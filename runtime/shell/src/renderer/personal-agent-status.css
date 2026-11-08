@@ -245,18 +245,14 @@
    It shares the card radius so the two corners stay tangent at that level.
    Controls outside a recommendation keep the independent control token. */
 .agent-recommendation .personal-agent-proposals button { border-radius: var(--agent-radius-card); }
-/* Every session footer shares one geometry, whether or not the message has a
-   generated OpenUI card. Both the plain remote message and the recommendation
-   use the same sessionLabel() DOM, so scope to that shared class. The Reply
-   keeps its real replyTo target in both messages. The extra .agent-panel
-   .agent-message-session specificity beats home-desk.css, which loads later. */
+/* A session footer belongs to the update that owns its Reply target. */
 .agent-panel .agent-update-sources {
   gap: var(--agent-gap-block);
   margin-block-start: var(--agent-gap-block);
 }
 /* The theme layers give every #personal-agent button a control radius. A
    session footer Reply is a card-level control, so match that specificity and
-   scope it to the shared footer class. Both message kinds then agree. */
+   scope it to the shared footer class. */
 html #personal-agent .agent-update-sources .agent-message-session .agent-session-reply {
   border-radius: var(--agent-radius-card);
 }

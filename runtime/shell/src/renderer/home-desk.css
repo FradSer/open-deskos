@@ -95,7 +95,7 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 .agent-composer { grid-column: 1; flex: none; display: flex; align-items: flex-end; gap: 8px; padding: 8px; border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-surface); background: var(--odk-surface); box-shadow: 0 4px 16px color-mix(in srgb, var(--odk-bg) 20%, transparent); }
 .agent-composer textarea { min-width: 0; flex: 1; min-height: 46px; height: 46px; max-height: none; resize: none; padding: 8px; scrollbar-width: thin; font: inherit; font-size: var(--agent-text-heading); line-height: 1.5; color: var(--odk-primary); background: transparent; border: 0; }
 .agent-composer textarea::placeholder { color: var(--odk-secondary-strong); font-size: var(--agent-text-label); white-space: nowrap; overflow: hidden; }
-.agent-latest { min-width: 44px; min-height: 44px; border: 1px solid var(--odk-stroke); border-radius: var(--agent-radius-control); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: var(--agent-text-label); cursor: pointer; }
+.agent-latest { min-width: 44px; min-height: 44px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: var(--agent-text-label); cursor: pointer; }
 .agent-latest { position: absolute; z-index: 1; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); padding-inline: 16px; pointer-events: auto; white-space: nowrap; }
 .agent-panel button:disabled { opacity: 0.5; cursor: default; }
 .agent-panel :is(button, input, textarea, select, summary):focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
@@ -273,7 +273,16 @@ html[data-theme='pixel'] #home-summary .dash {
 .agent-message-actions { display: grid; gap: 8px; margin-block-start: 8px; white-space: normal; }
 .agent-update-sources { width: 100%; min-width: 0; }
 .agent-remote-detail { position: relative; margin-block-start: var(--agent-gap-block); white-space: normal; min-width: 0; }
-.agent-remote-detail > .personal-agent-preview-card { margin-block-start: 0; }
+.agent-remote-detail > .personal-agent-preview-card {
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.agent-remote-detail :is(.openui-heading, .openui-text) { margin: 0; }
 /* The lower rows of a long detail fade behind its expand control. */
 .agent-remote-detail-clipped > .personal-agent-preview-card {
   max-block-size: 15rem;

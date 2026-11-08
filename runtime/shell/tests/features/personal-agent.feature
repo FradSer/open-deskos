@@ -41,7 +41,7 @@ Feature: Independent resident Personal Agent
     When the owner inspects the message bubble, its nested card, and the inset panel
     Then each inner radius equals its container radius minus the padding between them
     And a chip inside the card matches the inset radius
-    And a field control matches its inset panel
+    And a read-only option list uses the inset radius without adding a control
     And an action button shares the card radius with the card it sits beside
     And each surface in the nested group uses the concentric scale
     And the Pixel theme collapses every level of that scale to zero
@@ -56,31 +56,14 @@ Feature: Independent resident Personal Agent
     And text line height is uniform across the advice, card summary and chips
     And no surface overflows the bubble or clips its text
 
-  Scenario: A recommendation with a session source keeps one concentric footer
-    Given a status frame supplies a recommendation and one session source
-    When the Shell renders the recommendation message across all themes
-    Then the host appends one session footer row at the bottom of the message capsule
-    And the footer shows the session source on the left and a Reply control on the right
-    And the Reply control shares the card radius with the action button and the card
-    And the footer uses the same text size as a plain message footer
-    And the bubble keeps its surface padding on all four sides
-    And the footer spacing comes from the named block gap
-    And the icon and source text keep one horizontal centre line
-    And the source group takes a small optical nudge below the Reply centre
-    And the source row grows its left inset to match the larger gap below its small text
-    And the source keeps its full touch target without moving the Reply control
-    And the Reply control's right padding matches its bottom padding
-    And the Pixel theme collapses the whole scale to zero
-    And a plain conversation message without a generated card keeps the same footer geometry
-
-  Scenario: A message without a generated card shares the recommendation footer
-    Given a status frame supplies a plain remote message and a recommendation with a card
+  Scenario: A session update keeps its Reply next to an unrelated recommendation
+    Given a status frame supplies a recommendation and an unrelated Pi session update
     When the Shell renders both messages across all themes
-    Then both session footers use the same text size and the named block gap
-    And both source rows carry the same left inset and optical nudge
-    And both Reply controls share the card radius and keep their full touch target
-    And neither footer depends on the presence of a generated card
-    And the two footer groups stay on one horizontal centre line
+    Then only the session update has a session Reply
+    And the Reply control shares the card radius
+    And the session footer spacing uses the named block gap
+    And the session source keeps its full touch target
+    And the Pixel theme collapses the whole scale to zero
 
   Scenario: Card text keeps a readable hierarchy and intact pairs
     Given a recommendation message shows advice, a preview summary and attribute chips
