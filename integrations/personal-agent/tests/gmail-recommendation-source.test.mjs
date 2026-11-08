@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { createPrivateMcpObserver } from '../src/private-mcp-observer.mjs'
-import { createGmailRecommendationSource, GMAIL_OBSERVATION_FIELDS } from '../src/gmail-recommendation-source.mjs'
+import { createPrivateMcpObserver } from '../src/recommendations/index.mjs'
+import { createGmailRecommendationSource, GMAIL_OBSERVATION_FIELDS } from '../src/recommendations/index.mjs'
 
 function fixture() {
   let revision = 'a'.repeat(64), account = 'owner@example.invalid', selected = true, supportsPin = true, currentTime = Date.parse('2026-10-25T00:00:00Z')

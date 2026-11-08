@@ -8,6 +8,8 @@
 - `integrations/remote-bridge/` connects the Remote. `research/esp32-p4-c6-deskos/` preserves the previous device OS; it does not define active product requirements.
 - Read @PRODUCT.md for scope. Read @runtime/shell/CONTEXT.md for terms. Read @runtime/shell/docs/ARCHITECTURE.md for an applicable architecture decision.
 - The root provides UnoCSS; it is not a package workspace. Install runtime dependencies with pnpm in `runtime/shell/`.
+- Use `monorepo.json` for project ownership and commands. Read `docs/MONOREPO.md` for repository checks and dependency boundaries.
+- Import the recommendation subsystem through `integrations/personal-agent/src/recommendations/index.mjs`. Keep Pi Durable execution in the resident adapters.
 
 ## Universal Generative UI
 

@@ -1,6 +1,6 @@
 allowBuilds:
   '@google/genai': false
-  '@openuidev/lang-core': set this to true or false
+  '@openuidev/lang-core': false
   esbuild: false
   koffi: false
   protobufjs: false

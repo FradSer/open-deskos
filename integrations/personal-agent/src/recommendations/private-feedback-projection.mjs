@@ -37,7 +37,7 @@ export function privateFeedbackJobSafe(proposal, job) {
 }
 
 /** Recovered private preferences must remain excerpts of the same fixed projection. */
-export function privateFeedbackSignalsSafe(signals, projection) {
+export function privateFeedbackSignalsSafe(signals, projection = abstractReview) {
   return Array.isArray(signals) && signals.length <= 8 && signals.every(signal => typeof signal.subject === 'string' && signal.subject.trim()
     && [projection.advice, projection.nextStep].some(source => source.includes(signal.subject)))
 }

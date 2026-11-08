@@ -1,4 +1,4 @@
-Feature: Explicit personal assistant configuration and private opt-in note memory
+Feature: Personal Agent memory in a private Markdown file and Mem0 OSS
   Scenario: Existing coding setup remains unchanged
     Given ODK_PERSONAL_AGENT_CONFIG is absent
     When configuration is loaded
@@ -20,22 +20,112 @@ Feature: Explicit personal assistant configuration and private opt-in note memor
     When the user says "忘记 language"
     Then that named note can be removed
 
-  Scenario: Memory is bounded private data rather than authorization
-    Given a configured private memory path
-    When explicitly requested notes are persisted
-    Then writes are atomic with directory mode 0700 and file mode 0600 on POSIX hosts
-    And Windows writes use private owner ACLs for new directories and files
-    And existing broad ACLs are rejected without changing their permissions
-    And common credential patterns are rejected by a heuristic sensitive-data check
-    And saved text is treated as untrusted data, never instructions or authorization
-    And files larger than 16 KiB, links and insecure existing files are rejected
-    And conversations are never automatically stored
+  Scenario: Explicit notes use Mem0 OSS
+    Given the operator configured the private Mem0 worker
+    When an owner saves, updates, or forgets a note
+    Then the worker uses native Mem0 operations in that owner's note scope
+    And common credential patterns are rejected before they reach the worker
+    And saved text remains untrusted data
+
+  Scenario: Existing notes migrate once
+    Given a private legacy note file and an empty Mem0 note scope
+    When the first memory operation runs
+    Then it imports the original names and text into Mem0
+    And the legacy file remains available for recovery
+    When the owner forgets an imported note and restarts
+    Then the import does not recreate the forgotten note
+
+  Scenario: Memory failure does not fall back to legacy storage
+    Given the Mem0 worker cannot respond
+    When the owner requests a memory operation
+    Then the operation reports that memory is unavailable
+    And ordinary conversations can still run
 
   Scenario: Reviewed skills do not grant arbitrary filesystem access
     Given a whitelist of reviewed skills
     When skill_read is called
     Then only a listed skill index can be read
     And no model-selected filesystem path is accepted
+
+  Scenario: Current notes supply bounded relevant context
+    Given private notes include unrelated subjects and a corrected named note
+    When an owner asks about that note with different word order
+    Then the current exact note is retrieved with its content revision
+    And automatic note context is limited to 4096 UTF-8 bytes
+    And explicit full reads remain available
+    And forgotten notes are absent from later memory reads and context
+
+  Scenario: Automatic note context exists only in the active model request
+    Given a saved note and a durable Personal Agent conversation
+    When the resident sends the current note to the model
+    Then the note snapshot is absent from the persisted conversation input
+    When the owner forgets the note and restarts the resident
+    Then a request for current saved notes sees only current note state
+    And an earlier injected snapshot cannot supply a forgotten value
+
+  Scenario: Owner Markdown and Mem0 notes supply current context
+    Given the owner keeps a private MEMORY.md in the resident state directory
+    And Mem0 stores a named note for that owner
+    When the owner sends an ordinary request or asks to view current memory
+    Then the model receives the current Markdown and applicable Mem0 notes as separate reference data
+    And only the current request grants permission for a tool action
+    And the resident keeps the Markdown snapshot outside the persisted input
+    And background history extraction receives only the owner text for a conversation that used the snapshot
+    When the owner edits the file
+    Then the next eligible turn receives the edited version
+    And the owner still writes and forgets named notes through Mem0
+
+  Scenario: The two memory sources can fail independently
+    Given the owner Markdown is unavailable or larger than 4096 bytes
+    When the owner sends an ordinary request
+    Then the request can still use applicable Mem0 notes
+    Given a valid owner file and a disabled Mem0 worker
+    When the owner sends an ordinary request
+    Then the request still receives the Markdown
+
+  Scenario: Mem0 extracts and recalls completed conversations
+    Given an eligible completed owner exchange in the resident conversation
+    When the background import reads the durable conversation
+    Then the Mem0 worker extracts facts from the original user and assistant text
+    And it records the observation date and source identity
+    When the owner asks about a past exchange
+    Then the model gets bounded dated Mem0 facts from the current conversation scope
+    And the model checks each requested event and qualifier before using a fact
+    And the history workflow cannot read or change saved notes
+    And past event evidence comes from the current Mem0 history scope
+
+  Scenario: Private data and reset boundaries limit history memory
+    Given retained exchanges include a history question, tool output, or a memory command
+    When the resident imports eligible exchanges
+    Then those turns do not enter the history scope
+    And a reply that used private context is excluded from the imported exchange
+    And a reset selects a new history scope
+    And old history cannot enter a response after reset
+
+  Scenario: Unnamed saves preserve unrelated notes
+    Given the owner has saved an unnamed note
+    When the owner saves another unnamed note with different content
+    Then both notes have distinct names and retain their exact values
+    And naming an existing note still replaces that note
+
+  Scenario: An unrelated request does not receive the complete note map
+    Given the operator selected the names of notes to keep in context
+    When a request does not match any saved note
+    Then the model receives only the selected standing notes that fit the context budget
+    And an unrelated unselected note is absent from the request
+    And the current memory workflow can still read the complete map
+
+  Scenario: Private notes cannot become automatic procedural experience
+    Given an owner turn reads or receives private note context
+    When completion checks pass for another tool in that turn
+    Then private content is absent from separate completion and learning inference
+    And learning can use independently verified host check facts
+    And note tools mark their results as private data
+
+  Scenario: A superseded turn cannot write a note
+    Given a valid current-turn remember command waiting for Mem0
+    When the owner starts a different turn before dispatch
+    Then the earlier command cannot write a note
 
   Scenario: Startup verifies Jev through one public typed request
     Given a new resident service and a private Jev credential

@@ -1,3 +1,5 @@
+import { modelRequest } from './model-privacy.mjs'
+
 /** Every Open DeskOS model request names its client, whatever the host's Pi agent directory holds. */
 export const ODK_CLIENT_NAME = 'Open deskOS'
 
@@ -16,26 +18,29 @@ export function openDeskOSClientHeaders(name = clientName()) {
   return { 'User-Agent': escaped, 'X-Client-Name': escaped }
 }
 
-const REQUEST_METHODS = new Set(['stream', 'streamSimple', 'complete', 'completeSimple', 'classify'])
+const REQUEST_METHODS = new Set(['stream', 'streamSimple', 'complete', 'completeSimple', 'classify', 'generateImages'])
+const clients = new WeakSet()
 
 /**
- * Wrap a ModelRuntime so every request carries the client name. Pi merges
- * request headers last, so this wins without mutating models.json or auth.
- * All other methods keep their original receiver and behavior.
+ * Wrap a ModelRuntime at the provider boundary. Keep identity, auth and
+ * routing independent of the request's private content.
  */
 export function withOpenDeskOSClient(runtime, name = clientName()) {
   if (!runtime || typeof runtime !== 'object') throw Error('a model runtime is required')
+  if (clients.has(runtime)) return runtime
   const headers = openDeskOSClientHeaders(name)
-  return new Proxy(runtime, {
+  const client = new Proxy(runtime, {
     get(target, property, receiver) {
       const value = Reflect.get(target, property, receiver)
       if (typeof value !== 'function') return value
       const bound = value.bind(target)
       if (typeof property !== 'string' || !REQUEST_METHODS.has(property)) return bound
-      return (model, context, options = {}, ...rest) => bound(model, context, {
+      return (model, context, options = {}, ...rest) => modelRequest(property, bound, model, context, {
         ...options,
         headers: { ...(options?.headers ?? {}), ...headers },
-      }, ...rest)
+      }, rest)
     },
   })
+  clients.add(client)
+  return client
 }

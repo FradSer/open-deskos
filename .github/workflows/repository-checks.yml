@@ -1,0 +1,21 @@
+name: Repository governance
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inventory-and-boundaries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Test repository commands with isolated fixtures
+        run: node --test tests/repo-management.test.mjs
+      - name: Check inventory and dependency boundaries
+        run: node tools/repo.mjs check

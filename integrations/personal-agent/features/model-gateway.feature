@@ -16,3 +16,17 @@ Feature: One Open deskOS model gateway
     Given a fresh installation has no gateway headers in its Pi agent directory
     When any Open DeskOS model runtime sends a request
     Then the request carries the Open deskOS client name
+
+  Scenario: Model requests mask recognized private text on the device
+    Given an owner turn, a tool result, and a classifier state contain private values
+    When Pi sends the requests to the configured models
+    Then the model receives placeholders for email addresses, labeled phone numbers, and recognized secrets
+    And a repeated value has the same placeholder within one request
+    And the provider authentication and local conversation are unchanged
+    And a masking failure stops the request before provider dispatch
+
+  Scenario: Streamed placeholders are restored only on the device
+    Given a model returns a placeholder across several text or tool argument chunks
+    When Pi delivers the response to the local caller
+    Then the caller sees the original value without a partial placeholder
+    And an unknown placeholder remains unchanged

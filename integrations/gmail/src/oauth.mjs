@@ -1,11 +1,11 @@
 import { createServer } from 'node:http'
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { spawn } from 'node:child_process'
-import { validateGmailCredentials } from './credentials.mjs'
+import { GMAIL_SCOPE, CALENDAR_EVENTS_READONLY_SCOPE, validateCalendarCredentials, validateGmailCredentials } from './credentials.mjs'
 
-export const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly'
+export const GMAIL_READONLY_SCOPE = GMAIL_SCOPE
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
-class GmailOAuthError extends Error {}
+class GoogleOAuthError extends Error {}
 
 /** Open Google authorization in the operating system browser. */
 export async function openSystemBrowser(url) {
@@ -28,9 +28,10 @@ export function parseDesktopClient(value) {
 }
 
 /** Authorize a desktop account. Tokens stay in the returned private credential object. */
-export async function authorizeGmail({ clientId, clientSecret, openBrowser = openSystemBrowser, fetch: fetchImpl = globalThis.fetch, timeoutMs = 180000 }) {
+async function authorizeGoogle({ clientId, clientSecret, openBrowser = openSystemBrowser, fetch: fetchImpl = globalThis.fetch, timeoutMs = 180000 },
+  { scope, service, validate }) {
   parseDesktopClient({ installed: { client_id: clientId, client_secret: clientSecret } })
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 600000) throw Error('Invalid Gmail authorization timeout.')
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 600000) throw Error(`Invalid ${service} authorization timeout.`)
   const state = randomBytes(32).toString('base64url')
   const verifier = randomBytes(32).toString('base64url')
   const challenge = createHash('sha256').update(verifier).digest('base64url')
@@ -46,13 +47,13 @@ export async function authorizeGmail({ clientId, clientSecret, openBrowser = ope
     const expected = Buffer.from(state)
     if (states.length !== 1 || incoming.length !== expected.length || !timingSafeEqual(incoming, expected)) {
       res.writeHead(400, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }).end('Authorization failed. Return to Open DeskOS.')
-      finish.reject(new GmailOAuthError('Gmail authorization state did not match.'))
+      finish.reject(new GoogleOAuthError(`${service} authorization state did not match.`))
       return
     }
     const codes = url.searchParams.getAll('code')
     if (url.searchParams.has('error') || codes.length !== 1 || !codes[0]) {
       res.writeHead(400, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }).end('Authorization cancelled. Return to Open DeskOS.')
-      finish.reject(new GmailOAuthError('Gmail authorization was denied or invalid.'))
+      finish.reject(new GoogleOAuthError(`${service} authorization was denied or invalid.`))
       return
     }
     res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }).end('Return to Open DeskOS. You can close this browser tab.')
@@ -61,16 +62,16 @@ export async function authorizeGmail({ clientId, clientSecret, openBrowser = ope
   let timer
   try {
     await new Promise((resolve, reject) => {
-      server.once('error', () => reject(Error('Could not start the Gmail authorization listener.')))
+      server.once('error', () => reject(Error(`Could not start the ${service} authorization listener.`)))
       server.listen(0, '127.0.0.1', () => resolve(undefined))
     })
     const address = server.address()
-    if (!address || typeof address === 'string') throw Error('Could not start the Gmail authorization listener.')
+    if (!address || typeof address === 'string') throw Error(`Could not start the ${service} authorization listener.`)
     const redirectUri = `http://127.0.0.1:${address.port}`
-    timer = setTimeout(() => finish.reject(new GmailOAuthError('Gmail authorization timed out.')), timeoutMs)
+    timer = setTimeout(() => finish.reject(new GoogleOAuthError(`${service} authorization timed out.`)), timeoutMs)
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth')
     url.search = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: 'code',
-      scope: GMAIL_READONLY_SCOPE, state, code_challenge: challenge, code_challenge_method: 'S256', prompt: 'consent', access_type: 'offline' }).toString()
+      scope, state, code_challenge: challenge, code_challenge_method: 'S256', prompt: 'consent', access_type: 'offline' }).toString()
     // Race browser startup against the same deadline as the callback.
     await Promise.race([Promise.resolve().then(() => openBrowser(url.href)), callback.then(() => undefined)])
     const code = await callback
@@ -96,21 +97,29 @@ export async function authorizeGmail({ clientId, clientSecret, openBrowser = ope
       } finally { await reader.cancel().catch(() => {}) }
       token = JSON.parse(Buffer.concat(chunks).toString('utf8'))
       if (!token || typeof token !== 'object' || Array.isArray(token)) throw Error('schema')
-    } catch { throw new GmailOAuthError('Gmail token exchange failed. Connect again.') }
+    } catch { throw new GoogleOAuthError(`${service} token exchange failed. Connect again.`) }
     if (typeof token.refresh_token !== 'string' || !token.refresh_token
-      || typeof token.scope !== 'string' || token.scope.trim() !== GMAIL_READONLY_SCOPE) {
-      throw new GmailOAuthError('Gmail authorization did not grant the required read-only refresh token.')
+      || typeof token.scope !== 'string' || token.scope.trim() !== scope) {
+      throw new GoogleOAuthError(`${service} authorization did not grant the required read-only refresh token.`)
     }
-    return validateGmailCredentials({ schemaVersion: 1, clientId, clientSecret, refreshToken: token.refresh_token, scope: GMAIL_READONLY_SCOPE })
+    return validate({ schemaVersion: 1, clientId, clientSecret, refreshToken: token.refresh_token, scope })
   } catch (error) {
     // Never forward browser, transport, or provider error strings that may contain credentials.
-    if (error instanceof GmailOAuthError) throw error
-    throw Error('Gmail authorization failed. Check the system browser and connect again.')
+    if (error instanceof GoogleOAuthError) throw error
+    throw Error(`${service} authorization failed. Check the system browser and connect again.`)
   } finally {
     clearTimeout(timer)
     server.closeAllConnections()
     await new Promise(resolve => server.close(() => resolve(undefined)))
   }
+}
+
+export function authorizeGmail(options) {
+  return authorizeGoogle(options, { scope: GMAIL_READONLY_SCOPE, service: 'Gmail', validate: validateGmailCredentials })
+}
+
+export function authorizeCalendar(options) {
+  return authorizeGoogle(options, { scope: CALENDAR_EVENTS_READONLY_SCOPE, service: 'Google Calendar', validate: validateCalendarCredentials })
 }
 
 /** Revoke the Google grant before removing private credentials. */

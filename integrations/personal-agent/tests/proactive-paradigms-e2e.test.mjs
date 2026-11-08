@@ -3,11 +3,9 @@
 // production pipeline; only the model calls are supplied by this file.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ProactiveWatch } from '../src/proactive.mjs'
-import { createProactiveJudge } from '../src/proactive-qualification.mjs'
-import { createJevJudge } from '../src/proactive-jev.mjs'
-import { validateGeneratedBatch } from '../src/proactive-generation.mjs'
-import { generationSystemPrompt, parseSuggestionDocument, openuiFormatCorrection, OPENUI_EXAMPLE } from '../src/openui-contract.mjs'
+import { ProactiveWatch } from '../src/recommendations/index.mjs'
+import { validateGeneratedBatch } from '../src/recommendations/index.mjs'
+import { generationSystemPrompt, parseSuggestionDocument, openuiFormatCorrection, OPENUI_EXAMPLE } from '../src/recommendations/index.mjs'
 import {
   FULL_TREE_DOCUMENT, FULL_TREE_TYPE_COUNTS, componentNames,
   openuiBatch, openuiSuggestion, uiTypes, uiTypeCounts,
@@ -86,29 +84,20 @@ const generatedFor = topics => {
   return batch
 }
 
-function fixture(judge) {
+function fixture() {
   const frames = []
   const watch = new ProactiveWatch({
     config: config(), now: () => Date.parse(stamp), canExecute: () => true,
     read: async id => ({ id, state: 'live', value: readings[id] }),
     generate: async ({ topics }) => generatedFor(topics),
-    judge, publish: frame => frames.push(frame), save: async () => {}, saveState: () => {},
+    publish: frame => frames.push(frame), save: async () => {}, saveState: () => {},
     execute: async () => 'done', phrase: async ({ advice }) => advice,
   })
   return { watch, frames }
 }
 
-// A judge that answers through the production question builder but replies deterministically,
-// so the assertion never depends on live model availability.
-const deterministic = () => createProactiveJudge({
-  model: () => 'fixture/ordinary-model',
-  generate: async ({ questions }) => ({
-    answers: Object.fromEntries(Object.entries(questions).map(([id, q]) => [
-      id, q.type === 'noul' ? { type: 'noul', noul: 0.95 } : { type: 'choice', choice: Object.keys(q.criteria)[0], confidence: 0.9 },
-    ])),
-  }),
-})
-
+// Generation alone decides which suggestions exist. No classifier or score
+// stands between the returned document and host validation.
 test('the generated contract declares composable primitives and host authority', () => {
   for (const name of ['Heading', 'Text', 'Badge', 'Metric', 'Stack', 'Row', 'OptionSet', 'Option', 'Divider']) {
     assert.match(generationSystemPrompt, new RegExp(`\\b${name}\\b`), name)
@@ -147,12 +136,12 @@ test('the full OpenUI tree survives host validation without a preview projection
   for (const extra of ['Heading', 'Badge', 'Divider']) assert.ok(uiTypes(result.ui).includes(extra))
 })
 
-test('the host does not validate the OpenUI-owned UI shape', () => {
+test('the host refuses an alien root that cannot carry the approved action contract', () => {
   const topics = [{ id: 'commute-anomaly', actions: [action], evidence: [{ id: 'e0' }] }]
   const base = openuiSuggestion({ topicId: 'commute-anomaly', key: 'primary', advice: '通勤明显慢于常态。', actionId: action.id, evidenceIds: ['e0'] })
   const alien = { type: 'ComposablePrimitive', props: { value: 'openui-owned' } }
-  const [result] = validateGeneratedBatch({ suggestions: [{ ...base, ui: alien }] }, topics, 8)
-  assert.deepEqual(result.ui, alien)
+  assert.throws(() => validateGeneratedBatch({ suggestions: [{ ...base, ui: alien }] }, topics, 8),
+    /Invalid OpenUI document: a Suggestions child must be Suggestion/)
   assert.throws(() => parseSuggestionDocument('root = Unknown([])'), /Invalid OpenUI document/)
 })
 
@@ -166,21 +155,15 @@ test('the OpenUI correction reuses the generated contract', () => {
   assert.match(generationSystemPrompt, /Only the host binds approved actions/)
 })
 
-test('an OpenUI candidate is judged by usefulness without a style gate', async () => {
-  let questions
-  const judge = createProactiveJudge({ model: () => 'fixture/ordinary-model', generate: async ({ questions: asked }) => {
-    questions = asked
-    return { answers: Object.fromEntries(Object.keys(asked).map(id => [id, { type: 'noul', noul: 0.95 }])) }
-  } })
+test('an OpenUI candidate publishes without a judgment gate', async () => {
   const watch = new ProactiveWatch({
     config: { ...config(), rules: [structuredClone(rules[0])] }, now: () => Date.parse(stamp), canExecute: () => true,
     read: async id => ({ id, state: 'live', value: readings[id] }),
     generate: async () => openuiBatch([{ topicId: 'commute-anomaly', key: 'primary', advice: '通勤明显慢于常态。', actionId: action.id, evidenceIds: ['e0'] }]),
-    judge, publish: () => {}, save: async () => {}, saveState: () => {}, execute: async () => 'done', phrase: async ({ advice }) => advice,
+    publish: () => {}, save: async () => {}, saveState: () => {}, execute: async () => 'done', phrase: async ({ advice }) => advice,
   })
   await watch.tick()
-  assert.deepEqual(Object.keys(questions), ['c0'], 'exactly one narrow usefulness question')
-  assert.equal(watch.list().filter(p => p.status === 'pending').length, 1, 'a supported candidate publishes on its batch verdict')
+  assert.equal(watch.list().filter(p => p.status === 'pending').length, 1, 'a supported candidate publishes without a judgment')
   assert.ok(uiTypes(watch.list()[0].ui).includes('Badge'))
   await watch.close()
 })
@@ -194,7 +177,7 @@ test('a full OpenUI tree publishes on the two host gates', async () => {
       generated = openuiBatch([{ topicId: 'commute-anomaly', key: 'primary', advice: '通勤与常态一致。', actionId: action.id, evidenceIds: topics[0].evidence.map(entry => entry.id) }])
       return generated
     },
-    judge: deterministic(), publish: () => {}, save: async () => {}, saveState: () => {}, execute: async () => 'done', phrase: async ({ advice }) => advice,
+    publish: () => {}, save: async () => {}, saveState: () => {}, execute: async () => 'done', phrase: async ({ advice }) => advice,
   })
   await watch.tick()
   const proposals = watch.list().filter(p => p.status === 'pending')
@@ -203,8 +186,8 @@ test('a full OpenUI tree publishes on the two host gates', async () => {
   await watch.close()
 })
 
-test('all four paradigms reach a proposal through generation, validation, and judgment', async () => {
-  const f = fixture(deterministic())
+test('all four paradigms reach a proposal through generation and validation', async () => {
+  const f = fixture()
   await f.watch.tick()
   const pending = f.watch.list().filter(p => p.status === 'pending')
   assert.equal(pending.length, 4, 'each paradigm creates one proposal')
@@ -215,8 +198,7 @@ test('all four paradigms reach a proposal through generation, validation, and ju
     assert.deepEqual(proposal.ui, shape.ui, `${proposal.ruleId}: the full OpenUI tree survives the pipeline`)
     assert.ok(new Set(uiTypes(proposal.ui)).size >= 6, `${proposal.ruleId}: composable primitives survive`)
     assert.equal(Object.hasOwn(proposal, 'preview'), false)
-    assert.equal(proposal.judgment.model, 'fixture/ordinary-model')
-    assert.ok(proposal.judgment.probability >= proposal.judgment.threshold)
+    assert.equal(Object.hasOwn(proposal, 'judgment'), false)
     assert.equal(proposal.action.tool, action.tool)
   }
   const frame = f.frames.at(-1)
@@ -226,7 +208,7 @@ test('all four paradigms reach a proposal through generation, validation, and ju
 })
 
 test('the OpenUI tree survives an evidence refresh', async () => {
-  const f = fixture(deterministic())
+  const f = fixture()
   await f.watch.tick()
   const first = f.watch.list().find(p => p.ruleId === 'commute-anomaly')
   const firstUi = structuredClone(first.ui)
@@ -244,51 +226,11 @@ test('an unparsable OpenUI document fails closed without publishing', async () =
     config: { ...config(), rules: [structuredClone(rules[0])] }, now: () => Date.parse(stamp), canExecute: () => true,
     read: async id => ({ id, state: 'live', value: readings[id] }),
     generate: async () => parseSuggestionDocument('root = Unknown([])'),
-    judge: deterministic(), publish: frame => frames.push(frame), save: async () => {}, saveState: () => {},
+    publish: frame => frames.push(frame), save: async () => {}, saveState: () => {},
     execute: async () => 'done', phrase: async ({ advice }) => advice,
   })
   await watch.tick()
   assert.equal(watch.list().length, 0, 'an invalid OpenUI document blocks publication')
   assert.match(frames.at(-1).error, /生成|generation/i)
   await watch.close()
-})
-
-// Opt in with ODK_LIVE_JEV_E2E=1 to exercise the real Jev service instead of the
-// deterministic responder. It spends real classifier calls and its verdicts vary.
-test('live Jev judges the four paradigms', { skip: process.env.ODK_LIVE_JEV_E2E !== '1', timeout: 180000 }, async () => {
-  const seen = []
-  const live = createJevJudge({ env: process.env })
-  const recording = async input => {
-    const result = await live(input)
-    for (const candidate of input.candidates) seen.push({ ruleId: candidate.ruleId, ...result.answers[candidate.id], model: result.model })
-    return result
-  }
-  const f = fixture(recording)
-  await f.watch.tick()
-  assert.equal(seen.length, 4, 'Jev judged every paradigm')
-  for (const row of seen) {
-    assert.ok(Number.isFinite(row.probability) && row.probability >= 0 && row.probability <= 1, `${row.ruleId}: probability`)
-    assert.ok(Number.isFinite(row.groundingProbability) && row.groundingProbability >= 0 && row.groundingProbability <= 1, `${row.ruleId}: grounding`)
-    assert.match(row.model, /^jev-/)
-  }
-  for (const proposal of f.watch.list().filter(p => p.status === 'pending')) {
-    assert.ok(proposal.ui, `${proposal.ruleId}: a qualified proposal keeps its OpenUI tree`)
-    assert.deepEqual(proposal.ui, paradigm[proposal.ruleId].ui)
-    assert.ok(proposal.judgment.probability >= proposal.judgment.threshold)
-    assert.ok(proposal.judgment.groundingProbability >= proposal.judgment.threshold)
-  }
-  console.log('LIVE_JEV_VERDICTS', JSON.stringify(seen.map(r => [r.ruleId, r.probability, r.groundingProbability, r.threshold])))
-  await f.watch.close()
-
-  const alone = fixture(live)
-  alone.watch.config.rules = alone.watch.config.rules.filter(rule => rule.id === 'commute-anomaly')
-  await alone.watch.tick()
-  const soloProposal = alone.watch.list()[0]
-  if (soloProposal?.status === 'pending') {
-    assert.ok(soloProposal.ui, 'a solo paradigm keeps its OpenUI tree')
-    assert.deepEqual(soloProposal.ui, paradigm[soloProposal.ruleId].ui)
-  }
-  console.log(soloProposal?.status === 'pending' ? 'LIVE_JEV_SOLO_QUALIFIED' : 'LIVE_JEV_SOLO_REJECTED',
-    JSON.stringify(soloProposal?.judgment ?? null))
-  await alone.watch.close()
 })

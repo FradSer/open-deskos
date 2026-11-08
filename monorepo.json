@@ -1,0 +1,487 @@
+{
+  "schemaVersion": 1,
+  "projects": [
+    {
+      "id": "repo",
+      "root": ".",
+      "kind": "node",
+      "owner": "tool",
+      "commands": {
+        "test": {
+          "argv": [
+            "node",
+            "--test",
+            "tests/repo-management.test.mjs"
+          ],
+          "mode": "check"
+        },
+        "check": {
+          "argv": [
+            "node",
+            "tools/repo.mjs",
+            "check"
+          ],
+          "mode": "check"
+        }
+      },
+      "packageName": "@odk/repository",
+      "lockfile": "pnpm-lock.yaml"
+    },
+    {
+      "id": "shell",
+      "root": "runtime/shell",
+      "kind": "node",
+      "owner": "shell",
+      "commands": {
+        "test": {
+          "argv": [
+            "pnpm",
+            "--config.verify-deps-before-run=false",
+            "test"
+          ],
+          "mode": "check"
+        },
+        "fast": {
+          "argv": [
+            "pnpm",
+            "--config.verify-deps-before-run=false",
+            "test:fast"
+          ],
+          "mode": "check"
+        },
+        "acceptance": {
+          "argv": [
+            "pnpm",
+            "--config.verify-deps-before-run=false",
+            "test:acceptance"
+          ],
+          "mode": "check"
+        },
+        "styles": {
+          "argv": [
+            "pnpm",
+            "--config.verify-deps-before-run=false",
+            "styles"
+          ],
+          "mode": "check"
+        }
+      },
+      "packageName": "@odk/shell",
+      "lockfile": "pnpm-lock.yaml",
+      "dependsOn": [
+        "personal-agent",
+        "remote-bridge",
+        "futu-poller",
+        "service-runtime"
+      ]
+    },
+    {
+      "id": "personal-agent",
+      "root": "integrations/personal-agent",
+      "kind": "node",
+      "owner": "link",
+      "commands": {
+        "test": {
+          "argv": [
+            "pnpm",
+            "--config.verify-deps-before-run=false",
+            "test"
+          ],
+          "mode": "check"
+        },
+        "typecheck": {
+          "argv": [
+            "pnpm",
+            "--config.verify-deps-before-run=false",
+            "typecheck"
+          ],
+          "mode": "check"
+        }
+      },
+      "packageName": "@odk/personal-agent",
+      "lockfile": "pnpm-lock.yaml",
+      "dependsOn": [
+        "recommendations",
+        "gmail"
+      ]
+    },
+    {
+      "id": "gmail",
+      "root": "integrations/gmail",
+      "kind": "node",
+      "owner": "link",
+      "commands": {
+        "test": {
+          "argv": [
+            "pnpm",
+            "--config.verify-deps-before-run=false",
+            "test"
+          ],
+          "mode": "check"
+        },
+        "typecheck": {
+          "argv": [
+            "pnpm",
+            "--config.verify-deps-before-run=false",
+            "typecheck"
+          ],
+          "mode": "check"
+        }
+      },
+      "packageName": "@odk/gmail-plugin",
+      "lockfile": "pnpm-lock.yaml",
+      "dependsOn": []
+    },
+    {
+      "id": "xfce-agent",
+      "root": "integrations/xfce-agent",
+      "kind": "node",
+      "owner": "link",
+      "commands": {
+        "test": {
+          "argv": [
+            "pnpm",
+            "--config.verify-deps-before-run=false",
+            "test"
+          ],
+          "mode": "check"
+        },
+        "guest-test": {
+          "argv": [
+            "uv",
+            "run",
+            "--offline",
+            "--no-sync",
+            "python",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "guest",
+            "-p",
+            "test_*.py"
+          ],
+          "mode": "check"
+        }
+      },
+      "packageName": "@odk/xfce-agent",
+      "lockfile": "pnpm-lock.yaml",
+      "dependsOn": []
+    },
+    {
+      "id": "recommendations",
+      "root": "integrations/personal-agent/src/recommendations",
+      "kind": "subsystem",
+      "owner": "link",
+      "commands": {
+        "test": {
+          "argv": [
+            "pnpm",
+            "--config.verify-deps-before-run=false",
+            "--dir",
+            "../..",
+            "run",
+            "test:recommendations"
+          ],
+          "mode": "check"
+        },
+        "typecheck": {
+          "argv": [
+            "pnpm",
+            "--config.verify-deps-before-run=false",
+            "--dir",
+            "../..",
+            "run",
+            "typecheck:recommendations"
+          ],
+          "mode": "check"
+        }
+      },
+      "installRoot": "integrations/personal-agent"
+    },
+    {
+      "id": "service-runtime",
+      "root": "integrations/service-runtime",
+      "kind": "python",
+      "owner": "link",
+      "commands": {
+        "test": {
+          "argv": [
+            "uv",
+            "run",
+            "--offline",
+            "--no-sync",
+            "python",
+            "-m",
+            "pytest",
+            "tests"
+          ],
+          "mode": "check"
+        }
+      },
+      "lockfile": "uv.lock"
+    },
+    {
+      "id": "futu-poller",
+      "root": "integrations/futu-poller",
+      "kind": "python",
+      "owner": "link",
+      "commands": {
+        "test": {
+          "argv": [
+            "uv",
+            "run",
+            "--offline",
+            "--no-sync",
+            "python",
+            "-m",
+            "pytest",
+            "tests"
+          ],
+          "mode": "check"
+        }
+      },
+      "lockfile": "uv.lock"
+    },
+    {
+      "id": "remote-bridge",
+      "root": "integrations/remote-bridge",
+      "kind": "node-scripts",
+      "owner": "link",
+      "commands": {
+        "test": {
+          "argv": [
+            "node",
+            "--test",
+            "test"
+          ],
+          "mode": "check"
+        }
+      }
+    },
+    {
+      "id": "local-stt-bridge",
+      "root": "integrations/local-stt-bridge",
+      "kind": "shell-scripts",
+      "owner": "link",
+      "commands": {
+        "test": {
+          "argv": [
+            "bash",
+            "tests/test-port-validation.sh"
+          ],
+          "mode": "check"
+        }
+      }
+    },
+    {
+      "id": "android",
+      "root": "runtime/android",
+      "kind": "android",
+      "owner": "shell",
+      "commands": {
+        "build": {
+          "argv": [
+            "./gradlew",
+            "assembleDebug"
+          ],
+          "mode": "manual",
+          "reason": "Requires a provisioned Android SDK and Gradle dependencies; may access the network."
+        }
+      },
+      "dependsOn": [
+        "shell"
+      ]
+    },
+    {
+      "id": "esp32-s3-remote",
+      "root": "peripherals/esp32-s3-remote",
+      "kind": "peripheral",
+      "owner": "hw",
+      "commands": {
+        "test": {
+          "argv": [
+            "uv",
+            "run",
+            "--offline",
+            "--no-sync",
+            "python",
+            "-m",
+            "pytest",
+            "tests"
+          ],
+          "mode": "check"
+        },
+        "build": {
+          "argv": [
+            "idf.py",
+            "build"
+          ],
+          "mode": "manual",
+          "reason": "Requires the documented firmware toolchain and private build configuration; no flashing is authorized."
+        }
+      }
+    },
+    {
+      "id": "esp32-p4-camera",
+      "root": "peripherals/esp32-p4-camera",
+      "kind": "peripheral",
+      "owner": "hw",
+      "commands": {
+        "test": {
+          "argv": [
+            "uv",
+            "run",
+            "--offline",
+            "--no-sync",
+            "python",
+            "-m",
+            "pytest",
+            "tests"
+          ],
+          "mode": "check"
+        },
+        "build": {
+          "argv": [
+            "idf.py",
+            "build"
+          ],
+          "mode": "manual",
+          "reason": "Requires the documented firmware toolchain and private build configuration; no flashing is authorized."
+        }
+      }
+    },
+    {
+      "id": "common",
+      "root": "peripherals/common",
+      "kind": "peripheral",
+      "owner": "hw",
+      "commands": {
+        "test": {
+          "argv": [
+            "uv",
+            "run",
+            "--offline",
+            "--no-sync",
+            "python",
+            "-m",
+            "pytest",
+            "tests"
+          ],
+          "mode": "check"
+        }
+      }
+    },
+    {
+      "id": "hydra",
+      "root": "peripherals/hydra",
+      "kind": "peripheral",
+      "owner": "hw",
+      "commands": {
+        "test": {
+          "argv": [
+            "uv",
+            "run",
+            "--offline",
+            "--no-sync",
+            "python",
+            "-m",
+            "pytest",
+            "tools/tests"
+          ],
+          "mode": "check"
+        },
+        "build": {
+          "argv": [
+            "pio",
+            "run"
+          ],
+          "mode": "manual",
+          "reason": "Requires the documented firmware toolchain and private build configuration; no flashing is authorized."
+        }
+      }
+    },
+    {
+      "id": "esp32-c6-gateway",
+      "root": "peripherals/esp32-c6-gateway",
+      "kind": "peripheral",
+      "owner": "hw",
+      "commands": {
+        "build": {
+          "argv": [
+            "idf.py",
+            "build"
+          ],
+          "mode": "manual",
+          "reason": "Requires the documented ESP-IDF toolchain; no device operations are authorized."
+        }
+      }
+    },
+    {
+      "id": "device-tools",
+      "root": "peripherals/esp32-c6-gateway/tools",
+      "kind": "python",
+      "owner": "hw",
+      "commands": {
+        "check-device": {
+          "argv": [
+            "uv",
+            "run",
+            "python",
+            "check-device.py"
+          ],
+          "mode": "manual",
+          "reason": "Requires an explicitly authorized physical device check."
+        }
+      },
+      "lockfile": "uv.lock"
+    }
+  ],
+  "boundaries": {
+    "recommendations": {
+      "root": "integrations/personal-agent/src/recommendations",
+      "entry": "index.mjs",
+      "reviewedPeers": [
+        "../proactive-private.mjs",
+        "../judgment-client.mjs",
+        "../didi/preview.mjs",
+        "../agent-catalog/mcp.mjs",
+        "../agent-catalog/catalog.mjs"
+      ],
+      "allowedPackages": [
+        "@openuidev/lang-core",
+        "yaml",
+        "zod"
+      ]
+    },
+    "rendererRoots": [
+      "runtime/shell/src/renderer"
+    ],
+    "backendRoots": [
+      "integrations/personal-agent/src",
+      "integrations/gmail/src",
+      "integrations/service-runtime",
+      "integrations/futu-poller"
+    ],
+    "backendPackages": [
+      "@odk/personal-agent",
+      "@odk/gmail-plugin"
+    ],
+    "recordedDynamicLoaders": [
+      {
+        "file": "integrations/personal-agent/src/plugin-composition.mjs",
+        "function": "loadShellModule",
+        "targets": [
+          "plugin-host.js",
+          "plugin-runtime-report.js",
+          "plugin-config.js",
+          "plugin-control.js",
+          "odk-data-control.js",
+          "platform/index.js"
+        ],
+        "reason": "Shared Shell kernel; checkout and flattened release layouts.",
+        "enforcement": "manual-review-only"
+      }
+    ]
+  }
+}

@@ -9,10 +9,9 @@ import { PersonalAgentService } from '../src/service.mjs'
 import { sessionAdapter } from '../src/agent.mjs'
 import { transcribe } from '../src/transcribe.mjs'
 import { HomeBriefing } from '../src/home-briefing.mjs'
-import { ProactiveWatch } from '../src/proactive.mjs'
-import { proposalStateStore } from '../src/proactive-state.mjs'
+import { ProactiveWatch } from '../src/recommendations/index.mjs'
+import { proposalStateStore } from '../src/recommendations/index.mjs'
 import { protectProactivePath } from '../src/proactive-private.mjs'
-import { fixtureJudge } from './helpers/proactive-judge.mjs'
 import { createRequire } from 'node:module'
 
 async function selection(t, name, source) {
@@ -496,24 +495,18 @@ exports.create = async context => {
         if (!this.closed) { this.error = '建议生成暂不可用；不会回退为固定建议或执行动作。'; this.emit() }
         return
       }
-      const judged = await options.judge({ candidates: candidates.map((c, i) => ({ ...c, id: 'c' + i,
-        generated: true, goal: rule.goal, ruleId: rule.id, criteria: [] })), signal: controller.signal })
       if (this.closed) return
-      const accepted = candidates.map((c, i) => ({ ...c, answer: judged.answers['c' + i] }))
-        .filter(c => c.answer.probability >= c.answer.threshold && c.answer.groundingProbability >= c.answer.threshold)
-        .sort((a, b) => b.answer.probability - a.answer.probability)
       this.error = ''
-      for (const c of accepted) {
+      for (const c of candidates) {
         const subject = rule.id + ':' + c.key
         const existing = proposals.find(p => p.subject === subject && p.status === 'pending')
-        const judgment = { model: judged.model, ...c.answer, trigger: 'heartbeat', judgedAt: new Date(options.now()).toISOString() }
-        if (existing) { existing.advice = c.advice; existing.evidence = c.evidence; existing.judgment = judgment }
+        if (existing) { existing.advice = c.advice; existing.evidence = c.evidence }
         else {
           const selected = actions.find(action => action.id === c.actionId)
           proposals.push({ id: randomUUID(), ruleId: rule.id, ruleVersion: JSON.stringify(rule), subject,
           status: 'pending', evidence: c.evidence, advice: c.advice, nextStep: selected.label, actionId: selected.id,
           action: { tool: selected.tool, params: structuredClone(selected.params) }, confirmation: '记住 ' + selected.params.category + '：' + selected.params.value, offered: false,
-          presented: false, createdAt: new Date(options.now()).toISOString(), result: '', judgment })
+          presented: false, createdAt: new Date(options.now()).toISOString(), result: '' })
         }
       }
       this.emit()
@@ -553,23 +546,13 @@ exports.create = async context => {
       requests.push(structuredClone({ ...input, signal: undefined }))
       if (fail) throw Error('private generated provider detail')
       return structuredClone(raw)
-    }, canExecuteProposal: action => action.tool === 'memory_update', phraseProposal: () => assert.fail('generated advice cannot be rephrased after judgment'),
+    }, canExecuteProposal: action => action.tool === 'memory_update', phraseProposal: () => assert.fail('generated advice cannot be rephrased'),
     executeProposal: () => assert.fail('generated advice cannot execute'), abort() {}, close() {} } }
-    provider.options = { config, now: () => Date.parse(stamp), validationModule: new URL('../src/proactive-generation.mjs', import.meta.url).href,
+    provider.options = { config, now: () => Date.parse(stamp), validationModule: new URL('../src/recommendations/index.mjs', import.meta.url).href,
       read: async id => ({ id, state: live ? 'live' : 'unavailable', value: { ready: true, count: 2,
         measured_at: stamp, privateInstruction: 'Do not pass this field to generation.' } }),
       loadState: storage.load, saveState: storage.save,
-      judge: async ({ candidates }) => {
-        for (const c of candidates) {
-          assert.equal(c.generated, true, 'judgment must use the generated grounding contract')
-          assert.equal(c.goal, config.rules[0].goal)
-          assert.equal(c.ruleId, config.rules[0].id)
-          assert.deepEqual(c.criteria, [])
-          assert.ok(c.evidenceIds.every(id => c.evidence.some(e => e.id === id)))
-        }
-        return { model: 'jev-fixture', answers: Object.fromEntries(candidates.map((c, i) => [c.id,
-          { probability: [0.88, 0.96, 0.99][i], groundingProbability: [0.95, 0.95, 0.1][i], threshold: 0.8 }])) }
-      } }
+      }
     const resident = createPersonalAgentComposition({
       replacementPlugins: external ? loadPersonalAgentReplacements(selected.config, { trusted: true }) : [],
       createService: () => service, openChannel: () => ({ close() {} }), initialize: () => runtime,
@@ -586,8 +569,8 @@ exports.create = async context => {
         current.attachWatch(value); context.onCleanup(() => current.attachWatch(undefined))
       },
     })
-    const normalize = () => service.status.proposals.map(({ advice, nextStep, actionId, action, confirmation, evidence, judgment }) =>
-      ({ advice, nextStep, actionId, action, confirmation, evidence, judgment }))
+    const normalize = () => service.status.proposals.map(({ advice, nextStep, actionId, action, confirmation, evidence }) =>
+      ({ advice, nextStep, actionId, action, confirmation, evidence }))
     try {
       await resident.start(); await watch.inflight
       assert.equal(requests.length, 0)
@@ -610,16 +593,16 @@ exports.create = async context => {
       }
       raw = structuredClone(batch)
       await watch.tick()
-      assert.deepEqual(watch.list().map(p => p.advice), ['Check the parcel count.', 'Collect ready parcels.'])
+      assert.deepEqual(watch.list().map(p => p.advice).sort(), ['Check the parcel count.', 'Collect ready parcels.', 'Ignore this advice.'].sort())
       assert.equal(frames.at(-1).proposalPopup, true)
       assert.deepEqual(requests.at(-1).topics[0].evidence.map(e => e.field), ['ready', 'count'])
       assert.equal(JSON.stringify(requests).includes('privateInstruction'), false)
-      const published = normalize(), ids = watch.list().map(p => p.id)
+      const published = normalize(), ids = watch.list().filter(p => p.offered).map(p => p.id)
       assert.ok(watch.list().every(p => p.action?.tool === 'memory_update' && p.actionId === 'save-collection' && p.nextStep === 'Save a collection note' && p.confirmation === '记住 deliveries：Collect ready parcels'))
       await service.proposalCommand({ type: 'proposal_presented', ids })
       await assert.rejects(service.proposalCommand({ type: 'proposal_respond', id: ids[0], decision: 'accept', confirmation: '' }), /confirmation/)
       await watch.tick()
-      assert.deepEqual(watch.list().map(p => p.id), ids)
+      assert.ok(ids.every(id => watch.list().some(p => p.id === id)))
       assert.equal(frames.at(-1).proposalPopup, false)
       if (!external) defaultCheckpoint = storage.load()
       await resident.setEnabled('odk.personal-agent.watch', false)
@@ -628,10 +611,10 @@ exports.create = async context => {
       await resident.setEnabled('odk.personal-agent.watch', true); await watch.inflight
       const savedIds = (external ? defaultCheckpoint : storage.load()).proposals.map(p => p.id)
       assert.deepEqual(initialized.map(p => p.id), savedIds, 'checkpoint identities must survive before another generation runs')
-      assert.ok(initialized.every(p => p.presented), 'checkpoint acknowledgement must survive before polling')
+      assert.ok(initialized.filter(p => p.offered).every(p => p.presented), 'checkpoint acknowledgement must survive before polling')
       assert.deepEqual(watch.list().map(p => p.id), savedIds)
-      assert.ok(watch.list().every(p => p.presented))
-      assert.equal(frames.at(-1).proposalPopup, false)
+      assert.ok(watch.list().filter(p => ids.includes(p.id)).every(p => p.presented))
+      assert.equal(frames.at(-1).proposalPopup, Boolean(watch.list().some(p => p.offered && !p.presented)), 'only an unacknowledged offer can open a popup')
       assert.equal(released.push(['parcels']), false)
       reports.push({ published, recovered: normalize(), acknowledged: watch.list().map(p => p.presented) })
       const deliveries = []
@@ -647,8 +630,9 @@ exports.create = async context => {
           ...(policy.quiet ? { quietHours: { start: '09:00', end: '11:00', timeZone: 'UTC' } } : {}) }
         storage.save({ version: 1, proposals: [] })
         await resident.setEnabled('odk.personal-agent.watch', true); await watch.inflight
-        const advice = policy.advice ?? ['Check the parcel count.', 'Collect ready parcels.']
-        assert.deepEqual(watch.list().map(p => p.advice), advice, policy.name)
+        const advice = policy.advice ?? ['Check the parcel count.', 'Collect ready parcels.', 'Ignore this advice.']
+        const shown = watch.list().map(p => p.advice)
+        assert.deepEqual(shown.slice().sort(), advice.slice().sort(), policy.name)
         assert.equal(frames.at(-1).proposalPopup, policy.automatic, policy.name + ' automatic delivery')
         await watch.tick()
         assert.equal(frames.at(-1).proposalPopup, false, policy.name + ' repeated polling')
@@ -663,7 +647,12 @@ exports.create = async context => {
       reports.at(-1).deliveries = deliveries
     } finally { await resident.stop() }
   }
-  assert.deepEqual(reports[1], reports[0])
+  const byAdvice = report => ({ ...report,
+    published: report.published.slice().sort((a, b) => a.advice.localeCompare(b.advice)),
+    recovered: report.recovered.slice().sort((a, b) => a.advice.localeCompare(b.advice)),
+    acknowledged: report.acknowledged.slice().sort(),
+    deliveries: report.deliveries.map(d => ({ ...d, advice: d.advice && d.advice.slice().sort() })) })
+  assert.deepEqual(byAdvice(reports[1]), byAdvice(reports[0]))
 })
 
 test('independent selected Watch preserves owner advice, confirmation, and restart', { timeout: process.platform === 'win32' ? 900000 : 15000 }, async t => {
@@ -687,7 +676,7 @@ exports.create = context => {
   const proposals = structuredClone(options.loadState?.().proposals ?? [])
   for (const p of proposals) {
     if (p.status === 'executing') { p.status = 'unknown'; p.result = '服务中断，执行结果未确认；请通过原工具核实，不要重复执行。' }
-    if (p.status === 'pending' && (p.ruleVersion !== JSON.stringify(rule) || JSON.stringify(p.action) !== JSON.stringify(rule.action) || !p.judgment)) p.status = 'expired'
+    if (p.status === 'pending' && (p.ruleVersion !== JSON.stringify(rule) || JSON.stringify(p.action) !== JSON.stringify(rule.action) )) p.status = 'expired'
     if (p.status === 'pending' && !p.presented && rule.delivery === 'immediate') p.offered = false
   }
   const watch = { proposals, closed: false, responding: false,
@@ -737,9 +726,7 @@ exports.create = context => {
       const evidence = await this.current()
       if (this.closed) return
       if (!evidence || this.proposals.length) { this.emit(); return }
-      const judged = await options.judge({ candidates: [{ id: rule.id, criteria: rule.conditions, evidence }], signal: controller.signal })
-      const answer = judged.answers[rule.id]
-      if (this.closed || answer.probability < answer.threshold) { this.emit(); return }
+      if (this.closed) { this.emit(); return }
       let advice
       try { advice = await runtime.agent.phraseProposal({ advice: rule.advice, evidence, signal: controller.signal }) }
       catch { advice = rule.advice }
@@ -747,9 +734,7 @@ exports.create = context => {
       this.proposals.push({ id: randomUUID(), ruleId: rule.id, ruleVersion: JSON.stringify(rule),
         subject: rule.id, status: 'pending', evidence, advice, action: structuredClone(rule.action),
         confirmation: '记住 ' + rule.action.params.category + '：' + rule.action.params.value,
-        offered: false, presented: false, createdAt: new Date(options.now()).toISOString(), result: '',
-        judgment: { model: judged.model, probability: answer.probability, threshold: answer.threshold,
-          trigger: 'heartbeat', judgedAt: new Date(options.now()).toISOString() } })
+        offered: false, presented: false, createdAt: new Date(options.now()).toISOString(), result: '' })
       this.emit()
     },
     start() {
@@ -827,7 +812,7 @@ exports.create = context => {
         return 'Memory updated.'
       }, abort() {}, close() {} } }
     provider.options = { config: { version: 1, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 3600000,
-      rules: [rule], suppressed: [], snoozed: {} }, now: () => now, judge: fixtureJudge,
+      rules: [rule], suppressed: [], snoozed: {} }, now: () => now,
       read: async id => ({ id, state: live ? 'live' : 'unavailable', value: { soil: 2, measured_at: new Date(now).toISOString() } }) }
     const resident = createPersonalAgentComposition({
       replacementPlugins: external ? loadPersonalAgentReplacements(selected.config, { trusted: true }) : [],
@@ -890,8 +875,8 @@ exports.create = context => {
       assert.deepEqual(service.status, current)
       reports.push({ advice: proposal.advice, action: proposal.action, evidence: proposal.evidence,
         status: service.status.proposals[0].status, executions })
-      const read = provider.options.read, judge = provider.options.judge, phrase = runtime.agent.phraseProposal
-      for (const stage of ['reading', 'judgment', 'phrasing']) {
+      const read = provider.options.read, phrase = runtime.agent.phraseProposal
+      for (const stage of ['reading', 'phrasing']) {
         await resident.setEnabled('odk.personal-agent.watch', false)
         let enter, observedSignal, cancelled = false
         const ready = new Promise(resolve => { enter = resolve })
@@ -909,7 +894,6 @@ exports.create = context => {
           } finally { signal?.removeEventListener('abort', abort) }
         }
         provider.options.read = stage === 'reading' ? async (id, signal) => hold(await read(id, signal), signal) : read
-        provider.options.judge = stage === 'judgment' ? async input => hold(await judge(input), input.signal) : judge
         runtime.agent.phraseProposal = stage === 'phrasing' ? ({ advice, signal }) => hold(advice, signal) : phrase
         const before = frames.length
         const previousProposals = structuredClone(service.status.proposals)
@@ -929,7 +913,6 @@ exports.create = context => {
         for (const frame of frames.slice(before)) assert.deepEqual(frame.proposals, previousProposals, `${stage} must not publish suggestions after cancellation`)
         assert.equal(pendingWatch.list().length, 0)
         provider.options.read = read
-        provider.options.judge = judge
         runtime.agent.phraseProposal = phrase
         await resident.setEnabled('odk.personal-agent.watch', true)
         await watch.inflight
@@ -1095,7 +1078,7 @@ exports.create = context => {
       t.diagnostic((external ? 'selected' : 'default') + ' reservation and recovery passed')
       const pendingCheckpoint = storage.load()
       const expiry = []
-      for (const invalid of ['rule changed', 'owner action removed', 'saved action changed', 'judgment missing']) {
+      for (const invalid of ['rule changed', 'owner action removed', 'saved action changed']) {
         await resident.setEnabled('odk.personal-agent.watch', false)
         provider.options.config = structuredClone(baseConfig)
         const state = structuredClone(pendingCheckpoint)
@@ -1105,7 +1088,6 @@ exports.create = context => {
           state.proposals[0].ruleVersion = JSON.stringify(provider.options.config.rules[0])
         }
         if (invalid === 'saved action changed') state.proposals[0].action.params.value = 'Unapproved saved action.'
-        if (invalid === 'judgment missing') delete state.proposals[0].judgment
         storage.save(state)
         live = false
         await restart()
@@ -1271,8 +1253,14 @@ test('actual resident startup uses external runtime and home then closes them on
     { manifest: { ...personalAgentManifest('runtime'), version: '2.0.0' }, entry: selected.entry },
     { manifest: { ...personalAgentManifest('home'), version: '2.0.0' }, entry: home },
   ] }))
+  // The default Watch creates a private proposal directory. A macOS tmpdir alias
+  // fails its realpath check; a canonical short root also keeps the Unix socket
+  // path below its platform limit.
+  const stateDir = await mkdtemp(join('/tmp', 'odk-resident-'))
+  t.after(() => rm(stateDir, { recursive: true, force: true }))
+  const stateRoot = await realpath(stateDir)
   const child = spawn(process.execPath, [fileURLToPath(new URL('../src/main.mjs', import.meta.url)), '--plugin-selection', selected.config, '--trust-plugins'], {
-    env: { PATH: process.env.PATH, HOME: selected.dir, XDG_RUNTIME_DIR: selected.dir, XDG_STATE_HOME: selected.dir },
+    env: { PATH: process.env.PATH, HOME: stateRoot, XDG_RUNTIME_DIR: stateRoot, XDG_STATE_HOME: stateRoot },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL') })

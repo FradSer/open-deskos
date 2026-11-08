@@ -7,14 +7,17 @@ import { pathToFileURL } from 'node:url'
 import { createPersonalAgent, sessionAdapter } from '../src/agent.mjs'
 import { createIntentTurn, guardIntentTools } from '../src/intent-routing.mjs'
 import { assistant, fixtureModel, visibleTools } from './helpers/pi-fixture.mjs'
-import { EMPTY_DOCUMENT, openuiDocument } from './openui-fixtures.test.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
-import { ProactiveWatch } from '../src/proactive.mjs'
-import { proposalStateStore } from '../src/proactive-state.mjs'
+import { ProactiveWatch } from '../src/recommendations/index.mjs'
+import { proposalStateStore } from '../src/recommendations/index.mjs'
 import { openDurableRuntime, durableCapability, createPiExecutionTarget } from '../src/durable-runtime.mjs'
 import { createDurableAgentSession } from '../src/durable-agent-session.mjs'
+import { createHistoryEvidence, readResidentHistory, OWNER_HISTORY_ENTRY } from '../src/history-evidence.mjs'
+import { fixtureMem0 } from './fixtures/mem0.mjs'
+import { EMPTY_DOCUMENT, openuiDocument } from './openui-fixtures.test.mjs'
 import { SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
+import { AssistantEntry, CompactionEntry } from '@earendil-works/pi-durable'
 
 function runtime(reply) {
   const requests = []
@@ -37,7 +40,7 @@ async function fixture(t, profile = 'personal') {
   await mkdir(join(workspace, '.agents', 'skills', 'odk-widget'), { recursive: true })
   await writeFile(join(workspace, '.agents', 'skills', 'odk-widget', 'SKILL.md'), '# Isolated fixture skill\n')
   return { dir, config: { stateDir: join(dir, 'state'), workspace,
-    personal: { profile, memoryFile: join(dir, 'memory.json'), skillPaths: [] }, env: {} } }
+    personal: { profile, memoryFile: join(dir, 'memory.json'), skillPaths: [] }, env: {}, mem0: fixtureMem0() } }
 }
 
 for (const profile of ['personal', 'coding']) {
@@ -120,6 +123,50 @@ test('an existing Durable conversation takes precedence over legacy context with
   assert.equal(await bot.prompt('current request'), '继续已有 Durable 会话。')
 })
 
+test('history reads original legacy owner turns before compaction and stops at reset', async t => {
+  const { config } = await fixture(t)
+  const models = runtime(() => assistant('Exact retained answer.'))
+  const seed = await openDurableRuntime({ directory: join(config.stateDir, 'durable', 'personal'), models,
+    model: { provider: fixtureModel.provider, modelId: fixtureModel.id } })
+  t.after(() => seed.close())
+  const context = BACKGROUND_CONTEXT
+  const conversation = seed.conversation
+  await seed.prompt('Model-selected workflow: conversation.\nPersonal Agent request:\nOriginal decision.')
+  const entries = await conversation.entries({}, 10, undefined, context)
+  const kept = entries.items.find(AssistantEntry.is)
+  assert(kept)
+  await conversation.commit(tx => tx.appendEntry(conversation.id, { kind: CompactionEntry.kind, head: kept.id,
+    data: { reason: 'manual' }, model: [{ role: 'user', content: 'Personal Agent request:\nSynthetic compaction.', timestamp: Date.now() }] }), context)
+  assert.deepEqual((await readResidentHistory(conversation, context)).sources.map(source => source.messages.map(message => message.content)), [
+    ['Original decision.', 'Exact retained answer.'],
+  ])
+  await conversation.reset('Personal Agent request:\nSynthetic handoff.', context)
+  await seed.prompt('Personal Agent request:\nDecision after reset.')
+  assert.deepEqual((await readResidentHistory(conversation, context)).sources.map(source => source.messages.map(message => message.content)), [
+    ['Decision after reset.', 'Exact retained answer.'],
+  ])
+  const requestMarker = 'Personal Agent request:\n'
+  await seed.prompt(requestMarker + 'Owner text from a private-context turn.', {
+    entry: { kind: OWNER_HISTORY_ENTRY, data: { ownerOffset: requestMarker.length, historyUserOnly: true } },
+  })
+  assert.deepEqual((await readResidentHistory(conversation, context)).sources.at(-1).messages, [
+    { role: 'user', content: 'Owner text from a private-context turn.' },
+  ])
+})
+
+test('Mem0 history projection keeps dated facts and bounds follow-up searches', async () => {
+  const mem0 = fixtureMem0(), scope = mem0.scope('fixture', 'history')
+  await scope.put('launch', 'Atlas launch review at the north site used 17 credits.', { created_at: '2026-11-01' })
+  await scope.put('training', 'Atlas training review used 42 credits.', { created_at: '2026-11-02' })
+  const evidence = await createHistoryEvidence(scope, 'Atlas launch review')
+  assert.deepEqual(evidence.preview.map(item => item.source), ['launch', 'training'])
+  assert.match(evidence.preview[0].text, /17 credits/)
+  assert.match(evidence.preview[1].text, /42 credits/)
+  assert((await evidence.search('training')).some(item => item.source === 'training'))
+  await evidence.search('launch')
+  await assert.rejects(evidence.search('launch'), /budget/)
+})
+
 test('production proactive advice uses scoped tools while briefing and phrasing stay isolated', async t => {
   const { config } = await fixture(t)
   config.env.ODK_JEV_PROVIDER = 'disabled'
@@ -127,8 +174,8 @@ test('production proactive advice uses scoped tools while briefing and phrasing 
   const modelRuntime = runtime(context => {
     requests.push(context)
     const names = visibleTools(context).map(tool => tool.name).sort()
-    // Only the generation session carries the two scoped investigation tools.
-    assert.ok(names.length === 0 || JSON.stringify(names) === JSON.stringify(['proactive_judge', 'proactive_read']),
+    // Only the generation session carries one scoped investigation tool.
+    assert.ok(names.length === 0 || JSON.stringify(names) === JSON.stringify(['proactive_read']),
       `unexpected model tools: ${JSON.stringify(names)}`)
     assert(!context.messages.some(message => message.role === 'user' && message.content.includes('resident private fixture')))
     if (JSON.stringify(context.messages).includes('Organize the owner-approved')) return assistant('[0,1]')
@@ -144,8 +191,8 @@ test('production proactive advice uses scoped tools while briefing and phrasing 
   assert.equal(await bot.phraseProposal({ advice: '观察读数。检查来源。' }), '观察读数。检查来源。')
   assert.equal(requests.length, 3)
   const generation = requests.find(context => /openui-lang/i.test(JSON.stringify(context.messages)))
-  assert.deepEqual(visibleTools(generation).map(tool => tool.name).sort(), ['proactive_judge', 'proactive_read'],
-    'the generation session exposes both scoped tools')
+  assert.deepEqual(visibleTools(generation).map(tool => tool.name), ['proactive_read'],
+    'the generation session exposes one scoped tool')
 })
 
 test('default Durable resident keeps exact-turn private memory authorization', async t => {
@@ -174,7 +221,7 @@ test('a proactive heartbeat uses production Durable generation and preserves ded
   const frames = []
   let generations = 0
   const modelRuntime = runtime(context => {
-    assert.deepEqual(visibleTools(context).map(tool => tool.name).sort(), ['proactive_judge', 'proactive_read'])
+    assert.deepEqual(visibleTools(context).map(tool => tool.name), ['proactive_read'])
     const request = JSON.parse(context.messages.findLast(message => message.role === 'user').content.split('Personal Agent request:\n')[1])
     generations++
     const evidenceIds = request.topics[0].evidence.map(item => item.id)

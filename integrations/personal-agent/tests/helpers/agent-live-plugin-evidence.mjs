@@ -1,4 +1,4 @@
-import { AgentValidationError, validateCompletion, validateLessons } from '../../src/agent-plugins/completion.mjs'
+import { AgentValidationError, validateCompletion } from '../../src/agent-plugins/completion.mjs'
 
 const status = value => ['passed', 'needs_review'].includes(value) ? value : 'invalid'
 const scope = value => ['admission', 'completion', 'derivation'].includes(value) ? value : 'unspecified'
@@ -32,11 +32,10 @@ export function toolExecutionMetadata(context) {
 
 /** Keep validation facts only. Neither provider text nor receipt text enters evidence. */
 export function pluginEvidenceMetadata(input, text) {
-  const kind = Object.hasOwn(input, 'existingExperience') ? 'learning' : 'completion'
-  const result = { kind, jsonValid: false }
+  const result = { kind: 'completion', jsonValid: false }
   let value
   try { value = JSON.parse(text.trim().replace(/^```(?:json)?\s*\n/, '').replace(/\n```$/, '')); result.jsonValid = true } catch { return result }
-  try { (kind === 'completion' ? validateCompletion : validateLessons)(value, input.receipts); result.validation = 'valid' }
+  try { validateCompletion(value, input.receipts); result.validation = 'valid' }
   catch (error) {
     result.validation = 'invalid'
     if (error instanceof AgentValidationError) result.failureCode = error.code
@@ -44,10 +43,6 @@ export function pluginEvidenceMetadata(input, text) {
   result.receipts = input.receipts.slice(0, 64).map(receipt => ({ tool: knownTools.has(receipt.tool) ? receipt.tool : 'other',
     kind: receipt.kind === 'computation' ? 'computation' : 'tool',
     succeeded: receipt.status === 'succeeded', truncated: receipt.truncated === true, admissionOnly: receipt.admissionOnly === true }))
-  if (kind === 'learning') {
-    result.lessons = Array.isArray(value?.lessons) ? Math.min(value.lessons.length, 5) : -1
-    return result
-  }
   result.status = status(value?.status)
   result.checks = Array.isArray(value?.checks) ? value.checks.slice(0, 32).map(check => ({
     status: status(check?.status), scope: scope(check?.scope), skill: mentions(check?.requirement, /skill/i),

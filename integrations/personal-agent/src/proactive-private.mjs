@@ -3,6 +3,9 @@ import { dirname } from 'node:path'
 import { readLocalFile } from './personal-config.mjs'
 import { createWindowsPrivatePaths } from './proactive-private-windows.mjs'
 
+// This is deliberately conservative, not a claim of complete secret detection.
+export const sensitiveMemoryPattern = /password|passwd|api[_ -]?key|secret|bearer\s|token|密码|口令|密钥|令牌|验证码|身份证|银行卡|信用卡|-----BEGIN|\bsk-[A-Za-z0-9_-]+|\b\d{13,19}\b|\beyJ[A-Za-z0-9_-]+\./i
+
 let windowsPrivatePaths
 
 /** Protect each new ancestor before creating its children. Never repair an existing directory. */

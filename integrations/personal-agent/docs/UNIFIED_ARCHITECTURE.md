@@ -10,7 +10,7 @@ The [implementation ledger](PERSONAL_AGENT_IMPLEMENTATION.md) owns verification 
 | --- | --- | --- |
 | 1. Host tools and state | Host-installed executables, credentials, writable state, and service identity | Host tools stay separate from immutable releases |
 | 2. Shared Shell | One Electron Shell for CM5/Linux, Windows x64, and macOS | Platform adapters own host differences; renderer code does not acquire host authority |
-| 3. Personal Agent | CM5 resident service with configured intent routing and Pi Durable 1.2 Code Mode | Code owns workflow selection, tool admission, receipts, and recovery |
+| 3. Personal Agent | CM5 resident service with configured intent routing and Pi Durable Code Mode | Code owns workflow selection, tool admission, receipts, and recovery |
 | 4. Reviewed runtime capabilities | Host-owned descriptors and fixed DeskOS plugin implementations | Configuration selects reviewed identities; it cannot select arbitrary executable factories |
 | 5. Skills | Separate runtime guidance and repository coding guidance | Guidance grants no tools, credentials, lifecycle authority, or installation permission |
 
@@ -43,6 +43,25 @@ Both displays receive the same bounded public conversation, task, and briefing p
 The checkpoint excludes model context, tool records, and private memory.
 Interrupted public turns remain unconfirmed after restart.
 
+## Recommendation subsystem
+
+[recommendations/index.mjs](../src/recommendations/index.mjs) is the public module entry.
+The subsystem owns proposal scheduling, Intent evaluation, source binding, OpenUI contracts, lifecycle receipts, and recommendation checkpoints.
+Resident tools, sockets, and model adapters consume that entry without direct imports of implementation modules.
+`main.mjs` remains the resident composition root.
+It supplies data reads, model generation, reply preparation, action execution, publication, and state storage to the Watch.
+The subsystem accepts these host ports. It does not create another resident service or execution framework.
+
+Owner turns and temporary recommendation sessions use the same Pi Durable session adapter.
+Temporary sessions retain their existing tool and context limits.
+The package manifest owns pinned Pi versions.
+Host-owned credential resolution and shared private-file checks retain their existing owners.
+The repository inventory records the subsystem's reviewed host dependencies.
+
+Proposal and Intent state retain their existing files and formats.
+Durable conversation history and recommendation receipts retain separate responsibilities.
+The [repository guide](../../../docs/MONOREPO.md) defines independent checks and the later package extraction boundary.
+
 ## Reviewed capabilities
 
 [reviewed-capabilities.mjs](../src/reviewed-capabilities.mjs) owns the fixed capability registry.
@@ -71,7 +90,8 @@ The selected workflow activates a bounded tool set through `codemode`.
 Generic shell and source mutation tools remain outside the resident coordinator.
 Hosted Pi handles authorized source work on an explicit target and project.
 
-Explicit notes and learned experience serve different purposes.
+A private Mem0 OSS worker supplies notes, conversation recall, experience, and recommendation feedback.
+The personal resident also reads the private owner `MEMORY.md` for standing preferences.
 Notes retain explicit owner memory commands.
 The runtime supplies notes and a bounded experience index as untrusted model context.
 `experience_read` retrieves full entries; `experience_list` searches entries omitted from the index.
@@ -85,7 +105,7 @@ They are DeskOS modules, not native Pi plugin packages.
 
 Completion uses a separate session with zero tools and checks actual execution receipts.
 A finished response, admission receipt, or model claim cannot prove completed work.
-Automatic procedural learning requires passed completion and validated lessons with evidence.
+Mem0 extracts procedural lessons from verified host check facts.
 Learning cannot accept an admission-only result as completed work.
 Learned procedures remain reference data and require later retrieval and independent evaluation before a benefit claim.
 

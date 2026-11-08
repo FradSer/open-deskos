@@ -1,12 +1,14 @@
+import { isScheduleProposal, validScheduleProposal, validScheduleState } from './schedule-conflict.mjs'
 import { validateFeedbackState, validateFeedbackLearning } from './proactive-feedback-memory.mjs'
-import { isJudgmentModel } from './judgment-client.mjs'
+import { isJudgmentModel } from '../judgment-client.mjs'
 import {validPrivateSourceSnapshot} from './private-proposal-sources.mjs'
-import { validRidePreview } from './didi/preview.mjs'
+import { validRidePreview } from '../didi/preview.mjs'
 import { INTENT_OUTCOMES, isIntentRuleId } from './intents.mjs'
+import { validGmailRoutineState } from './gmail-routines.mjs'
 import { lstatSync, realpathSync, openSync, writeFileSync, fsyncSync, closeSync, renameSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { readProactiveFile, checkProactivePath, createProactiveDirectory, openProactiveTemporary } from './proactive-private.mjs'
+import { readProactiveFile, checkProactivePath, createProactiveDirectory, openProactiveTemporary } from '../proactive-private.mjs'
 
 const LIMIT = 2 * 1024 * 1024
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -46,8 +48,16 @@ function validOpenUITree(node) {
   return true
 }
 
+function validIntentCheckSlot({ date, checkSlot }) {
+  if (typeof checkSlot !== 'string' || !checkSlot.startsWith(date + ':')) return false
+  const minute = checkSlot.slice(11)
+  return /^\d{4}$/.test(minute) && Number(minute) < 1440
+}
+
 function validate(state) {
   if (!state || state.version !== 1 || !Array.isArray(state.proposals) || state.proposals.length > 64 || new Set(state.proposals.map(p => p.id)).size !== state.proposals.length) throw Error('Invalid private proposal state')
+  if (state.scheduleConflict !== undefined && !validScheduleState(state.scheduleConflict)) throw Error('Invalid calendar conflict checkpoint')
+  if (state.gmailRoutines !== undefined && !validGmailRoutineState(state.gmailRoutines)) throw Error('Invalid Gmail routine checkpoint')
   if (state.feedbackMemory !== undefined) validateFeedbackState(state.feedbackMemory)
   if (state.privateHandledEvents !== undefined && (!Array.isArray(state.privateHandledEvents) || state.privateHandledEvents.length>1024 || new Set(state.privateHandledEvents).size!==state.privateHandledEvents.length || !state.privateHandledEvents.every(k=>typeof k==='string'&&/^[a-f0-9]{64}$/.test(k)))) throw Error('Invalid handled private event receipts')
   if (state.observationEpisodes !== undefined && (!state.observationEpisodes || typeof state.observationEpisodes !== 'object' || Array.isArray(state.observationEpisodes) || Object.keys(state.observationEpisodes).length > 64
@@ -61,10 +71,12 @@ function validate(state) {
       && typeof receipt.subject === 'string' && receipt.subject.length <= 256 && ['ignored', 'completed'].includes(receipt.status)))) throw Error('Invalid handled recommendation receipts')
   if (state.lastAttentionAt !== undefined && (!Number.isSafeInteger(state.lastAttentionAt) || state.lastAttentionAt < 0 || state.lastAttentionAt > 8640000000000000)) throw Error('Invalid proposal attention checkpoint')
   if (state.generationCache !== undefined && (!state.generationCache || typeof state.generationCache !== 'object' || Array.isArray(state.generationCache) || Object.keys(state.generationCache).length > 64 || !Object.entries(state.generationCache).every(([id, item]) => /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) && item && Object.keys(item).sort().join(',') === 'at,key' && typeof item.key === 'string' && item.key.length <= 8192 && Number.isSafeInteger(item.at) && item.at >= 0 && item.at <= 8640000000000000))) throw Error('Invalid proposal generation checkpoint')
-  if (state.intentClaims !== undefined && (!Array.isArray(state.intentClaims) || state.intentClaims.length > 256 || new Set(state.intentClaims.map(c => c.key)).size !== state.intentClaims.length || !state.intentClaims.every(c => c && Object.keys(c).every(k => ['key', 'intentId', 'revision', 'date', 'status', 'updatedAt', 'model', 'contextHash'].includes(k)) && typeof c.key === 'string' && c.key.length <= 120 && UUID.test(c.intentId) && Number.isInteger(c.revision) && c.revision > 0 && /^\d{4}-\d{2}-\d{2}$/.test(c.date) && c.key === `${c.intentId}:${c.revision}:${c.date}` && INTENT_OUTCOMES.includes(c.status) && Number.isFinite(Date.parse(c.updatedAt)) && (c.contextHash === undefined || /^[0-9a-f]{64}$/.test(c.contextHash)) && (c.model === undefined || isJudgmentModel(c.model))))) throw Error('Invalid Intent occurrence state')
+  if (state.intentClaims !== undefined && (!Array.isArray(state.intentClaims) || state.intentClaims.length > 256 || new Set(state.intentClaims.map(c => c.key)).size !== state.intentClaims.length || !state.intentClaims.every(c => c && Object.keys(c).every(k => ['key', 'intentId', 'revision', 'date', 'status', 'updatedAt', 'model', 'contextHash', 'checkSlot'].includes(k)) && typeof c.key === 'string' && c.key.length <= 120 && UUID.test(c.intentId) && Number.isInteger(c.revision) && c.revision > 0 && /^\d{4}-\d{2}-\d{2}$/.test(c.date) && c.key === `${c.intentId}:${c.revision}:${c.date}` && INTENT_OUTCOMES.includes(c.status) && Number.isFinite(Date.parse(c.updatedAt)) && (c.contextHash === undefined || /^[0-9a-f]{64}$/.test(c.contextHash)) && (c.checkSlot === undefined || validIntentCheckSlot(c)) && (c.model === undefined || isJudgmentModel(c.model))))) throw Error('Invalid Intent occurrence state')
   if (state.intentWatermarks !== undefined && (!state.intentWatermarks || typeof state.intentWatermarks !== 'object' || Array.isArray(state.intentWatermarks) || Object.keys(state.intentWatermarks).length > 16 || !Object.entries(state.intentWatermarks).every(([id, w]) => UUID.test(id) && w && Object.keys(w).sort().join(',') === 'date,revision' && Number.isInteger(w.revision) && w.revision > 0 && /^\d{4}-\d{2}-\d{2}$/.test(w.date)))) throw Error('Invalid Intent date watermark')
   if (state.intentArchive !== undefined && (!state.intentArchive || Object.keys(state.intentArchive).sort().join(',') !== 'byStatus,count' || !Number.isSafeInteger(state.intentArchive.count) || state.intentArchive.count < 0 || !state.intentArchive.byStatus || typeof state.intentArchive.byStatus !== 'object' || Array.isArray(state.intentArchive.byStatus) || !Object.entries(state.intentArchive.byStatus).every(([status, count]) => INTENT_OUTCOMES.includes(status) && Number.isSafeInteger(count) && count >= 0) || Object.values(state.intentArchive.byStatus).reduce((sum, n) => sum + n, 0) !== state.intentArchive.count)) throw Error('Invalid Intent archive summary')
   for (const p of state.proposals) {
+    if ((isScheduleProposal(p) || p.sources !== undefined || p.scheduleExpiresAt !== undefined)
+        && !validScheduleProposal(p)) throw Error('Invalid calendar conflict proposal')
     if (p.feedbackLearning !== undefined) validateFeedbackLearning(p.feedbackLearning)
     if (p.ui !== undefined && !validOpenUITree(p.ui)) throw Error('Invalid proposal OpenUI tree')
     if (['needKey', 'observationKey', 'occurrenceKey'].some(key => p[key] !== undefined && !/^[0-9a-f]{64}$/.test(p[key]))
@@ -75,18 +87,20 @@ function validate(state) {
       || (p.feedback !== undefined && !['done', 'snooze', 'useful', 'irrelevant', 'incorrect', 'ignore'].includes(p.feedback))
       || (p.snoozedUntil !== undefined && (!Number.isSafeInteger(p.snoozedUntil) || p.snoozedUntil < 0 || p.snoozedUntil > 8640000000000000))) throw Error('Invalid proposal occurrence or feedback')
     if (p.ridePreview !== undefined && (p.action !== null || !isIntentRuleId(p.ruleId) || !validRidePreview(p.ridePreview))) throw Error('Invalid read-only ride preview')
-    if (p.judgment !== undefined) {
-      const j = p.judgment
-      if (!j || Object.keys(j).some(key => !['model', 'probability', 'groundingProbability', 'threshold', 'trigger', 'judgedAt'].includes(key)) || typeof j.model !== 'string' || !isJudgmentModel(j.model) || !Number.isFinite(j.probability) || j.probability < 0 || j.probability > 1 || (j.groundingProbability !== undefined && (!Number.isFinite(j.groundingProbability) || j.groundingProbability < 0 || j.groundingProbability > 1)) || !Number.isFinite(j.threshold) || j.threshold <= 0.5 || j.threshold > 1 || !['heartbeat', 'service_push'].includes(j.trigger) || !Number.isFinite(Date.parse(j.judgedAt))) throw Error('Invalid private judgment')
-    }
-    if ((p.action?.tool==='private_source_review'||p.sourceSnapshot!==undefined)&&p.privateData!==true) throw Error('Missing private source provenance')
+    if ((['private_source_review','private_source_prepare_reply'].includes(p.action?.tool)||p.sourceSnapshot!==undefined)&&p.privateData!==true) throw Error('Missing private source provenance')
     if (p.privateData !== undefined && (p.privateData!==true || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(p.privateSourceId) || !/^[a-f0-9]{64}$/.test(p.privateEventKey) || !validPrivateSourceSnapshot(p.sourceSnapshot) || p.sourceSnapshot.sourceId!==p.privateSourceId || p.sourceSnapshot.eventKey!==p.privateEventKey)) throw Error('Invalid private source provenance')
+    if (p.action?.tool === 'private_source_prepare_reply' && p.status === 'completed') {
+      const receipt = p.execution?.receipt
+      if (p.execution?.outcome !== 'completed' || !receipt || Object.keys(receipt).sort().join(',') !== 'eventKey,presentation,privateData,readOnly,sourceId,tool,unsent'
+        || receipt.tool !== p.action.tool || receipt.sourceId !== p.privateSourceId || receipt.eventKey !== p.privateEventKey
+        || receipt.readOnly !== true || receipt.privateData !== true || receipt.unsent !== true || receipt.presentation !== 'conversation') throw Error('Invalid private reply receipt')
+    }
     if (!UUID.test(p.id) || typeof p.ruleId !== 'string' || typeof p.subject !== 'string' || typeof p.ruleVersion !== 'string' ||
         !['pending', 'ignored', 'expired', 'executing', 'completed', 'unknown'].includes(p.status) ||
         typeof p.advice !== 'string' || p.advice.length > 1000 || typeof p.confirmation !== 'string' || p.confirmation.length > 2048 || typeof p.result !== 'string' || p.result.length > 8192 || !Number.isFinite(Date.parse(p.createdAt)) ||
         (p.status === 'completed' && !Number.isFinite(Date.parse(p.completedAt))) ||
         (p.routineDay !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(p.routineDay)) ||
-        (p.action !== null && (!p.action || !['memory_update', 'user_app_install', 'coding_task_start', 'coding_task_history','private_source_review'].includes(p.action.tool) || typeof p.action.params !== 'object')) ||
+        (p.action !== null && (!p.action || !['memory_update', 'user_app_install', 'coding_task_start', 'coding_task_history','private_source_review','private_source_prepare_reply'].includes(p.action.tool) || typeof p.action.params !== 'object')) ||
         typeof p.offered !== 'boolean' || typeof p.presented !== 'boolean' || !Array.isArray(p.evidence) || p.evidence.length > 8 ||
         !p.evidence.every(e => e && typeof e.readingId === 'string' && typeof e.field === 'string' && typeof e.ruleId === 'string' && typeof e.state === 'string' && typeof e.measuredAt === 'string' && ['string', 'number', 'boolean'].includes(typeof e.value))) throw Error('Invalid private proposal state')
   }

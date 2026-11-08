@@ -1,13 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ProactiveWatch } from '../src/proactive.mjs'
+import { ProactiveWatch } from '../src/recommendations/index.mjs'
 import { PersonalAgentService } from '../src/service.mjs'
 
 const approved = { id: 'inspect', label: 'Inspect the pending item.', tool: 'memory_update', params: { category: 'note', value: 'Inspect pending item' } }
 // Old checkpoints remain readable and support explicit feedback without action authority.
 function legacyReadOnly(watch) { for (const p of watch.proposals) { p.action = null; p.confirmation = ''; delete p.actionId } }
 const start = Date.parse('2026-10-23T10:00:00Z')
-const answer = candidates => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.95, groundingProbability: 0.95, threshold: 0.8 }])) })
 function fixture(options = {}) {
   let now = start, count = 2, raw, saved
   const frames = [], requests = [], actions = []
@@ -16,8 +15,8 @@ function fixture(options = {}) {
   for (const rule of config.rules) rule.actions ??= [structuredClone(approved)]
   const watch = new ProactiveWatch({ canExecute: () => true, config, now: () => now,
     read: async id => ({ id, state: 'live', value: { count, measured_at: new Date(now).toISOString() } }),
-    generate: async input => { requests.push(input); return raw ?? { suggestions: input.topics.flatMap(topic => ['collect', 'check'].map(key => ({ topicId: topic.id, key, advice: `${key} ${topic.id}`, actionId: 'inspect', evidenceIds: [topic.evidence[0].id] }))) } },
-    judge: async ({ candidates }) => answer(candidates), publish: frame => frames.push(frame), save: async () => {}, saveState: state => { saved = structuredClone(state) },
+    generate: async input => { requests.push(input); return raw ?? { suggestions: input.topics.flatMap(topic => ['collect', 'check'].map(key => ({ topicId: topic.id, key, advice: `${key} for the pending item`, actionId: 'inspect', evidenceIds: [topic.evidence[0].id] }))) } },
+    publish: frame => frames.push(frame), save: async () => {}, saveState: state => { saved = structuredClone(state) },
     execute: async (...args) => { actions.push(args); return 'executed' }, phrase: async ({ advice }) => advice, ...options.dependencies })
   return { watch, frames, requests, actions, saved: () => saved, clock: value => { now = value }, count: value => { count = value }, raw: value => { raw = value } }
 }
@@ -36,7 +35,7 @@ test('presentation receipts recheck freshness before acknowledging routine recom
       config: { version: 1, pollMs: 60000, maxAgeMs: 1000, cooldownMs: 60000, suppressed: [], snoozed: {}, rules },
       now: () => now,
       read: async id => ({ id, state: 'live', value: { count: 1, measuredAt: new Date(start - ages[Number(id.split('-')[1])]).toISOString() } }),
-      judge: async ({ candidates }) => answer(candidates), phrase: async ({ advice }) => advice,
+      phrase: async ({ advice }) => advice,
       publish: () => {}, save: async config => { writes.push(structuredClone(config)) },
       saveState: state => { saved = structuredClone(state) }, execute: async () => { throw Error('Presentation must not execute an action') }
     })
@@ -190,7 +189,36 @@ test('urgent eligible needs outrank high probability routine and silent needs', 
   assert.ok(f.watch.list().some(p => p.ruleId === 'routine' && p.status === 'pending'))
 })
 
-test('a malformed topic is isolated and healthy proposals remain readable and dismissible', async () => {
+test('a malformed topic cannot block presentation and confirmation of a healthy proposal', async t => {
+  const base = fixture().watch.config.rules[0]
+  let broken = false
+  const f = fixture({ config: { rules: [base, { ...base, id: 'bad' }] }, dependencies: {
+    generate: async ({ topics }) => {
+      if (broken && topics.some(t => t.id === 'bad')) throw Error('bad source model failure')
+      return { suggestions: topics.map(topic => ({ topicId: topic.id, key: 'collect', advice: 'Collect parcels', actionId: 'inspect', evidenceIds: [topic.evidence[0].id] })) }
+    },
+  } })
+  t.after(() => f.watch.close())
+  await f.watch.tick()
+  const bad = f.watch.list().find(p => p.ruleId === 'bad')
+  broken = true
+  await f.watch.tick()
+  const shown = await f.watch.readProposals()
+  const p = shown.find(p => p.status === 'pending' && p.ruleId === 'parcels')
+  assert.ok(p); assert.ok(f.watch.failedGeneration.has('bad'))
+  assert.equal(shown.some(proposal => proposal.id === bad.id), false)
+  assert.equal(f.frames.at(-1).partialFailure, true)
+  await f.watch.presented([p.id, bad.id])
+  await assert.rejects(f.watch.respond(bad.id, 'accept', bad.confirmation), /unavailable/)
+  assert.equal((await f.watch.respond(p.id, 'accept', p.confirmation)).status, 'completed')
+  assert.equal(f.actions.length, 1)
+  f.watch.config.rules = [base]
+  await f.watch.tick()
+  assert.equal(f.frames.at(-1).error, undefined)
+  assert.equal(f.watch.generationAttempts.has('bad'), false)
+})
+
+test('a malformed generated batch is isolated and healthy topics retry', async () => {
   const base = fixture().watch.config.rules[0]
   const f = fixture({ config: { rules: [base, { ...base, id: 'bad' }] }, dependencies: {
     generate: async ({ topics }) => {
@@ -199,25 +227,9 @@ test('a malformed topic is isolated and healthy proposals remain readable and di
     },
   } })
   await f.watch.tick()
-  const p = (await f.watch.readProposals()).find(p => p.status === 'pending')
-  assert.ok(p); assert.ok(f.watch.failedJudgments.has('bad'))
-  await f.watch.respond(p.id, 'ignore'); assert.equal(f.watch.list().find(item => item.id === p.id).status, 'ignored')
-})
-
-test('judgment failure is isolated without lowering either 0.8 gate', async () => {
-  const base = fixture().watch.config.rules[0]
-  const f = fixture({ config: { rules: [base, { ...base, id: 'bad' }] }, dependencies: {
-    judge: async ({ candidates }) => {
-      if (candidates.some(c => c.ruleId === 'bad')) throw Error('Judgment unavailable')
-      return answer(candidates)
-    },
-  } })
-  await f.watch.tick()
   assert.ok(f.watch.list().some(p => p.ruleId === 'parcels' && p.status === 'pending'))
-  assert.ok(f.watch.failedJudgments.has('bad'))
-  assert.ok(f.watch.list().every(p => p.judgment.threshold === 0.8))
-  const low = fixture({ dependencies: { judge: async ({ candidates }) => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.95, groundingProbability: 0.79, threshold: 0.8 }])) }) } })
-  await low.watch.tick(); assert.equal(low.watch.list().length, 0)
+  assert.ok(f.watch.failedGeneration.has('bad'))
+  assert.ok(f.watch.list().every(p => !Object.hasOwn(p, 'judgment')))
 })
 
 test('bounded generation attempts report deferred failures and retry healthy topics later', async () => {
@@ -228,7 +240,7 @@ test('bounded generation attempts report deferred failures and retry healthy top
   } })
   await f.watch.tick()
   assert.equal(calls, 1)
-  assert.deepEqual([...f.watch.failedJudgments].sort(), ['bad', 'parcels'])
+  assert.deepEqual([...f.watch.failedGeneration].sort(), ['bad', 'parcels'])
   assert.match(f.frames.at(-1).error, /暂不可用/)
 })
 
@@ -236,7 +248,7 @@ test('checkpoint migration preserves old acknowledged receipts and validates new
   const { mkdtempSync, realpathSync, rmSync } = await import('node:fs')
   const { tmpdir } = await import('node:os')
   const { join } = await import('node:path')
-  const { proposalStateStore } = await import('../src/proactive-state.mjs')
+  const { proposalStateStore } = await import('../src/recommendations/index.mjs')
   const { protectProactivePath } = await import('../src/proactive-private.mjs')
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'odk-proposal-occurrence-')))
   t.after(() => rmSync(directory, { recursive: true, force: true })); protectProactivePath(directory)
@@ -299,7 +311,7 @@ test('feedback audit excludes private contents and cannot overturn committed fee
   await f.watch.tick(); legacyReadOnly(f.watch); const p = f.watch.list().find(p => p.offered)
   await f.watch.respond(p.id, 'done')
   assert.equal(f.watch.list().find(item => item.id === p.id).status, 'completed')
-  assert.deepEqual(receipts, [{ decision: 'done', at: new Date(start).toISOString(), ruleId: 'parcels', model: 'jev-fixture' }])
+  assert.deepEqual(receipts, [{ decision: 'done', at: new Date(start).toISOString(), ruleId: 'parcels' }])
   assert.doesNotMatch(JSON.stringify(receipts), new RegExp(`${p.id}|${p.needKey}|Pending parcels|Collect parcels`))
 })
 
@@ -366,21 +378,17 @@ test('an explicit ignore or mute UUID cannot target a different proposal', async
   assert.deepEqual(f.watch.config.suppressed, [])
 })
 
-test('full unresolved capacity reports its boundary and recovers after owner feedback', async () => {
-  let batch = 0
-  const f = fixture({ config: { maxCandidates: 16 }, dependencies: { generate: async ({ topics }) => ({ suggestions: Array.from({ length: batch < 4 ? 16 : 1 }, (_, i) => ({
-    topicId: topics[0].id, key: `need-${batch}-${i}`, advice: `Check parcel item ${batch}-${i}`, actionId: 'inspect', evidenceIds: [topics[0].evidence[0].id],
+test('a full generated batch reports its capacity boundary and recovers after owner feedback', async () => {
+  const f = fixture({ config: { maxCandidates: 16 }, dependencies: { generate: async ({ topics }) => ({ suggestions: Array.from({ length: 16 }, (_, i) => ({
+    topicId: topics[0].id, key: `need-${i}`, advice: `Check the pending parcel ${['first','second','third','fourth','fifth','sixth','seventh','eighth','ninth','tenth','eleventh','twelfth','thirteenth','fourteenth','fifteenth','sixteenth'][i]}`,
+    actionId: 'inspect', evidenceIds: [topics[0].evidence[0].id],
   })) }) } })
-  for (; batch < 4; batch++) await f.watch.tick(); legacyReadOnly(f.watch)
-  assert.equal(f.watch.list().filter(p => p.status === 'pending').length, 64)
   await f.watch.tick(); legacyReadOnly(f.watch)
-  assert.match(f.frames.at(-1).error, /容量已满/)
-  assert.equal(f.watch.list().length, 64)
-  assert.equal((await f.watch.readProposals()).filter(p => p.status === 'pending').length, 64)
+  assert.equal(f.watch.list().filter(p => p.status === 'pending').length, 16)
   const first = f.watch.list()[0]
   await f.watch.respond(first.id, 'done'); await f.watch.tick(); legacyReadOnly(f.watch)
-  assert.ok(f.watch.list().some(p => p.subject === 'parcels:need-4-0' && p.status === 'pending'))
-  assert.equal(f.watch.judgmentError, '')
+  assert.equal(f.watch.list().find(p => p.id === first.id).status, 'completed')
+  assert.equal(f.watch.generationError, '')
 })
 
 test('a cleared need can recur with the same values across a restart', async () => {
@@ -416,8 +424,8 @@ test('a full receipt archive recovers after an old rule changes or is removed wi
   const { tmpdir } = await import('node:os')
   const { join } = await import('node:path')
   const { randomUUID } = await import('node:crypto')
-  const { proposalStateStore } = await import('../src/proactive-state.mjs')
-  const { handledReceipt, generationKey } = await import('../src/proactive-lifecycle.mjs')
+  const { proposalStateStore } = await import('../src/recommendations/index.mjs')
+  const { handledReceipt, generationKey } = await import('../src/recommendations/index.mjs')
   const { protectProactivePath } = await import('../src/proactive-private.mjs')
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'odk-proposal-capacity-')))
   t.after(() => rmSync(directory, { recursive: true, force: true })); protectProactivePath(directory)

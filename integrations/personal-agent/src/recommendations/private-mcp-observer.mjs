@@ -1,5 +1,5 @@
-import { openMcpSession } from './agent-catalog/mcp.mjs'
-import { validateMcpManifest } from './agent-catalog/catalog.mjs'
+import { openMcpSession } from '../agent-catalog/mcp.mjs'
+import { validateMcpManifest } from '../agent-catalog/catalog.mjs'
 
 export const PRIVATE_SOURCE_PROVENANCE = Object.freeze({ ownerOnly: true, privateData: true, untrusted: true, learningEligible: false })
 const unavailable = () => Error('Private source is unavailable or changed.')

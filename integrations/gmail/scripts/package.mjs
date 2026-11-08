@@ -8,7 +8,7 @@ import { promisify } from 'node:util'
 const run = promisify(execFile)
 const source = fileURLToPath(new URL('..', import.meta.url))
 export const RUNTIME_FILES = ['Dockerfile', 'package.json', 'pnpm-lock.yaml', 'README.md', 'skills/gmail-reading/SKILL.md',
-  ...['cli', 'client', 'credentials', 'daemon', 'healthcheck', 'index', 'manifest', 'oauth', 'server', 'socket-bridge', 'socket-path', 'socket-transport'].map(name => `src/${name}.mjs`)]
+  ...['cli', 'client', 'credentials', 'daemon', 'healthcheck', 'index', 'label-changes', 'manifest', 'oauth', 'schedule-changes', 'server', 'socket-bridge', 'socket-path', 'socket-transport'].map(name => `src/${name}.mjs`)]
 const files = RUNTIME_FILES
 
 /** Build a local runtime archive without reading operator credentials or installed dependencies. */

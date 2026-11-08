@@ -1,7 +1,7 @@
 // Live generation through the real Agent path:
 //   createPersonalAgent (real ModelRuntime + real ephemeral Durable session)
-//     -> bot.generateProposals (tools visible/callable, real Jev inside the process)
-//     -> ProactiveWatch (real Jev host qualification)
+//     -> bot.generateProposals (one scoped read tool, model decides suggestions)
+//     -> ProactiveWatch (host structural validation, no classifier)
 //     -> published proposals, rendered into the conversation.
 // No bare `pi -ne -p` generator. No scripted model responses.
 // Usage: node scripts/test-agent-path-live.mjs [--rounds 2] [--cases]
@@ -12,8 +12,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createPersonalAgent } from '../src/agent.mjs'
 import { createDurableAgentSession } from '../src/durable-agent-session.mjs'
-import { ProactiveWatch } from '../src/proactive.mjs'
-import { createProactiveJudge } from '../src/proactive-qualification.mjs'
+import { ProactiveWatch } from '../src/recommendations/index.mjs'
 
 const roundIndex = process.argv.indexOf('--rounds')
 const rounds = Number(roundIndex > -1 ? process.argv[roundIndex + 1] : 2)
@@ -70,9 +69,9 @@ const log = []
 const note = line => { log.push(line); console.log(line) }
 
 // Observe real tool executions without replacing the real session.
-const toolCalls = { proactive_read: 0, proactive_judge: 0 }
+const toolCalls = { proactive_read: 0 }
 const createSession = async options => {
-  const scoped = ['proactive_read', 'proactive_judge']
+  const scoped = ['proactive_read']
   const customTools = (options.customTools ?? []).map(tool => scoped.includes(tool.name)
     ? { ...tool, execute: async (...args) => { toolCalls[tool.name]++; return tool.execute(...args) } }
     : tool)
@@ -110,7 +109,6 @@ try {
       canExecute: () => true,
       read: async id => ({ id, state: 'live', value: readings[id] }),
       generate: bot.generateProposals,
-      judge: createProactiveJudge({ env, generate: bot.judgeOrdinary, model: () => bot.generationModel }),
       onGeneration: record => note(`  phase=${record.phase} candidates=${record.candidates}`),
       publish: () => {},
       save: async () => {}, saveState: () => {}, execute: async () => 'done', phrase: async ({ advice }) => advice,
@@ -119,19 +117,18 @@ try {
       await watch.tick()
       const proposals = watch.list().filter(p => p.status === 'pending').map(p => ({
         run: item.round, topic: p.ruleId, advice: p.advice, preview: p.preview ?? null, ui: p.ui ?? null, nextStep: p.nextStep,
-        probability: p.judgment.probability, grounding: p.judgment.groundingProbability,
-        threshold: p.judgment.threshold, pass: true,
+        pass: true,
       }))
       note(`case ${item.round} (${item.selected.map(r => r.id).join(',')}): ${proposals.length} published`)
       results.push(...proposals)
       caseEvidence.push({ round: item.round, topics: item.selected.map(r => r.id),
-        toolCalls: { read: toolCalls.proactive_read - before.proactive_read, judge: toolCalls.proactive_judge - before.proactive_judge },
-        proposals: proposals.map(p => ({ topic: p.topic, advice: p.advice, probability: p.probability, grounding: p.grounding })) })
+        toolCalls: { read: toolCalls.proactive_read - before.proactive_read },
+        proposals: proposals.map(p => ({ topic: p.topic, advice: p.advice })) })
     } finally { await watch.close().catch(() => {}) }
   }
   const roundCount = plan.length
 
-  note(`tool executions: proactive_read=${toolCalls.proactive_read} proactive_judge=${toolCalls.proactive_judge}`)
+  note(`tool executions: proactive_read=${toolCalls.proactive_read}`)
   note(`data-link reads real by tool: ${dataReads.length} (${[...new Set(dataReads)].join(', ') || 'none'})`)
   const evidence = { stamp, path: 'createPersonalAgent -> generateProposals -> real ephemeral Durable session',
     toolCalls: { ...toolCalls }, dataReads, log, rounds: roundCount, cases: caseEvidence, proposals: results }

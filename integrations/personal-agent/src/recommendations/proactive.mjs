@@ -1,22 +1,23 @@
-import { isJudgmentModel } from './judgment-client.mjs'
 import { isIntentRuleId } from './intents.mjs'
 import { randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import { rename, unlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { writeFileSync, fsyncSync, closeSync } from 'node:fs'
-import { readProactiveFile, openProactiveTemporary } from './proactive-private.mjs'
+import { readProactiveFile, openProactiveTemporary } from '../proactive-private.mjs'
+import { isScheduleProposal } from './schedule-conflict.mjs'
 import { pollGenerated } from './proactive-generation.mjs'
 import { queueFeedback, scheduleFeedback, resumePrivateFeedback, validateFeedbackState, feedbackPending } from './proactive-feedback-memory.mjs'
 import {privateRule,privateEventReceiptKey} from './private-proposal-sources.mjs'
-import { generationKey, observationKey, handledReceipt, proposalPriority, PROPOSAL_DECISIONS } from './proactive-lifecycle.mjs'
+import { GMAIL_ROUTINE_SUGGESTION_AGE_MS, isGmailRoutineSource, pruneGmailRoutineBindings } from './gmail-routines.mjs'
+import { generationKey, observationKey, observationField as field, observationMeasuredAt, handledReceipt, proposalPriority, PROPOSAL_DECISIONS } from './proactive-lifecycle.mjs'
 export { PROPOSAL_DECISIONS } from './proactive-lifecycle.mjs'
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const FIELD = /^(?:[A-Za-z][A-Za-z0-9_]*|\d+)(?:\.(?:[A-Za-z][A-Za-z0-9_]*|\d+))*$/
 const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/
 const OPS = { lt: (a, b) => a < b, lte: (a, b) => a <= b, gt: (a, b) => a > b, gte: (a, b) => a >= b, eq: (a, b) => a === b }
-const ACTIONS = new Set(['memory_update', 'user_app_install', 'coding_task_start', 'coding_task_history','private_source_review'])
+const ACTIONS = new Set(['memory_update', 'user_app_install', 'coding_task_start', 'coding_task_history','private_source_review','private_source_prepare_reply'])
 const pending = p => p.status === 'pending'
 const storageError = error => error?.message === 'Handled recommendation receipt capacity reached'
   ? '建议历史容量已满。请修改或移除旧的建议主题配置，再重启服务。已有私有记录和未知执行状态均已保留。'
@@ -29,14 +30,6 @@ const text = (value, limit) => typeof value === 'string' && value.trim() && valu
 function pathValid(value) {
   return typeof value === 'string' && value.length <= 256 && FIELD.test(value) && !value.split('.').some(part => ['__proto__', 'constructor', 'prototype'].includes(part))
 }
-function field(value, path) {
-  for (const part of path.split('.')) {
-    if (!value || typeof value !== 'object' || !Object.hasOwn(value, part)) return undefined
-    value = value[part]
-  }
-  return value
-}
-
 /** Only an owner file creates rules. Plugin strings never enter this parser. */
 export function validateOwnerConfig(config) {
   const fail = () => { throw Error('Invalid proactive owner configuration') }
@@ -120,26 +113,26 @@ function localTime(now, zone) {
   return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${get('hour')}:${get('minute')}` }
 }
 
-/** The judgment service evaluates relevance; code owns observations, delivery and explicit actions. */
+/** The model decides which suggestions exist; code owns observations, delivery, facts and explicit actions. */
 export class ProactiveWatch {
-  constructor({ config, intents = undefined, privateSources = undefined, read, publish, save, phrase, execute, canExecute = undefined, generate = undefined, judge = undefined, onGeneration = (_record) => {}, onJudgment = (_record) => {}, onFeedback = (_record) => {}, refineFeedbackMemory = undefined, feedbackMemoryEnabled = undefined, canRefineFeedbackMemory = (_proposal) => true, codingStatus = undefined, codingList = undefined, loadState = () => ({ version: 1, proposals: [] }), saveState = (_state) => {}, now = Date.now }) {
+  constructor({ config, intents = undefined, privateSources = undefined, scheduleConflict = undefined, read, publish, save, phrase, execute, prepareReply = undefined, canExecute = undefined, generate = undefined, onGeneration = (_record) => {}, onFeedback = (_record) => {}, feedbackStore = undefined, feedbackMemoryEnabled = undefined, canRefineFeedbackMemory = (_proposal) => true, codingStatus = undefined, codingList = undefined, loadState = () => ({ version: 1, proposals: [] }), saveState = (_state) => {}, now = Date.now }) {
     this.config = validateOwnerConfig(config)
     this.intents = intents
     this.privateSources = privateSources
+    this.scheduleConflict = scheduleConflict
     this.read = read
     this.publish = publish
     this.save = save
     this.phrase = phrase
     this.execute = execute
+    this.prepareReply = prepareReply
     this.canExecute = canExecute
-    this.judge = judge ?? (async () => { throw Error('Judgment unavailable') })
     this.generate = generate ?? (async () => { throw Error('Suggestion generation unavailable') })
     this.onGeneration = onGeneration
-    this.onJudgment = onJudgment
     this.onFeedback = onFeedback
     if (feedbackMemoryEnabled !== undefined && typeof feedbackMemoryEnabled !== 'boolean') throw Error('Invalid feedback memory selection')
-    this.feedbackMemoryEnabled = feedbackMemoryEnabled ?? typeof refineFeedbackMemory === 'function'
-    this.refineFeedbackMemory = refineFeedbackMemory
+    this.feedbackMemoryEnabled = feedbackMemoryEnabled ?? Boolean(feedbackStore)
+    this.feedbackStore = feedbackStore
     this.canRefineFeedbackMemory = canRefineFeedbackMemory
     this.feedbackTimer = undefined
     this.feedbackInflight = undefined
@@ -152,6 +145,7 @@ export class ProactiveWatch {
     this.generationCache = structuredClone(restored.generationCache ?? {})
     this.handledOccurrences = structuredClone(restored.handledOccurrences ?? {})
     this.privateHandledEvents = new Set(restored.privateHandledEvents ?? [])
+    this.gmailRoutineState = structuredClone(restored.gmailRoutines ?? {})
     this.observationEpisodes = structuredClone(restored.observationEpisodes ?? {})
     this.isolatedTopics = new Set(restored.isolatedTopics ?? [])
     this.generationAttempts = new Map()
@@ -165,19 +159,22 @@ export class ProactiveWatch {
       if (['checking', 'preparing'].includes(claim.status)) claim.status = 'interrupted'
       else if (claim.status === 'ready') claim.status = 'expired'
     }
-    this.proposals = structuredClone(restored.proposals)
+    this.scheduleState = scheduleConflict?.restore(restored.scheduleConflict)
+    this.proposals = structuredClone(restored.proposals.filter(p => !isScheduleProposal(p)
+      || scheduleConflict?.matches(p, this.scheduleState)))
     for (const job of this.feedbackMemory.jobs) {
-      if (this.feedbackMemoryEnabled && typeof refineFeedbackMemory === 'function' && job.attempts < 2 && ['running', 'failed', 'unavailable'].includes(job.status)) job.status = 'queued'
+      if (this.feedbackMemoryEnabled && feedbackStore && job.attempts < 2 && ['running', 'failed', 'unavailable'].includes(job.status)) job.status = 'queued'
       else if (job.status === 'running') job.status = 'failed'
       const proposal = this.proposals.find(item => item.id === job.proposalId)
       if (proposal?.feedbackLearning?.revision === job.revision) proposal.feedbackLearning.status = job.status
     }
     for (const p of this.proposals) {
+      if (isScheduleProposal(p)) continue
       if (p.status === 'executing') { p.status = 'unknown'; p.result = '服务中断，执行结果未确认；请通过原工具核实，不要重复执行。' }
       const rule = this.rules().find(r => r.id === p.ruleId)
-      if (pending(p) && (p.ruleVersion !== JSON.stringify(rule) || !this.authorizedAction(p, rule))) p.status = 'expired'
-      if (pending(p) && !p.judgment) p.status = 'expired'
-      if (pending(p) && !p.presented && rule?.delivery === 'immediate') p.offered = false
+      const restoring = this.privateSources?.canRestore?.(p, this) && this.evidenceFresh(p)
+      if (pending(p) && !restoring && (p.ruleVersion !== JSON.stringify(rule) || !this.authorizedAction(p, rule))) p.status = 'expired'
+      if (pending(p) && !p.presented && (restoring || rule?.delivery === 'immediate')) p.offered = false
     }
     this.storageFailure = false
     this.busy = false
@@ -194,8 +191,8 @@ export class ProactiveWatch {
     this.sourceRevisions = new Map()
     this.pushIds = new Set()
     this.pushTimer = undefined
-    this.judgmentError = ''
-    this.failedJudgments = new Set()
+    this.generationError = ''
+    this.failedGeneration = new Set()
     this.seenTurns = new Map()
   }
   rules() { return [...this.config.rules, ...(this.intents?.rules() ?? []), ...(this.privateSources?.rules() ?? [])] }
@@ -204,6 +201,8 @@ export class ProactiveWatch {
     const versions = new Map(this.rules().map(rule => [rule.id, generationKey(JSON.stringify(rule))]))
     this.generationCache = Object.fromEntries(Object.entries(this.generationCache).filter(([id]) => active.has(id)))
     this.isolatedTopics = new Set([...this.isolatedTopics].filter(id => active.has(id)))
+    for (const id of this.failedGeneration) if (!active.has(id)) this.clearGenerationFailure(id)
+    for (const id of this.generationAttempts.keys()) if (!active.has(id)) this.generationAttempts.delete(id)
     this.observationEpisodes = Object.fromEntries(Object.entries(this.observationEpisodes).filter(([id]) => active.has(id)))
     this.handledOccurrences = Object.fromEntries(Object.entries(this.handledOccurrences).filter(([, record]) => versions.get(record.ruleId) === record.ruleVersionKey))
     for (const p of this.proposals) if (p.occurrenceKey && ['ignored', 'completed'].includes(p.status) && versions.get(p.ruleId) === generationKey(p.ruleVersion)) {
@@ -211,18 +210,20 @@ export class ProactiveWatch {
       this.handledOccurrences[p.occurrenceKey] = handledReceipt(p)
     }
     const privateHandled = new Set(this.privateHandledEvents)
-    for (const p of this.proposals) if (p.privateData === true && ['ignored','completed'].includes(p.status)) {
+    for (const p of this.proposals) if (p.privateData === true && !isGmailRoutineSource(p.privateSourceId) && ['ignored','completed'].includes(p.status)) {
       const key = privateEventReceiptKey(p.privateSourceId,p.privateEventKey)
       if (!privateHandled.has(key) && privateHandled.size >= 1024) throw Error('Handled private event capacity reached')
       privateHandled.add(key)
     }
-    this.saveState({ version: 1, feedbackMemory: structuredClone(this.feedbackMemory), privateHandledEvents: [...privateHandled], proposals: structuredClone(this.proposals), generationCache: structuredClone(this.generationCache), handledOccurrences: structuredClone(this.handledOccurrences), observationEpisodes: structuredClone(this.observationEpisodes), isolatedTopics: [...this.isolatedTopics], lastAttentionAt: this.lastAttentionAt, ...(this.hasIntentState ? { intentClaims: structuredClone(this.intentClaims), intentWatermarks: structuredClone(this.intentWatermarks), intentArchive: structuredClone(this.intentArchive) } : {}) })
+    pruneGmailRoutineBindings(this.gmailRoutineState, this.proposals)
+    this.saveState({ version: 1, feedbackMemory: structuredClone(this.feedbackMemory), privateHandledEvents: [...privateHandled], proposals: structuredClone(this.proposals), generationCache: structuredClone(this.generationCache), handledOccurrences: structuredClone(this.handledOccurrences), observationEpisodes: structuredClone(this.observationEpisodes), isolatedTopics: [...this.isolatedTopics], lastAttentionAt: this.lastAttentionAt, ...(this.scheduleState ? { scheduleConflict: structuredClone(this.scheduleState) } : {}), ...(this.hasIntentState ? { intentClaims: structuredClone(this.intentClaims), intentWatermarks: structuredClone(this.intentWatermarks), intentArchive: structuredClone(this.intentArchive) } : {}), ...(Object.keys(this.gmailRoutineState).length ? { gmailRoutines: structuredClone(this.gmailRoutineState) } : {}) })
     this.privateHandledEvents = privateHandled
   }
   start() {
     if (this.started || this.closed) return
     this.started = true
     scheduleFeedback(this)
+    this.scheduleDeadline()
     const poll = () => {
       this.inflight = this.tick().catch(() => { /* One failed source is unavailable, never a guessed reading. */ })
       void this.inflight.finally(() => { if (!this.closed) this.timer = setTimeout(poll, this.config.pollMs) })
@@ -233,10 +234,11 @@ export class ProactiveWatch {
     this.closed = true
     clearTimeout(this.timer)
     clearTimeout(this.pushTimer)
+    clearTimeout(this.scheduleTimer)
     clearTimeout(this.feedbackTimer)
     this.controller.abort()
     await Promise.allSettled([this.inflight, this.feedbackInflight])
-    await this.privateSources?.close?.()
+    await Promise.all([this.privateSources?.close?.(), this.scheduleConflict?.close()])
   }
   setBusy(busy) {
     this.busy = busy
@@ -253,11 +255,16 @@ export class ProactiveWatch {
       this.sourceRevisions.set(id, (this.sourceRevisions.get(id) ?? 0) + 1)
     }
     this.revision++
+    if (accepted.includes(this.scheduleConflict?.calendarReadingId)) {
+      const wasReady = this.scheduleConflict.isReady(this.now())
+      this.scheduleConflict.invalidateCalendar()
+      if (wasReady) this.emit()
+    }
     this.schedulePush()
     return true
   }
   selectedSources() {
-    return new Set([...(this.intents?.sources() ?? []), ...this.rules().flatMap(rule => rule.coding ? [`pi-tasks.${rule.coding.target}`] : (rule.observations ?? rule.conditions).map(c => c.readingId))])
+    return new Set([...(this.scheduleConflict ? [this.scheduleConflict.calendarReadingId] : []), ...(this.intents?.sources() ?? []), ...this.rules().flatMap(rule => rule.coding ? [`pi-tasks.${rule.coding.target}`] : (rule.observations ?? rule.conditions).map(c => c.readingId))])
   }
   schedulePush() {
     if (this.closed || this.pushTimer) return
@@ -270,6 +277,25 @@ export class ProactiveWatch {
       void this.tick({ kind: 'service_push', readingIds }).catch(() => {})
     }, 1000)
   }
+  scheduleDeadline() {
+    clearTimeout(this.scheduleTimer)
+    if (!this.started || this.closed || this.storageFailure) return
+    const scheduleAt = this.scheduleConflict?.nextWake(this) ?? Infinity
+    const intentAt = Math.min(this.intents?.nextWake?.() ?? Infinity, this.privateSources?.nextWake?.(this) ?? Infinity)
+    const next = Math.min(scheduleAt, intentAt)
+    if (!Number.isFinite(next)) return
+    const hasPendingSchedule = this.proposals.some(p => isScheduleProposal(p) && pending(p))
+    const delay = Math.max(100, next - this.now())
+    this.scheduleTimer = setTimeout(() => {
+      // Host sleep can advance wall time without advancing the timer's clock.
+      if (hasPendingSchedule && this.now() < next) { this.scheduleDeadline(); return }
+      const trigger = { kind: intentAt <= scheduleAt ? 'intent_due' : 'schedule_due', readingIds: [] }
+      // A source read or response may already own the Watch when a deadline passes.
+      if (this.scheduleConflict?.hasExpiry(this) || this.intents?.hasExpiry?.()) this.emit()
+      const work = this.running ? this.inflight.catch(() => {}).then(() => this.tick(trigger)) : this.tick(trigger)
+      void work.catch(() => {}).finally(() => this.scheduleDeadline())
+    }, hasPendingSchedule ? Math.min(1000, delay) : delay)
+  }
   quiet() {
     const q = this.config.quietHours
     if (!q || q.start === q.end) return false
@@ -277,17 +303,35 @@ export class ProactiveWatch {
     return q.start < q.end ? time >= q.start && time < q.end : time >= q.start || time < q.end
   }
   fresh(p) {
+    if (isScheduleProposal(p)) return this.scheduleConflict?.isReady(this.now()) === true && !this.scheduleConflict.expire(p, this.now())
     if (p.privateData === true && !this.privateSources?.valid(p.sourceSnapshot)) return false
     if (isIntentRuleId(p.ruleId) && !this.intents?.valid(p)) return false
-    return p.evidence.every(e => e.state === 'live' && Number.isFinite(Date.parse(e.measuredAt)) && this.now() >= Date.parse(e.measuredAt) && this.now() - Date.parse(e.measuredAt) <= this.config.maxAgeMs)
+    return this.evidenceFresh(p)
+  }
+  evidenceFresh(p) {
+    const maxAge = isGmailRoutineSource(p.privateSourceId) ? GMAIL_ROUTINE_SUGGESTION_AGE_MS : this.config.maxAgeMs
+    const now = this.now()
+    return p.evidence.every(e => e.state === 'live' && Number.isFinite(Date.parse(e.measuredAt)) && now >= Date.parse(e.measuredAt) && now - Date.parse(e.measuredAt) <= maxAge)
   }
   list() {
-    for (const p of this.proposals) if (pending(p) && (!this.fresh(p) || (this.config.version === 2 && p.action !== null && !this.authorizedAction(p, this.rules().find(rule => rule.id === p.ruleId))))) p.status = 'expired'
-    return structuredClone(this.proposals)
+    for (const p of this.proposals) if (pending(p)) {
+      if (isScheduleProposal(p)) {
+        if (this.scheduleConflict.expire(p, this.now())) p.status = 'expired'
+      } else if (p.privateData === true && !this.privateSources?.valid(p.sourceSnapshot) && this.privateSources?.canRestore?.(p, this)) {
+        if (!this.evidenceFresh(p)) p.status = 'expired'
+      } else if (!this.fresh(p) || (this.config.version === 2 && p.action !== null
+          && !this.authorizedAction(p, this.rules().find(rule => rule.id === p.ruleId)))) p.status = 'expired'
+    }
+    return structuredClone(this.proposals.filter(p => !isScheduleProposal(p)
+      || (this.scheduleConflict.isReady(this.now()) && (p.status !== 'expired' || p.offered))))
+  }
+  presentableProposals() {
+    return this.list().filter(p => (p.privateData !== true || this.privateSources?.valid(p.sourceSnapshot) === true)
+      && (!pending(p) || !this.failedGeneration.has(p.ruleId)))
   }
   async presented(ids) {
-    this.list()
-    const displayed = this.proposals.filter(p => ids.includes(p.id) && pending(p) && p.offered && !p.presented && (p.snoozedUntil ?? 0) <= this.now())
+    const presentable = new Set(this.presentableProposals().map(p => p.id))
+    const displayed = this.proposals.filter(p => presentable.has(p.id) && ids.includes(p.id) && pending(p) && p.offered && !p.presented && (p.snoozedUntil ?? 0) <= this.now())
     const routine = displayed.filter(p => this.rules().find(r => r.id === p.ruleId)?.delivery === 'routine')
     for (const p of displayed) {
       p.presented = true
@@ -315,22 +359,29 @@ export class ProactiveWatch {
   emit(interaction = false, consumerReady = false) {
     if (this.closed) return
     this.list()
+    if (this.scheduleConflict?.isReady(this.now()) && !this.busy && !this.storageFailure && (interaction || !this.quiet())) {
+      for (const p of this.proposals) if (isScheduleProposal(p) && pending(p) && !p.offered
+          && !p.snoozedUntil) {
+        p.offered = true
+      }
+    }
+    this.scheduleDeadline()
     if (this.consumerRecovery) for (const id of this.consumerRecovery) {
       if (!this.proposals.some(p => p.id === id && pending(p) && p.offered && !p.presented)) this.consumerRecovery.delete(id)
     }
     const generated = this.config.version === 2
-    const available = p => !generated || (!this.failedJudgments.has(p.ruleId) && (this.rules().find(r => r.id === p.ruleId)?.intentRevision || (p.action !== null && this.authorizedAction(p, this.rules().find(r => r.id === p.ruleId)))))
+    const available = p => !isScheduleProposal(p) && (!generated || (!this.failedGeneration.has(p.ruleId) && (this.rules().find(r => r.id === p.ruleId)?.intentRevision || (p.action !== null && this.authorizedAction(p, this.rules().find(r => r.id === p.ruleId))))))
     const recovering = p => this.consumerRecovery?.has(p.id) && p.offered && !p.presented && this.deliverable(p, false, true)
-    let eligible = this.busy || this.storageFailure || (!generated && this.judgmentError) ? [] : this.proposals.filter(p => pending(p) && available(p) && (p.snoozedUntil ?? 0) <= this.now() && (recovering(p) || (this.revealAll && this.recoverable(p)) || (!p.offered && (!consumerReady || p.feedback === 'snooze') && this.deliverable(p, interaction)) || (interaction && p.offered && !p.presented && this.recoverable(p))))
+    let eligible = this.busy || this.storageFailure || (!generated && this.generationError) ? [] : this.proposals.filter(p => pending(p) && available(p) && (p.snoozedUntil ?? 0) <= this.now() && (recovering(p) || (this.revealAll && this.recoverable(p)) || (!p.offered && (!consumerReady || p.feedback === 'snooze') && this.deliverable(p, interaction)) || (interaction && p.offered && !p.presented && this.recoverable(p))))
     if (generated) {
       eligible.sort((a, b) => proposalPriority(this, a, b))
       if (!interaction && this.now() >= this.lastAttentionAt && this.now() - this.lastAttentionAt < (this.config.attentionCooldownMs ?? 60000)) eligible = eligible.filter(recovering)
       eligible = eligible.slice(0, this.config.maxPush)
     }
-    if (interaction && this.revealAll && !this.busy && !this.storageFailure && !this.judgmentError) eligible.push(...this.proposals.filter(p => p.status === 'expired' && p.ridePreview?.handle))
+    if (interaction && this.revealAll && !this.busy && !this.storageFailure && !this.generationError) eligible.push(...this.proposals.filter(p => p.status === 'expired' && p.ridePreview?.handle))
     const priority = p => pending(p) ? (p.offered ? 1 : 0) : 2
     const display = []
-    for (const p of this.list().sort((a, b) => priority(a) - priority(b) || (generated ? proposalPriority(this, a, b) : 0))) {
+    for (const p of this.presentableProposals().sort((a, b) => priority(a) - priority(b) || (generated ? proposalPriority(this, a, b) : 0))) {
       if (Buffer.byteLength(JSON.stringify([...display, p])) > 48000) continue
       display.push(p)
     }
@@ -344,14 +395,15 @@ export class ProactiveWatch {
     if (popup && !interaction && !recovery && generated) this.lastAttentionAt = this.now()
     try { this.persist() } catch (error) {
       this.storageFailure = true
-      this.publish({ proposals: display, popup: false, interaction, hiddenCount: this.proposals.length - display.length, error: storageError(error) })
+      this.publish({ proposals: display.filter(p => !isScheduleProposal(p)), popup: false, interaction, hiddenCount: this.proposals.length - display.length, error: storageError(error) })
       return
     }
     if (popup) {
       this.revealAll = false
       for (const p of eligible) if (display.some(d => d.id === p.id)) this.consumerRecovery?.delete(p.id)
     }
-    this.publish({ proposals: display, popup, interaction, ...(recovery ? { recovery: true } : {}), hiddenCount: this.proposals.length - display.length, ...(this.judgmentError ? { error: this.judgmentError } : {}) })
+    this.publish({ proposals: display, popup, interaction, ...(recovery ? { recovery: true } : {}), hiddenCount: this.proposals.length - display.length,
+      ...(this.generationError ? { error: this.generationError, ...(generated ? { partialFailure: true } : {}) } : {}) })
   }
   interact(revealAll = false) { this.revealAll ||= revealAll; this.emit(true) }
   recoverable(p) {
@@ -367,9 +419,22 @@ export class ProactiveWatch {
   availableActions(rule, except = undefined) {
     return (rule.actions ?? []).filter(action => {
       if (this.uncertainAction(action, except)) return false
+      if (action.tool === 'private_source_prepare_reply') return typeof this.prepareReply === 'function' && privateRule(rule) && this.privateSources?.canExecuteReview(action.params) === true
       if (action.tool === 'private_source_review') return privateRule(rule) && this.privateSources?.canExecuteReview(action.params) === true
       try { return this.canExecute?.(structuredClone({ tool: action.tool, params: action.params })) === true } catch { return false }
     })
+  }
+  async preparePrivateReply(params, context) {
+    if (typeof this.prepareReply !== 'function' || !context.isCurrent()) throw Error('Reply preparation unavailable')
+    const reviewed = await this.privateSources.executeReview(params, context)
+    if (!context.isCurrent()) throw Error('Private source changed before reply preparation')
+    const draft = await this.prepareReply({ source: reviewed.text, signal: context.signal })
+    if (!context.isCurrent() || typeof draft?.text !== 'string' || !draft.text.trim() || draft.text.length > 4096) throw Error('Private reply draft unavailable')
+    const verified = await this.privateSources.executeReview(params, context)
+    if (!context.isCurrent() || verified.text !== reviewed.text) throw Error('Private source changed during reply preparation')
+    return { outcome: 'completed', text: draft.text, receipt: { tool: 'private_source_prepare_reply',
+      sourceId: params.sourceId, eventKey: context.sourceSnapshot.eventKey, readOnly: true, privateData: true,
+      unsent: true, presentation: 'conversation' } }
   }
   authorizedAction(p, rule) {
     if (!rule) return false
@@ -416,11 +481,10 @@ export class ProactiveWatch {
         let reading
         try { reading = await this.read(o.readingId, this.controller.signal) } catch { return null }
         if (reading?.state !== 'live' || reading.id !== o.readingId || (o.liveWhen && field(reading.value, o.liveWhen.field) !== o.liveWhen.value)) return null
-        const measuredAt = o.measuredAtField ? field(reading.value, o.measuredAtField) : reading.value?.measured_at ?? reading.value?.asOf
-        if (typeof measuredAt !== 'string') return null
         for (const name of o.fields) {
           const value = field(reading.value, name)
-          if (!['number', 'string', 'boolean'].includes(typeof value) || (typeof value === 'number' && !Number.isFinite(value)) || (typeof value === 'string' && value.length > 256)) return null
+          const measuredAt = observationMeasuredAt(reading, name, o.measuredAtField)
+          if (typeof measuredAt !== 'string' || !['number', 'string', 'boolean'].includes(typeof value) || (typeof value === 'number' && !Number.isFinite(value)) || (typeof value === 'string' && value.length > 256)) return null
           evidence.push({ readingId: o.readingId, field: name, value, state: 'live', measuredAt, ruleId: rule.id })
         }
       }
@@ -436,10 +500,7 @@ export class ProactiveWatch {
       if (reading?.state !== 'live' || (reading.id !== undefined && reading.id !== c.readingId)) return null
       const value = field(reading.value, c.field)
       if (typeof value !== typeof c.value || (typeof value === 'number' && !Number.isFinite(value)) || (typeof value === 'string' && value.length > 256) || (enforceCriteria && !OPS[c.op](value, c.value))) return null
-      // Hydra's aggregate live state does not prove an individual plant is online.
-      const parent = c.field.includes('.') ? field(reading.value, c.field.slice(0, c.field.lastIndexOf('.'))) : reading.value
-      if (parent?.stale === true || parent?.online === false) return null
-      const measuredAt = c.measuredAtField ? field(reading.value, c.measuredAtField) : reading.value?.measured_at ?? reading.value?.asOf
+      const measuredAt = observationMeasuredAt(reading, c.field, c.measuredAtField)
       if (typeof measuredAt !== 'string') return null
       evidence.push({ readingId: c.readingId, field: c.field, value, state: reading.state, measuredAt, ruleId: rule.id })
     }
@@ -492,33 +553,27 @@ export class ProactiveWatch {
       receipt.deliveredTurnId = receipt.lastTurnId
     }
   }
-  judgmentFailed(candidates) {
-    for (const c of candidates) this.failedJudgments.add(c.ruleId)
-    this.judgmentError = '判断服务暂不可用；不会回退为阈值提醒或执行动作。'
-    this.emit()
-  }
   /**
-   * Clear the failure of a rule the current round does not judge.
+   * Clear the failure of a rule the current round does not generate for.
    *
    * A failure is evidence about the round that established it. A rule that has no
-   * fresh evidence, or that the owner muted, is not judged again, so its older
-   * failure is not evidence about now. Retaining it reports unavailable judgment
-   * and blocks every other topic for as long as that rule stays unjudged.
+   * fresh evidence, or that the owner muted, is not generated again, so its older
+   * failure is not evidence about now. Retaining it would block every other topic.
    */
-  clearJudgmentFailure(ruleId) {
-    if (!this.failedJudgments.delete(ruleId)) return
-    if (!this.failedJudgments.size) this.judgmentError = ''
+  clearGenerationFailure(ruleId) {
+    if (!this.failedGeneration.delete(ruleId)) return
+    if (!this.failedGeneration.size) this.generationError = ''
   }
   async readProposals() {
     await this.inflight
-    if (this.closed || this.storageFailure || (this.judgmentError && (this.config.version !== 2 || !this.list().some(p => pending(p) && !this.failedJudgments.has(p.ruleId))))) throw Error('Suggestions unavailable')
+    if (this.closed || this.storageFailure || (this.generationError && (this.config.version !== 2 || !this.presentableProposals().some(pending)))) throw Error('Suggestions unavailable')
     this.interact(true)
     if (this.storageFailure) throw Error('Suggestions unavailable')
-    return this.list()
+    return this.presentableProposals()
   }
   tick(trigger = { kind: 'heartbeat', readingIds: [] }) {
     const selected = this.selectedSources()
-    if (!trigger || Object.keys(trigger).some(key => !['kind', 'readingIds'].includes(key)) || !['heartbeat', 'service_push'].includes(trigger.kind) || !Array.isArray(trigger.readingIds) || trigger.readingIds.length > 32 || (trigger.kind === 'heartbeat' && trigger.readingIds.length) || (trigger.kind === 'service_push' && !trigger.readingIds.length) || !trigger.readingIds.every(id => typeof id === 'string' && ID.test(id) && selected.has(id))) return Promise.reject(Error('Invalid judgment trigger'))
+    if (!trigger || Object.keys(trigger).some(key => !['kind', 'readingIds'].includes(key)) || !['heartbeat', 'service_push', 'schedule_due', 'intent_due'].includes(trigger.kind) || !Array.isArray(trigger.readingIds) || trigger.readingIds.length > 32 || (trigger.kind !== 'service_push' && trigger.readingIds.length) || (trigger.kind === 'service_push' && !trigger.readingIds.length) || !trigger.readingIds.every(id => typeof id === 'string' && ID.test(id) && selected.has(id))) return Promise.reject(Error('Invalid generation trigger'))
     trigger = { kind: trigger.kind, readingIds: [...new Set(trigger.readingIds)] }
     if (this.closed || this.storageFailure || this.responding) return Promise.resolve()
     if (this.running) return this.inflight
@@ -527,9 +582,24 @@ export class ProactiveWatch {
     return this.inflight
   }
   async pollRules(trigger) {
-    await this.privateSources?.prepare(this.controller.signal)
+    if (this.scheduleConflict) {
+      await this.scheduleConflict.refresh(this, trigger)
+      if (this.closed || this.responding) return
+      this.emit()
+    }
+    if (trigger.kind === 'schedule_due') return
+    if (trigger.kind === 'intent_due') {
+      await this.intents?.prepare(this, { timedOnly: true })
+      await this.privateSources?.prepare(this.controller.signal, this, { scheduledOnly: true })
+      if (!this.closed && !this.responding) await pollGenerated(this, trigger, {
+        now: new Date(this.now()).toISOString(), local: localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC'),
+        quiet: this.quiet(), busy: this.busy,
+      }, [...(this.intents?.rules({ timedOnly: true }) ?? []), ...(this.privateSources?.rules({ scheduledOnly: true }) ?? [])])
+      return
+    }
+    await this.privateSources?.prepare(this.controller.signal, this, { includeScheduled: trigger.kind !== 'service_push' })
     resumePrivateFeedback(this)
-    await this.intents?.prepare(this)
+    await this.intents?.prepare(this, trigger.kind === 'service_push' ? { readingIds: trigger.readingIds } : undefined)
     if (this.closed || this.responding) return
     if (this.config.version === 1 && (this.intents || this.privateSources)) await pollGenerated(this, trigger, { now: new Date(this.now()).toISOString(), local: localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC'), quiet: this.quiet(), busy: this.busy }, [...(this.intents?.rules() ?? []), ...(this.privateSources?.rules() ?? [])])
     if (this.config.version === 2) return pollGenerated(this, trigger, { now: new Date(this.now()).toISOString(), local: localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC'), quiet: this.quiet(), busy: this.busy })
@@ -539,7 +609,7 @@ export class ProactiveWatch {
       const dependencies = rule.coding ? [`pi-tasks.${rule.coding.target}`] : rule.conditions.map(c => c.readingId)
       if (trigger.kind === 'service_push' && !dependencies.some(id => trigger.readingIds.includes(id))) continue
       if (this.closed || this.responding || revision !== this.revision) return
-      if (this.config.suppressed.includes(rule.id) || (this.config.snoozed[rule.id] ?? 0) > this.now()) { this.clearJudgmentFailure(rule.id); continue }
+      if (this.config.suppressed.includes(rule.id) || (this.config.snoozed[rule.id] ?? 0) > this.now()) { this.clearGenerationFailure(rule.id); continue }
       let identities = [rule.coding]
       if (rule.coding && !rule.coding.taskId) {
         try {
@@ -551,16 +621,16 @@ export class ProactiveWatch {
         } catch { identities = [] }
       }
       if (this.closed || this.responding || revision !== this.revision) return
-      if (!identities.length) { this.clearJudgmentFailure(rule.id); continue }
+      if (!identities.length) { this.clearGenerationFailure(rule.id); continue }
       for (const identity of identities) {
         if (this.closed || this.responding || revision !== this.revision) return
-        const evidence = rule.coding ? await this.codingEvidence(rule, identity) : await this.evidence(rule)
+        const evidence = rule.coding ? await this.codingEvidence(rule, identity) : await this.evidence(rule, true)
         if (this.closed || this.responding || revision !== this.revision) return
         const current = this.proposals.find(p => p.ruleId === rule.id && p.subject === (identity?.taskId ?? rule.id) && pending(p))
         if (!evidence || !this.fresh({ evidence })) {
           if (current && !rule.coding) current.status = 'expired'
-          // A rule the round does not judge cannot hold an older failure.
-          this.clearJudgmentFailure(rule.id)
+          // A rule the round does not generate for cannot hold an older failure.
+          this.clearGenerationFailure(rule.id)
           continue
         }
         if (this.proposals.some(p => p.ruleId === rule.id && p.subject === (identity?.taskId ?? rule.id) && (['executing', 'unknown'].includes(p.status) || (p.status === 'completed' && this.now() - Date.parse(p.completedAt) < this.config.cooldownMs)))) continue
@@ -568,39 +638,18 @@ export class ProactiveWatch {
       }
     }
     if (this.closed || this.responding || revision !== this.revision) return
-    let result
-    try {
-      if (candidates.length) result = await this.judge({
-        trigger, candidates: candidates.map(({ id, ruleId, advice, criteria, evidence }) => ({ id, ruleId, advice, criteria, evidence })),
-        context: { now: new Date(this.now()).toISOString(), local: localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC'), quiet: this.quiet(), busy: this.busy },
-        recent: this.proposals.slice(-16).map(({ ruleId, status, advice, presented, evidence }) => ({ ruleId, status, advice, presented, evidence })),
-        signal: this.controller.signal,
-      })
-    } catch {
-      if (!this.closed) this.judgmentFailed(candidates)
-      return
-    }
-    if (this.closed || this.responding || revision !== this.revision) return
-    for (const candidate of candidates) {
-        const answer = result?.answers?.[candidate.id]
-        if (typeof result?.model !== 'string' || !isJudgmentModel(result.model) || !Number.isFinite(answer?.probability) || answer.probability < 0 || answer.probability > 1 || !Number.isFinite(answer?.threshold) || answer.threshold <= 0.5 || answer.threshold > 1) {
-          this.judgmentFailed(candidates); return
-        }
-    }
-    for (const c of candidates) this.failedJudgments.delete(c.ruleId)
-    if (!this.failedJudgments.size) this.judgmentError = ''
-    if (candidates.length) this.onJudgment({ trigger: trigger.kind, model: result.model, at: new Date(this.now()).toISOString(), decisions: candidates.map(c => ({ ruleId: c.ruleId, probability: result.answers[c.id].probability, threshold: result.answers[c.id].threshold })) })
-    for (const { id: candidateId, rule, identity, current, evidence } of candidates) {
-        const answer = result.answers[candidateId]
-        if (answer.probability < answer.threshold || !this.fresh({ evidence })) { if (current) current.status = 'expired'; this.consumeCoding(rule, identity, evidence); continue }
-        const judgment = { model: result.model, probability: answer.probability, threshold: answer.threshold, trigger: trigger.kind, judgedAt: new Date(this.now()).toISOString() }
-        if (current) { current.evidence = evidence; current.judgment = judgment; this.consumeCoding(rule, identity, evidence); continue }
+    for (const c of candidates) this.clearGenerationFailure(c.ruleId)
+    if (!this.failedGeneration.size) this.generationError = ''
+    for (const { rule, identity, current, evidence } of candidates) {
+        if (this.closed || this.responding || revision !== this.revision) return
+        if (!this.fresh({ evidence })) { if (current) current.status = 'expired'; this.consumeCoding(rule, identity, evidence); continue }
+        if (current) { current.evidence = evidence; this.consumeCoding(rule, identity, evidence); continue }
         const id = randomUUID()
         const action = rule.coding ? { tool: 'coding_task_history', params: identity } : rule.action
         const confirmation = action?.tool === 'memory_update'
           ? `记住 ${action.params.category}：${action.params.value}` : `确认执行 ${id}`
         const proposal = { id, ruleId: rule.id, ruleVersion: JSON.stringify(rule), subject: identity?.taskId ?? rule.id, status: 'pending', evidence, advice: rule.advice,
-          action: action ?? null, confirmation: action ? confirmation : '', offered: false, presented: false, createdAt: new Date(this.now()).toISOString(), result: '', judgment }
+          action: action ?? null, confirmation: action ? confirmation : '', offered: false, presented: false, createdAt: new Date(this.now()).toISOString(), result: '' }
         try { proposal.advice = await this.phrase({ evidence: structuredClone(evidence), advice: rule.advice, signal: this.controller.signal }) } catch { proposal.advice = rule.advice }
         if (typeof proposal.advice !== 'string' || !proposal.advice.trim()) proposal.advice = rule.advice
         proposal.advice = proposal.advice.slice(0, 1000)
@@ -616,10 +665,24 @@ export class ProactiveWatch {
     }
     this.emit()
   }
-  async respond(id, decision, confirmation = '', fromSpokenTurn = false) {
+  async respond(id, decision, confirmation = '', ownsAgentTurn = false) {
     if (!PROPOSAL_DECISIONS.includes(decision)) throw Error('Invalid proposal decision')
-    if (this.closed || this.storageFailure || (decision === 'accept' && this.judgmentError) || this.responding || (this.busy && !fromSpokenTurn)) throw Error('Proposal response busy or unavailable')
     const p = this.proposals.find(p => p.id === id)
+    const generationBlocked = this.generationError && (this.config.version !== 2 || this.failedGeneration.has(p?.ruleId))
+    if (this.closed || this.storageFailure || (decision === 'accept' && generationBlocked) || this.responding || (this.busy && !ownsAgentTurn)) throw Error('Proposal response busy or unavailable')
+    if (isScheduleProposal(p)) {
+      if (!this.fresh(p) || !pending(p) || !p.offered || !['ignore', 'snooze'].includes(decision)) throw Error('Suggestion response unavailable')
+      if (decision === 'ignore') this.scheduleConflict.dismiss(this, p)
+      else {
+        p.feedback = 'snooze'
+        p.snoozedUntil = this.now() + this.config.cooldownMs
+        p.offered = false
+        p.presented = false
+      }
+      this.emit()
+      if (this.storageFailure) throw Error('Suggestion response unavailable')
+      return structuredClone(p)
+    }
     const feedbackRetry = decision !== 'accept' && p?.feedbackLearning?.decision === decision && ['failed', 'unavailable'].includes(p?.feedbackLearning?.status)
     const completedFeedback = p?.status === 'completed' && (['useful', 'irrelevant', 'incorrect'].includes(decision) || feedbackRetry)
     if (!p || (!pending(p) && !feedbackRetry && !completedFeedback)) throw Error('Proposal no longer pending')
@@ -650,7 +713,7 @@ export class ProactiveWatch {
           this.handledOccurrences = handled
           this.feedbackMemory = feedbackMemory
           this.storageFailure = true
-          this.judgmentError = storageError(error)
+          this.generationError = storageError(error)
           throw error
         }
       } else if (['ignore', 'mute'].includes(decision)) {
@@ -705,7 +768,9 @@ export class ProactiveWatch {
         if (this.storageFailure) throw Error('Private proposal state unavailable; action was not executed')
         try {
           if (!isCurrent()) throw Error('Proposal Watch stopped or action changed before execution')
-          const result = p.action.tool === 'private_source_review'
+          const result = p.action.tool === 'private_source_prepare_reply'
+            ? await this.preparePrivateReply(structuredClone(p.action.params), { signal: this.controller.signal, isCurrent, sourceSnapshot: structuredClone(p.sourceSnapshot) })
+            : p.action.tool === 'private_source_review'
             ? await this.privateSources.executeReview(structuredClone(p.action.params),{signal:this.controller.signal,isCurrent,sourceSnapshot:structuredClone(p.sourceSnapshot)})
             : await this.execute(p.action.tool, structuredClone(p.action.params), confirmation, { signal: this.controller.signal, isCurrent })
           if (typeof result === 'string') {
@@ -737,7 +802,7 @@ export class ProactiveWatch {
       if (completed && !this.storageFailure) scheduleFeedback(this)
       if (completed && !this.storageFailure) {
         try { void Promise.resolve(this.onFeedback({ decision, at: new Date(this.now()).toISOString(), ruleId: p.ruleId,
-          ...(isJudgmentModel(p.judgment?.model) ? { model: p.judgment.model } : {}) })).catch(() => {}) } catch { /* Diagnostics cannot change a committed response. */ }
+          })).catch(() => {}) } catch { /* Diagnostics cannot change a committed response. */ }
       }
     }
     return structuredClone(p)

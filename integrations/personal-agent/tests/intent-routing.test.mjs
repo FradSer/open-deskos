@@ -461,3 +461,18 @@ test('fresh read-only Pi work has distinct criteria from retained task queries w
  }
  assert.equal((await routerFixture(response('clarify')).route({text:'继续那个，或者开一个别的任务',profile:'personal'})).intent,'clarify')
 })
+
+
+test('Intent management supplies concise receipt instructions without replacing the model response', async () => {
+  const turn = createIntentTurn({ profile: 'personal', tools: ['intent_list', 'intent_save', 'intent_mute', 'odk_data'],
+    route: async () => ({ intent: 'intent_manage' }) })
+  const prepared = await turn.prepare('天气低于20度时提醒我带外套')
+  assert.equal(prepared.answer, undefined)
+  assert.match(prepared.context, /actual returned saved entry/)
+  assert.match(prepared.context, /one or two short natural sentences/)
+  assert.match(prepared.context, /goal and condition or time window/)
+  assert.match(prepared.context, /local Personal Agent conversation list/)
+  assert.match(prepared.context, /tool IDs, revision numbers, reading IDs, field paths/)
+  assert.match(prepared.context, /not confirmed.*intent_list.*before another write/)
+  assert.match(prepared.context, /Never automatically replay/)
+})

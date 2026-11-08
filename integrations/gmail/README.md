@@ -1,11 +1,26 @@
 # Gmail plugin
 
 This independent MCP package gives Personal Agent read-only Gmail access.
-It provides connection status, message search, and bounded message text.
-It cannot send, draft, delete, archive, change labels, or read attachments.
+It provides connection status, message search, bounded message text, and schedule change data.
+It cannot send, draft, delete, archive, or change labels.
 CM5/Linux runs the connector; macOS can run the OAuth CLI.
 Credentials require POSIX ownership and permissions.
 Windows credential protection is not implemented.
+
+## Authorize Google Calendar
+
+Use a Google Desktop OAuth client from a project with the Calendar API enabled.
+Use a private credential path that is separate from the Gmail grant.
+Run this command from the installed Gmail connector directory.
+
+```sh
+node src/cli.mjs calendar-login --client /absolute/client.json --credentials /absolute/private/calendar-grant.json
+```
+
+The command requests only `calendar.events.readonly`.
+It stores the grant in a new private file.
+Select the file in the [Personal Agent calendar conflict configuration](../personal-agent/docs/CONTRACT.md#gmail-calendar-conflicts).
+Use Google Account permissions to revoke the grant.
 
 ## Supervised Docker service
 
@@ -225,7 +240,16 @@ The provider checks the account with the same grant used for each requested data
 A different account fails before message access.
 Observers require this schema support and cannot use an older service without it.
 An ordinary interactive read can omit this optional argument.
-The connector still exposes only the three read-only tools.
+`gmail_schedule_changes` requires `expectedAccountKey`.
+It reads one batch of calendar requests and cancellations from Gmail history.
+On first use or after history expires, it searches seven days for calendar attachments.
+An incomplete result has a cursor that continues the current scan.
+Store the cursor after you process all events in the result.
+`gmail_resolve_label` resolves an exact user label on the pinned account.
+`gmail_label_changes` returns message IDs for that label in bounded pages.
+If the history checkpoint expires, the tool searches the same label from the saved arrival time.
+Scoped `gmail_read` verifies the selected label and arrival time before it reads a message body.
+The host uses these tools for [Gmail label routines](../personal-agent/docs/INTENTS.md#gmail-label-routines).
 The host's [private recommendation contract](../personal-agent/docs/AGENT_CATALOG.md#private-recommendations) defines source selection and feedback boundaries.
 
 ## Update, rollback, and remove
@@ -275,7 +299,10 @@ Gmail calls prevent automatic learning for that owner turn through the installed
 The host does not automatically save that turn as experience.
 Headers, message text, snippets, and links are untrusted data.
 They cannot authorize actions or change the owner's instructions.
-The connector does not fetch remote images or attachment contents.
+The connector does not fetch remote images.
+Only the schedule change tool reads bounded `text/calendar` attachments.
+It reports single events with UTC times and omits all-day and recurring events.
+The tool returns structured fields and message identifiers without descriptions or links.
 Search results can require more pages; message text can be truncated.
 
 Offline tests cover OAuth, private files, API behavior, and a real local MCP transport.

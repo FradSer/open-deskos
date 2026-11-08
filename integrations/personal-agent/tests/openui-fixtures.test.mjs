@@ -1,6 +1,6 @@
 // Shared OpenUI Lang fixtures and UI-tree inspection for Personal Agent tests.
 // This module has no tests of its own; tests import its helpers.
-import { parseSuggestionDocument } from '../src/openui-contract.mjs'
+import { parseSuggestionDocument } from '../src/recommendations/index.mjs'
 
 export const REGISTERED_PRIMITIVES = [
   'Suggestions', 'Suggestion', 'Advice', 'Readings', 'Reading', 'ApprovedAction', 'OwnerStep',

@@ -1,11 +1,13 @@
 import { parsePluginInput } from '../src/agent-plugins/prompt.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, realpath, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createPersonalAgent } from '../src/agent.mjs'
+import { fixtureMem0 } from './fixtures/mem0.mjs'
+import { createExperienceStore } from '../src/agent-plugins/experience.mjs'
 import { openAgentCatalog } from '../src/agent-catalog/catalog.mjs'
 import { assistant, offlineRuntime as runtime, visibleTools } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
@@ -76,12 +78,12 @@ test('the actual Durable resident admits a general child with no parent history 
   assert.equal(routed, 3)
 })
 
-test('a saved Durable child uses an installed MCP and retains its own verified lessons after restart', async t => {
+test('a saved Durable child verifies installed MCP work and retrieves reviewed experience after restart', async t => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-saved-child-')))
   let bot
   t.after(async () => { try { await bot?.close() } finally { await rm(root, { recursive: true, force: true }) } })
   await isolateAgentDirectory(t, root)
-  const config = { stateDir: join(root, 'state'), env: {}, personal: { profile: 'personal', skillPaths: [], memoryFile: join(root, 'notes.json'),
+  const config = { stateDir: join(root, 'state'), env: {}, mem0: fixtureMem0(), personal: { profile: 'personal', skillPaths: [], memoryFile: join(root, 'notes.json'),
     agentPlugins: { enabled: ['subagents', 'catalog', 'mcp', 'experience', 'completion', 'learning'] } } }
   const catalog = await openAgentCatalog(join(config.stateDir, 'personal-agent', 'packages'))
   await catalog.installMcp({ schemaVersion: 1, kind: 'mcp', id: 'reports', name: 'Offline report connector', transport: { type: 'stdio', command: process.execPath,
@@ -93,9 +95,7 @@ test('a saved Durable child uses an installed MCP and retains its own verified l
     if (visibleTools(context).length === 0) {
       const input = parsePluginInput(raw.slice('Personal Agent request:\n'.length))
       const receipt = input.receipts.at(-1)
-      if ('existingExperience' in input) return assistant(JSON.stringify({ lessons: input.request === 'Child report fixture' ? [{
-        title: 'Report region checks', body: 'Check the reported region count before presenting a regional report.', evidence: [{ id: receipt.id, quote: 'Checks: 3 passed' }],
-      }] : [] }))
+      assert(!input.scope, 'Connector output cannot start learning')
       const admission = receipt.admissionOnly
       return assistant(JSON.stringify({ status: 'passed', summary: admission ? 'The child task was admitted.' : 'The requested report was checked.', checks: [{
         requirement: admission ? 'Start the requested child' : 'Inspect the report', scope: admission ? 'admission' : 'completion', status: 'passed',
@@ -126,9 +126,14 @@ test('a saved Durable child uses an installed MCP and retains its own verified l
   let result = await bot.agentTasks.wait(task.taskId)
   assert.equal(result.state, 'finished')
   assert.equal(result.verification.status, 'passed')
-  assert.equal(result.learning, 'applied')
+  assert.equal(result.learning, 'skipped')
   assert.equal(result.identity.avatar, 'book')
   await bot.close()
+  const childHome = join(config.stateDir, 'personal-agent', 'children', 'homes', 'saved', 'reporter')
+  const experience = createExperienceStore({ scope: config.mem0.scope(childHome, 'experience'), stateDir: childHome })
+  assert.deepEqual((await experience.load()).entries, [])
+  await experience.append([{ title: 'Report region checks', body: 'Check the reported region count before presenting a regional report.',
+    sources: [{ tool: 'fixture', digest: 'a'.repeat(64) }] }])
   restarted = true
   bot = await createPersonalAgent(config, dependencies)
   await bot.prompt('Run the saved reporter again.')
@@ -138,4 +143,9 @@ test('a saved Durable child uses an installed MCP and retains its own verified l
   assert.equal(result.verification.status, 'passed')
   assert.equal(result.learning, 'skipped')
   assert.equal(retrieved, true)
+  await bot.close()
+  const state = join(childHome, 'durable', 'personal')
+  const sessions = (await readdir(state)).filter(name => name.endsWith('.jsonl'))
+  assert(sessions.length > 0)
+  for (const file of sessions) assert.doesNotMatch(await readFile(join(state, file), 'utf8'), /Learned experience index/)
 })

@@ -36,7 +36,7 @@ export const privateEventReceiptKey = (sourceId, eventKey) =>
 export const privateRule = (rule) =>
   !!rule && identifier(rule.privateSourceId) && digest.test(rule.privateEventKey)
 /** Application-owned port. Sources are reviewed instances, never model-selected modules. */
-export function createPrivateProposalSources(entries) {
+export function createPrivateProposalSources(entries, routines = undefined) {
   if (
     !Array.isArray(entries) ||
     entries.length > 8 ||
@@ -48,6 +48,7 @@ export function createPrivateProposalSources(entries) {
       !identifier(e.id) ||
       !bounded(e.goal) ||
       !bounded(e.label) ||
+      (e.replyLabel !== undefined && (!bounded(e.replyLabel) || e.replyLabel.length > 240 || /[\x00-\x1f\x7f]/.test(e.replyLabel))) ||
       !e.source ||
       typeof e.source.observe !== 'function'
     )
@@ -69,6 +70,7 @@ export function createPrivateProposalSources(entries) {
         !closed &&
         !activeSignal?.aborted &&
         current(s) &&
+        e.entry.current?.() !== false &&
         e.entry.source.knowsReview(e.action) === true
       )
     } catch {
@@ -90,11 +92,14 @@ export function createPrivateProposalSources(entries) {
     return accepted
   }
   return {
-    async prepare(signal) {
+    nextWake: watch => routines?.nextWake(watch) ?? Infinity,
+    canRestore: (proposal, watch) => routines?.canRestore(proposal, watch) === true,
+    async prepare(signal, watch = undefined, { scheduledOnly = false, includeScheduled = true } = {}) {
       activeSignal = signal
       signal = signalFor(signal)
-      const next = new Map()
-      for (const entry of entries) {
+      const next = new Map([...events].filter(([, e]) => e.entry.scheduled ? !includeScheduled : scheduledOnly))
+      const selected = [...(scheduledOnly ? [] : entries), ...(watch && includeScheduled ? routines?.entries(watch) ?? [] : [])]
+      for (const entry of selected) {
         if (closed || signal?.aborted) return
         let batch
         try {
@@ -108,7 +113,7 @@ export function createPrivateProposalSources(entries) {
           !privateProvenance(batch.provenance)
         )
           continue
-        for (const event of batch.events.slice(0, 8)) {
+        for (const event of batch.events.slice(0, entry.scheduled ? 64 : 8)) {
           const s = event.sourceSnapshot,
             r = event.reading,
             a = event.reviewAction
@@ -160,6 +165,8 @@ export function createPrivateProposalSources(entries) {
                 tool: 'private_source_review',
                 params: { sourceId: entry.id, handle: s.eventKey },
               },
+              ...(entry.replyLabel ? [{ id: 'prepare_reply', label: entry.replyLabel, tool: 'private_source_prepare_reply',
+                params: { sourceId: entry.id, handle: s.eventKey } }] : []),
             ],
           }
           next.set(entry.id + ':' + s.eventKey, {
@@ -177,7 +184,16 @@ export function createPrivateProposalSources(entries) {
       }
       if (!closed && !signal?.aborted) events = next
     },
-    rules: () => (closed ? [] : [...events.values()].map((e) => copy(e.rule))),
+    rules: ({ scheduledOnly = false } = {}) => closed ? [] : [...events.values()]
+      .filter(e => (!scheduledOnly || e.entry.scheduled) && e.entry.current?.() !== false).map(e => copy(e.rule)),
+    shouldGenerate(rule) {
+      const e = events.get(rule.privateSourceId + ':' + rule.privateEventKey)
+      return !e?.entry.scheduled || e.entry.unseen(e.event)
+    },
+    consume(rule, hasProposal) {
+      const e = events.get(rule?.privateSourceId + ':' + rule?.privateEventKey)
+      e?.entry.consume?.(e.event, hasProposal)
+    },
     snapshot: (rule) =>
       copy(
         events.get(rule.privateSourceId + ':' + rule.privateEventKey)?.event
@@ -258,7 +274,7 @@ export function createPrivateProposalSources(entries) {
       closed = true
       lifetime.abort()
       events.clear()
-      await Promise.allSettled(entries.map((e) => e.source.close?.()))
+      await Promise.allSettled([...entries.map((e) => e.source.close?.()), routines?.close()])
     },
   }
 }

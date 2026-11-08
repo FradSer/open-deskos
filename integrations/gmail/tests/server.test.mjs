@@ -21,7 +21,7 @@ test('independent MCP exposes only validated read tools and returns bounded untr
   const runtime = createGmailServer({ credentialsFile, fetchImpl: async (url, options) => {
     calls.push({ url: String(url), method: options.method })
     if (String(url).includes('oauth2.googleapis.com')) return Response.json({ access_token: 'ACCESS_SECRET_MARKER', token_type: 'Bearer', expires_in: 3600 })
-    if (String(url).includes('/profile')) return Response.json({ emailAddress: 'owner@example.test' })
+    if (String(url).includes('/profile')) return Response.json({ emailAddress: 'owner@example.test', historyId: '100' })
     if (new URL(url).pathname.endsWith('/messages')) return Response.json({ messages: [{ id: 'abc' }] })
     return Response.json({ id: 'abc', payload: { mimeType: 'text/plain', body: { data: Buffer.from(body).toString('base64url') } } })
   } })
@@ -31,9 +31,9 @@ test('independent MCP exposes only validated read tools and returns bounded untr
   await runtime.server.connect(serverTransport)
   await client.connect(clientTransport)
   const listed = await client.listTools()
-  assert.deepEqual(listed.tools.map(tool => tool.name), ['gmail_status', 'gmail_search', 'gmail_read'])
+  assert.deepEqual(listed.tools.map(tool => tool.name), ['gmail_status', 'gmail_search', 'gmail_read', 'gmail_schedule_changes', 'gmail_resolve_label', 'gmail_label_changes'])
   assert(listed.tools.every(tool => tool.annotations.readOnlyHint === true))
-  for (const [name, args] of [['gmail_send', {}], ['gmail_read', { id: '../profile' }], ['gmail_read', { id: 'abc', expectedAccountKey: 'invalid' }], ['gmail_search', { query: 'x', maxResults: 21 }], ['gmail_status', { credentialsFile: '/another/file' }]]) {
+  for (const [name, args] of [['gmail_send', {}], ['gmail_schedule_changes', {}], ['gmail_read', { id: '../profile' }], ['gmail_read', { id: 'abc', expectedAccountKey: 'invalid' }], ['gmail_search', { query: 'x', maxResults: 21 }], ['gmail_status', { credentialsFile: '/another/file' }]]) {
     assert.equal((await client.callTool({ name, arguments: args })).isError, true)
   }
   assert.equal(calls.length, 0)
@@ -45,6 +45,10 @@ test('independent MCP exposes only validated read tools and returns bounded untr
   assert.doesNotMatch(JSON.stringify(message), /SECRET_MARKER/)
   const expectedAccountKey = createHash('sha256').update(JSON.stringify(['gmail-account', 'owner@example.test'])).digest('hex')
   assert.equal((await client.callTool({ name: 'gmail_read', arguments: { id: 'abc', expectedAccountKey } })).structuredContent.body, body)
+  const schedule = await client.callTool({ name: 'gmail_schedule_changes', arguments: { expectedAccountKey } })
+  assert.equal(schedule.isError, undefined)
+  assert.match(schedule.structuredContent.cursor, /^[A-Za-z0-9_-]+$/)
+  assert.deepEqual({ ...schedule.structuredContent, cursor: undefined }, { untrusted: true, complete: true, events: [], cursor: undefined })
   const count = calls.length
   const wrongAccount = await client.callTool({ name: 'gmail_read', arguments: { id: 'abc', expectedAccountKey: 'b'.repeat(64) } })
   assert.equal(wrongAccount.isError, true)

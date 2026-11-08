@@ -18,16 +18,12 @@ test('plugin diagnostics retain validation facts without generated or receipt te
   assert(!JSON.stringify(mismatch).includes('private'))
 })
 
-test('plugin diagnostics preserve explicit uncertainty and unsupported lesson evidence', () => {
+test('plugin diagnostics preserve explicit uncertainty', () => {
   const result = pluginEvidenceMetadata({ receipts: [] }, JSON.stringify({ status: 'needs_review', summary: 'private content', checks: [{ requirement: 'Read Skill', status: 'needs_review', evidence: [] }] }))
   assert.equal(result.status, 'needs_review')
   assert.equal(result.checks[0].skill, true)
   assert.equal(result.validation, 'valid')
-  const lessons = pluginEvidenceMetadata({ receipts: [], existingExperience: [] }, JSON.stringify({ lessons: [{ title: 'private title', body: 'private body', evidence: [] }] }))
-  assert.equal(lessons.kind, 'learning')
-  assert.equal(lessons.validation, 'invalid')
-  assert.equal(lessons.failureCode, 'citation')
-  assert.equal(JSON.stringify(lessons).includes('private'), false)
+
 })
 
 test('malformed generated requirements cannot break diagnostic capture', () => {

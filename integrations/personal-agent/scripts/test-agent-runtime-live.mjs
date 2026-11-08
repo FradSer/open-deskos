@@ -4,7 +4,7 @@ import { openLiveHostRelay } from '../tests/helpers/agent-live-relay.mjs'
 
 let options
 try { options = parseLiveOptions(process.argv.slice(2)) }
-catch { throw Error('Usage: test:agent:live --plan | --live [--mode=core|targeted|learning] [--scenario=saved-report|provider-health] [--continue-from=PATH] [--output=PATH] [--max-requests=N] [--max-output-tokens=N] [--deadline-ms=N] [--host-relay] [--task-evaluation]') }
+catch { throw Error('Usage: test:agent:live --plan | --live [--mode=core|targeted] [--scenario=saved-report|provider-health] [--output=PATH] [--max-requests=N] [--max-output-tokens=N] [--deadline-ms=N] [--host-relay] [--task-evaluation]') }
 const { plan, selection } = options
 if (!options.live) {
   console.log(JSON.stringify(plan))
@@ -18,7 +18,13 @@ if (!options.live) {
   let relay
   try {
     const pluginTimeoutMs = generationDeadlineMs(process.env.ODK_AGENT_PLUGIN_TIMEOUT_MS)
-    const continuation = options.continuationDirectory ? await (await import('../tests/helpers/agent-live-continuation.mjs')).loadLiveContinuation(options.continuationDirectory) : undefined
+    const needsMem0 = selection.mode === 'core'
+    const mem0Python = needsMem0 ? process.env.ODK_AGENT_LIVE_MEM0_PYTHON : undefined
+    const image = process.env.ODK_AGENT_LIVE_IMAGE ?? 'node:24-trixie-slim'
+    if (needsMem0 && (!process.env.ODK_PERSONAL_AGENT_MEM0_CONFIG || !mem0Python || !process.env.ODK_AGENT_LIVE_IMAGE)) {
+      throw Error('The selected live mode requires a Mem0 configuration and an image with the locked Python environment.')
+    }
+    const mem0Config = needsMem0 ? JSON.parse((await import('../src/proactive-private.mjs')).readProactiveFile(process.env.ODK_PERSONAL_AGENT_MEM0_CONFIG, 32768)) : undefined
     const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
     const agentDir = process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi/agent')
     const settings = JSON.parse(await readFile(join(agentDir, 'settings.json'), 'utf8'))
@@ -44,7 +50,8 @@ if (!options.live) {
     if (requested) await mkdir(output, { mode: 0o700 })
     async function fingerprint() {
       const files = ['integrations/personal-agent/package.json', 'integrations/personal-agent/pnpm-lock.yaml', 'runtime/shell/package.json', 'runtime/shell/pnpm-lock.yaml',
-        ...['scripts/test-agent-runtime-live.mjs', 'tests/acceptance/agent-runtime-live.mjs', 'tests/helpers/agent-live-contract.mjs', 'tests/helpers/agent-live-relay.mjs', 'tests/helpers/agent-live-plugin-evidence.mjs', 'tests/helpers/agent-live-continuation.mjs',
+        ...['mem0/pyproject.toml', 'mem0/uv.lock', 'mem0/worker.py'].map(path => `integrations/personal-agent/${path}`),
+        ...['scripts/test-agent-runtime-live.mjs', 'tests/acceptance/agent-runtime-live.mjs', 'tests/helpers/agent-live-contract.mjs', 'tests/helpers/agent-live-relay.mjs', 'tests/helpers/agent-live-plugin-evidence.mjs',
           'tests/fixtures/agent-learning-reports.mjs', 'tests/fixtures/agent-learning-server.mjs',
           'tests/fixtures/live-jev-response.mjs'].map(path => `integrations/personal-agent/${path}`)]
       async function scan(directory) {
@@ -65,13 +72,13 @@ if (!options.live) {
       return result
     }
     const fingerprints = await fingerprint()
-    const envelope = { provider, providerConfig, model, pricingKnown, jevKey, plan, pluginTimeoutMs, fingerprints, continuation, evaluation: selection, hostValidationRequired: true, transport: relay ? 'private_host_relay' : 'direct',
+    const envelope = { provider, providerConfig, model, pricingKnown, jevKey, plan, pluginTimeoutMs, fingerprints, mem0Config, mem0Python, evaluation: selection, hostValidationRequired: true, transport: relay ? 'private_host_relay' : 'direct',
       candidate: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim() }
     const container = `odk-agent-live-${process.pid}-${createHash('sha256').update(output).digest('hex').slice(0, 12)}`
     console.log(JSON.stringify({ evidence: output, container, maxRequests: plan.maxRequests, maxOutputTokens: plan.maxOutputTokens, deadlineMs: plan.deadlineMs, transport: envelope.transport }))
     const child = spawn('docker', ['run', '--rm', '-i', '--name', container, '--user', `${process.getuid?.() ?? 0}:${process.getgid?.() ?? 0}`, '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=256m',
       '--mount', `type=bind,src=${root},dst=/candidate,readonly`, '--mount', `type=bind,src=${output},dst=/evidence`,
-      '--workdir', '/candidate/integrations/personal-agent', 'node:24-trixie-slim', 'node', 'tests/acceptance/agent-runtime-live.mjs'], { stdio: ['pipe', 'pipe', 'pipe'] })
+      '--workdir', '/candidate/integrations/personal-agent', image, 'node', 'tests/acceptance/agent-runtime-live.mjs'], { stdio: ['pipe', 'pipe', 'pipe'] })
     // Credentials travel only over stdin. Provider errors and transcript output never become host logs.
     child.stdout.on('data', () => {})
     child.stderr.on('data', () => {})

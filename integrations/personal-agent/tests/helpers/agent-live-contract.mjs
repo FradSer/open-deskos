@@ -6,7 +6,7 @@ const MAX_LIVE_DEADLINE_MS = 1800000
 export const agentLivePlan = Object.freeze({ maxRequests: 80, maxOutputTokens: 2048, deadlineMs: 900000,
   syntheticData: true, providerCallsRequireLiveFlag: true, productionWrites: false, physicalCapture: false,
   scenarios: ['natural-language Skill installation', 'natural-language MCP installation', 'saved identity creation',
-    'saved child report, completion and learning', 'saved identity restart and active avatar metadata', 'temporary child isolation',
+    'saved child report and completion', 'saved identity restart, seeded experience retrieval and active avatar metadata', 'temporary child isolation',
   ],
 })
 
@@ -15,35 +15,32 @@ export const liveStopPolicy = Object.freeze({ automaticRetries: 0, automaticWork
   persistentTransientFailure: 'external_blocked only after recorded health and explicit targeted retry evidence',
   neverAutomaticallyRetry: [451], neverExternalBlocked: ['configuration', 'permission', 'authorization', 'resource', 'evidence', 'quality'] })
 
-export function selectLiveEvaluation({ mode, scenario, taskEvaluation = false, hasContinuation = false, inspect = false } = {}) {
-  const selected = mode ?? (hasContinuation ? 'learning' : taskEvaluation ? 'targeted' : 'core')
-  if (!['core', 'targeted', 'learning'].includes(selected) || (taskEvaluation && (selected !== 'targeted' || (scenario && scenario !== 'saved-report')))
-    || (hasContinuation && selected !== 'learning') || (selected === 'learning' && !hasContinuation && !inspect)
+export function selectLiveEvaluation({ mode, scenario, taskEvaluation = false } = {}) {
+  const selected = mode ?? (taskEvaluation ? 'targeted' : 'core')
+  if (!['core', 'targeted'].includes(selected) || (taskEvaluation && (selected !== 'targeted' || (scenario && scenario !== 'saved-report')))
     || (selected !== 'targeted' && scenario !== undefined)) throw Error('Invalid live evaluation selection')
   const target = selected === 'targeted' ? scenario ?? 'saved-report' : undefined
   if (target !== undefined && !['saved-report', 'provider-health'].includes(target)) throw Error('Invalid live targeted scenario')
   return { mode: selected, ...(target ? { scenario: target } : {}),
-    coverage: selected === 'core' ? 'delivery_core' : selected === 'learning' ? 'learning_benefit' : target === 'saved-report' ? 'targeted_saved_report' : 'provider_health' }
+    coverage: selected === 'core' ? 'delivery_core' : target === 'saved-report' ? 'targeted_saved_report' : 'provider_health' }
 }
 
 /** Parse all scope and resource options before credentials or containers are accessed. */
 export function parseLiveOptions(args) {
   const flags = ['--live', '--plan', '--host-relay', '--task-evaluation']
-  const prefixes = ['--output=', '--max-requests=', '--max-output-tokens=', '--deadline-ms=', '--continue-from=', '--mode=', '--scenario=']
+  const prefixes = ['--output=', '--max-requests=', '--max-output-tokens=', '--deadline-ms=', '--mode=', '--scenario=']
   if (args.some(arg => !flags.includes(arg) && !prefixes.some(prefix => arg.startsWith(prefix)))
     || [...flags, ...prefixes].some(key => args.filter(arg => flags.includes(key) ? arg === key : arg.startsWith(key)).length > 1)
     || args.includes('--live') === args.includes('--plan')) throw Error('Invalid live command options')
   const value = prefix => args.find(arg => arg.startsWith(prefix))?.slice(prefix.length)
   if (prefixes.some(prefix => value(prefix) === '') || (args.includes('--plan') && (value('--output=') || args.includes('--host-relay')))) throw Error('Invalid live command options')
-  const continuationDirectory = value('--continue-from=')
-  const selection = selectLiveEvaluation({ mode: value('--mode='), scenario: value('--scenario='), taskEvaluation: args.includes('--task-evaluation'),
-    hasContinuation: continuationDirectory !== undefined, inspect: args.includes('--plan') })
+  const selection = selectLiveEvaluation({ mode: value('--mode='), scenario: value('--scenario='), taskEvaluation: args.includes('--task-evaluation') })
   const resources = {}
   for (const [prefix, name] of [['--max-requests=', 'maxRequests'], ['--max-output-tokens=', 'maxOutputTokens'], ['--deadline-ms=', 'deadlineMs']]) {
     const raw = value(prefix)
     if (raw !== undefined) { if (!/^[1-9]\d*$/.test(raw)) throw Error('Invalid live resource option'); resources[name] = Number(raw) }
   }
-  return { live: args.includes('--live'), selection, plan: createLivePlan({ ...resources, ...selection }), continuationDirectory,
+  return { live: args.includes('--live'), selection, plan: createLivePlan({ ...resources, ...selection }),
     output: value('--output='), hostRelay: args.includes('--host-relay') }
 }
 
@@ -65,9 +62,8 @@ export function createLivePlan({ maxRequests = agentLivePlan.maxRequests, deadli
   createLiveRequestBudget(maxRequests)
   if (!Number.isSafeInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > MAX_LIVE_DEADLINE_MS) throw Error('Invalid live execution limit')
   if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 1 || maxOutputTokens > MAX_LIVE_OUTPUT_TOKENS) throw Error('Invalid live output limit')
-  const selection = selectLiveEvaluation({ mode, scenario, inspect: true })
-  const scenarios = mode === 'core' ? agentLivePlan.scenarios : mode === 'learning'
-    ? ['three paired fresh-conversation holdouts with and without accepted experience']
+  const selection = selectLiveEvaluation({ mode, scenario })
+  const scenarios = mode === 'core' ? agentLivePlan.scenarios
     : selection.scenario === 'saved-report' ? ['saved report execution and completion with host-prepared setup']
       : ['fixed tool-free model health', 'fixed Jev typed-choice health']
   return { ...agentLivePlan, ...selection, maxRequests, deadlineMs, maxOutputTokens, scenarios }
@@ -88,13 +84,6 @@ export function classifyLiveFailure(calls, { exhausted = false, deadline = false
 /** Only a successful, complete entry can establish actual memory retrieval. */
 export function fullExperienceReceipt(receipt) {
   return receipt.tool === 'experience_read' && receipt.status === 'succeeded' && !receipt.truncated
-}
-
-export function assertLivePairResults(pairs) {
-  if (pairs.length !== 3 || pairs.some(pair => !pair.candidate?.passed || pair.candidate.verification !== 'passed')) {
-    throw Error('Accepted experience did not support every verified held-out result')
-  }
-  if (pairs.some(pair => !(pair.candidate.experienceReads > 0))) throw Error('Every candidate must retrieve actual full accepted experience')
 }
 
 export function capLiveModelOutput(model, limit = agentLivePlan.maxOutputTokens) {
@@ -182,20 +171,11 @@ export function assertLiveChildTurn(admission, task) {
   }
 }
 
-export function learningComparison(pairs) {
-  const baseline = pairs.filter(pair => pair.baseline.passed).length
-  const candidate = pairs.filter(pair => pair.candidate.passed).length
-  return { cases: pairs.length, baseline, candidate, difference: candidate - baseline,
-    conclusion: candidate > baseline ? 'Improvement observed on these synthetic cases only.' : 'No improvement established on these synthetic cases.',
-    generalLearningBenefit: 'not_established' }
-}
-
 export function finalizeAgentAcceptance(result, { exitCode, sourceUnchanged, sourceFailure = false, forcedCleanup = false }) {
   const passed = exitCode === 0 && result.functionalPassed === true && result.cleanupPassed === true
     && result.hostValidationRequired === true && sourceUnchanged === true && !sourceFailure && !forcedCleanup
   return { ...result, passed, status: passed ? 'passed' : 'failed', sourceUnchanged: sourceUnchanged === true,
     deliveryCorePassed: passed && result.evaluation?.mode === 'core',
-    learningEvaluationPassed: passed && result.evaluation?.mode === 'learning',
     targetedPassed: passed && result.evaluation?.mode === 'targeted',
     ...(sourceFailure ? { hostFailure: 'source_fingerprint_unavailable' } : {}),
     fingerprintScope: 'Personal Agent source, referenced Shell JavaScript/JSON, acceptance artifacts, and package lockfiles; dependency bytes are outside this sample.' }

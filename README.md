@@ -21,6 +21,7 @@ pnpm test
 | Product scope | [Product](PRODUCT.md) |
 | Visual rules | [Design](DESIGN.md) |
 | Development and writing rules | [Repository guidelines](AGENTS.md) |
+| Project inventory, commands, and module boundaries | [Repository projects](docs/MONOREPO.md) |
 | Shell development and CM5 operations | [Shell runbook](runtime/shell/README.md) |
 | Windows operations | [Windows runbook](runtime/shell/docs/WINDOWS_HOST.md) |
 | Runtime terms and boundaries | [Shell context](runtime/shell/CONTEXT.md) |

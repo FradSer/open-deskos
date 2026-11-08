@@ -3,19 +3,21 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { createIntentStore, createIntentRuntime } from '../src/intents.mjs'
+import { createIntentStore, createIntentRuntime, ROUTINE_FILENAME } from '../src/recommendations/index.mjs'
 import { createIntentTools } from '../src/intent-tools.mjs'
 import { createIntentJudge } from '../src/intent-jev.mjs'
 import { guardIntentTools } from '../src/intent-routing.mjs'
 import { validateAgentPlugins } from '../src/agent-plugins/selection.mjs'
 import { protectProactivePath } from '../src/proactive-private.mjs'
 const candidate = { wish: '每天查看行程', condition: '每天提醒', at: '11:30', memoryKeys: [], observations: [] }
-function fixture(t, authorize = async () => true) {
+function fixture(t, authorize = async () => true, read = async () => null, getWatch = () => undefined, memory = async () => {
+  throw Error('Mem0 worker unavailable')
+}) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'odk-intent-tools-'))); protectProactivePath(dir)
   t.after(() => rmSync(dir, { recursive: true, force: true }))
-  const store = createIntentStore(join(dir, 'intent.md')), runtime = createIntentRuntime({ store, memory: async () => ({}), read: async () => null, judge: async () => null, previewRide: undefined })
+  const store = createIntentStore(join(dir, ROUTINE_FILENAME)), runtime = createIntentRuntime({ store, memory, read, judge: async () => null, previewRide: undefined })
   let owner = { text: '每天十一点半提醒我查看行程', intent: 'intent_manage', turn: 1 }
-  const tools = createIntentTools({ runtime, judge: { authorize }, currentTurn: () => owner, getWatch: () => undefined, memory: async () => ({}) })
+  const tools = createIntentTools({ runtime, judge: { authorize }, currentTurn: () => owner, getWatch })
   return { store, tools, change: next => { owner = next } }
 }
 test('Given no explicit plugin selection or another workflow, Intent cannot be enabled by role text', async t => {
@@ -59,4 +61,54 @@ test('ordinary typed Intent judgments still require sufficient context and expli
   assert.deepEqual(await judge.condition({entry:candidate,memory:{},observations:[]}),{model:'synthetic/model-v1',status:'unknown'})
   assert.equal(await judge.authorize({ownerText:'Synthetic explicit owner request',candidate}),true)
   assert.equal(requests.length,2);assert.match(requests[0].questions.supported.instructions,/Missing facts/)
+})
+
+test('Intent save verifies newly selected desk fields and preserves previous offline bindings on edit', async t => {
+  const readingId = 'odk.tile.weather'
+  const reads = [], pushes = []
+  const watch = { proposals: [], interactionRevision: 0, revision: 0, emit() {}, push: ids => pushes.push(ids) }
+  let reading
+  const f = fixture(t, async () => true, async id => { reads.push(id); return reading }, () => watch)
+  const save = f.tools.find(tool => tool.name === 'intent_save')
+  f.change({ text: '天气组件低于20度时提醒我带外套。', intent: 'intent_manage', turn: 2 })
+  const input = { wish: '提醒我带外套', condition: '天气组件低于20度', memoryKeys: [], observations: [{ readingId, fields: ['temperatureC'] }] }
+  await assert.rejects(save.execute('save', input), /could not verify/)
+  assert.equal(f.store.list().length, 0)
+  reading = { id: readingId, state: 'live', value: { temperatureC: 17 } }
+  await save.execute('save', input)
+  const [entry] = f.store.list()
+  assert.deepEqual(entry.observations, input.observations)
+  reading = null
+  await save.execute('edit', { ...input, id: entry.id, revision: entry.revision, condition: '天气组件低于18度' })
+  assert.equal(f.store.list()[0].condition, '天气组件低于18度')
+  assert.deepEqual(reads, [readingId, readingId])
+  assert.deepEqual(pushes, [[readingId], [readingId]])
+})
+
+test('Intent save accepts a Widget interval with no Gmail connector', async t => {
+  const readingId = 'odk.tile.weather'
+  const watch = { proposals: [], interactionRevision: 0, revision: 0, emit() {},
+    push: () => assert.fail('The saved interval waits for a scheduled check') }
+  const f = fixture(t, async () => true,
+    async id => ({ id, state: 'live', value: { lowC: 14 } }), () => watch)
+  f.change({ text: '每天九点到十点，每15分钟检查当天最低温，低于22度就建议带外套。', intent: 'intent_manage', turn: 2 })
+  const schedule = { days: 'daily', start: '09:00', end: '10:00', everyMinutes: 15 }
+  const save = f.tools.find(tool => tool.name === 'intent_save')
+  await save.execute('save', { wish: '带件外套', condition: '当天最低温低于22度',
+    memoryKeys: [], observations: [{ readingId, fields: ['lowC'] }], schedule })
+  const [entry] = f.store.list()
+  assert.deepEqual(entry.schedule, schedule)
+  assert.equal(entry.gmail, undefined)
+})
+
+test('a cancelled Intent save cannot commit after the selected field check returns', async t => {
+  const readingId = 'odk.tile.weather'
+  const cancellation = new AbortController()
+  const f = fixture(t, async () => true, async () => {
+    cancellation.abort()
+    return { id: readingId, state: 'live', value: { temperatureC: 17 } }
+  })
+  const save = f.tools.find(tool => tool.name === 'intent_save')
+  await assert.rejects(save.execute('save', { ...candidate, observations: [{ readingId, fields: ['temperatureC'] }] }, cancellation.signal), { name: 'AbortError' })
+  assert.deepEqual(f.store.list(), [])
 })

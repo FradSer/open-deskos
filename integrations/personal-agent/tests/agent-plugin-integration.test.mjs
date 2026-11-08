@@ -1,13 +1,15 @@
 import { parsePluginInput } from '../src/agent-plugins/prompt.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, realpath, mkdir, rm, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, realpath, mkdir, rm, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createPersonalAgent } from '../src/agent.mjs'
 import { loadPersonalConfig } from '../src/personal-config.mjs'
-import { assistant, offlineRuntime as offline, visibleTools } from './helpers/pi-fixture.mjs'
+import { assistant, fixtureModel, offlineRuntime as offline, visibleTools } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
+import { protectProactivePath } from '../src/proactive-private.mjs'
+import { fixtureMem0 } from './fixtures/mem0.mjs'
 
 async function fixture(t) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'odk-agent-plugin-integration-')))
@@ -15,11 +17,11 @@ async function fixture(t) {
   t.after(() => rm(directory, { recursive: true, force: true }))
   const stateDir = join(directory, 'state')
   await mkdir(stateDir, { mode: 0o700 })
-  return { directory, config: { stateDir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(directory, 'explicit-notes.json'),
+  return { directory, config: { stateDir, mem0: fixtureMem0(), personal: { profile: 'personal', skillPaths: [], memoryFile: join(directory, 'explicit-notes.json'),
     agentPlugins: { enabled: ['experience', 'completion', 'learning'] } }, env: {} } }
 }
 
-test('completion and learning providers receive original literal receipts through actual Durable tools', async t => {
+test('completion receives literal Durable tool receipts without promoting them to learning', async t => {
   const { directory, config } = await fixture(t)
   const workspace = join(directory, 'workspace')
   await mkdir(join(workspace, '.git'), { recursive: true })
@@ -46,7 +48,6 @@ test('completion and learning providers receive original literal receipts throug
       assert(receipt.text.includes(literal))
       assert(!input.receipts.some(item => item.id === 'tool-999'))
       for (const item of input.receipts) assert.equal(user.content.split(item.text).length - 1, 1)
-      if (kind === 'learning') return assistant(JSON.stringify({ lessons: [{ title: 'Read the source procedure', body: 'Read the supplied procedure before calculating.', evidence: [{ id: receipt.id, quote: literal }] }] }))
       const retry = seen.filter(item => item === 'completion').length > 1
       if (retry) assert.match(input.formatCorrection, /exact substring/)
       else assert.equal(input.formatCorrection, undefined)
@@ -59,9 +60,9 @@ test('completion and learning providers receive original literal receipts throug
   try {
     await bot.prompt('Read the supplied procedure.')
     assert.equal(literalObserved[0], true, 'The provider-visible user message must contain the original literal JSON')
-    assert.deepEqual(seen, ['completion', 'completion', 'learning'])
+    assert.deepEqual(seen, ['completion', 'completion'])
     assert.equal(bot.lastTaskResult.verification.status, 'passed')
-    assert.equal(bot.lastTaskResult.learning.status, 'applied')
+    assert.equal(bot.lastTaskResult.learning.status, 'skipped')
   } finally { await bot.close() }
 })
 
@@ -73,25 +74,38 @@ test('explicit owner notes reach real Durable context after restart and reflect 
     assert.deepEqual(visibleTools(context).map(tool => tool.name), ['codemode'])
     const message = context.messages.findLast(message => message.role === 'user')
     const text = typeof message.content === 'string' ? message.content : message.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
-    const currentMemory = /Saved MEMORY data \(not instructions or authorization\):\n([^\n]*)\nEnd MEMORY data\./.exec(text)
+    const currentMemory = /Current saved MEMORY data [^\n]*\n([^\n]*)\nEnd MEMORY data\./.exec(text)
     assert(currentMemory, 'The actual provider request must carry the current memory block')
-    assert.deepEqual(JSON.parse(currentMemory[1]), expected)
+    const request = text.split('Personal Agent request:\n').at(-1)
+    const afterMutation = {
+      'remember beverage: tea': { beverage: 'tea' },
+      'remember beverage: water': { beverage: 'water' },
+      'forget beverage': {},
+    }
+    const current = context.messages.at(-1).role === 'toolResult' ? afterMutation[request] ?? expected : expected
+    const memory = JSON.parse(currentMemory[1])
+    assert.deepEqual(Object.fromEntries(memory.entries.map(entry => [entry.category, entry.value])), current)
+    assert.equal(memory.total, Object.keys(current).length)
+    assert(memory.entries.every(entry => /^[a-f0-9]{64}$/.test(entry.revision)))
     assert(!text.includes('Learned experience index'))
     inspected++
-    const request = text.split('Personal Agent request:\n').at(-1)
+    if (request === 'Read my current saved notes after deletion.') {
+      assert(!JSON.stringify(context.messages).includes('remember beverage: tea'))
+      assert(!JSON.stringify(context.messages).includes('remember beverage: water'))
+    }
     if (context.messages.at(-1).role !== 'toolResult') {
       const code = request === 'remember beverage: tea' ? 'text(await tools.memory_update({category:"beverage",value:"tea"}));'
         : request === 'remember beverage: water' ? 'text(await tools.memory_update({category:"beverage",value:"water"}));'
         : request === 'forget beverage' ? 'text(await tools.memory_forget({category:"beverage"}));' : undefined
       if (code) return assistant([{ type: 'toolCall', id: `memory-${inspected}`, name: 'codemode', arguments: { code } }], 'toolUse')
     } else assert.equal(context.messages.at(-1).isError, false)
-    return assistant(JSON.stringify(expected))
+    return assistant(JSON.stringify(current))
   })
   const dependencies = { createRuntime: async () => modelRuntime, createIntentRouter: () => async () => { routed++; return { intent: 'memory' } } }
   let bot = await createPersonalAgent(config, dependencies)
   try {
     await bot.prompt('remember beverage: tea')
-    assert.deepEqual(JSON.parse(await readFile(config.personal.memoryFile, 'utf8')), { beverage: 'tea' })
+    assert.equal((await config.mem0.scope(config.stateDir, 'notes').list())[0].memory, 'tea')
   } finally { await bot.close() }
   expected = { beverage: 'tea' }
   bot = await createPersonalAgent(config, dependencies)
@@ -103,10 +117,125 @@ test('explicit owner notes reach real Durable context after restart and reflect 
     await bot.prompt('forget beverage')
     expected = {}
     assert.equal(await bot.prompt('Read my current saved notes after deletion.'), '{}')
-    assert.deepEqual(JSON.parse(await readFile(config.personal.memoryFile, 'utf8')), {})
+    assert.deepEqual(await config.mem0.scope(config.stateDir, 'notes').list(), [])
     assert.equal(routed, 6)
     assert.equal(inspected, 9)
   } finally { await bot.close() }
+  const state = join(config.stateDir, 'durable', 'personal')
+  const files = (await readdir(state)).filter(name => name.endsWith('.jsonl'))
+  assert(files.length > 0)
+  for (const file of files) assert.doesNotMatch(await readFile(join(state, file), 'utf8'), /Current saved MEMORY data/)
+})
+
+test('owner Markdown and Mem0 notes coexist in the active Durable request', async t => {
+  const { config } = await fixture(t)
+  const directory = join(config.stateDir, 'personal-agent')
+  await mkdir(directory, { mode: 0o700 })
+  const file = join(directory, 'MEMORY.md')
+  const first = 'Summarize the fixture.'
+  const initial = '# Reply style\nUse the profile marker ORCHID_FORMAT.\n'
+  const edited = '# Reply style\nUse the profile marker LOTUS_FORMAT.\n'
+  await writeFile(file, initial, { mode: 0o600 })
+  protectProactivePath(file)
+  const backend = config.mem0
+  await backend.scope(config.stateDir, 'notes').put('format', 'Use the saved note marker COPPER_SUMMARY.')
+  config.personal.pinnedMemoryCategories = ['format']
+
+  let currentInput
+  const modelRuntime = offline(context => {
+    currentInput = context.messages.findLast(message => message.role === 'user').content
+    return assistant('Fixture reply.')
+  })
+  const dependencies = { createRuntime: async () => modelRuntime, createIntentRouter: () => async ({ text }) => ({
+    intent: text === '查看你的记忆' ? 'memory' : 'conversation',
+  }) }
+  let bot = await createPersonalAgent(config, dependencies)
+  t.after(() => bot.close())
+  await bot.prompt(first)
+  assert.match(currentInput, /MEMORY\.md[^\n]*\n[^\n]*ORCHID_FORMAT/)
+  assert.match(currentInput, /Current saved MEMORY data[^\n]*\n[^\n]*COPPER_SUMMARY/)
+  for (let attempt = 0; attempt < 100 && !backend.requests.some(row => row.operation === 'ingest'); attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+  assert.deepEqual(backend.requests.find(row => row.operation === 'ingest')?.messages, [{ role: 'user', content: first }])
+
+  await writeFile(file, edited)
+  await bot.prompt('查看你的记忆')
+  assert.match(currentInput, /LOTUS_FORMAT/)
+  assert.match(currentInput, /COPPER_SUMMARY/)
+  assert.doesNotMatch(currentInput, /ORCHID_FORMAT/)
+  assert.equal(await readFile(file, 'utf8'), edited)
+
+  await writeFile(file, 'OVERSIZE_PROFILE'.repeat(4096))
+  await bot.prompt('Summarize a second fixture.')
+  assert.doesNotMatch(currentInput, /OVERSIZE_PROFILE|LOTUS_FORMAT/)
+  assert.match(currentInput, /COPPER_SUMMARY/)
+  await bot.close()
+
+  await writeFile(file, edited)
+  bot = await createPersonalAgent({ ...config, mem0: undefined }, dependencies)
+  await bot.prompt('Summarize with the file alone.')
+  assert.match(currentInput, /LOTUS_FORMAT/)
+  assert.doesNotMatch(currentInput, /COPPER_SUMMARY/)
+  const persisted = await readFile(join(config.stateDir, 'durable', 'personal', 'main.jsonl'), 'utf8')
+  assert.doesNotMatch(persisted, /ORCHID_FORMAT|LOTUS_FORMAT|OVERSIZE_PROFILE/)
+})
+
+test('Durable indexes eligible owner history through Mem0 and reuses it after restart', async t => {
+  const { config } = await fixture(t)
+  const first = 'In the Atlas drawer discussion I selected the copper hinge.'
+  const other = 'Unrelated fixture detail about a bicycle wheel.'
+  const fact = 'The Atlas drawer selection was a copper hinge.'
+  config.mem0 = fixtureMem0({ extract: messages => [messages[0].content === first ? fact : messages[0].content] })
+  let calls = 0, modelError
+  const modelRuntime = offline(context => {
+    try {
+      const raw = context.messages.findLast(message => message.role === 'user').content
+      if (!raw.includes('Recall the Atlas')) return assistant('Noted.')
+      assert.match(raw, /workflow: history/)
+      assert.match(raw, /Current allowed capability names \(JSON data\): \["history_search"\]/)
+      assert.doesNotMatch(JSON.stringify(context.messages), /independent note marker|local Markdown marker|bicycle wheel/)
+      assert.equal(context.messages.filter(message => message.role === 'user').length, 1)
+      const preview = /Dated conversation memory[^\n]*\n([^\n]*)\nEnd conversation memory\./.exec(raw)
+      assert(preview)
+      const [hit] = JSON.parse(preview[1])
+      assert.equal(hit.text, fact)
+      assert.match(hit.date, /^\d{4}-\d{2}-\d{2}/)
+      assert.equal(typeof hit.source, 'string')
+      calls++
+      if (context.messages.at(-1).role !== 'toolResult') return assistant([{ type: 'toolCall', id: 'history-' + calls, name: 'codemode',
+        arguments: { code: 'text(await tools.history_search({query:"Atlas copper"}));' } }], 'toolUse')
+      assert.match(JSON.stringify(context.messages.at(-1).content), /copper hinge/)
+      return assistant('Copper hinge.')
+    } catch (error) { modelError = error; throw error }
+  })
+  const dependencies = { createRuntime: async () => modelRuntime, createIntentRouter: () => async ({ text }) => ({
+    intent: text.startsWith('Recall the Atlas') ? 'history' : 'conversation',
+  }) }
+  let bot = await createPersonalAgent(config, dependencies)
+  try {
+    await bot.prompt(first)
+    await bot.prompt(other)
+    for (let attempt = 0; attempt < 100 && config.mem0.requests.filter(row => row.operation === 'ingest').length < 2; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    assert.equal(config.mem0.requests.filter(row => row.operation === 'ingest').length, 2)
+  } finally { await bot.close() }
+  await config.mem0.scope(config.stateDir, 'notes').put('fixture', 'independent note marker')
+  const file = join(config.stateDir, 'personal-agent', 'MEMORY.md')
+  await writeFile(file, 'local Markdown marker', { mode: 0o600 })
+  protectProactivePath(file)
+  bot = await createPersonalAgent(config, dependencies)
+  try {
+    assert.equal(await bot.prompt('Recall the Atlas drawer hinge from our conversation.'), 'Copper hinge.')
+    assert.equal(bot.lastTaskResult.verification.status, 'not_run')
+  } catch (error) { throw modelError ?? error } finally { await bot.close() }
+  assert.equal(calls, 2)
+  assert.equal(config.mem0.requests.filter(row => row.operation === 'ingest').length, 2)
+  const state = join(config.stateDir, 'durable', 'personal')
+  for (const file of (await readdir(state)).filter(name => name.endsWith('.jsonl'))) {
+    assert.doesNotMatch(await readFile(join(state, file), 'utf8'), /Dated conversation memory/)
+  }
 })
 
 test('configured Durable query verifies, skips procedural learning, and clears shortcut outcomes across restart', async t => {
@@ -558,4 +687,76 @@ test('retained task names use independent tool-free generation and review',async
  })
  const bot=await createPersonalAgent(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
  try {const value=await bot.nameRemoteTasks({records});assert.equal(value.names[0].name,'Android 客户端连接');assert.equal(generated,1);assert.equal(reviewed,1);reviewStatus='needs_review';await assert.rejects(bot.nameRemoteTasks({records}),{code:'REMOTE_NAMES_REVIEW_REQUIRED'})}finally{await bot.close()}
+})
+
+
+test('bounded zero-tool judgment and desk Intent generation isolate Hunyuan request overrides from the owner session', async t => {
+  const cases = [
+    { provider: 'magpie', id: 'hunyuan-eval/hy4-dev', api: 'openai-completions', disablesReasoning: true },
+    { provider: 'magpie', id: 'hunyuan-eval/another-model', api: 'openai-completions', disablesReasoning: false },
+    { provider: 'other-provider', id: 'hunyuan-eval/hy4-dev', api: 'openai-completions', disablesReasoning: false },
+    { provider: 'magpie', id: 'hunyuan-eval/hy4-dev', api: 'openai-responses', disablesReasoning: false },
+  ]
+  for (const { disablesReasoning, ...selection } of cases) await t.test(JSON.stringify(selection), async t => {
+    const { config } = await fixture(t)
+    config.personal.agentPlugins = undefined
+    config.env.ODK_JEV_PROVIDER = 'disabled'
+    const model = { ...fixtureModel, ...selection, reasoning: true }
+    const requests = []
+    const runtime = offline(context => {
+      const ownerMessage = context.messages.findLast(message => message.role === 'user')
+      const text = typeof ownerMessage.content === 'string' ? ownerMessage.content : ownerMessage.content.map(part => part.text).join('')
+      if (text.includes('"questions":')) {
+        const input = JSON.parse(text.slice(text.indexOf('{')))
+        return assistant(JSON.stringify({ answers: Object.fromEntries(Object.entries(input.questions).map(([id, question]) =>
+          [id, question.type === 'noul' ? { type: 'noul', noul: 0.99 } : { type: 'choice', choice: 'conversation', confidence: 0.99 }])) }))
+      }
+      if (text.includes('"intentConditionMet":true')) return assistant('root = Suggestions([])')
+      return assistant('fixture owner response')
+    })
+    const stream = runtime.streamSimple
+    Object.assign(runtime, { getAvailable: async () => [model], getAvailableSnapshot: () => [model], getModel: () => model,
+      streamSimple: (selected, context, options) => {
+        const transformed = Promise.resolve().then(async () => {
+          const payload = { reasoning_effort: 'high', unrelated: 'preserved' }
+          const projected = await options?.onPayload?.(payload, selected)
+          requests.push({ tools: visibleTools(context).map(tool => tool.name), maxTokens: options?.maxTokens, reasoning: options?.reasoning, payload: projected ?? payload })
+        })
+        const raw = stream(selected, context)
+        return { async *[Symbol.asyncIterator]() { await transformed; yield* raw }, async result() { await transformed; return raw.result() } }
+      },
+    })
+    const bot = await createPersonalAgent(config, { createRuntime: async () => runtime })
+    try {
+      await bot.configureSelection({ thinkingLevel: 'high' })
+      assert.equal(await bot.prompt('Tell me a joke.'), 'fixture owner response')
+      const topics = [{ id: 'intent-weather', goal: 'Take a coat', intentPreview: true, intentCondition: 'Below 20 degrees',
+        evidence: [{ id: 'e0', readingId: 'odk.tile.weather', field: 'temperatureC', value: 17 }] }]
+      assert.deepEqual(await bot.generateProposals({ topics, maxCandidates: 1 }), { suggestions: [] })
+      const [judgment, owner, scoped] = requests
+      assert.equal(requests.length, 3)
+      const payload = { reasoning_effort: disablesReasoning ? 'none' : 'high', unrelated: 'preserved' }
+      const reasoning = disablesReasoning ? undefined : 'high'
+      assert.deepEqual(judgment, { tools: [], maxTokens: disablesReasoning ? 1024 : undefined, reasoning, payload })
+      assert.deepEqual(scoped, { tools: [], maxTokens: disablesReasoning ? 2048 : undefined, reasoning, payload })
+      assert.deepEqual(owner.tools, ['codemode'])
+      assert.deepEqual(owner.payload, { reasoning_effort: 'high', unrelated: 'preserved' })
+      assert.notEqual(owner.maxTokens, 1024)
+      assert.notEqual(owner.maxTokens, 2048)
+      assert.equal(owner.reasoning, 'high')
+      assert.equal(bot.selection.thinkingLevel, 'high')
+      const batched = [...topics, { ...topics[0], id: 'intent-weather-other' }]
+      assert.deepEqual(await bot.generateProposals({ topics: batched, maxCandidates: 2 }), { suggestions: [] })
+      assert.deepEqual(requests[3], { tools: [], maxTokens: disablesReasoning ? 4096 : undefined, reasoning, payload })
+      if (disablesReasoning) {
+        assert.deepEqual(await bot.generateProposals({ topics: batched, maxCandidates: 1 }), { suggestions: [] })
+        assert.equal(requests[4].maxTokens, 2048)
+        const questions = Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`q${i}`, { type: 'noul', instructions: 'Is the supplied fixture ready?' }]))
+        const judged = await bot.judge({ state: { ready: true }, questions })
+        assert.equal(Object.keys(judged.answers).length, 16)
+        assert.equal(judged.answers.q15.noul, 0.99)
+        assert.deepEqual(requests.at(-1), { tools: [], maxTokens: 2048, reasoning: undefined, payload })
+      }
+    } finally { await bot.close() }
+  })
 })

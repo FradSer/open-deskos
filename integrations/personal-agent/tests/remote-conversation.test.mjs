@@ -173,7 +173,7 @@ test('legal remote and RidePreview proposal payloads do not consume the owner vo
  const place={handle:'place',name:'地点'.repeat(32),city:'测试市',address:'地址'.repeat(32),location:{lng:1,lat:2}}
  const ridePreview={handle:'preview',status:'quoted',from:[place],to:[place],expiresAt:120000,measuredAt:new Date(0).toISOString(),items:Array.from({length:16},()=>({productName:'中'.repeat(128),productCategory:'1',priceText:'元'.repeat(64)}))}
  assert(validRidePreview(ridePreview))
- const {proposalStateStore}=await import('../src/proactive-state.mjs')
+ const {proposalStateStore}=await import('../src/recommendations/index.mjs')
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-ride-frame-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
  const proposals=Array.from({length:3},(_,index)=>{const id=`00000000-0000-4000-8000-${String(index).padStart(12,'0')}`;return {id,ruleId:`intent-${id}`,subject:'synthetic',ruleVersion:'1',status:'pending',advice:'中'.repeat(1000),confirmation:'',result:'',createdAt:new Date(0).toISOString(),action:null,offered:true,presented:true,evidence:[{readingId:'fixture',field:'value',ruleId:`intent-${id}`,state:'live',measuredAt:new Date(0).toISOString(),value:'中'.repeat(100)}],ridePreview}})
  assert(Buffer.byteLength(JSON.stringify(proposals))<=48000)

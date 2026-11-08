@@ -76,6 +76,13 @@ Feature: Every Personal Agent user turn receives a typed intent judgment
     Then the intent-specific capability boundary rejects that call
     And query handlers resolve current targets and session identities from actual tools
 
+  Scenario: Conversation history and saved notes use different workflows
+    Given the personal profile provides owner history and saved notes
+    When the owner asks what was said in the resident conversation
+    Then the classifier selects the read-only history workflow
+    And requests about current saved notes use the memory workflow
+    And the history workflow cannot invoke saved-note tools
+
   Scenario: An application query cannot become a lifecycle mutation
     Given the user asks which Widgets or Apps are installed or where they are placed
     When the intent classifier selects the read-only application query intent
@@ -184,3 +191,14 @@ Feature: Every Personal Agent user turn receives a typed intent judgment
     And concurrent judgments retain separate failure phases
     And cleanup cannot overwrite the recorded primary failure
     And late cleanup cannot publish another terminal diagnostic
+
+  Scenario: A cancelled Intent save leaves no record
+    Given the current owner asks to save an Intent with a Widget reading
+    When the save is cancelled before the selected field check returns
+    Then the resident does not store the Intent
+
+  Scenario: Save a Gmail label routine from a conversation
+    Given the owner has a read-only Gmail connection
+    When the owner asks to check the Work label every 15 minutes from 09:00 to 18:00 on weekdays
+    Then the routine records the weekday window, time zone, and exact label binding
+    And the routine stores the condition and the request for one next step

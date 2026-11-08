@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createConnection } from 'node:net'
@@ -48,7 +49,7 @@ test('private MCP daemon probes locally, serves real SDK sessions, and stops all
   const client = new Client({ name: 'service-test', version: '1' })
   await client.connect(new SocketTransport(createConnection(socketPath), { maxFrame: 65536 }))
   t.after(() => client.close())
-  assert.deepEqual((await client.listTools()).tools.map(tool => tool.name), ['gmail_status', 'gmail_search', 'gmail_read'])
+  assert.deepEqual((await client.listTools()).tools.map(tool => tool.name), ['gmail_status', 'gmail_search', 'gmail_read', 'gmail_schedule_changes', 'gmail_resolve_label', 'gmail_label_changes'])
   assert.deepEqual((await client.callTool({ name: 'gmail_search', arguments: { query: 'is:unread' } })).structuredContent.messages, [{ id: 'abc' }])
   const mail = await client.callTool({ name: 'gmail_read', arguments: { id: 'abc' } })
   assert.equal(mail.structuredContent.untrusted, true)
@@ -69,7 +70,7 @@ test('stdio socket bridge uses no credential environment and preserves MCP disco
     args: [new URL('../src/socket-bridge.mjs', import.meta.url).pathname], env: { ODK_MCP_GMAIL_SOCKET: socketPath }, stderr: 'pipe' })
   t.after(() => client.close())
   await client.connect(transport)
-  assert.equal((await client.listTools()).tools.length, 3)
+  assert.deepEqual((await client.listTools()).tools.map(tool => tool.name), ['gmail_status', 'gmail_search', 'gmail_read', 'gmail_schedule_changes', 'gmail_resolve_label', 'gmail_label_changes'])
   const result = await client.callTool({ name: 'gmail_status' })
   assert.equal(result.structuredContent.state, 'unconfigured')
   const manifest = createGmailManifest({ directory: new URL('..', import.meta.url).pathname.replace(/\/$/, ''), mode: 'socket' })
@@ -181,6 +182,10 @@ test('Docker service package is an exact hashed inventory without credentials or
   assert.equal(manifest.runtime.platform, 'linux/arm64')
   assert(manifest.files.some(file => file.path === 'pnpm-lock.yaml'))
   assert(manifest.files.some(file => file.path === 'src/daemon.mjs'))
+  const scheduleSource = 'src/schedule-changes.mjs'
+  const scheduleHash = createHash('sha256').update(await readFile(new URL('../' + scheduleSource, import.meta.url))).digest('hex')
+  assert.deepEqual(manifest.files.find(file => file.path === scheduleSource), { path: scheduleSource, sha256: scheduleHash })
+  assert.equal(createHash('sha256').update(await readFile(join(destination, scheduleSource))).digest('hex'), scheduleHash)
   assert(!manifest.files.some(file => /node_modules|credentials\.json|tests\//.test(file.path)))
   assert.deepEqual(JSON.parse(await readFile(join(destination, 'service.json'), 'utf8')), manifest)
   await assert.rejects(buildServicePackage({ destination, image: 'sha256:' + 'a'.repeat(64) }), /exists/)
