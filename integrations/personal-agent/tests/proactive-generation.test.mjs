@@ -10,6 +10,16 @@ const stamp = '2026-10-02T10:00:00.000Z'
 const approved = { id: 'inspect', label: 'Inspect the pending item.', tool: 'memory_update', params: { category: 'note', value: 'Inspect pending item' } }
 const config = () => ({ version: 2, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 60000, maxCandidates: 8, maxPush: 3, generationIntervalMs: 0, attentionCooldownMs: 0, suppressed: [], snoozed: {}, rules: [{ actions: [approved], id: 'deliveries', goal: '及时处理需要我领取的物品。', observations: [{ readingId: 'thirdparty.parcels', fields: ['ready', 'count'] }], delivery: 'immediate', urgent: false }] })
 const suggestion = (key, advice, evidenceIds = ['e0']) => openuiSuggestion({ topicId: 'deliveries', key, advice, actionId: 'inspect', evidenceIds })
+
+test('source advice may mention the action without repeating its label alone', () => {
+  const topics = [{ id: 'deliveries', actions: [{ id: 'inspect', label: '查看邮件' }], evidence: [{ id: 'e0' }] }]
+  const advice = '面试邀请需要你查看邮件里的时间。'
+  const [result] = validateGeneratedBatch({ suggestions: [suggestion('mail', advice)] }, topics, 1)
+  assert.equal(result.advice, advice)
+  assert.equal(result.actionId, 'inspect')
+  assert.throws(() => validateGeneratedBatch({ suggestions: [suggestion('mail', '查看邮件。')] }, topics, 1), /repeats the action label/)
+})
+
 function fixture(overrides = {}) {
   const requests = [], frames = []
   let raw = { suggestions: [suggestion('collect', '领取待取物品。'), suggestion('count', '检查物品数量。'), suggestion('unsupported', '立即取消所有订单。')] }

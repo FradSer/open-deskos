@@ -1,5 +1,5 @@
 import {createJevClient, checkJevAuthentication} from './jev-client.mjs'
-import {withOpenDeskOSClient} from './model-client-identity.mjs'
+import {hy4OptionsWithoutReasoning, withOpenDeskOSClient} from './model-client-identity.mjs'
 import {DEFAULT_OVERVIEW_PREFERENCES} from './overview-preferences.mjs'
 import {createJudgmentClient, judgmentInstructions, validateOrdinaryJudgmentAnswers} from './judgment-client.mjs'
 import { guardReplyTools, hostedPromptAcknowledgement } from './session-replies.mjs'
@@ -100,19 +100,8 @@ function homeGenerationModels(source) {
  * @param {number} maxTokens
  */
 function boundedDecisionModels(source, maxTokens) {
-  const stream = /** @type {typeof source.streamSimple} */ ((model, context, options = {}) => {
-    // The Magpie route enables Hy4 reasoning by default even when Pi lists this model as non-reasoning.
-    const needsExplicitOff = model.provider === 'magpie' && model.id === 'hunyuan-eval/hy4-dev' && model.api === 'openai-completions'
-    if (!needsExplicitOff) return source.streamSimple(model, context, options)
-    return source.streamSimple(model, context, { ...options, reasoning: undefined, maxRetries: 0,
-      maxTokens: Math.min(maxTokens, options.maxTokens > 0 ? options.maxTokens : maxTokens),
-      onPayload: async (payload, effectiveModel) => {
-        const transformed = await options.onPayload?.(payload, effectiveModel)
-        const body = transformed === undefined ? payload : transformed
-        return body && typeof body === 'object' && !Array.isArray(body) ? { ...body, reasoning_effort: 'none' } : body
-      },
-    })
-  })
+  const stream = /** @type {typeof source.streamSimple} */ ((model, context, options) =>
+    source.streamSimple(model, context, hy4OptionsWithoutReasoning(model, options, maxTokens)))
   return new Proxy(source, { get(target, key) {
     if (key === 'streamSimple') return stream
     const value = Reflect.get(target, key, target)

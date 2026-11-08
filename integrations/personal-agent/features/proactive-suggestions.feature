@@ -914,6 +914,12 @@ Feature: Owner controlled proactive Personal Agent proposals
     And no generated component grants execution permission or invents a fact
     And the host independently validates every candidate
 
+  Scenario: An observation can contain words from its action label
+    Given the advice reports a source request that contains words from the approved action label
+    When the host validates the generated card
+    Then the card retains its advice and one approved action
+    And advice that only repeats the action label is refused
+
   Scenario: A composed card keeps its own structure and honest numbers
     Given a generated candidate carries advice and a freely composed OpenUI tree
     When the host validates that candidate before publication
