@@ -23,7 +23,7 @@ import { composeConnectorOwnerPrompt, snapshotConnectorCatalog } from './connect
 import { originatingAppsRequest } from './display-apps.mjs'
 import { loadCapabilities, createRemoteUpdatesTool, createRemoteFollowupTool } from './capabilities.mjs'
 import { taskFailureReceipt } from './task-client.mjs'
-import { createMemoryStore } from './memory.mjs'
+import { createMemoryStore, readOwnerMarkdown } from './memory.mjs'
 import { createMem0Backend } from './mem0.mjs'
 import { withDeadline } from './agent-catalog/mcp.mjs'
 import { createPersonalTools } from './personal-tools.mjs'
@@ -251,9 +251,11 @@ export async function createPersonalAgent(config, { createSession = createDurabl
     let hostedContinuation
     let hostedDeliveryUncertain = false
     const historyEnabled = personal && !config.childAgent
+    const ownerMarkdownFile = historyEnabled ? join(config.stateDir, 'personal-agent', 'MEMORY.md') : undefined
     /** @type {Awaited<ReturnType<typeof createHistoryEvidence>> | undefined} */
     let historyEvidence
     let conversationMemory
+    let ownerMarkdown = ''
     const intentJudgment = !config.childAgent && config.personal?.agentPlugins?.enabled.includes('intent') ? createIntentJudgment({ env: config.env ?? process.env, request: judgment.request }) : undefined
     const intents = intentJudgment ? createIntentRuntime({ store: createIntentStore(join(config.stateDir, 'personal-agent', 'intent.md')),
       memory: async () => JSON.parse(await memory.read()), memoryVersion: keys => memory.version(keys),
@@ -418,7 +420,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
       ownerHistory: historyIndexer ? () => ({
         historyQuery: intentTurn.getIntent() === 'history',
         historyEligible: intentTurn.getIntent() === 'conversation' && !remoteContext(),
-        historyUserOnly: conversationMemory?.privateData === true,
+        historyUserOnly: Boolean(ownerMarkdown) || conversationMemory?.privateData === true,
       }) : undefined,
       beginTurn: async (text, owner, signal) => {
         historyEvidence = undefined
@@ -427,13 +429,16 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         currentTurn = text.trim(); ownerTurn = text ? Object.freeze({text:intentTurn.getRequestText(),turn:intentTurn.getTurn(),id:owner?.id??randomUUID(),applications:owner?.applications,bind:bound=>{activeReply=bound;owner?.bind(bound)}}) : undefined; memory?.beginTurn(text); reviewed?.beginTurn(text)
         plugins?.beginTurn(text, intentTurn.getIntent(), profile)
         packages?.beginTurn(text, intentTurn.getIntent())
-        if (text && intentTurn.getIntent() === 'history') {
+        const intent = intentTurn.getIntent()
+        ownerMarkdown = text && ownerMarkdownFile && ownerMarkdownFile !== config.personal?.memoryFile
+          && (intent === 'conversation' || intent === 'memory') ? readOwnerMarkdown(ownerMarkdownFile) : ''
+        if (text && intent === 'history') {
           try {
             const { generation } = await session.readHistory(signal)
             historyEvidence = await createHistoryEvidence(historyIndexer.scope(generation), text, signal)
           } catch { signal?.throwIfAborted() }
         }
-        if (text && intentTurn.getIntent() === 'conversation' && historyIndexer) {
+        if (text && intent === 'conversation' && historyIndexer) {
           const content = backend.enabled ? await withDeadline(async memorySignal => {
             const parts = await Promise.allSettled([
               memory.context(text, undefined, { pinned: config.personal?.pinnedMemoryCategories, signal: memorySignal }),
@@ -453,9 +458,10 @@ export async function createPersonalAgent(config, { createSession = createDurabl
         }
         if (!memory && !plugins) return undefined
         const query = currentTurn
+        const markdown = ownerMarkdown
         const currentOnly = Boolean(memory && intentTurn.getIntent() === 'memory')
         return { currentOnly, onPrivateData: () => plugins?.markPrivateData(), read: async () => {
-          let privateData = false
+          let privateData = Boolean(markdown)
           const notes = conversationMemory ? conversationMemory.content
             : memory && backend.enabled ? await withDeadline(signal => memory.context(query, () => { privateData = true },
               { current: currentOnly, pinned: config.personal?.pinnedMemoryCategories, signal }), lifetime.signal, currentOnly ? 5000 : 1500)
@@ -463,7 +469,7 @@ export async function createPersonalAgent(config, { createSession = createDurabl
           privateData ||= conversationMemory?.privateData === true
           const experience = conversationMemory || currentOnly || !backend.enabled || !plugins ? ''
             : await withDeadline(signal => plugins.context(signal), lifetime.signal, 1500).catch(() => '')
-          return { content: notes + experience, privateData }
+          return { content: markdown + notes + experience, privateData }
         } }
       },
       afterTurn: async (_text, answer, signal) => {

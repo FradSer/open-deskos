@@ -352,6 +352,35 @@ The first memory operation imports each legacy name and value once.
 The source file remains available for recovery.
 The import receipt prevents a restart from restoring a forgotten legacy note.
 
+### Owner Markdown
+
+Create `<stateDir>/personal-agent/MEMORY.md` in the private resident state directory.
+Save the file as UTF-8 with owner-only permissions.
+Use mode 0600 on Linux and macOS.
+Keep the file at or below 4096 bytes.
+Use this file for standing preferences and facts that you maintain.
+
+```md
+# Owner memory
+
+- Prefer short replies in Simplified Chinese.
+- Use kilograms for weight.
+```
+
+The personal resident reads the current file for each ordinary turn and saved-note request.
+It uses the file alongside applicable Mem0 notes.
+The current request and current named Mem0 notes take priority over standing preferences in the file.
+Edit the file directly to change its content.
+The remember and forget commands change the named notes in Mem0.
+
+The resident skips an empty, unsafe, or oversized file.
+It also skips a file that matches a common credential pattern or the configured legacy `memoryFile` path.
+Ordinary turns can use the file while Mem0 is unavailable.
+The host passes the file to the model as private reference data for the current request.
+The snapshot stays outside the persisted input.
+Background history extraction receives only the owner text for a turn that uses the file.
+The history workflow uses dated Mem0 facts for past events.
+
 ### Conversation memory
 
 The resident sends eligible completed conversations to Mem0 in the background.

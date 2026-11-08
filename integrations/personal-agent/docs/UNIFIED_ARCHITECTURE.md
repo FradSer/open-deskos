@@ -72,6 +72,7 @@ Generic shell and source mutation tools remain outside the resident coordinator.
 Hosted Pi handles authorized source work on an explicit target and project.
 
 A private Mem0 OSS worker supplies notes, conversation recall, experience, and recommendation feedback.
+The personal resident also reads the private owner `MEMORY.md` for standing preferences.
 Notes retain explicit owner memory commands.
 The runtime supplies notes and a bounded experience index as untrusted model context.
 `experience_read` retrieves full entries; `experience_list` searches entries omitted from the index.

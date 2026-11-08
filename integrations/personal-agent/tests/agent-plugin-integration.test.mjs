@@ -9,6 +9,7 @@ import { loadPersonalConfig } from '../src/personal-config.mjs'
 import { assistant, offlineRuntime as offline, visibleTools } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
 import { RemoteConversation } from '../src/remote-conversation.mjs'
+import { protectProactivePath } from '../src/proactive-private.mjs'
 import { fixtureMem0 } from './fixtures/mem0.mjs'
 
 async function fixture(t) {
@@ -127,6 +128,60 @@ test('explicit owner notes reach real Durable context after restart and reflect 
   for (const file of files) assert.doesNotMatch(await readFile(join(state, file), 'utf8'), /Current saved MEMORY data/)
 })
 
+test('owner Markdown and Mem0 notes coexist in the active Durable request', async t => {
+  const { config } = await fixture(t)
+  const directory = join(config.stateDir, 'personal-agent')
+  await mkdir(directory, { mode: 0o700 })
+  const file = join(directory, 'MEMORY.md')
+  const first = 'Summarize the fixture.'
+  const initial = '# Reply style\nUse the profile marker ORCHID_FORMAT.\n'
+  const edited = '# Reply style\nUse the profile marker LOTUS_FORMAT.\n'
+  await writeFile(file, initial, { mode: 0o600 })
+  protectProactivePath(file)
+  const backend = config.mem0
+  await backend.scope(config.stateDir, 'notes').put('format', 'Use the saved note marker COPPER_SUMMARY.')
+  config.personal.pinnedMemoryCategories = ['format']
+
+  let currentInput
+  const modelRuntime = offline(context => {
+    currentInput = context.messages.findLast(message => message.role === 'user').content
+    return assistant('Fixture reply.')
+  })
+  const dependencies = { createRuntime: async () => modelRuntime, createIntentRouter: () => async ({ text }) => ({
+    intent: text === '查看你的记忆' ? 'memory' : 'conversation',
+  }) }
+  let bot = await createPersonalAgent(config, dependencies)
+  t.after(() => bot.close())
+  await bot.prompt(first)
+  assert.match(currentInput, /MEMORY\.md[^\n]*\n[^\n]*ORCHID_FORMAT/)
+  assert.match(currentInput, /Current saved MEMORY data[^\n]*\n[^\n]*COPPER_SUMMARY/)
+  for (let attempt = 0; attempt < 100 && !backend.requests.some(row => row.operation === 'ingest'); attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+  assert.deepEqual(backend.requests.find(row => row.operation === 'ingest')?.messages, [{ role: 'user', content: first }])
+
+  await writeFile(file, edited)
+  await bot.prompt('查看你的记忆')
+  assert.match(currentInput, /LOTUS_FORMAT/)
+  assert.match(currentInput, /COPPER_SUMMARY/)
+  assert.doesNotMatch(currentInput, /ORCHID_FORMAT/)
+  assert.equal(await readFile(file, 'utf8'), edited)
+
+  await writeFile(file, 'OVERSIZE_PROFILE'.repeat(4096))
+  await bot.prompt('Summarize a second fixture.')
+  assert.doesNotMatch(currentInput, /OVERSIZE_PROFILE|LOTUS_FORMAT/)
+  assert.match(currentInput, /COPPER_SUMMARY/)
+  await bot.close()
+
+  await writeFile(file, edited)
+  bot = await createPersonalAgent({ ...config, mem0: undefined }, dependencies)
+  await bot.prompt('Summarize with the file alone.')
+  assert.match(currentInput, /LOTUS_FORMAT/)
+  assert.doesNotMatch(currentInput, /COPPER_SUMMARY/)
+  const persisted = await readFile(join(config.stateDir, 'durable', 'personal', 'main.jsonl'), 'utf8')
+  assert.doesNotMatch(persisted, /ORCHID_FORMAT|LOTUS_FORMAT|OVERSIZE_PROFILE/)
+})
+
 test('Durable indexes eligible owner history through Mem0 and reuses it after restart', async t => {
   const { config } = await fixture(t)
   const first = 'In the Atlas drawer discussion I selected the copper hinge.'
@@ -140,7 +195,7 @@ test('Durable indexes eligible owner history through Mem0 and reuses it after re
       if (!raw.includes('Recall the Atlas')) return assistant('Noted.')
       assert.match(raw, /workflow: history/)
       assert.match(raw, /Current allowed capability names \(JSON data\): \["history_search"\]/)
-      assert.doesNotMatch(JSON.stringify(context.messages), /independent note marker|bicycle wheel/)
+      assert.doesNotMatch(JSON.stringify(context.messages), /independent note marker|local Markdown marker|bicycle wheel/)
       assert.equal(context.messages.filter(message => message.role === 'user').length, 1)
       const preview = /Dated conversation memory[^\n]*\n([^\n]*)\nEnd conversation memory\./.exec(raw)
       assert(preview)
@@ -168,6 +223,9 @@ test('Durable indexes eligible owner history through Mem0 and reuses it after re
     assert.equal(config.mem0.requests.filter(row => row.operation === 'ingest').length, 2)
   } finally { await bot.close() }
   await config.mem0.scope(config.stateDir, 'notes').put('fixture', 'independent note marker')
+  const file = join(config.stateDir, 'personal-agent', 'MEMORY.md')
+  await writeFile(file, 'local Markdown marker', { mode: 0o600 })
+  protectProactivePath(file)
   bot = await createPersonalAgent(config, dependencies)
   try {
     assert.equal(await bot.prompt('Recall the Atlas drawer hinge from our conversation.'), 'Copper hinge.')

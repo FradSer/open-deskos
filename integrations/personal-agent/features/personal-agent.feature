@@ -1,4 +1,4 @@
-Feature: Personal Agent memory in self-hosted Mem0 OSS
+Feature: Personal Agent memory in a private Markdown file and Mem0 OSS
   Scenario: Existing coding setup remains unchanged
     Given ODK_PERSONAL_AGENT_CONFIG is absent
     When configuration is loaded
@@ -63,6 +63,26 @@ Feature: Personal Agent memory in self-hosted Mem0 OSS
     Then a request for current saved notes sees only current note state
     And an earlier injected snapshot cannot supply a forgotten value
 
+  Scenario: Owner Markdown and Mem0 notes supply current context
+    Given the owner keeps a private MEMORY.md in the resident state directory
+    And Mem0 stores a named note for that owner
+    When the owner sends an ordinary request or asks to view current memory
+    Then the model receives the current Markdown and applicable Mem0 notes as separate reference data
+    And only the current request grants permission for a tool action
+    And the resident keeps the Markdown snapshot outside the persisted input
+    And background history extraction receives only the owner text for a conversation that used the snapshot
+    When the owner edits the file
+    Then the next eligible turn receives the edited version
+    And the owner still writes and forgets named notes through Mem0
+
+  Scenario: The two memory sources can fail independently
+    Given the owner Markdown is unavailable or larger than 4096 bytes
+    When the owner sends an ordinary request
+    Then the request can still use applicable Mem0 notes
+    Given a valid owner file and a disabled Mem0 worker
+    When the owner sends an ordinary request
+    Then the request still receives the Markdown
+
   Scenario: Mem0 extracts and recalls completed conversations
     Given an eligible completed owner exchange in the resident conversation
     When the background import reads the durable conversation
@@ -72,6 +92,7 @@ Feature: Personal Agent memory in self-hosted Mem0 OSS
     Then the model gets bounded dated Mem0 facts from the current conversation scope
     And the model checks each requested event and qualifier before using a fact
     And the history workflow cannot read or change saved notes
+    And past event evidence comes from the current Mem0 history scope
 
   Scenario: Private data and reset boundaries limit history memory
     Given retained exchanges include a history question, tool output, or a memory command
