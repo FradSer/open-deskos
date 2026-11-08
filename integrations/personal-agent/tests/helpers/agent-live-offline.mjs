@@ -12,7 +12,7 @@ export function createOfflineAcceptanceRuntime(phase) {
         const all = JSON.stringify(context.messages)
         const user = context.messages.findLast(message => message.role === 'user')
         const raw = typeof user?.content === 'string' ? user.content : user?.content?.filter(part => part.type === 'text').map(part => part.text).join('\n') ?? ''
-        if (all.includes('Check the current Personal Agent task after') || all.includes('Extract reusable procedural lessons only')) {
+        if (all.includes('Check the current Personal Agent task after')) {
           const input = parsePluginInput(raw.slice('Personal Agent request:\n'.length))
           if (input.scope?.kind === 'hosted_check') throw Error('The report fixture cannot supply Hosted check facts')
           const computed = input.receipts.find(receipt => receipt.kind === 'computation' && receipt.status === 'succeeded'
@@ -40,16 +40,15 @@ export function createOfflineAcceptanceRuntime(phase) {
               ? `const list=await tools.agent_list({});const task=list.value.tasks.find(task=>task.identity?.id==="reporter"&&!['starting','running','cancelling'].includes(task.state));if(!task)throw Error("Saved fixture task unavailable");text(await tools.agent_input({taskId:task.taskId,request:${request}}));`
               : `text(await tools.agent_start({request:${request},${id === 'temporary' ? 'role:"Analyze the requested synthetic report."' : 'identityId:"reporter"'}}));`
           } else {
-            const id = phase().split(':')[0].startsWith('holdout-') ? phase().split(':')[0] : phase() === 'saved-training' ? 'training' : phase() === 'saved-restart' ? 'restart' : 'temporary'
-            code = `const e=await tools.experience_list({});if(e.entries.length)text(await tools.experience_read({id:e.entries[0].id}));text(await tools.agent_skill_read({id:"report-helper"}));`
-            if (!raw.includes('Supplied current synthetic report (JSON):')) code += `const d=await tools.agent_mcp_tools({id:"learning-reports"});text(await tools.agent_mcp_call({id:"learning-reports",revision:d.value.revision,tool:"read_report",arguments:{id:${JSON.stringify(id)}}}));`
+            const id = phase() === 'saved-training' ? 'training' : phase() === 'saved-restart' ? 'restart' : 'temporary'
+            code = `const e=await tools.experience_list({});if(e.entries.length)text(await tools.experience_read({id:e.entries[0].id}));text(await tools.agent_skill_read({id:"report-helper"}));const d=await tools.agent_mcp_tools({id:"learning-reports"});text(await tools.agent_mcp_call({id:"learning-reports",revision:d.value.revision,tool:"read_report",arguments:{id:${JSON.stringify(id)}}}));`
           }
           return assistant([{ type: 'toolCall', id: `fixture-${Math.random().toString(16).slice(2)}`, name: 'codemode', arguments: { code } }], 'toolUse')
         }
         if (context.messages.at(-1).isError) throw Error(`Acceptance fixture tool failed: ${JSON.stringify(context.messages.at(-1).content)}`)
         if (!child) return assistant('Requested fixture operation accepted.')
         if (!all.includes(reportProcedure)) return assistant('Procedure unavailable.')
-        const id = phase().split(':')[0].startsWith('holdout-') ? phase().split(':')[0] : phase() === 'saved-training' ? 'training' : phase() === 'saved-restart' ? 'restart' : 'temporary'
+        const id = phase() === 'saved-training' ? 'training' : phase() === 'saved-restart' ? 'restart' : 'temporary'
         const output = JSON.stringify(context.messages.at(-1).content).match(/RESULT=(-?\d+(?:\.\d+)?)/)
         if (output) return assistant(`RESULT=${output[1]}`)
         const code = `const samples=${JSON.stringify(reportData(id).samples)};const values=samples.filter(value=>value!==null);text("RESULT="+values.reduce((sum,value)=>sum+value-7,0)/values.length/5);`

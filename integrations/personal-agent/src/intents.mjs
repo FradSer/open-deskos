@@ -123,13 +123,14 @@ export function createIntentRuntime({ store, memory, memoryVersion = undefined, 
       const entry = store.list().find(e => `intent-${e.id}` === p.ruleId && e.revision === prior.intentRevision && e.enabled)
       if (!entry || !entry.ride || !previewRide) throw Error('Intent changed or was muted; explicitly request a new ride search')
       const keys = [...new Set([...entry.memoryKeys, ...['city', 'from', 'to'].filter(k => entry.ride[k] === undefined && entry.ride[`${k}MemoryKey`]).map(k => entry.ride[`${k}MemoryKey`])])]
-      const version = memoryVersion?.(keys), revision = watch.interactionRevision
+      const revision = watch.interactionRevision
       const sources = entry.observations.map(o => [o.readingId, watch.sourceRevisions?.get(o.readingId) ?? 0])
+      const notes = await memory()
+      const version = memoryVersion?.(keys)
       let prepared = false
       const contextValid = () => !watch.closed && !watch.controller.signal.aborted && unchanged(entry) && (version === undefined || memoryVersion(keys) === version) && sources.every(([id, v]) => (watch.sourceRevisions?.get(id) ?? 0) === v)
       // The provider retains this callback with its read-only route handles.
       const valid = () => contextValid() && (prepared || (!signal?.aborted && watch.interactionRevision === revision && ownerCurrent()))
-      const notes = await memory()
       const route = Object.fromEntries(['city', 'from', 'to'].map(k => [k, entry.ride[k] ?? notes[entry.ride[`${k}MemoryKey`]]]))
       if (!['city', 'from', 'to'].every(k => bounded(route[k], k === 'city' ? 80 : 120)) || !valid() || !ownerCurrent()) throw Error('Current route data is unavailable or changed')
       const preview = await previewRide(route, signal, valid)
@@ -181,7 +182,7 @@ export function createIntentRuntime({ store, memory, memoryVersion = undefined, 
         const update = status => { claim.status = status; claim.updatedAt = new Date(now()).toISOString(); watch.persist() }
         if (claim.status === 'checking') watch.persist()
         const keys = [...new Set([...entry.memoryKeys, ...['city', 'from', 'to'].filter(k => entry.ride && entry.ride[k] === undefined && entry.ride[`${k}MemoryKey`]).map(k => entry.ride[`${k}MemoryKey`])])]
-        const notesVersion = memoryVersion?.(keys)
+        let notesVersion
         const revision = watch.interactionRevision
         const sourceRevisions = entry.observations.map(o => [o.readingId, watch.sourceRevisions?.get(o.readingId) ?? 0])
         let prepared = false
@@ -196,6 +197,7 @@ export function createIntentRuntime({ store, memory, memoryVersion = undefined, 
         }
         try {
           const notes = await memory()
+          notesVersion = memoryVersion?.(keys)
           const selected = Object.fromEntries(keys.map(key => [key, Object.hasOwn(notes, key) ? notes[key] : null]))
           const observations = []
           for (const source of entry.observations) {

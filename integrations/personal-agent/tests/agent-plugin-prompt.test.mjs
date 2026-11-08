@@ -29,14 +29,6 @@ test('observer parsing keeps exact quote checks and ignores invented authority i
   const valid = completion(literal)
   assert.equal(validateCompletion(valid, decoded.receipts).status, 'passed')
   assert.equal(pluginEvidenceMetadata(decoded, JSON.stringify(valid)).validation, 'valid')
-  const scope = { kind: 'hosted_check', version: 1, profile: 'coding' }
-  const fact = { id: 'check-1', tool: 'coding_check', kind: 'host_check', status: 'succeeded', truncated: false, learningEligible: true,
-    text: 'Package tests (pnpm test) exited successfully with matching source samples before and after.' }
-  const learning = parsePluginInput(renderPluginInput({ scope, receipts: [fact] }))
-  const lesson = JSON.stringify({ lessons: [{ title: 'Package checks', body: 'Compare source samples before and after running tests.',
-    evidence: [{ id: fact.id, quote: 'matching source samples' }] }] })
-  assert.equal(pluginEvidenceMetadata(learning, lesson).validation, 'valid')
-  assert.equal(pluginEvidenceMetadata({ scope, receipts: [{ ...fact, learningEligible: false }] }, lesson).failureCode, 'citation')
   assert.throws(() => validateCompletion(completion('"mean": 6'), decoded.receipts), error => error.code === 'citation')
   valid.checks[0].evidence[0].id = 'tool-999'
   assert.throws(() => validateCompletion(valid, decoded.receipts), error => error.code === 'citation')

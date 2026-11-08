@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createPersonalAgent } from '../src/agent.mjs'
+import { fixtureMem0 } from './fixtures/mem0.mjs'
 import { createExperienceStore } from '../src/agent-plugins/experience.mjs'
 import { openAgentCatalog } from '../src/agent-catalog/catalog.mjs'
 import { assistant, offlineRuntime as runtime, visibleTools } from './helpers/pi-fixture.mjs'
@@ -82,7 +83,7 @@ test('a saved Durable child verifies installed MCP work and retrieves reviewed e
   let bot
   t.after(async () => { try { await bot?.close() } finally { await rm(root, { recursive: true, force: true }) } })
   await isolateAgentDirectory(t, root)
-  const config = { stateDir: join(root, 'state'), env: {}, personal: { profile: 'personal', skillPaths: [], memoryFile: join(root, 'notes.json'),
+  const config = { stateDir: join(root, 'state'), env: {}, mem0: fixtureMem0(), personal: { profile: 'personal', skillPaths: [], memoryFile: join(root, 'notes.json'),
     agentPlugins: { enabled: ['subagents', 'catalog', 'mcp', 'experience', 'completion', 'learning'] } } }
   const catalog = await openAgentCatalog(join(config.stateDir, 'personal-agent', 'packages'))
   await catalog.installMcp({ schemaVersion: 1, kind: 'mcp', id: 'reports', name: 'Offline report connector', transport: { type: 'stdio', command: process.execPath,
@@ -129,8 +130,8 @@ test('a saved Durable child verifies installed MCP work and retrieves reviewed e
   assert.equal(result.identity.avatar, 'book')
   await bot.close()
   const childHome = join(config.stateDir, 'personal-agent', 'children', 'homes', 'saved', 'reporter')
-  const experience = createExperienceStore(join(childHome, 'personal-agent', 'experience.json'))
-  assert.deepEqual(experience.load().entries, [])
+  const experience = createExperienceStore({ scope: config.mem0.scope(childHome, 'experience'), stateDir: childHome })
+  assert.deepEqual((await experience.load()).entries, [])
   await experience.append([{ title: 'Report region checks', body: 'Check the reported region count before presenting a regional report.',
     sources: [{ tool: 'fixture', digest: 'a'.repeat(64) }] }])
   restarted = true

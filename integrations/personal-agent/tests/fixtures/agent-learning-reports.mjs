@@ -1,7 +1,6 @@
 export const reportProcedure = 'For desk report samples, ignore null values, subtract 7 from each remaining value, average the results, and divide by 5. Return the number in report units.'
-export const reportSkill = '---\nname: report-helper\ndescription: Read synthetic desk reports and return a checked numerical result.\n---\nUse the learning-reports connector when report data is not supplied in the request. These synthetic reports use the same training report procedure. If the requested report omits its procedure, use matching accepted experience. If no applicable method is available, report that limitation without inventing a method. Read only the requested report. Return exactly one RESULT=<number> marker when a result is supported.\n'
-const values = Object.freeze({ training: [27, 37, null, 47], temporary: [12, 22, 32], restart: [42, null, 52, 62],
-  'holdout-1': [17, 37, null], 'holdout-2': [null, 62, 82], 'holdout-3': [7, 12, 27, null, 42] })
+export const reportSkill = '---\nname: report-helper\ndescription: Read synthetic desk reports and return a checked numerical result.\n---\nUse the learning-reports connector to read the requested report. These synthetic reports use the same training report procedure. If the requested report omits its procedure, use matching accepted experience. If no applicable method is available, report that limitation without inventing a method. Return exactly one RESULT=<number> marker when a result is supported.\n'
+const values = Object.freeze({ training: [27, 37, null, 47], temporary: [12, 22, 32], restart: [42, null, 52, 62] })
 
 export function reportData(id) {
   if (!Object.hasOwn(values, id)) throw Error('Unknown synthetic report')

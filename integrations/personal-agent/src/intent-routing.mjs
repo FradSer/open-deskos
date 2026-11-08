@@ -85,7 +85,7 @@ const ROUTE_TOOLS = {
   proposal_response: ['personal_agent_proposals', 'personal_agent_proposal_respond'],
   odk_data: ['odk_data'],
   memory: ['memory_update', 'memory_forget'],
-  history: ['history_search', 'history_read'],
+  history: ['history_search'],
   conversation: [], clarify: [],
 }
 const CORE_TOOLS = new Set([...COMMON, ...Object.values(ROUTE_TOOLS).flat()])

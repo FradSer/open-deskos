@@ -3,12 +3,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { mkdtemp, mkdir, realpath, rm, writeFile, readFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { createPersonalAgent } from '../src/agent.mjs'
-import { createMemoryStore } from '../src/memory.mjs'
+import { fixtureMem0 } from './fixtures/mem0.mjs'
 import { createExperienceStore } from '../src/agent-plugins/experience.mjs'
 import { createTaskService } from '../src/task-service.mjs'
 import { createHostedSession, readHostedHistory } from '../src/task-agent.mjs'
@@ -78,9 +78,7 @@ test('actual Hosted SDK checks cross the control transport into Durable completi
   process.env.ODK_TASK_TARGETS_FILE = targets
   const memoryFile = join(root, 'notes.json')
   const privateNote = 'Fixture private violet cedar'
-  const memory = createMemoryStore(memoryFile)
-  memory.beginTurn('remember fixture: ' + privateNote)
-  await memory.update({ category: 'fixture', value: privateNote })
+  await writeFile(memoryFile, JSON.stringify({ fixture: privateNote }), { mode: 0o600 })
   const entered = Promise.withResolvers(), release = Promise.withResolvers()
   t.after(() => release.resolve())
   let verifiedOriginal = false, learnedCheck = false, modelFailure, toolCalls = 0
@@ -101,20 +99,6 @@ test('actual Hosted SDK checks cross the control transport into Durable completi
           requirement: prompt, scope: 'completion', status: 'passed', evidence: [{ id: receipt.id, quote: 'Assertions: 3 passed' }],
         }] }))
       }
-      if (text.includes('Extract reusable procedural lessons only')) {
-        assert.deepEqual(visibleTools(context), [])
-        const input = parsePluginInput(context.messages.findLast(message => message.role === 'user').content.slice('Personal Agent request:\n'.length))
-        const receipt = input.receipts.find(receipt => receipt.tool === 'coding_check')
-        assert.deepEqual(Object.keys(input).filter(key => key !== 'formatCorrection').sort(), ['receipts', 'scope'])
-        for (const privateValue of [privateNote, project, taskId, 'Assertions: 3 passed', 'verify-hosted']) {
-          assert(!JSON.stringify(input).includes(privateValue))
-        }
-        assert.match(receipt.text, /matching source samples/)
-        learnedCheck = true
-        if (stage === 'cancel') { entered.resolve(); await release.promise }
-        return assistant(JSON.stringify({ lessons: [{ title: 'Check candidate samples', body: 'Compare source samples before and after a successful check.',
-          evidence: [{ id: receipt.id, quote: stage === 'invalid' ? 'Assertions: 3 passed' : 'matching source samples' }] }] }))
-      }
       if (context.messages.at(-1).role !== 'toolResult') return assistant([{ type: 'toolCall', id: `verify-hosted-${++toolCalls}`, name: 'codemode', arguments: {
         code: `text(await tools.coding_task_verify(${JSON.stringify({ target: 'mac', project, taskId })}));`,
       } }], 'toolUse')
@@ -126,8 +110,20 @@ test('actual Hosted SDK checks cross the control transport into Durable completi
     return { async *[Symbol.asyncIterator]() { const message = await result; yield { type: 'done', reason: message.stopReason, message } }, result: () => result }
   } }
   const stateDir = join(root, 'resident'), experienceFile = join(stateDir, 'personal-agent', 'experience.json')
-  const store = createExperienceStore(experienceFile)
-  bot = await createPersonalAgent({ stateDir, env: {}, personal: { profile: 'personal', skillPaths: [],
+  const mem0 = fixtureMem0({ extract: async (messages, { signal }) => {
+    const text = JSON.stringify(messages)
+    for (const privateValue of [privateNote, project, taskId, 'Assertions: 3 passed', 'verify-hosted']) assert(!text.includes(privateValue))
+    assert.match(text, /matching source samples/)
+    learnedCheck = true
+    if (stage === 'cancel') {
+      entered.resolve()
+      await Promise.race([release.promise, new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))])
+    }
+    if (stage === 'invalid') throw Error('Mem0 ingestion unavailable')
+    return ['Compare source samples before and after a successful check.']
+  } })
+  const store = createExperienceStore({ scope: mem0.scope(stateDir, 'experience'), stateDir, legacyFile: experienceFile })
+  bot = await createPersonalAgent({ stateDir, mem0, env: {}, personal: { profile: 'personal', skillPaths: [],
     memoryFile, pinnedMemoryCategories: ['fixture'], agentPlugins: { enabled: ['completion', 'learning', 'experience'] } } }, {
     createRuntime: async () => runtime, createIntentRouter: () => async () => ({ intent: 'task_query' }),
   })
@@ -138,11 +134,11 @@ test('actual Hosted SDK checks cross the control transport into Durable completi
     await bot.abort()
     await rejected
   } finally { release.resolve() }
-  assert.deepEqual(store.load().entries, [], 'A cancelled learning answer cannot write experience')
+  assert.deepEqual((await store.load()).entries, [], 'A cancelled learning answer cannot write experience')
   stage = 'invalid'
   await bot.prompt('再检查指定后台任务的最终结果')
   assert.equal(bot.lastTaskResult.learning.status, 'needs_review')
-  assert.deepEqual(store.load().entries, [], 'An unprojected citation cannot write experience')
+  assert.deepEqual((await store.load()).entries, [], 'A failed native extraction cannot write experience')
   stage = 'valid'
   try { await bot.prompt('检查指定后台任务的最终结果') } catch (error) { throw modelFailure ?? error }
   assert.equal(verifiedOriginal, true)
@@ -150,7 +146,7 @@ test('actual Hosted SDK checks cross the control transport into Durable completi
   assert.equal(bot.lastTaskResult.verification.status, 'not_run')
   assert.equal(bot.lastTaskResult.learning.status, 'applied')
   assert.equal(workerCalls, 2, 'verification must not replay the worker')
-  const experience = JSON.parse(await readFile(experienceFile, 'utf8'))
+  const experience = await store.load()
   assert.equal(experience.entries.length, 1)
   assert.equal(experience.entries[0].sources[0].tool, 'coding_check')
   assert.deepEqual(experience.entries[0].sources[0].receipt, { target: 'mac', project, taskId, toolCallId: hostCheck.toolCallId })

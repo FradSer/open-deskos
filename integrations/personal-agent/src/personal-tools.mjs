@@ -36,7 +36,7 @@ export function createPersonalTools({ memory, skillPaths }) {
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
       description: `Save only the exact note explicitly supplied in the current user command. ${MEMORY_INSTRUCTIONS}`,
       parameters: Type.Object({ category: Type.String({ minLength: 1, maxLength: 40 }), value: Type.String({ minLength: 1, maxLength: 16384 }) }, { additionalProperties: false }),
-      execute: async (_id, params) => result(await memory.update(params), true),
+      execute: async (_id, params, signal) => result(await memory.update(params, signal), true),
     }),
     defineTool({
       name: 'memory_forget', label: 'Forget explicit note',
@@ -45,7 +45,7 @@ export function createPersonalTools({ memory, skillPaths }) {
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
       description: 'Delete the named note only after the current user explicitly says forget <name> or 忘记 <名称>.',
       parameters: Type.Object({ category: Type.String({ minLength: 1, maxLength: 40 }) }, { additionalProperties: false }),
-      execute: async (_id, params) => result(await memory.forget(params), true),
+      execute: async (_id, params, signal) => result(await memory.forget(params, signal), true),
     }),
     defineTool({
       name: 'skill_read', label: 'Read reviewed skill',

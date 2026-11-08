@@ -57,7 +57,6 @@ export async function loadPersonalConfig(env = process.env) {
     if (value.profile !== 'personal' && agentPlugins?.enabled.includes('intent')) throw new Error();
     const skillPaths = value.skillPaths ?? [];
     if (!Array.isArray(skillPaths) || skillPaths.length > 32 || new Set(skillPaths).size !== skillPaths.length || !skillPaths.every((path) => isLocalAbsolutePath(path) && extname(path) === '.md')) throw new Error();
-    if (value.profile === 'personal' && !isLocalAbsolutePath(value.memoryFile)) throw new Error();
     if (value.memoryFile !== undefined && !isLocalAbsolutePath(value.memoryFile)) throw new Error();
     const pins = value.pinnedMemoryCategories;
     if (pins !== undefined && (value.profile !== 'personal' || !Array.isArray(pins) || pins.length > 8
@@ -69,6 +68,6 @@ export async function loadPersonalConfig(env = process.env) {
     const { didi: _didi, browser: _browser, desktop: _desktop, capabilities: _capabilities, ...base } = value;
     return { ...base, skillPaths, ...(value.profile === 'personal' ? { capabilities } : {}), ...(agentPlugins ? { agentPlugins } : {}) };
   } catch {
-    throw new Error('Invalid personal assistant configuration. Check profile, reviewed skill paths, private memory path and reviewed capabilities.');
+    throw new Error('Invalid personal assistant configuration. Check profile, reviewed skill paths, legacy note path and reviewed capabilities.');
   }
 }

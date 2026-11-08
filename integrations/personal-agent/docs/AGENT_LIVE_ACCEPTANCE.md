@@ -20,7 +20,6 @@ It does not read provider credentials or require Docker.
 Daily checks use affected offline tests and, when necessary, one authorized targeted live scenario.
 A deterministic service fix does not require a complete model evaluation.
 Deployment acceptance uses the delivery core.
-Learning benefit uses a separate paired evaluation.
 
 The default `core` mode covers six scenarios:
 
@@ -38,28 +37,14 @@ The read after restart proves retrieval of that fixture.
 Child acceptance binds the task handle, turn, identity, and identity revision before grading.
 Saved-child activity must carry the expected avatar metadata.
 Rendered avatar acceptance remains separate.
-The core does not run paired holdouts or claim learning benefit.
 
 Targeted mode supports two fixed scenarios:
 
 - `saved-report` prepares packages and an identity through host APIs, then checks one saved child's execution and completion.
 - `provider-health` checks one fixed tool-free model response and one fixed synthetic Jev typed choice.
 
-Targeted setup has `naturalLanguageVerified: false`.
-It does not prove natural-language installation, restart, or paired learning.
-The compatibility flag `--task-evaluation` now selects targeted `saved-report`; it no longer starts the previous long task pipeline.
-
-Explicit `learning` mode requires an existing accepted experience artifact from a verified training stage.
-It runs only three fresh-conversation pairs, using six new private homes.
-Each pair has identical packages, roles, current synthetic data, and a shared task contract.
-Only the candidate receives accepted experience; neither arm receives conversation history.
-The MCP plugin is disabled in both arms.
-Automatic learning is also disabled.
-These pairs do not establish MCP execution.
-The host independently grades numerical results.
-Every candidate must pass completion and retrieve an actual full experience entry without truncation.
-Baseline failures remain measured outcomes.
-A tie does not establish improvement, and three synthetic cases do not establish general benefit.
+Targeted setup records `naturalLanguageVerified: false`.
+The compatibility flag `--task-evaluation` selects targeted `saved-report`.
 
 ## Limits and isolation
 
@@ -123,7 +108,6 @@ pnpm test:agent:live --live --output=/absolute/new/evidence-directory
 The command requires Docker and `TYPESAFE_API_KEY`.
 The selected custom model must exist in the current Pi agent configuration.
 The evidence directory contains `report.json`.
-The core does not export the restart fixture as `accepted-experience.json`.
 A failed run preserves partial counts and outcomes.
 It does not retry a failed task automatically.
 
@@ -146,23 +130,11 @@ Its output allowance accommodates reasoning without changing the global defaults
 A health deadline or request limit is a resource failure, not external blockage.
 Completed probe metadata remains in the failed report.
 
-Run learning separately:
-
-```sh
-pnpm test:agent:live --live --mode=learning --continue-from=/absolute/accepted-training --output=/absolute/new/learning-evidence
-```
-
-`--continue-from` without `--mode` also selects learning.
-A conflicting mode, scenario, or compatibility flag fails before credential access or dispatch.
-Plan inspection can select learning without an artifact because it makes no requests.
-
-The source must contain private, owner-held `report.json` and `accepted-experience.json` files.
-The loader requires real inference, correct training grading, passed completion, applied learning, source validation, and successful cleanup.
-It checks the experience schema, entry count, and SHA-256 digest before model calls.
-A later failure in that source run does not invalidate its independently accepted training artifact.
-The loader restores only accepted experience, records its provenance, and leaves the original report unchanged.
-Independent evaluation does not convert a failed source run into a passed delivery core.
-Protocol `shared_method_supplied_data_v2` identifies the pair task contract.
+Live core mode needs a container image with the locked Mem0 environment.
+Set `ODK_AGENT_LIVE_IMAGE` to that image.
+Set `ODK_AGENT_LIVE_MEM0_PYTHON` to the Python executable inside the image.
+Set `ODK_PERSONAL_AGENT_MEM0_CONFIG` to a private test configuration.
+Select an isolated test vector store and approved model endpoints.
 
 ## Stop after a failure
 
@@ -198,22 +170,14 @@ HTTPS providers use the direct path.
 
 `realModel` and `realJev` identify actual inference.
 These flags come from recorded requests, not the requested test mode.
-Learning evaluation can record `realModel: true` and `realJev: false`.
-It does not verify the external owner-routing entry.
 `functionalPassed` refers only to the selected coverage.
-`deliveryCorePassed`, `learningEvaluationPassed`, and `targetedPassed` identify the accepted layer after host source validation.
+`deliveryCorePassed` and `targetedPassed` identify the accepted layer after host source validation.
 These fields remain false while host validation is pending or fails.
-A targeted or learning pass does not establish delivery-core coverage.
 `offlineFixture: true` identifies the runner's scripted contract test.
-That contract test cannot establish model quality or learning benefit.
-
-The report separates correct answers, verification status, experience retrieval, and paired score differences.
-A tie does not establish improvement.
-An improvement on three synthetic cases does not establish general learning benefit.
-The `generalLearningBenefit` field therefore remains `not_established`.
+The [memory evaluation](MEMORY_EVALUATION.md) records recall and answer quality on public data.
 
 Run the zero-call contract checks with this command.
 
 ```sh
-node --test tests/agent-live-contract.test.mjs tests/agent-live-provider-bound.test.mjs tests/agent-live-relay.test.mjs tests/agent-live-plugin-evidence.test.mjs tests/agent-live-continuation.test.mjs
+node --test tests/agent-live-contract.test.mjs tests/agent-live-provider-bound.test.mjs tests/agent-live-relay.test.mjs tests/agent-live-plugin-evidence.test.mjs
 ```

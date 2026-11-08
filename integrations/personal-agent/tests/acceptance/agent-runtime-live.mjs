@@ -1,7 +1,7 @@
 import { parsePluginInput } from '../../src/agent-plugins/prompt.mjs'
 import assert from 'node:assert/strict'
-import { createHash, randomUUID } from 'node:crypto'
-import { copyFile, mkdir, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
@@ -10,17 +10,18 @@ import { createPersonalAgent } from '../../src/agent.mjs'
 import { createJevIntentRouter } from '../../src/intent-routing.mjs'
 import { openAgentCatalog } from '../../src/agent-catalog/catalog.mjs'
 import { createExperienceStore } from '../../src/agent-plugins/experience.mjs'
+import { createMem0Backend } from '../../src/mem0.mjs'
 import { liveJevResponse } from '../fixtures/live-jev-response.mjs'
 import { createJevClient } from '../../src/jev-client.mjs'
-import { reportScore, reportData, reportSkill, reportProcedure } from '../fixtures/agent-learning-reports.mjs'
-import { capLiveModelOutput, fullExperienceReceipt, assertLivePairResults, createLivePlan, selectLiveEvaluation, classifyLiveFailure, liveStopPolicy, recordLiveGenerationUsage, selectLiveChildAdmission, assertLiveChildTurn, createLiveRequestBudget, createBudgetedFetch, learningComparison } from '../helpers/agent-live-contract.mjs'
+import { reportScore, reportSkill, reportProcedure } from '../fixtures/agent-learning-reports.mjs'
+import { capLiveModelOutput, fullExperienceReceipt, createLivePlan, selectLiveEvaluation, classifyLiveFailure, liveStopPolicy, recordLiveGenerationUsage, selectLiveChildAdmission, assertLiveChildTurn, createLiveRequestBudget, createBudgetedFetch } from '../helpers/agent-live-contract.mjs'
 import { pluginEvidenceMetadata, toolExecutionMetadata } from '../helpers/agent-live-plugin-evidence.mjs'
 
 let input = ''
 for await (const chunk of process.stdin) { input += chunk; if (Buffer.byteLength(input) > 262144) throw Error('Live configuration exceeds its limit') }
 const credentials = JSON.parse(input)
 input = ''
-const evaluation = selectLiveEvaluation({ mode: credentials.evaluation?.mode ?? credentials.plan?.mode, scenario: credentials.evaluation?.scenario ?? credentials.plan?.scenario, taskEvaluation: credentials.taskEvaluation === true, hasContinuation: Boolean(credentials.continuation) })
+const evaluation = selectLiveEvaluation({ mode: credentials.evaluation?.mode ?? credentials.plan?.mode, scenario: credentials.evaluation?.scenario ?? credentials.plan?.scenario, taskEvaluation: credentials.taskEvaluation === true })
 const plan = createLivePlan({ ...credentials.plan, ...evaluation })
 const pluginTimeoutMs = generationDeadlineMs(credentials.pluginTimeoutMs)
 const offline = credentials.offlineFixture === true
@@ -28,13 +29,11 @@ const fixture = offline ? await import('../helpers/agent-live-offline.mjs') : un
 const budget = createLiveRequestBudget(plan.maxRequests)
 const report = { candidate: credentials.candidate, fingerprints: credentials.fingerprints, startedAt: new Date().toISOString(),
   model: { provider: credentials.provider, id: credentials.model.id, api: credentials.model.api, pricingKnown: credentials.pricingKnown === true, actualCharge: 'not_established' },
-  fixtureProtocol: 'shared_method_supplied_data_v2',
   limits: { pluginTimeoutMs, maxRequests: plan.maxRequests, maxOutputTokens: plan.maxOutputTokens, deadlineMs: plan.deadlineMs }, transport: credentials.transport ?? 'direct',
   platform: process.platform, arch: process.arch, syntheticData: true, realModel: false, realJev: false, offlineFixture: offline,
-  productionWrites: false, physicalCapture: false, renderedUI: false, calls: budget.calls, scenarios: [], pairs: [], routes: [], taskChecks: [], pluginChecks: [], toolChecks: [],
-  coverage: evaluation.coverage, evaluation, stopPolicy: liveStopPolicy, learning: { status: 'not_run', generalLearningBenefit: 'not_established' },
-  setup: { method: evaluation.mode === 'core' ? 'natural_language' : evaluation.mode === 'learning' ? 'accepted_experience' : evaluation.scenario === 'provider-health' ? 'none' : 'host_fixture', naturalLanguageVerified: false },
-  ...(credentials.continuation ? { experienceSource: credentials.continuation.source } : {}) }
+  productionWrites: false, physicalCapture: false, renderedUI: false, calls: budget.calls, scenarios: [], routes: [], taskChecks: [], pluginChecks: [], toolChecks: [],
+  coverage: evaluation.coverage, evaluation, stopPolicy: liveStopPolicy,
+  setup: { method: evaluation.mode === 'core' ? 'natural_language' : evaluation.scenario === 'provider-health' ? 'none' : 'host_fixture', naturalLanguageVerified: false } }
 const controller = new AbortController(), deadline = setTimeout(() => controller.abort(), plan.deadlineMs)
 const bots = new Set()
 let phase = 'initializing', retrievals = 0
@@ -43,6 +42,9 @@ const base = offline ? credentials.fixtureDirectory : '/tmp/agent-runtime-live',
 process.env.PI_CODING_AGENT_DIR = join(base, 'agent-settings')
 const plugins = ['experience', 'completion', 'learning', 'catalog', 'mcp', 'subagents']
 const env = { ODK_AGENT_PLUGIN_TIMEOUT_MS: String(pluginTimeoutMs), ODK_AGENT_PACKAGE_CANDIDATES: candidates, TYPESAFE_API_KEY: credentials.jevKey }
+const mem0ConfigFile = join(base, 'mem0.json')
+const mem0 = offline ? (await import('../fixtures/mem0.mjs')).fixtureMem0()
+  : createMem0Backend({ stateDir: base, env: { ODK_PERSONAL_AGENT_MEM0_CONFIG: credentials.mem0Config ? mem0ConfigFile : undefined, ODK_PERSONAL_AGENT_MEM0_PYTHON: credentials.mem0Python } })
 const manifest = { schemaVersion: 1, kind: 'mcp', id: 'learning-reports', name: 'Synthetic report connector', transport: {
   type: 'stdio', command: process.execPath, args: [fileURLToPath(new URL('../fixtures/agent-learning-server.mjs', import.meta.url))],
 } }
@@ -51,7 +53,7 @@ const modelName = `${credentials.provider}/${credentials.model.id}`
 const mark = (name, details = {}) => report.scenarios.push({ name, passed: true, ...details })
 function pluginInput(context) {
   const all = JSON.stringify(context.messages)
-  if (!all.includes('Check the current Personal Agent task after') && !all.includes('Extract reusable procedural lessons only')) return undefined
+  if (!all.includes('Check the current Personal Agent task after')) return undefined
   const user = context.messages.findLast(message => message.role === 'user')
   const text = typeof user?.content === 'string' ? user.content : user?.content?.filter(part => part.type === 'text').map(part => part.text).join('\n') ?? ''
   try { return parsePluginInput(text.slice('Personal Agent request:\n'.length)) } catch { return undefined }
@@ -99,7 +101,7 @@ async function createRuntime() {
   } })
 }
 async function newBot(stateDir, extra = {}) {
-  const bot = await createPersonalAgent({ stateDir, model: modelName, signal: controller.signal, env,
+  const bot = await createPersonalAgent({ stateDir, model: modelName, signal: controller.signal, env, mem0,
     personal: { profile: 'personal', skillPaths: [], memoryFile: join(stateDir, 'notes.json'), agentPlugins: { enabled: plugins } }, ...extra }, {
     createRuntime,
     createIntentRouter: () => {
@@ -193,14 +195,7 @@ async function run() {
   await writeFile(join(process.env.PI_CODING_AGENT_DIR, 'settings.json'), JSON.stringify({ retry: { enabled: false }, compaction: { enabled: false } }), { mode: 0o600 })
   await writeFile(join(candidates, 'report-helper', 'SKILL.md'), skill, { mode: 0o600 })
   await writeFile(join(candidates, 'learning-reports', 'manifest.json'), JSON.stringify(manifest), { mode: 0o600 })
-  if (credentials.continuation) {
-    const imported = join(base, 'imported', 'experience.json')
-    await mkdir(join(base, 'imported'), { recursive: true, mode: 0o700 })
-    await writeFile(imported, JSON.stringify(credentials.continuation.experience), { mode: 0o600 })
-    assert(createExperienceStore(imported).load().entries.length > 0)
-    await runPairs(imported)
-    return
-  }
+  if (credentials.mem0Config) await writeFile(mem0ConfigFile, JSON.stringify(credentials.mem0Config), { mode: 0o600 })
   const stateDir = join(base, 'resident'), activity = []
   const config = { onAgentUpdate: tasks => activity.push(...tasks.map(task => ({ state: task.state, identity: task.identity }))) }
   const catalog = await openAgentCatalog(join(stateDir, 'personal-agent', 'packages'))
@@ -229,9 +224,9 @@ async function run() {
   if (evaluation.mode === 'targeted') { mark(phase, { score: training.score }); await close(bot); return }
   assert.equal(training.task.learning, 'skipped')
   assert(activity.some(task => task.state === 'running' && task.identity?.id === 'reporter' && task.identity.avatar === 'book'))
-  const experience = join(stateDir, 'personal-agent', 'children', 'homes', 'saved', 'reporter', 'personal-agent', 'experience.json')
-  const store = createExperienceStore(experience)
-  assert.deepEqual(store.load().entries, [], 'Ordinary report output cannot create automatic experience')
+  const childHome = join(stateDir, 'personal-agent', 'children', 'homes', 'saved', 'reporter')
+  const store = createExperienceStore({ scope: mem0.scope(childHome, 'experience'), stateDir: childHome })
+  assert.deepEqual((await store.load()).entries, [], 'Ordinary report output cannot create automatic experience')
   const ids = await store.append([{ title: 'Desk report conversion', body: reportProcedure,
     sources: [{ tool: 'fixture', digest: createHash('sha256').update(reportProcedure).digest('hex') }] }])
   report.restartExperience = { source: 'host_fixture', entries: ids.length }
@@ -249,35 +244,6 @@ async function run() {
   mark(phase, { score: temporary.score })
   await close(bot)
 }
-function suppliedRequest(id) {
-  return `Use the report-helper Skill to analyze this supplied current synthetic report. It uses the same procedure as the training report. If the procedure is absent, retrieve matching accepted experience; do not invent a missing method. Do not read other reports. Return exactly one RESULT=<number> marker when supported. Supplied current synthetic report (JSON): ${JSON.stringify(reportData(id))}`
-}
-async function runPairs(experience) {
-  report.learning = { status: 'in_progress', generalLearningBenefit: 'not_established' }
-  // Fresh conversations have identical packages and role. Only accepted experience differs.
-  report.pairProtocol = { input: 'supplied_synthetic_data', mcpEnabled: false, autoLearn: false, conversationHistory: false, difference: 'accepted_experience_only' }
-  const pairedCatalog = await openAgentCatalog(join(base, 'paired-packages'))
-  await pairedCatalog.installSkill(join(candidates, 'report-helper')); await pairedCatalog.installMcp(manifest)
-  for (const id of ['holdout-1', 'holdout-2', 'holdout-3']) {
-    const pair = { id, baseline: undefined, candidate: undefined }
-    report.pairs.push(pair)
-    for (const variant of ['baseline', 'candidate']) {
-      phase = `${id}:${variant}`
-      const home = join(base, 'pairs', id, randomUUID())
-      await mkdir(join(home, 'personal-agent'), { recursive: true, mode: 0o700 })
-      if (variant === 'candidate') await copyFile(experience, join(home, 'personal-agent', 'experience.json'))
-      const beforeRetrieval = retrievals
-      const worker = await newBot(home, { childAgent: { role: 'Analyze the requested synthetic report. Return exactly one RESULT=<number> marker.', catalogDirectory: join(base, 'paired-packages') },
-        personal: { profile: 'personal', skillPaths: [], memoryFile: join(home, 'notes.json'), agentPlugins: { enabled: plugins.filter(id => id !== 'mcp'), autoLearn: false } } })
-      const answer = await worker.prompt(suppliedRequest(id))
-      pair[variant] = { ...reportScore(id, answer), experienceReads: retrievals - beforeRetrieval, verification: worker.lastTaskResult?.verification.status }
-      await close(worker)
-    }
-  }
-  assertLivePairResults(report.pairs)
-  report.learning = { status: 'completed', ...learningComparison(report.pairs) }
-  mark('paired-heldout', report.learning)
-}
 try {
   await Promise.race([run(), new Promise((_, reject) => controller.signal.addEventListener('abort', () => reject(Error('Live acceptance deadline exceeded')), { once: true }))])
   report.passed = true
@@ -291,6 +257,7 @@ try {
   clearTimeout(deadline)
   controller.abort()
   const closed = await Promise.allSettled([...bots].map(bot => bot.close()))
+  closed.push(...await Promise.allSettled([mem0.close()]))
   report.cleanupPassed = closed.every(result => result.status === 'fulfilled')
   if (!report.cleanupPassed) { report.passed = false; process.exitCode = 1 }
   report.completedAt = new Date().toISOString()
@@ -300,9 +267,7 @@ try {
   report.realJev = !offline && budget.calls.some(call => call.kind === 'jev')
   report.functionalPassed = report.passed === true
   report.deliveryCorePassed = evaluation.mode === 'core' && report.functionalPassed && credentials.hostValidationRequired !== true
-  report.learningEvaluationPassed = evaluation.mode === 'learning' && report.functionalPassed && credentials.hostValidationRequired !== true
   report.targetedPassed = evaluation.mode === 'targeted' && report.functionalPassed && credentials.hostValidationRequired !== true
-  if (report.learning.status === 'in_progress') report.learning.status = 'incomplete'
   report.hostValidationRequired = credentials.hostValidationRequired === true
   report.status = !report.functionalPassed ? 'failed' : report.hostValidationRequired ? 'pending_host_validation' : 'passed'
   if (report.hostValidationRequired) report.passed = false

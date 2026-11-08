@@ -44,7 +44,9 @@ test('the formal runner normalizes a cost-omitting model before actual SDK strea
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'odk-live-model-config-')))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const agentDir = join(directory, 'agent'), bin = join(directory, 'bin'), capture = join(directory, 'envelope.json')
+  const mem0Config = join(directory, 'mem0.json')
   await mkdir(agentDir); await mkdir(bin)
+  await writeFile(mem0Config, JSON.stringify({ fixture: 'native-memory-config' }), { mode: 0o600 })
   await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ defaultProvider: 'offline-config', defaultModel: 'fixture' }))
   for (const mode of ['direct', 'relay-model', 'relay-provider']) {
     const selected = { id: 'fixture', api: 'openai-completions', baseUrl: 'http://127.0.0.1:1/model-override', reasoning: false,
@@ -60,9 +62,12 @@ test('the formal runner normalizes a cost-omitting model before actual SDK strea
     await rm(capture, { force: true })
     await assert.rejects(promisify(execFile)(process.execPath, ['scripts/test-agent-runtime-live.mjs', '--live', `--output=${join(directory, mode)}`, ...(mode === 'direct' ? [] : ['--host-relay']), ...(mode === 'relay-provider' ? ['--max-output-tokens=16384', '--max-requests=160', '--deadline-ms=1800000'] : [])], {
       cwd: new URL('../', import.meta.url), timeout: 15000,
-      env: { PATH: `${bin}:${process.env.PATH}`, HOME: directory, PI_CODING_AGENT_DIR: agentDir, PI_OFFLINE: '1', TYPESAFE_API_KEY: 'offline-only', ODK_LIVE_TEST_CAPTURE: capture, ...(mode === 'relay-provider' ? { ODK_AGENT_PLUGIN_TIMEOUT_MS: '180000' } : {}) },
+      env: { PATH: `${bin}:${process.env.PATH}`, HOME: directory, PI_CODING_AGENT_DIR: agentDir, PI_OFFLINE: '1', TYPESAFE_API_KEY: 'offline-only', ODK_LIVE_TEST_CAPTURE: capture,
+        ODK_PERSONAL_AGENT_MEM0_CONFIG: mem0Config, ODK_AGENT_LIVE_IMAGE: 'mem0-fixture', ODK_AGENT_LIVE_MEM0_PYTHON: '/fixture/bin/python',
+        ...(mode === 'relay-provider' ? { ODK_AGENT_PLUGIN_TIMEOUT_MS: '180000' } : {}) },
     }), error => error.code === 1) // The fake container cannot establish acceptance.
     const envelope = JSON.parse(await readFile(capture, 'utf8'))
+    assert.deepEqual(envelope.mem0Config, { fixture: 'native-memory-config' })
     assert.deepEqual((await readdir(agentDir)).sort(), ['models.json', 'settings.json'], 'normalization creates no auth or model cache files')
     assert.equal(envelope.pluginTimeoutMs, mode === 'relay-provider' ? 180000 : 90000)
     assert.equal(envelope.plan.deadlineMs, mode === 'relay-provider' ? 1800000 : 900000)

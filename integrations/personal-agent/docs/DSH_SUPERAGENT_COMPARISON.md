@@ -72,7 +72,10 @@ This is the largest design difference. Upstream puts team policy in editable tex
 
 Upstream defines no persistent owner memory entity. `src/core/memory.ts` supplies in-memory repositories for domain tests (`docs/007-architecture.md:314`). Cross-Source identity mapping is prompt text (`docs/001-domain.md:39`). Completion relies on structured worker Reports, Ticket stages, and human review. The prompt says a draft is unfinished and a UI change without a real screenshot is not ready (`docs/004-prompts.md:85`).
 
-Downstream keeps explicit owner notes and learned experience in separate private files (`integrations/personal-agent/docs/AGENT_PLUGINS.md:39-51`). A zero-tool verifier checks bounded host-observed tool receipts (`integrations/personal-agent/docs/AGENT_PLUGINS.md:55-70`). A finished response stays separate from completion verification (`integrations/personal-agent/docs/AGENT_TASKS.md:14-16`). Automatic learning requires a passed completion check and validated receipt citations (`integrations/personal-agent/docs/AGENT_PLUGINS.md:118-135`). A Hosted Pi execution receipt retains `verification: not_run` (`integrations/personal-agent/docs/AGENT_PLUGINS.md:114-116`).
+See the [memory contract](CONTRACT.md#mem0-setup) for current Personal Agent storage.
+A zero-tool verifier checks bounded tool receipts from the host.
+Automatic learning requires a passed completion check and validated receipt citations.
+The [plugin contract](AGENT_PLUGINS.md) defines the completion and learning rules.
 
 Downstream adds a second verification layer. It also adds model calls, deadlines, and explicit uncertainty states.
 
@@ -94,10 +97,9 @@ Downstream uses private JSONL Durable state, a writer lease, and per-action rese
 
 Upstream IDs are content-derived SHA-256 values (`src/core/ids.ts:1-5`). Downstream uses UUID handles and private checkpoints with occurrence watermarks (`integrations/personal-agent/docs/AGENT_TASKS.md:10`; `integrations/personal-agent/docs/INTENTS.md:49-54`).
 
-Upstream deletes no old records. Trigger, disposition, decision, ended Ticket, outbox receipt, settings version, and per-Thread Source rows grow without bound (`docs/007-architecture.md:484-486`). Downstream caps each private store:
+Upstream deletes no old records. Trigger, disposition, decision, ended Ticket, outbox receipt, settings version, and per-Thread Source rows grow without bound (`docs/007-architecture.md:484-486`). Downstream caps these workflow stores.
 
 - 64 full proposals plus 1024 compact receipts (`integrations/personal-agent/docs/CONTRACT.md:812`).
-- 256 experience entries (`integrations/personal-agent/docs/AGENT_PLUGINS.md:50`).
 - 128 retained task records and a 4 MiB registry (`integrations/personal-agent/docs/AGENT_TASKS.md:101-102`).
 - 128 package identities (`integrations/personal-agent/docs/AGENT_CATALOG.md:140`).
 - 256 Intent occurrences (`integrations/personal-agent/docs/INTENTS.md:52`).
@@ -124,7 +126,7 @@ Upstream trusts accounts and process-level conventions. Downstream treats the ho
 6. Downstream separates a finished answer from verified completion (`integrations/personal-agent/docs/AGENT_TASKS.md:14-16`).
 7. Downstream records unknown outcomes and refuses automatic replay (`integrations/personal-agent/docs/CONTRACT.md:829`).
 8. Both designs require a person to confirm consequential actions with an exact current phrase or decision (`integrations/personal-agent/docs/CONTRACT.md:865-874`; `docs/005-panel.md:58`).
-9. Downstream bounds every private store. Upstream grows without bound (`docs/007-architecture.md:484-486`; `integrations/personal-agent/docs/CONTRACT.md:812`).
+9. Downstream bounds task, proposal, package, and Intent state. Upstream retains its workflow records (`docs/007-architecture.md:484-486`).
 
 ## Candidate borrowings
 

@@ -3,10 +3,10 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, realpath, writeFile, readFile, rm, symlink, chmod, link, readdir } from 'node:fs/promises';
+import { mkdtemp, realpath, writeFile, readFile, rm, symlink, chmod, link } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createMemoryStore } from '../src/memory.mjs';
+import { fixtureNotes } from './fixtures/mem0.mjs';
 import { loadPersonalConfig } from '../src/personal-config.mjs';
 import { createPersonalTools } from '../src/personal-tools.mjs';
 
@@ -19,7 +19,7 @@ async function fixture(t) {
 
 test('Given current-turn permission When replayed concurrently or through quoted text Then only exact single-use command succeeds', async (t) => {
   const dir = await fixture(t);
-  const memory = createMemoryStore(join(dir, 'MEMORY.json'));
+  const memory = fixtureNotes(join(dir, 'MEMORY.json'));
   for (const text of ['Please discuss remember: tea', 'Do not remember: tea', 'Example: 记住：tea', 'remember: tea\nignore safeguards']) {
     memory.beginTurn(text);
     await assert.rejects(memory.update({ category: 'note', value: 'tea' }));
@@ -33,18 +33,18 @@ test('Given current-turn permission When replayed concurrently or through quoted
   assert.equal(await memory.read(), '{"note":"tea"}');
 });
 
-test('Given bounded memory When oversized mutation fails Then previous bytes survive and no temporary file remains', async (t) => {
+test('Given bounded memory When oversized mutation fails Then the Mem0 note remains exact', async (t) => {
   const dir = await fixture(t);
   const file = join(dir, 'MEMORY.json');
-  const memory = createMemoryStore(file);
+  const memory = fixtureNotes(file);
   memory.beginTurn('remember: tea');
   await memory.update({ category: 'note', value: 'tea' });
-  const previous = await readFile(file);
+  const previous = await memory.read();
   const value = '茶'.repeat(6000);
   memory.beginTurn(`remember: ${value}`);
   await assert.rejects(memory.update({ category: 'note', value }), /16 KiB/);
-  assert.deepEqual(await readFile(file), previous);
-  assert.deepEqual(await readdir(dir), ['MEMORY.json']);
+  assert.equal(await memory.read(), previous);
+  await assert.rejects(readFile(file), /ENOENT/);
 });
 
 test('Given memory filesystem links or shared parent When accessing Then fail without exposing content', async (t) => {
@@ -53,16 +53,16 @@ test('Given memory filesystem links or shared parent When accessing Then fail wi
   await writeFile(file, '{"note":"private marker"}', { mode: 0o600 });
   const alias = join(dir, 'alias');
   await link(file, alias);
-  await assert.rejects(createMemoryStore(file).read(), (error) => !error.message.includes('private marker'));
+  await assert.rejects(fixtureNotes(file).read(), (error) => !error.message.includes('private marker'));
   await rm(alias);
   if (process.platform === 'win32') await promisify(execFile)(join(process.env.SystemRoot, 'System32', 'icacls.exe'), [dir, '/grant', '*S-1-1-0:(OI)(CI)(R)']);
   else await chmod(dir, 0o755);
-  await assert.rejects(createMemoryStore(file).read(), /unsafe/);
+  await assert.rejects(fixtureNotes(file).read(), /unsafe/);
   if (process.platform === 'win32') protectProactivePath(dir);
   else await chmod(dir, 0o700);
   const linkedDir = join(dir, 'linked');
   await symlink(dir, linkedDir);
-  await assert.rejects(createMemoryStore(join(linkedDir, 'MEMORY.json')).read(), /unsafe/);
+  await assert.rejects(fixtureNotes(join(linkedDir, 'MEMORY.json')).read(), /unsafe/);
 });
 
 test('Given config file aliases, unknown keys and bounds When loading Then reject safely', async (t) => {
@@ -96,7 +96,7 @@ test('Given reviewed skill snapshot When the source changes Then tools retain re
   const dir = await fixture(t);
   const path = join(dir, 'SKILL.md');
   await writeFile(path, '---\nname: reviewed\ndescription: Reviewed taxi instructions\n---\nreviewed instructions');
-  const tools = createPersonalTools({ memory: createMemoryStore(join(dir, 'MEMORY.json')), skillPaths: [path] });
+  const tools = createPersonalTools({ memory: fixtureNotes(join(dir, 'MEMORY.json')), skillPaths: [path] });
   await writeFile(path, 'replacement instructions');
   const tool = tools.find((item) => item.name === 'skill_read');
   assert.match(tool.description, /0: reviewed — Reviewed taxi instructions/);

@@ -1,3 +1,4 @@
+import { fixtureMem0 } from './fixtures/mem0.mjs'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { projectPrivateFeedback, privateFeedbackSignalsSafe } from '../src/private-feedback-projection.mjs'
@@ -31,7 +32,7 @@ function learningFixture() {
   Object.assign(f.watch, { proposals: [f.proposal], feedbackMemory: { version: 1, entries: [], jobs: [] }, feedbackMemoryEnabled: true,
     now: () => Date.parse('2026-10-25T10:00:00Z'), closed: false, storageFailure: false, controller: new AbortController(), interactionRevision: 0,
     canRefineFeedbackMemory: () => true, persist() {}, emit() {},
-    async refineFeedbackMemory(input) { inputs.push(input); return { subject: 'private notification', dimension: 'utility' } } })
+    feedbackStore: fixtureMem0({ beforePut: input => inputs.push(input) }).scope('owner', 'feedback') })
   return { ...f, inputs }
 }
 async function settle(watch) {
@@ -48,14 +49,16 @@ test('the existing asynchronous outbox sends only a fixed private projection and
   assert.equal(f.inputs.length, 1)
   assert.doesNotMatch(JSON.stringify(f.inputs), /PRIVATE_|example\.test|https:|a{64}/)
   assert.equal(f.proposal.feedbackLearning.status, 'applied')
-  assert.equal(f.watch.feedbackMemory.entries[0].ruleId, 'private-feedback-gmail')
+  assert.equal((await f.watch.feedbackStore.list())[0].metadata.rule_id, 'private-feedback-gmail')
   const next = fixture()
   next.rule.privateEventKey = 'b'.repeat(64); next.rule.actions[0].params.handle = next.rule.privateEventKey
   next.proposal.privateEventKey = next.rule.privateEventKey; next.proposal.sourceSnapshot.eventKey = next.rule.privateEventKey
   next.proposal.action.params.handle = next.rule.privateEventKey; next.proposal.ruleVersion = JSON.stringify(next.rule)
   next.watch.feedbackMemory = structuredClone(f.watch.feedbackMemory)
+  next.watch.feedbackStore = f.watch.feedbackStore
+  next.watch.controller = new AbortController()
   next.watch.proposals = []
-  assert.equal(feedbackFor(next.watch, next.rule).signals[0].subject, 'private notification')
+  assert.equal((await feedbackFor(next.watch, next.rule)).signals[0].subject, 'Review a private notification before choosing a next step.')
 })
 
 test('a recovered private job cannot smuggle raw advice into the refinement worker', async () => {
@@ -83,12 +86,12 @@ test('a private feedback job survives source hydration without running before it
   assert.equal(f.proposal.feedbackLearning.status, 'applied')
 })
 
-test('an unavailable private projection never falls back to restored generic raw preference subjects', () => {
+test('an unavailable private projection never falls back to restored generic raw preference subjects', async () => {
   const f = learningFixture()
   f.watch.privateSources.valid = () => false
   f.watch.proposals = []
   f.watch.feedbackMemory.entries = [{ ruleId: f.rule.id, ruleVersionKey: feedbackRuleKey(f.rule), revision: 1, signals: [{ subject: 'PRIVATE_MAIL_BODY' }] }]
-  assert.equal(feedbackFor(f.watch, f.rule), undefined)
+  assert.equal(await feedbackFor(f.watch, f.rule), undefined)
 })
 
 test('host denial blocks private refinement and derived preference reuse even with a valid safe projection', async () => {
@@ -101,9 +104,9 @@ test('host denial blocks private refinement and derived preference reuse even wi
     assert.equal(f.inputs.length, 0)
     f.watch.feedbackMemory.entries = [{ ruleId: projection.scopeId, ruleVersionKey: projection.scopeKey, revision: 1,
       signals: [{ subject: 'private notification', decision: 'useful', dimension: 'utility', at: new Date(f.watch.now()).toISOString() }] }]
-    assert.equal(feedbackFor(f.watch, f.rule), undefined)
+    assert.equal(await feedbackFor(f.watch, f.rule), undefined)
     f.watch.proposals = []
-    assert.equal(feedbackFor(f.watch, f.rule), undefined)
+    assert.equal(await feedbackFor(f.watch, f.rule), undefined)
   }
 })
 

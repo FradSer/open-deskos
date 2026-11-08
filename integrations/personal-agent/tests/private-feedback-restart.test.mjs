@@ -1,3 +1,4 @@
+import { fixtureMem0 } from './fixtures/mem0.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
@@ -26,7 +27,7 @@ function watch(store, privateSources, inputs, now = timestamp) {
   return new ProactiveWatch({ config: ownerConfig(), privateSources, now: () => now, read: async () => { throw Error('No public reads') },
     publish() {}, save: async () => {}, phrase: async ({ advice }) => advice, execute: async () => { throw Error('No action replay') },
     canExecute: () => false, loadState: store.load, saveState: store.save, feedbackMemoryEnabled: true,
-    refineFeedbackMemory: async input => { inputs.push(input); return { subject: 'private notification', dimension: 'utility' } },
+    feedbackStore: fixtureMem0({ beforePut: input => inputs.push(input) }).scope('owner', 'feedback'),
     generate: async ({ topics }) => ({ suggestions: topics.map(topic => ({ topicId: topic.id, key: 'notification',
       advice: '先确认这次发布是否由本人操作。', actionId: 'review', evidenceIds: topic.evidence.map(e => e.id) })) }),
     judge: async ({ candidates }) => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id,

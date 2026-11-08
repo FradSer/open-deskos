@@ -117,9 +117,9 @@ test('Given unchanged context, negative and unknown judgments are cached until r
 })
 
 test('Given one memory-referenced Intent, changed actual notes change MCP searches and revoke old route handles', async t => {
-  const { createMemoryStore } = await import('../src/memory.mjs')
+  const { fixtureNotes } = await import('./fixtures/mem0.mjs')
   const { createRidePreview } = await import('../src/didi/preview.mjs')
-  const store = fixture(t), notes = createMemoryStore(join(store.file, '..', 'MEMORY.md'))
+  const store = fixture(t), notes = fixtureNotes(join(store.file, '..', 'MEMORY.md'))
   const remember = async (key, value) => { notes.beginTurn(`remember ${key}: ${value}`); await notes.update({ category: key, value }); notes.beginTurn('') }
   await remember('city', '测试市'); await remember('company', '测试办公楼'); await remember('gym', '测试健身馆甲')
   const entry = store.save({ ...wish, condition: '每天提醒', memoryKeys: [], ride: { cityMemoryKey: 'city', fromMemoryKey: 'company', toMemoryKey: 'gym' } })

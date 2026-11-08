@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import { agentOptions, createResourceLoader, sessionAdapter } from '../src/agent.mjs'
-import { createMemoryStore } from '../src/memory.mjs'
+import { fixtureNotes } from './fixtures/mem0.mjs'
 import { createPersonalTools } from '../src/personal-tools.mjs'
 import { createDidiTools } from '../src/didi/index.mjs'
 import { assistant, offlineSession, visibleTools } from './helpers/pi-fixture.mjs'
@@ -77,7 +77,7 @@ test('a rejected personal script never reaches a mutation the gate refuses, and 
   t.after(() => rm(dir, { recursive: true, force: true }))
   await isolateAgentDirectory(t, dir)
   const calls = []
-  const memory = createMemoryStore(join(dir, 'MEMORY.json'))
+  const memory = fixtureNotes(join(dir, 'MEMORY.json'))
   const deny = defineTool({ name: 'deny_fixture', label: 'Fixture', description: 'Always refuse',
     parameters: Type.Object({}), outputSchema: Type.Object({ ok: Type.Boolean() }),
     execute: async () => { calls.push('deny'); throw new Error('refused fixture reason') } })
@@ -114,7 +114,7 @@ test('personal codemode keeps exact-turn memory gates and has no filesystem or s
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'personal-codemode-')))
   t.after(() => rm(dir, { recursive: true, force: true }))
   await isolateAgentDirectory(t, dir)
-  const memory = createMemoryStore(join(dir, 'MEMORY.json'))
+  const memory = fixtureNotes(join(dir, 'MEMORY.json'))
   const tools = createPersonalTools({ memory, skillPaths: [] })
   const loader = await createResourceLoader(dir, dir, { profile: 'personal', skillPaths: [] })
   const { session, requests } = await offlineSession({ ...agentOptions(dir, dir, tools, 'personal'), agentDir: dir, resourceLoader: loader },

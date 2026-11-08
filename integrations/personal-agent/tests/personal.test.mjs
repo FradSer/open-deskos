@@ -1,16 +1,14 @@
-import { checkProactivePath } from '../src/proactive-private.mjs';
+import { protectProactivePath } from '../src/proactive-private.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, writeFile, readFile, stat, chmod, symlink, realpath } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, chmod, symlink, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadPersonalConfig } from '../src/personal-config.mjs';
 import { createMemoryStore, stripLegacyMemoryContext } from '../src/memory.mjs';
+import { fixtureNotes, fixtureExperience, fixtureMem0 } from './fixtures/mem0.mjs';
 import { createPersonalTools } from '../src/personal-tools.mjs';
-import lockfile from 'proper-lockfile';
 import { createAgentPluginRuntime } from '../src/agent-plugins/runtime.mjs';
-import { createExperienceStore } from '../src/agent-plugins/experience.mjs';
-import { evaluateMemoryRetrieval } from '../scripts/evaluate-memory.mjs';
 
 async function fixture(t) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'personal-test-')));
@@ -80,7 +78,7 @@ test('Given canonical capability declarations When loading Then plugins remain f
 test('Given memory When explicit remember/forget Then exact single-use current-turn grants and private persistence', async (t) => {
   const dir = await fixture(t);
   const file = join(dir, 'private', 'MEMORY.json');
-  const memory = createMemoryStore(file);
+  const memory = fixtureNotes(file);
   assert.equal(await memory.read(), '{}');
   await assert.rejects(memory.update({ category: 'note', value: 'tea' }), /current user turn/);
   memory.beginTurn('记住：我喜欢茶');
@@ -88,22 +86,18 @@ test('Given memory When explicit remember/forget Then exact single-use current-t
   await memory.update({ category: 'note', value: '我喜欢茶' });
   assert.deepEqual(JSON.parse(await memory.read()), { note: '我喜欢茶' });
   await assert.rejects(memory.update({ category: 'note', value: '我喜欢茶' }), /current user turn/);
-  if (process.platform === 'win32') {checkProactivePath(file);checkProactivePath(join(dir, 'private'));}
-  else {
-    assert.equal((await stat(file)).mode & 0o777, 0o600);
-    assert.equal((await stat(join(dir, 'private'))).mode & 0o777, 0o700);
-  }
   memory.beginTurn('remember beverage: tea');
   await memory.update({ category: 'beverage', value: 'tea' });
   memory.beginTurn('hello');
   await assert.rejects(memory.forget({ category: 'beverage' }), /current user turn/);
   memory.beginTurn('忘记 beverage');
   await memory.forget({ category: 'beverage' });
-  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), { note: '我喜欢茶' });
+  assert.deepEqual(JSON.parse(await memory.read()), { note: '我喜欢茶' });
+  await assert.rejects(readFile(file), /ENOENT/);
 });
 
 test('Given an unnamed saved note When saving different unnamed content Then both survive', async t => {
-  const directory = await fixture(t), memory = createMemoryStore(join(directory, 'MEMORY.json'));
+  const directory = await fixture(t), memory = fixtureNotes(join(directory, 'MEMORY.json'));
   for (const value of ['green tea', 'morning walk', 'morning walk']) {
     memory.beginTurn('remember: ' + value);
     await memory.update({ category: 'note', value });
@@ -123,7 +117,7 @@ test('Given an unnamed saved note When saving different unnamed content Then bot
 test('Given unsafe memory When reading/writing Then reject oversized insecure linked and secret data', async (t) => {
   const dir = await fixture(t);
   const file = join(dir, 'MEMORY.json');
-  const memory = createMemoryStore(file);
+  const memory = fixtureNotes(file);
   memory.beginTurn('remember: password=example-only');
   await assert.rejects(memory.update({ category: 'note', value: 'password=example-only' }), /sensitive/);
   await writeFile(file, ' '.repeat(16385), { mode: 0o600 });
@@ -133,11 +127,11 @@ test('Given unsafe memory When reading/writing Then reject oversized insecure li
   await assert.rejects(memory.read(), /memory/i);
   const link = join(dir, 'link');
   await symlink(file, link);
-  await assert.rejects(createMemoryStore(link).read(), /memory/i);
+  await assert.rejects(fixtureNotes(link).read(), /memory/i);
 });
 
 test('Given notes When a related request arrives Then current bounded evidence replaces unrelated prompt data', async t => {
-  const dir = await fixture(t), file = join(dir, 'MEMORY.json'), memory = createMemoryStore(file);
+  const dir = await fixture(t), file = join(dir, 'MEMORY.json'), memory = fixtureNotes(file);
   for (const [category, value] of [['tea', 'Afternoon tea preference is green tea.'], ['garden', 'Plant care '.repeat(600).trim()], ['会议', '会议时间改成周五下午三点。'], ['checks', '使用vitest检查代码。']]) {
     memory.beginTurn(`remember ${category}: ${value}`);
     await memory.update({ category, value });
@@ -184,35 +178,41 @@ test('only recognized legacy host frames are removed from provider history', () 
   assert.equal(stripLegacyMemoryContext(oldNotes), oldNotes);
 });
 
-test('Given another profile holds the memory lock When saving Then updates wait and merge the latest map', async t => {
-  const dir = await fixture(t), file = join(dir, 'MEMORY.json'), memory = createMemoryStore(file);
-  await writeFile(file, '{}', { mode: 0o600 });
-  if (process.platform === 'win32') { const { protectProactivePath } = await import('../src/proactive-private.mjs'); protectProactivePath(file); }
-  const release = await lockfile.lock(file, { realpath: false });
-  let released = false;
-  t.after(async () => { if (!released) await release(); });
+test('Given a legacy note When imported and forgotten Then restart cannot restore it', async t => {
+  const dir = await fixture(t), file = join(dir, 'MEMORY.json');
+  const initial = '{"language":"zh-CN"}';
+  await writeFile(file, initial, { mode: 0o600 });
+  if (process.platform === 'win32') { protectProactivePath(dir); protectProactivePath(file); }
+  const backend = fixtureMem0(), memory = fixtureNotes(file, backend);
+  assert.equal(await memory.read(), initial);
+  memory.beginTurn('forget language');
+  await memory.forget({ category: 'language' });
+  assert.equal(await fixtureNotes(file, backend).read(), '{}');
+  assert.equal(await readFile(file, 'utf8'), initial);
+});
+
+test('Given a pending Mem0 read When the turn is superseded Then no note is written', async t => {
+  const dir = await fixture(t), backend = fixtureMem0(), scope = backend.scope(dir, 'notes');
+  const list = scope.list;
+  let release, entered;
+  const blocked = new Promise(resolve => { release = resolve; });
+  const reading = new Promise(resolve => { entered = resolve; });
+  scope.list = async (...args) => { entered(); await blocked; return list(...args); };
+  const memory = createMemoryStore({ scope, stateDir: dir });
   memory.beginTurn('remember tea: green');
   const update = memory.update({ category: 'tea', value: 'green' });
-  await new Promise(resolve => setTimeout(resolve, 25));
-  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), {});
-  await writeFile(file, '{"language":"zh-CN"}', { mode: 0o600 });
-  await release(); released = true;
-  await update;
-  assert.deepEqual(JSON.parse(await memory.read()), { language: 'zh-CN', tea: 'green' });
-  const releaseAgain = await lockfile.lock(file, { realpath: false });
-  memory.beginTurn('remember tea: stale');
-  const cancelled = memory.update({ category: 'tea', value: 'stale' });
+  await reading;
   memory.beginTurn('');
-  await releaseAgain();
-  await assert.rejects(cancelled, /safely|superseded/);
-  assert.deepEqual(JSON.parse(await memory.read()), { language: 'zh-CN', tea: 'green' });
+  release();
+  await assert.rejects(update, /superseded/);
+  assert.equal(await memory.read(), '{}');
 });
 
 test('Given private notes When no host check is verified Then neither secondary inference runs', async t => {
-  const dir = await fixture(t), memory = createMemoryStore(join(dir, 'MEMORY.json'));
+  const dir = await fixture(t), memory = fixtureNotes(join(dir, 'MEMORY.json'));
   memory.beginTurn('remember tea: green tea'); await memory.update({ category: 'tea', value: 'green tea' });
   for (const source of ['context', 'tool']) {
-    const store = createExperienceStore(join(dir, `${source}.json`)), calls = [];
+    const store = fixtureExperience(join(dir, `${source}.json`)), calls = [];
     const runtime = createAgentPluginRuntime({ store, config: { enabled: ['completion', 'learning'] }, infer: async (kind) => {
       calls.push(kind);
       assert.fail('Private notes cannot start secondary inference');
@@ -225,7 +225,7 @@ test('Given private notes When no host check is verified Then neither secondary 
     assert.equal(outcome.verification.status, 'not_run');
     assert.equal(outcome.learning.status, 'skipped');
     assert.deepEqual(calls, []);
-    assert.deepEqual(store.load().entries, []);
+    assert.deepEqual((await store.load()).entries, []);
   }
 });
 
@@ -233,25 +233,12 @@ test('Given personal tools When reading skills Then only indexed reviewed files 
   const dir = await fixture(t);
   const skill = join(dir, 'SKILL.md');
   await writeFile(skill, 'reviewed');
-  const tools = createPersonalTools({ memory: createMemoryStore(join(dir, 'MEMORY.json')), skillPaths: [skill] });
+  const tools = createPersonalTools({ memory: fixtureNotes(join(dir, 'MEMORY.json')), skillPaths: [skill] });
   assert.deepEqual(tools.map((tool) => tool.name), ['odk_data', 'memory_read', 'memory_update', 'memory_forget', 'skill_read']);
   assert.deepEqual(tools.filter((tool) => tool.name.startsWith('memory') || tool.name === 'skill_read').map((tool) => tool.name), ['memory_read', 'memory_update', 'memory_forget', 'skill_read']);
   const tool = tools.at(-1);
   assert.equal((await tool.execute('id', { index: 0 })).content[0].text, 'reviewed');
   await assert.rejects(tool.execute('id', { index: 1 }), /skill/i);
-});
-
-test('Given published memory evidence When scoring Then repeated source ids cannot inflate recall and labels cannot enter retrieval', () => {
-  const row = { question_id: 'example', question_type: 'multi-session', question: 'region totals', answer: 'HIDDEN_LABEL',
-    haystack_session_ids: ['evidence', 'evidence', 'other'], haystack_dates: ['2026-01-01', '2026-01-01', '2026-01-02'],
-    haystack_sessions: [[{ role: 'user', content: 'region totals are three', has_answer: true }], [{ role: 'user', content: 'region totals are three' }], [{ role: 'user', content: 'unrelated plant care' }]], answer_session_ids: ['evidence'] };
-  const result = evaluateMemoryRetrieval([row]);
-  assert.equal(result.arms.ranked.recall, 1);
-  assert.equal(result.rows[0].duplicateSourceIds, 1);
-  const hidden = evaluateMemoryRetrieval([{ ...row, question: 'HIDDEN_LABEL' }]);
-  assert.equal(hidden.arms.ranked.hit, 0);
-  assert.equal(evaluateMemoryRetrieval([{ ...row, question_id: 'example_abs' }]).skipped.length, 1);
-  assert.throws(() => evaluateMemoryRetrieval([row, row]), /Invalid/);
 });
 
 test('Given a coding profile, Intent selection is rejected before creating providers', async t => {

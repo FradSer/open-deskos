@@ -164,8 +164,8 @@ Both resident profiles use Pi Durable 1.4.0 with its Code Mode extension.
 Proposals, home briefings, and proposal phrasing use isolated in-memory Durable conversations.
 Hosted Pi workers retain Coding Agent 1.4.0 and their existing task-control contract.
 The [runtime contract](docs/CONTRACT.md#durable-runtime) owns storage, legacy context, recovery authority, and provider tool visibility.
-The [memory contract](docs/CONTRACT.md#profiles-and-memory) owns private notes and learned experience retrieval.
-The [memory evaluation](docs/MEMORY_EVALUATION.md) records public benchmark results and private device replay boundaries.
+The [Mem0 contract](docs/CONTRACT.md#mem0-setup) gives configuration, scope, and migration instructions.
+The [memory evaluation](docs/MEMORY_EVALUATION.md) gives the public dataset test and its limits.
 The [design research](docs/PERSONAL_AGENT_RESEARCH.md) records 24 surveyed repositories, Pi integration choices, and remaining host acceptance.
 The [dsh-superagent comparison](docs/DSH_SUPERAGENT_COMPARISON.md) compares this design with a team coding agent prototype.
 Read its [SSH acceptance procedure](docs/PERSONAL_AGENT_RESEARCH.md#ssh-acceptance) to test the isolated real SSH transport.

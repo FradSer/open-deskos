@@ -122,7 +122,7 @@ function localTime(now, zone) {
 
 /** The judgment service evaluates relevance; code owns observations, delivery and explicit actions. */
 export class ProactiveWatch {
-  constructor({ config, intents = undefined, privateSources = undefined, read, publish, save, phrase, execute, canExecute = undefined, generate = undefined, judge = undefined, onGeneration = (_record) => {}, onJudgment = (_record) => {}, onFeedback = (_record) => {}, refineFeedbackMemory = undefined, feedbackMemoryEnabled = undefined, canRefineFeedbackMemory = (_proposal) => true, codingStatus = undefined, codingList = undefined, loadState = () => ({ version: 1, proposals: [] }), saveState = (_state) => {}, now = Date.now }) {
+  constructor({ config, intents = undefined, privateSources = undefined, read, publish, save, phrase, execute, canExecute = undefined, generate = undefined, judge = undefined, onGeneration = (_record) => {}, onJudgment = (_record) => {}, onFeedback = (_record) => {}, feedbackStore = undefined, feedbackMemoryEnabled = undefined, canRefineFeedbackMemory = (_proposal) => true, codingStatus = undefined, codingList = undefined, loadState = () => ({ version: 1, proposals: [] }), saveState = (_state) => {}, now = Date.now }) {
     this.config = validateOwnerConfig(config)
     this.intents = intents
     this.privateSources = privateSources
@@ -138,8 +138,8 @@ export class ProactiveWatch {
     this.onJudgment = onJudgment
     this.onFeedback = onFeedback
     if (feedbackMemoryEnabled !== undefined && typeof feedbackMemoryEnabled !== 'boolean') throw Error('Invalid feedback memory selection')
-    this.feedbackMemoryEnabled = feedbackMemoryEnabled ?? typeof refineFeedbackMemory === 'function'
-    this.refineFeedbackMemory = refineFeedbackMemory
+    this.feedbackMemoryEnabled = feedbackMemoryEnabled ?? Boolean(feedbackStore)
+    this.feedbackStore = feedbackStore
     this.canRefineFeedbackMemory = canRefineFeedbackMemory
     this.feedbackTimer = undefined
     this.feedbackInflight = undefined
@@ -167,7 +167,7 @@ export class ProactiveWatch {
     }
     this.proposals = structuredClone(restored.proposals)
     for (const job of this.feedbackMemory.jobs) {
-      if (this.feedbackMemoryEnabled && typeof refineFeedbackMemory === 'function' && job.attempts < 2 && ['running', 'failed', 'unavailable'].includes(job.status)) job.status = 'queued'
+      if (this.feedbackMemoryEnabled && feedbackStore && job.attempts < 2 && ['running', 'failed', 'unavailable'].includes(job.status)) job.status = 'queued'
       else if (job.status === 'running') job.status = 'failed'
       const proposal = this.proposals.find(item => item.id === job.proposalId)
       if (proposal?.feedbackLearning?.revision === job.revision) proposal.feedbackLearning.status = job.status

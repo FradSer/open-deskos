@@ -12,7 +12,8 @@ import { ProactiveWatch } from '../src/proactive.mjs'
 import { proposalStateStore } from '../src/proactive-state.mjs'
 import { openDurableRuntime, durableCapability, createPiExecutionTarget } from '../src/durable-runtime.mjs'
 import { createDurableAgentSession } from '../src/durable-agent-session.mjs'
-import { createHistoryEvidence, readResidentHistory } from '../src/history-evidence.mjs'
+import { createHistoryEvidence, readResidentHistory, OWNER_HISTORY_ENTRY } from '../src/history-evidence.mjs'
+import { fixtureMem0 } from './fixtures/mem0.mjs'
 import { SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { AssistantEntry, CompactionEntry } from '@earendil-works/pi-durable'
@@ -38,7 +39,7 @@ async function fixture(t, profile = 'personal') {
   await mkdir(join(workspace, '.agents', 'skills', 'odk-widget'), { recursive: true })
   await writeFile(join(workspace, '.agents', 'skills', 'odk-widget', 'SKILL.md'), '# Isolated fixture skill\n')
   return { dir, config: { stateDir: join(dir, 'state'), workspace,
-    personal: { profile, memoryFile: join(dir, 'memory.json'), skillPaths: [] }, env: {} } }
+    personal: { profile, memoryFile: join(dir, 'memory.json'), skillPaths: [] }, env: {}, mem0: fixtureMem0() } }
 }
 
 for (const profile of ['personal', 'coding']) {
@@ -129,52 +130,40 @@ test('history reads original legacy owner turns before compaction and stops at r
   t.after(() => seed.close())
   const context = BACKGROUND_CONTEXT
   const conversation = seed.conversation
-  await seed.prompt('Older workflow instructions.\nPersonal Agent request:\nOriginal decision.')
+  await seed.prompt('Model-selected workflow: conversation.\nPersonal Agent request:\nOriginal decision.')
   const entries = await conversation.entries({}, 10, undefined, context)
   const kept = entries.items.find(AssistantEntry.is)
   assert(kept)
   await conversation.commit(tx => tx.appendEntry(conversation.id, { kind: CompactionEntry.kind, head: kept.id,
     data: { reason: 'manual' }, model: [{ role: 'user', content: 'Personal Agent request:\nSynthetic compaction.', timestamp: Date.now() }] }), context)
-  assert.deepEqual((await readResidentHistory(conversation, context)).sources.map(source => source.body), [
-    'user: Original decision.\nassistant: Exact retained answer.',
+  assert.deepEqual((await readResidentHistory(conversation, context)).sources.map(source => source.messages.map(message => message.content)), [
+    ['Original decision.', 'Exact retained answer.'],
   ])
   await conversation.reset('Personal Agent request:\nSynthetic handoff.', context)
   await seed.prompt('Personal Agent request:\nDecision after reset.')
-  assert.deepEqual((await readResidentHistory(conversation, context)).sources.map(source => source.body), [
-    'user: Decision after reset.\nassistant: Exact retained answer.',
+  assert.deepEqual((await readResidentHistory(conversation, context)).sources.map(source => source.messages.map(message => message.content)), [
+    ['Decision after reset.', 'Exact retained answer.'],
+  ])
+  const requestMarker = 'Personal Agent request:\n'
+  await seed.prompt(requestMarker + 'Owner text from a private-context turn.', {
+    entry: { kind: OWNER_HISTORY_ENTRY, data: { ownerOffset: requestMarker.length, historyUserOnly: true } },
+  })
+  assert.deepEqual((await readResidentHistory(conversation, context)).sources.at(-1).messages, [
+    { role: 'user', content: 'Owner text from a private-context turn.' },
   ])
 })
 
-test('history previews keep nearby evidence in its original source', () => {
-  const filler = '说明🧪'.repeat(600)
-  const otherEvent = 'user: The riverbank rally involved 92 coupons.\n'
-  const leading = `${otherEvent}${filler}\nuser: The cap was 17 credits.\n${'context '.repeat(28)}`
-  const exact = 'For the Atlas launch review, the approval applied to the north site.'
-  const sources = [
-    { id: 'launch', conversationId: 'desk', date: '2026-11-01', body: leading + exact + filler },
-    { id: 'training', conversationId: 'desk', date: '2026-11-02', body: 'user: The Atlas training review had a cap of 42 credits.' },
-  ]
-  const { preview, read, search } = createHistoryEvidence({ sources, query: 'What was the cap for the Atlas launch review at the north site?' })
-  const launch = preview.results.find(result => result.date === sources[0].date)
-  const training = preview.results.find(result => result.date === sources[1].date)
-  assert.match(launch.text, /The cap was 17 credits/)
-  assert(launch.text.includes(exact))
-  assert.equal(launch.text, sources[0].body.slice(launch.offset, launch.nextOffset ?? undefined))
-  assert(!/[\uD800-\uDBFF]$/.test(launch.text))
-  assert.notEqual(launch.source, training.source)
-  assert.equal(training.text, sources[1].body)
-  const rally = search({ query: 'riverbank rally' }).results[0]
-  assert.match(rally.text, /92 coupons/)
-  assert.notEqual(rally.source, launch.source)
-  assert(read({ source: launch.source }).text.startsWith(launch.text))
-  assert(read({ source: rally.source }).text.startsWith(rally.text))
-
-  const manySources = Array.from({ length: 10 }, (_, i) => ({ id: `candidate-${i}`,
-    conversationId: 'desk', date: '2026-11-02', body: 'user: Launch review notes. ' + filler }))
-  const packed = createHistoryEvidence({ sources: manySources, query: 'launch review' }).preview.results
-  assert.equal(packed.length, 8)
-  assert(packed.slice(0, 2).every(result => Buffer.byteLength(result.text) > 560))
-  assert(packed.slice(2).every(result => Buffer.byteLength(result.text) <= 560))
+test('Mem0 history projection keeps dated facts and bounds follow-up searches', async () => {
+  const mem0 = fixtureMem0(), scope = mem0.scope('fixture', 'history')
+  await scope.put('launch', 'Atlas launch review at the north site used 17 credits.', { created_at: '2026-11-01' })
+  await scope.put('training', 'Atlas training review used 42 credits.', { created_at: '2026-11-02' })
+  const evidence = await createHistoryEvidence(scope, 'Atlas launch review')
+  assert.deepEqual(evidence.preview.map(item => item.source), ['launch', 'training'])
+  assert.match(evidence.preview[0].text, /17 credits/)
+  assert.match(evidence.preview[1].text, /42 credits/)
+  assert((await evidence.search('training')).some(item => item.source === 'training'))
+  await evidence.search('launch')
+  await assert.rejects(evidence.search('launch'), /budget/)
 })
 
 test('production proactive advice uses scoped tools while briefing and phrasing stay isolated', async t => {
