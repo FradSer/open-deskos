@@ -10,7 +10,7 @@ const RESULT_LIMIT = 65536
 const TOOL_NAME = /^[A-Za-z0-9_.-]{1,128}$/
 const unknownOutcome = () => Error('MCP tool outcome unknown; do not retry automatically. Query authoritative state before another mutation.')
 
-async function withDeadline(operation, signal, timeoutMs) {
+export async function withDeadline(operation, signal, timeoutMs) {
   const deadline = new AbortController()
   const callSignal = signal ? AbortSignal.any([signal, deadline.signal]) : deadline.signal
   const timer = setTimeout(() => deadline.abort(Error('MCP request deadline exceeded')), timeoutMs)

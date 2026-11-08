@@ -1,12 +1,12 @@
 Feature: Private recommendation sources use reviewed read-only connectors
-  Scenario: Explicit private feedback refines only an abstract recommendation preference
+  Scenario: Explicit private feedback saves an abstract recommendation preference
     Given the owner responds to a current private review recommendation
-    When the asynchronous Pi refines that feedback
-    Then its input contains only the feedback decision and a fixed review stage
-    And no mail, derived advice, account, message identifier, or private link enters that input
+    When the background worker saves that feedback
+    Then Mem0 receives the feedback decision and a fixed review stage
+    And the memory contains no mail, derived advice, account, message identifier, or private link
     And later private events can use that topic preference
     And invalid source bindings cannot enable private learning
-    And a host policy denial blocks refinement and derived preference reuse
+    And a host policy denial blocks storage and reuse of the preference
 
   Scenario: Only an owner file selects a reviewed private source profile
     Given a private owner configuration selects an installed Gmail connector

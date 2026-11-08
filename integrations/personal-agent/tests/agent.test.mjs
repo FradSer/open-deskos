@@ -1,3 +1,4 @@
+import { fixtureMem0 } from './fixtures/mem0.mjs'
 import { nodeExecutable } from './helpers/node-executable.mjs'
 import { endpoint, tokenEnvironment, requests } from './helpers/private-channel.mjs'
 import { test } from 'node:test'
@@ -32,7 +33,8 @@ async function proposalExecutionFixture(t, { route, helperSource, capabilitySour
   const memoryFile = join(dir, 'memory.json')
   const capability = join(dir, 'reviewed-capability.mjs')
   if (capabilitySource) await writeFile(capability, capabilitySource)
-  const bot = await createPersonalAgent({ stateDir: join(dir, 'state'), env: {},
+  const stateDir = join(dir, 'state'), mem0 = fixtureMem0()
+  const bot = await createPersonalAgent({ stateDir, mem0, env: {},
     ...(capabilitySource ? { workspace: fileURLToPath(new URL('../../../', import.meta.url)), capabilityPaths: [capability] }
       : { personal: { profile: 'personal', memoryFile, skillPaths: [] } }) }, {
     createIntentRouter: () => async input => { routes++; return route ? route(input) : { intent: 'proposal_response' } },
@@ -41,7 +43,7 @@ async function proposalExecutionFixture(t, { route, helperSource, capabilitySour
       prompt() { prompts++; throw Error('Proposal execution must not prompt a model') }, abort: async () => {}, dispose() {} } }),
   })
   t.after(() => bot.close())
-  return { bot, dir, memoryFile, activity: () => ({ routes, prompts }) }
+  return { bot, dir, memoryFile, notes: () => mem0.scope(stateDir, 'notes').list(), activity: () => ({ routes, prompts }) }
 }
 
 test('proposal availability checks actual schemas and configured targets without execution or inference', async t => {
@@ -78,7 +80,7 @@ test('confirmed proposal memory execution returns a completed receipt after actu
   const result = await f.bot.executeProposal('memory_update', { category: 'watering', value: 'Inspect soil.' }, '记住 watering：Inspect soil.', {})
   assert.equal(result.outcome, 'completed')
   assert.deepEqual(result.receipt, { tool: 'memory_update', category: 'watering' })
-  assert.deepEqual(JSON.parse(await readFile(f.memoryFile, 'utf8')), { watering: 'Inspect soil.' })
+  assert.equal((await f.notes())[0].memory, 'Inspect soil.')
   assert.deepEqual(f.activity(), { routes: 1, prompts: 0 })
   await assert.rejects(f.bot.executeProposal('memory_update', { category: 'other', value: 'No authorization.' }, '好的'))
 })
@@ -95,7 +97,7 @@ test('an existing three-argument Watch receives default Agent memory results as 
   const checkpoint = JSON.parse(await watch.respond())
   assert.equal(checkpoint.result, 'Memory updated.')
   assert.equal(checkpoint.status, 'completed')
-  assert.deepEqual(JSON.parse(await readFile(f.memoryFile, 'utf8')), { watering: 'Inspect soil.' })
+  assert.equal((await f.notes())[0].memory, 'Inspect soil.')
   assert.deepEqual(f.activity(), { routes: 1, prompts: 0 })
 })
 

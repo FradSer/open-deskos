@@ -220,7 +220,9 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
       if (!sameValues || (p.observationKey && p.observationKey !== observed)) p.status = 'expired'
       else p.evidence = freshEvidence.map((fresh, i) => ({ ...fresh, ...(p.evidence[i].id ? { id: p.evidence[i].id } : {}) }))
     }
-    const feedbackMemory = feedbackFor(watch, rule)
+    const feedbackMemory = await feedbackFor(watch, rule)
+    if (!current()) return
+    if (!topicCurrent(rule.id)) continue
     const cacheKey = generationKey(['executable-card-v2', feedbackMemory, actions.map(({ id, label }) => ({ id, label })), JSON.stringify(rule), observed, episodeSequence, context.local.date,
       rule.delivery === 'routine' ? context.local.time >= rule.at : null, context.quiet, timeWindow(evidence, watch.now())])
     const cached = watch.generationCache[rule.id]

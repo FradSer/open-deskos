@@ -14,7 +14,7 @@ Feature: Personal Agent owns a bounded plugin runtime
 
   Scenario: Plugin models receive literal receipt text at the provider boundary
     Given a tool returns JSON with quotes, backslashes, Unicode, and misleading receipt headers
-    When completion and learning receive that receipt through the actual SDK
+    When completion receives that receipt through the actual SDK
     Then each original receipt text occurs once as literal untrusted data
     And host metadata and retry feedback retain every original value
     And only top-level host format correction supplies retry instructions
@@ -34,7 +34,7 @@ Feature: Personal Agent owns a bounded plugin runtime
     When the resident restarts and receives another owner request
     Then the actual Durable model request contains that private note as reference data
     And later updates and deletion change the next request's memory block
-    And learned experience remains a separate store
+    And Mem0 keeps learned experience in a separate scope
 
   Scenario: Native Pi extensions cannot enter the Personal Agent
     Given an operator selects Personal Agent plugins
@@ -49,6 +49,22 @@ Feature: Personal Agent owns a bounded plugin runtime
     And a read-only tool retrieves the complete selected entry
     And Code Mode receives declared structured search and read results
     And experience supplies neither current observations nor action authorization
+
+  Scenario: Procedural learning uses only verified host check facts
+    Given an eligible hosted check and a turn with private note context
+    When the resident finishes the turn
+    Then separate completion inference does not receive private content
+    And learning receives only fixed check facts from the verified host receipt
+    And learning receives no request, answer, raw tool text, or prior lesson text
+    And the resulting experience stores a host receipt locator and a versioned scope
+
+  Scenario: Operators can retire and restore an experience entry
+    Given two active experience entries with the same scope
+    When the operator replaces one entry with the other by its current revision
+    Then automatic context and model tools omit the retired entry
+    And the automatic title index is absent from saved conversation entries
+    And the operator can inspect and restore the retained record
+    And a stale revision cannot overwrite a later decision
 
   Scenario: Completion receives a separate verification pass
     Given the resident has produced an answer and host-observed tool receipts
@@ -101,11 +117,12 @@ Feature: Personal Agent owns a bounded plugin runtime
     And verifier summaries cannot become learned source evidence
 
   Scenario: Learning uses only a verified completed task
-    Given completion verification passed with exact successful receipt citations
-    When the learning plugin extracts a reusable lesson
-    Then each lesson cites exact successful receipt text from that task
-    And reusable source procedures retain their necessary steps and fixed parameters
-    And invalid, sensitive, unsupported, or duplicate lessons are not added
+    Given Hosted Pi verification passed with exact successful check citations
+    When Mem0 extracts a reusable lesson
+    Then each lesson carries the source locator for its verified check
+    And raw commands, output, summaries, notes, and task paths are absent from learning input
+    And ordinary tool receipts cannot declare their own eligibility
+    And the host sends only eligible check facts and rejects unsafe results
     And unrelated explicit user notes remain unchanged
     And learning can be disabled without disabling experience retrieval
 
@@ -152,19 +169,24 @@ Feature: Personal Agent owns a bounded plugin runtime
     And saved identities preserve their identity and experience across restarts
     And a running saved child displays its avatar in the conversation
 
-  Scenario: Delivery core acceptance excludes the separate learning experiment
+  Scenario: Delivery core acceptance checks saved experience after restart
     Given the default live evaluation and isolated synthetic state
     When the real model installs packages and delegates saved and temporary reports
     Then all six core scenarios retain host grading and completion checks
-    And a restarted saved child retrieves actual full-entry accepted experience
-    And no paired holdout runs or learning benefit claim is included
+    And the MCP report does not create automatic experience
+    And a restarted saved child retrieves a full seeded experience fixture
     And plan inspection makes no external request and reads no credentials
 
   Scenario: Targeted verification has a fixed and limited scope
     Given targeted saved-report verification or the task-evaluation compatibility option
     When the runner prepares isolated packages and an identity through host APIs
     Then it checks one real saved report execution and completion
-    And it claims no natural-language setup, restart, or paired learning coverage
+    And the report identifies the setup as a host fixture
+
+  Scenario: The live runner rejects retired experiment options
+    Given the owner supplies a retired learning mode or continuation option
+    When the live runner parses the command
+    Then it reports invalid usage before reading credentials or starting a container
 
   Scenario: Provider health is a bounded non-mutating diagnostic
     Given an explicit targeted provider-health run
@@ -258,24 +280,6 @@ Feature: Personal Agent owns a bounded plugin runtime
     And tool failures retain only fixed tool identities and error categories
     And report grading retains only a fixed marker category without answer text
 
-  Scenario: Accepted synthetic experience survives an incomplete live evaluation
-    Given training has a host-correct result, passed completion, and applied learning
-    When the runner continues to later acceptance stages
-    Then it first saves only validated accepted experience in a private artifact
-    And the report identifies its digest and entry count
-    And the artifact excludes conversation history and raw provider responses
-
-  Scenario: Independent learning evaluation preserves accepted evidence and experimental controls
-    Given a private real training report with correct host grading and accepted experience
-    When continuation checks the report, experience schema, and matching digest
-    Then it restores only accepted experience without conversation or task history
-    And both paired arms receive identical current synthetic input and a shared-method contract
-    And both paired arms have MCP access and automatic learning disabled
-    And only paired holdouts run in new conversation homes
-    And every candidate result has correct host grading, passed completion, and actual full-entry retrieval
-    And the original source report remains unchanged, including any later failure
-    And only the candidate receives accepted experience
-
   Scenario: An owner replies to the original Pi session message
     Given a durable completion message retains its exact source and session
     When the owner sends text with that message, source key, and source revision
@@ -317,6 +321,14 @@ Feature: Personal Agent owns a bounded plugin runtime
     Then the same read and write validator rejects it without changing the checkpoint
     And an unknown reply with expired origin history blocks only its retained session
     And another explicitly identified session can receive an owner reply
+
+  Scenario: Experience retrieval follows the current owner request
+    Given the experience store contains older unrelated methods and a recent matching method
+    When the owner uses separated English terms or Chinese words
+    Then search ranks matching titles and bodies by relevance
+    And the bounded context index includes relevant entries before unrelated entries
+    And empty search retains stable pagination through the complete index
+    And index entries require a full read before their bodies can support an answer
 
   Scenario: Provider selection follows native Pi configuration
     Given Pi has provider credentials and model endpoint overrides

@@ -226,13 +226,13 @@ Reviewed custom capabilities have service-user permissions, without an OS sandbo
 
 The personal profile adds protected memory and explicitly declared reviewed capabilities.
 It loads no project instructions, discovered extensions, or operator coding modules.
-Set `ODK_PERSONAL_AGENT_CONFIG` to a private canonical absolute JSON path:
+Set `ODK_PERSONAL_AGENT_CONFIG` to a private absolute path. Use a JSON file.
 
 ```json
 {
   "profile": "personal",
   "skillPaths": [],
-  "memoryFile": "/home/orangepi/.local/state/odk-personal-agent/personal/MEMORY.md",
+  "pinnedMemoryCategories": ["language"],
   "capabilities": {
     "didi": {
       "environment": "sandbox",
@@ -245,7 +245,7 @@ Set `ODK_PERSONAL_AGENT_CONFIG` to a private canonical absolute JSON path:
 }
 ```
 
-The service user owns the memory parent, mode 0700, and key file, mode 0600.
+The service user owns the configuration directory and key file. Use mode 0700 for the directory and 0600 for the key file.
 Windows uses protected user ACLs.
 Only operator configuration selects production; sandbox and production keep separate transaction states.
 `capabilities` selects only host-reviewed `didi` and `browser` declarations.
@@ -261,21 +261,141 @@ The personal profile needs no writable Git checkout.
 Widget/App drafts still need a configured Hosted Pi target and project.
 Invalid configuration reports an error instead of ready status.
 
-Memory accepts explicit current-turn commands:
+### Mem0 setup
+
+Personal Agent uses Mem0 OSS 2.2.1 for notes, conversation recall, experience, and recommendation feedback.
+A private Python process runs the Mem0 SDK on the service host.
+The host uses standard input and output to call the worker.
+The worker uses Qdrant and keeps its SDK history under `<stateDir>/personal-agent/mem0`.
+
+1. Install the locked Python environment in `integrations/personal-agent/mem0`.
+2. Create a private Mem0 JSON configuration file.
+3. Set `ODK_PERSONAL_AGENT_MEM0_CONFIG` to its absolute path in the resident service environment.
+4. If the environment is outside the release, set `ODK_PERSONAL_AGENT_MEM0_PYTHON` to its Python executable.
+
+Use Python 3.12 or 3.13. Run this command in the Mem0 directory.
+
+```sh
+uv sync --locked --no-install-project --python 3.12
+```
+
+Use the [Mem0 provider configuration](https://docs.mem0.ai/open-source/configuration) format.
+Supply the extraction model, embedding model, and Qdrant collection in the file.
+The embedding dimensions must match the model.
+With no Qdrant host or URL, the worker stores vectors in its private state directory.
+Select a new collection for the native keyword and entity indexes.
+Use private model endpoints approved for the data in this service.
+Protect the configuration file with mode 0600 or a private Windows ACL.
+The SDK uses the configured models to process memory data.
+
+```json
+{
+  "llm": {
+    "provider": "openai",
+    "config": {
+      "model": "local-chat-model",
+      "api_key": "REPLACE_WITH_LOCAL_CREDENTIAL",
+      "openai_base_url": "http://127.0.0.1:8000/v1",
+      "temperature": 0
+    }
+  },
+  "embedder": {
+    "provider": "openai",
+    "config": {
+      "model": "local-embedding-model",
+      "embedding_dims": 384,
+      "api_key": "REPLACE_WITH_LOCAL_CREDENTIAL",
+      "openai_base_url": "http://127.0.0.1:8001/v1"
+    }
+  },
+  "vector_store": {
+    "provider": "qdrant",
+    "config": { "collection_name": "odk_memories_v3", "embedding_model_dims": 384 }
+  }
+}
+```
+
+The worker uses the package's English entity model and BM25 encoder.
+The encoder can download its public model data on first use.
+Keep the Mem0 state directory and the vector collection together when you back up the service.
+Keep the same absolute state path when you restore a backup.
+Mem0 scopes use the state path to isolate owners and saved children.
+A missing worker leaves memory operations unavailable.
+Ordinary conversation can continue without memory context.
+
+### Explicit notes
+
+Use an exact current-turn command to write or forget a named note.
 
 - `记住：我喜欢简短回答`
 - `记住 回答偏好：请使用简体中文，简短回答`
 - `查看你的记忆`
 - `忘记 回答偏好`
 
-A named write replaces that note.
-Verbatim current-turn content grants one write.
-Private `MEMORY.md` contains an atomic JSON note map, limited to 16 KiB.
-Tools expose notes as data, never instructions.
-Memory cannot authorize purchases or establish the current pickup point.
-Credential detection is heuristic; do not store passwords, tokens, or sensitive account data.
-Forget removes a note, not earlier conversation entries.
-The operator owns session retention and deletion.
+A named write replaces the current note.
+An unnamed write uses `note` first and gives each different value its own name.
+The host returns the assigned name.
+The current-turn command permits one exact write.
+The worker stores the exact owner text and searches it with Mem0.
+The complete note map has a 16 KiB limit.
+Automatic note context has a 4096-byte limit.
+The saved-note workflow reads the current notes outside earlier conversation context.
+Other workflows can include up to eight `pinnedMemoryCategories`.
+The `memory_read` tool lists exact notes or searches them by query.
+Notes are reference data. Only the current owner command supplies permission.
+The host rejects common secret patterns before it writes a note.
+Forget removes the active note from Mem0 recall.
+Durable transcripts and the SDK history follow their own retention rules.
+
+Retain `memoryFile` in an existing profile to import its private note map.
+The first memory operation imports each legacy name and value once.
+The source file remains available for recovery.
+The import receipt prevents a restart from restoring a forgotten legacy note.
+
+### Conversation memory
+
+The resident sends eligible completed conversations to Mem0 in the background.
+It sends the original owner text and the final assistant text with a source date.
+It excludes tool turns, note commands, history questions, and turns with remote conversation context.
+When a turn uses private memory context, the worker receives only the owner's text.
+Durable keeps the original transcript.
+On start, the worker can import eligible retained turns from the latest 2048 transcript entries.
+The worker records completed source IDs to avoid duplicate imports.
+Each Durable reset selects a separate Mem0 scope.
+
+The history workflow uses Mem0 search and dated facts.
+It keeps up to 32 KiB of facts and permits two targeted searches within that limit.
+The model checks the event and each required value before it gives an answer.
+It reports missing evidence when it cannot establish the requested fact.
+The automatic memory projection stays outside the transcript.
+Hosted Pi history uses its own `task_query` workflow.
+
+### Experience and feedback
+
+Mem0 stores experience and feedback in separate scopes.
+The `experience` plugin uses Mem0 search for methods and reads a full entry by its ID.
+Mem0 extracts reusable methods only from verified host check facts.
+The host keeps source receipts and limits recall to the active profile.
+An upgrade can import the existing private `experience.json` file.
+The operator can inspect, withdraw, replace, or restore Mem0 experience by its current revision.
+
+Run the experience command while the resident is stopped.
+Set the same Mem0 configuration and Python executable as the resident.
+
+```sh
+pnpm agent:experience --state-dir=/absolute/state list
+pnpm agent:experience --state-dir=/absolute/state show ID
+pnpm agent:experience --state-dir=/absolute/state withdraw ID REVISION
+pnpm agent:experience --state-dir=/absolute/state replace ID REVISION REPLACEMENT_ID
+pnpm agent:experience --state-dir=/absolute/state restore ID REVISION
+```
+
+The Watch saves the owner decision before it writes a scoped feedback record to Mem0.
+Private-source feedback uses a fixed host summary without source content.
+The Watch keeps pending work and delivery receipts in its own state.
+Mem0 keeps the imported feedback that later recommendations can use.
+
+The [memory evaluation](MEMORY_EVALUATION.md) gives the public dataset test and its limits.
 
 ## Ride authorization
 
@@ -333,6 +453,7 @@ Private memory files, credentials, and live readings are excluded.
 | `proposal_response` | Validate the displayed phrase and subsequent turn |
 | `odk_data` | Read current measurements, state, and time |
 | `memory` | Apply explicit current-turn remember/forget policy |
+| `history` | Read dated evidence from past exchanges in the current resident conversation |
 | `ride` | Use the reviewed quote/order transaction |
 | `browse` | Use the reviewed browser session and requested page actions |
 | `extension` | Invoke reviewed capabilities or installed MCP tools |

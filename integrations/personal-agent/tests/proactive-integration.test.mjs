@@ -1,3 +1,4 @@
+import { fixtureMem0, fixtureMem0For } from './fixtures/mem0.mjs'
 import { endpoint, fixtureToken } from './helpers/private-channel.mjs'
 import { fixtureIntentRouter } from './helpers/intent-judge.mjs'
 import { test } from 'node:test'
@@ -35,10 +36,15 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
       await mkdir(dir, { mode: 0o700 })
       protectProactivePath(dir)
       const memoryFile = join(dir, 'memory.json')
+      let memoryUnavailable = false
+      const mem0 = fixtureMem0For(dir, { beforePut: () => { if (memoryUnavailable) throw Error('Mem0 unavailable') } })
+      const notes = async () => Object.fromEntries((await mem0.scope(dir, 'notes').list()).map(item => [item.metadata.odk_key, item.memory]))
       const entry = join(dir, 'agent.cjs'), selection = join(dir, 'selection.json')
       await writeFile(entry, `exports.create = async () => {
         const { createMemoryStore } = await import(${JSON.stringify(new URL('../src/memory.mjs', import.meta.url).href)})
-        const memory = createMemoryStore(${JSON.stringify(memoryFile)})
+        const { fixtureMem0For } = await import(${JSON.stringify(new URL('./fixtures/mem0.mjs', import.meta.url).href)})
+        const stateDir = ${JSON.stringify(dir)}
+        const memory = createMemoryStore({ scope: fixtureMem0For(stateDir).scope(stateDir, 'notes'), stateDir })
         const runtime = { fail: true, agent: {
           generationModel: 'offline-fixture/fixture',
           canExecuteProposal(action) { return action.tool === 'memory_update' },
@@ -78,7 +84,7 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
         async initialize() {
           assert.equal(external, false, 'selected Agent must not construct the default adapter')
           const runtime = { fail: true }
-          const agent = await createPersonalAgent({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile }, getWatch: () => watch, env: {} }, {
+          const agent = await createPersonalAgent({ stateDir: dir, mem0, personal: { profile: 'personal', skillPaths: [], memoryFile }, getWatch: () => watch, env: {} }, {
             createIntentRouter: fixtureIntentRouter,
             createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel }),
             createSession: async options => ({ session: (await offlineSession({ ...options, agentDir: join(root, 'agent') }, () => {
@@ -139,7 +145,7 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
         await watch.respond(proposal.id, 'accept', proposal.confirmation)
         assert.equal(watch.list()[0].status, 'completed')
         assert.equal(executions, 1)
-        assert.deepEqual(JSON.parse(await readFile(memoryFile, 'utf8')), version === 1 ? { watering: '检查盆土后浇水' } : { deliveries: '领取待取物品' })
+        assert.deepEqual(await notes(), version === 1 ? { watering: '检查盆土后浇水' } : { deliveries: '领取待取物品' })
         if (version === 2) {
           assert.equal(proposal.nextStep, '记下取件事项')
           assert.deepEqual(proposal.action, { tool: 'memory_update', params: { category: 'deliveries', value: '领取待取物品' } })
@@ -149,9 +155,9 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
         const final = watch.list()[0]
         let uncertain
         if (version === 1) {
-          const saved = await readFile(memoryFile, 'utf8')
+          const saved = await notes()
           await resident.setEnabled('odk.personal-agent.watch', false)
-          await writeFile(memoryFile, '{invalid json')
+          memoryUnavailable = true
           await resident.setEnabled('odk.personal-agent.watch', true)
           await watch.inflight
           const next = watch.list()[0]
@@ -159,13 +165,13 @@ test('selected Agent preserves actual proactive generation, phrasing, and confir
           await watch.respond(next.id, 'accept', next.confirmation)
           assert.equal(watch.list()[0].status, 'unknown')
           assert.equal(executions, 2)
-          await writeFile(memoryFile, saved)
+          memoryUnavailable = false
           await watch.tick()
           assert.equal(watch.list().length, 1)
           assert.equal(watch.list()[0].status, 'unknown')
           await assert.rejects(watch.respond(next.id, 'accept', next.confirmation), /no longer pending/)
           assert.equal(executions, 2)
-          assert.equal(await readFile(memoryFile, 'utf8'), saved)
+          assert.deepEqual(await notes(), saved)
           uncertain = { status: watch.list()[0].status, result: watch.list()[0].result }
         }
         reports.push({ failure, uncertain, advice: final.advice, status: final.status, result: final.result,
@@ -391,7 +397,8 @@ test('real SDK phrasing has no tools or reading export; touch confirmation invok
   await isolateAgentDirectory(t, dir)
   const optionsSeen = [], requests = []
   let watch
-  const agent = await createPersonalAgent({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') }, getWatch: () => watch }, {
+  const mem0 = fixtureMem0()
+  const agent = await createPersonalAgent({ stateDir: dir, mem0, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') }, getWatch: () => watch }, {
     createIntentRouter: fixtureIntentRouter,
     createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel }),
     createSession: async options => {
@@ -414,7 +421,7 @@ test('real SDK phrasing has no tools or reading export; touch confirmation invok
   await assert.rejects(readFile(join(dir, 'memory.json')), { code: 'ENOENT' })
   watch.presented([p.id]); await watch.respond(p.id, 'accept', p.confirmation)
   assert.equal(watch.list()[0].status, 'completed')
-  assert.deepEqual(JSON.parse(await readFile(join(dir, 'memory.json'), 'utf8')), { watering: '检查盆土后浇水' })
+  assert.equal((await mem0.scope(dir, 'notes').list())[0].memory, '检查盆土后浇水')
   await assert.rejects(agent.executeProposal('memory_update', { category: 'bad', value: 'unauthorized' }, '好的'))
 })
 
@@ -468,7 +475,8 @@ test('private socket carries presentation, exact confirmation and real memory re
   t.after(() => rm(dir, { recursive: true, force: true }))
   await isolateAgentDirectory(t, dir)
   let watch
-  const agent = await createPersonalAgent({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') }, getWatch: () => watch }, {
+  const mem0 = fixtureMem0()
+  const agent = await createPersonalAgent({ stateDir: dir, mem0, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') }, getWatch: () => watch }, {
     createIntentRouter: fixtureIntentRouter,
     createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getAvailableSnapshot: () => [fixtureModel], hasConfiguredAuth: () => true, getError: () => undefined, getModel: () => fixtureModel }),
     createSession: async options => ({ session: (await offlineSession({ ...options, agentDir: join(dir, 'agent') }, () => assistant('[0,1]'))).session }),
@@ -491,7 +499,7 @@ test('private socket carries presentation, exact confirmation and real memory re
   assert.equal(client.proposalCommand({ type: 'proposal_presented', ids: [p.id] }), true); await ack
   const result = until(frame => frame.proposals?.[0]?.status === 'completed')
   client.proposalCommand({ type: 'proposal_respond', id: p.id, decision: 'accept', confirmation: p.confirmation }); await result
-  assert.deepEqual(JSON.parse(await readFile(join(dir, 'memory.json'), 'utf8')), { watering: '检查盆土后浇水' })
+  assert.equal((await mem0.scope(dir, 'notes').list())[0].memory, '检查盆土后浇水')
 })
 
 test('checkpoint failure stays visible through service status transitions', async () => {

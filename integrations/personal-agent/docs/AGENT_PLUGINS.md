@@ -13,7 +13,6 @@ An absent field preserves the existing resident behavior.
 {
   "profile": "personal",
   "skillPaths": [],
-  "memoryFile": "/absolute/private/notes.json",
   "agentPlugins": {
     "enabled": ["experience", "completion", "learning", "catalog", "mcp", "subagents"],
     "autoLearn": true
@@ -38,17 +37,11 @@ The [Intent contract](INTENTS.md) owns natural-language editing, condition judgm
 
 ## Experience
 
-Explicit user notes retain the current-turn policy in [memory.mjs](../src/memory.mjs).
-Learned experience uses a separate private file at `<stateDir>/personal-agent/experience.json`.
-It does not change explicit notes.
-
-The `experience` plugin adds an 8 KiB index to each model request.
-The index identifies reference data and rejects its use as authorization or current observations.
-The `experience_list` tool searches all entries or returns an index page.
-The `experience_read` tool returns one complete entry by its index ID.
-Both tools declare structured results for Durable Code Mode.
-The private file accepts at most 256 entries.
-A full file rejects new entries and preserves existing content.
+Mem0 stores experience in a separate scope from explicit notes.
+The `experience` plugin adds a bounded list of matching titles to the model request.
+The `experience_list` tool searches with Mem0 or lists a page.
+The `experience_read` tool returns a complete entry by ID.
+Both tools give reference data to Durable Code Mode.
 
 ## Completion checks
 
@@ -117,23 +110,12 @@ The Hosted Pi execution receipt retains its separate `verification: not_run` fie
 
 ## Automatic lessons
 
-The `learning` plugin runs only after passed completion checks.
-Admission checks cannot trigger learning.
-Ordinary source queries skip procedural learning.
-Queries with imported independent host checks can learn from those checks only.
-Their learning input and citation validation exclude ordinary query receipts.
-Each proposed lesson must cite exact successful tool receipt text.
-Hosted verification imports the underlying host check receipts.
-Verifier summaries cannot support a learned lesson.
-The host validates the proposal before it adds the lesson.
-Duplicate bodies retain their existing entry.
-Cancellation prevents subsequent writes.
-Failed learning preserves existing entries and adds a visible result note.
-
-The content filter rejects common credential and identity patterns.
-The filter does not detect every sensitive value.
-The tests establish the execution path and retrieval behavior.
-They do not establish learning quality with a live model.
+The `learning` plugin sends verified host check facts to Mem0.
+The host check supplies the source locator for the extracted method.
+Admission receipts and ordinary tool results cannot supply learning facts.
+The host keeps the original check limits with its evidence.
+A cancellation prevents a queued Mem0 write.
+A failed extraction preserves existing experience and reports that learning is incomplete.
 
 Each model stage has a 90-second default deadline and permits one format correction.
 Correction feedback uses fixed host validation categories without provider errors or private receipt content.

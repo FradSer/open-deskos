@@ -30,7 +30,7 @@ import { loadOwnerMarkdownPreferences } from './overview-preferences.mjs'
 
 async function initialize(env, report, onRideUpdate, platform = process.platform, getWatch = undefined, signal = undefined, onAgentUpdate = undefined, onRemoteUpdate = undefined) {
   signal?.throwIfAborted()
-  report('Check ODK_PERSONAL_AGENT_CONFIG: personal profile, reviewed Skills, private MEMORY and DiDi credential path; restart service')
+  report('Check the Personal Agent profile, reviewed Skills, Mem0 configuration and DiDi credential path.')
   const personal = await loadPersonalConfig(env)
   signal?.throwIfAborted()
   report('Set ODK_WORKSPACE to the shared Open DeskOS writable checkout; restart service')
@@ -267,7 +267,7 @@ async function main() {
       const state = proposalStateStore(join((await prepareHostDirectories(env, platform)).state, 'proactive', 'state.json'))
       watch = new ProactiveWatch({ config, intents: runtime.agent.intents, privateSources: runtime.agent.privateSources, loadState: state.load, saveState: state.save,
         generate: runtime.agent.generateProposals,
-        refineFeedbackMemory: runtime.agent.refineFeedbackMemory,
+        feedbackStore: runtime.agent.feedbackStore,
         feedbackMemoryEnabled: runtime.agent.feedbackMemoryEnabled === true,
         onGeneration: record => console.info(JSON.stringify({ event: 'proactive_generation', model: runtime.agent.generationModel, ...record })),
         judge: createJevJudge({ env, request: runtime.agent.judge }),

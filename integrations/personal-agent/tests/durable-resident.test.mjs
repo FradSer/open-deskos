@@ -12,8 +12,11 @@ import { ProactiveWatch } from '../src/proactive.mjs'
 import { proposalStateStore } from '../src/proactive-state.mjs'
 import { openDurableRuntime, durableCapability, createPiExecutionTarget } from '../src/durable-runtime.mjs'
 import { createDurableAgentSession } from '../src/durable-agent-session.mjs'
+import { createHistoryEvidence, readResidentHistory, OWNER_HISTORY_ENTRY } from '../src/history-evidence.mjs'
+import { fixtureMem0 } from './fixtures/mem0.mjs'
 import { SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
+import { AssistantEntry, CompactionEntry } from '@earendil-works/pi-durable'
 
 function runtime(reply) {
   const requests = []
@@ -36,7 +39,7 @@ async function fixture(t, profile = 'personal') {
   await mkdir(join(workspace, '.agents', 'skills', 'odk-widget'), { recursive: true })
   await writeFile(join(workspace, '.agents', 'skills', 'odk-widget', 'SKILL.md'), '# Isolated fixture skill\n')
   return { dir, config: { stateDir: join(dir, 'state'), workspace,
-    personal: { profile, memoryFile: join(dir, 'memory.json'), skillPaths: [] }, env: {} } }
+    personal: { profile, memoryFile: join(dir, 'memory.json'), skillPaths: [] }, env: {}, mem0: fixtureMem0() } }
 }
 
 for (const profile of ['personal', 'coding']) {
@@ -117,6 +120,50 @@ test('an existing Durable conversation takes precedence over legacy context with
   const bot = await createPersonalAgent(config, { createRuntime: async () => modelRuntime, createIntentRouter: () => async () => ({ intent: 'conversation' }) })
   t.after(() => bot.close())
   assert.equal(await bot.prompt('current request'), '继续已有 Durable 会话。')
+})
+
+test('history reads original legacy owner turns before compaction and stops at reset', async t => {
+  const { config } = await fixture(t)
+  const models = runtime(() => assistant('Exact retained answer.'))
+  const seed = await openDurableRuntime({ directory: join(config.stateDir, 'durable', 'personal'), models,
+    model: { provider: fixtureModel.provider, modelId: fixtureModel.id } })
+  t.after(() => seed.close())
+  const context = BACKGROUND_CONTEXT
+  const conversation = seed.conversation
+  await seed.prompt('Model-selected workflow: conversation.\nPersonal Agent request:\nOriginal decision.')
+  const entries = await conversation.entries({}, 10, undefined, context)
+  const kept = entries.items.find(AssistantEntry.is)
+  assert(kept)
+  await conversation.commit(tx => tx.appendEntry(conversation.id, { kind: CompactionEntry.kind, head: kept.id,
+    data: { reason: 'manual' }, model: [{ role: 'user', content: 'Personal Agent request:\nSynthetic compaction.', timestamp: Date.now() }] }), context)
+  assert.deepEqual((await readResidentHistory(conversation, context)).sources.map(source => source.messages.map(message => message.content)), [
+    ['Original decision.', 'Exact retained answer.'],
+  ])
+  await conversation.reset('Personal Agent request:\nSynthetic handoff.', context)
+  await seed.prompt('Personal Agent request:\nDecision after reset.')
+  assert.deepEqual((await readResidentHistory(conversation, context)).sources.map(source => source.messages.map(message => message.content)), [
+    ['Decision after reset.', 'Exact retained answer.'],
+  ])
+  const requestMarker = 'Personal Agent request:\n'
+  await seed.prompt(requestMarker + 'Owner text from a private-context turn.', {
+    entry: { kind: OWNER_HISTORY_ENTRY, data: { ownerOffset: requestMarker.length, historyUserOnly: true } },
+  })
+  assert.deepEqual((await readResidentHistory(conversation, context)).sources.at(-1).messages, [
+    { role: 'user', content: 'Owner text from a private-context turn.' },
+  ])
+})
+
+test('Mem0 history projection keeps dated facts and bounds follow-up searches', async () => {
+  const mem0 = fixtureMem0(), scope = mem0.scope('fixture', 'history')
+  await scope.put('launch', 'Atlas launch review at the north site used 17 credits.', { created_at: '2026-11-01' })
+  await scope.put('training', 'Atlas training review used 42 credits.', { created_at: '2026-11-02' })
+  const evidence = await createHistoryEvidence(scope, 'Atlas launch review')
+  assert.deepEqual(evidence.preview.map(item => item.source), ['launch', 'training'])
+  assert.match(evidence.preview[0].text, /17 credits/)
+  assert.match(evidence.preview[1].text, /42 credits/)
+  assert((await evidence.search('training')).some(item => item.source === 'training'))
+  await evidence.search('launch')
+  await assert.rejects(evidence.search('launch'), /budget/)
 })
 
 test('production proactive advice uses scoped tools while briefing and phrasing stay isolated', async t => {

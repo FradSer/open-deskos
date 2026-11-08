@@ -80,9 +80,9 @@ Android command: `./gradlew testDebugUnitTest --tests com.odk.shell.link.Persona
 | Install Skills | Declarative candidate inspection, exact revisions, snapshots, and restart | Selected target-host installations |
 | Install MCP | Declarative packages, stdio and Streamable HTTP adapters, current schema discovery | Selected real connectors and target hosts |
 | Reviewed runtime modules | Fixed experience, completion, learning, catalog, MCP, and subagent identities | Installed host configuration |
-| Memory context | Durable requests reflect saved notes; accepted experience supports later synthetic tasks | General benefit beyond the measured cases |
+| Memory context | Mem0 supplies notes, conversation recall, experience, and recommendation feedback | [Public data verification](MEMORY_EVALUATION.md) |
 | Completion harness | Zero-tool receipt checks; derived answers retain actual computation evidence | Model judgments do not replace independent grading |
-| Automatic procedural learning | Validated private lessons; three later synthetic cases improve with accepted experience | General learning benefit remains unestablished |
+| Automatic procedural learning | Mem0 extracts facts from verified host checks | General benefit across task families |
 | Temporary children | Separate Durable sessions and homes; controlled live execution passes | Broader live workloads |
 | Saved identities | Revision checks, persistent homes, and one active task per identity; controlled live restart passes | Broader live workloads and physical interaction |
 | Conversation avatars | Bounded activity through service, client, Main, preload, and renderer | Physical-input acceptance |
@@ -144,7 +144,7 @@ Each attempt retains its request, output, and deadline safeguards.
 Failed reports remain unchanged.
 No live acceptance process or container remains active.
 
-The fresh `full-10` run passed all seven original scenarios with 84 actual requests on CM5.
+The historical `full-10` run passed all seven original scenarios with 84 actual requests on CM5.
 Its exact candidate was `9b21983fc3ebd2b33a78c0f8ab45231122835f84`.
 Its 213 source fingerprints remained unchanged, and its 204 runtime files matched the active release.
 The run used the configured `bailian/deepseek-v4.1-flash` model and real Jev judgments.
@@ -177,7 +177,7 @@ Intermediate invalid judgments remain in the evidence; the final pass does not m
 Earlier failed runs remain failed.
 Their recorded boundaries include operator assembly errors, output or time limits, invalid citations, unresolved checks, and an upstream HTTP 451 response.
 No earlier phase was combined with `full-10` to obtain its pass.
-The new core, targeted, and separate learning modes have offline contract coverage.
+The [live acceptance procedure](AGENT_LIVE_ACCEPTANCE.md) describes the current core and targeted modes.
 They have not received a new live evaluation merely because the original full run passed.
 The [live acceptance plan](AGENT_LIVE_ACCEPTANCE.md) owns isolation, grading, and continuation rules.
 

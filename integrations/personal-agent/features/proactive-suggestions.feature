@@ -631,7 +631,7 @@ Feature: Owner controlled proactive Personal Agent proposals
     Given a current recommendation has an executable action or a read-only preview
     When the owner marks it useful, irrelevant, incorrect, postponed, or dismissed
     Then its feedback and pending memory work are saved together before the response returns
-    And a separate tool-free Pi session asynchronously refines related recommendation memory
+    And the background worker records the exact scoped feedback in Mem0
     And future generation receives that topic's learned feedback without new action permission
     And explicitly saved personal facts remain unchanged
 
@@ -639,30 +639,16 @@ Feature: Owner controlled proactive Personal Agent proposals
     Given feedback learning is pending or running
     When newer feedback replaces it, its topic changes, or the Watch stops
     Then the obsolete result cannot update related memory
-    And restarting can resume saved tool-free work without executing a proposal action
+    And restarting can resume saved feedback work without executing a proposal action
     And an unavailable learning runtime preserves feedback without claiming memory was updated
 
   Scenario: Learning recovery does not erase accepted feedback work
-    Given feedback is saved while its Pi runtime is unavailable or its first attempt fails
+    Given feedback is saved while Mem0 is unavailable or its first attempt fails
     When the selected runtime returns after restart
-    Then its saved tool-free work can resume within two worker attempts
+    Then its saved feedback work can resume within two worker attempts
     And the same explicit feedback can retry a failed attempt without reopening the handled occurrence
     And proposal-history eviction retains every unfinished learning job and its source policy
     And full learning capacity reports backpressure instead of silently discarding accepted work
-
-
-  Scenario: Feedback refinement follows the current native Pi selection
-    Given the owner selected another native Pi model and thinking level
-    When asynchronous feedback refinement creates its tool-free session
-    Then it uses the current model and thinking level
-    And it does not restore the initial configured model or expose saved facts
-
-  Scenario: Native Pi configuration and feedback refinement do not overlap
-    Given asynchronous feedback refinement is running
-    When the owner requests a native Pi selection change
-    Then the resident reports busy until refinement completes
-    And an active configuration session refuses new refinement before inference
-
   Scenario: Judgment receives semantic evidence without host authorization bindings
     Given a recommendation candidate contains private source and action bindings
     When the host requests relevance and grounding judgments

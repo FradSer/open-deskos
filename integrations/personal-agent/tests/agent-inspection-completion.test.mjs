@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createPersonalAgent } from '../src/agent.mjs'
 import { createAgentPluginRuntime } from '../src/agent-plugins/runtime.mjs'
-import { createExperienceStore } from '../src/agent-plugins/experience.mjs'
+import { fixtureExperience } from './fixtures/mem0.mjs'
 import { assistant, fixtureModel } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
 
@@ -64,7 +64,7 @@ test('Durable diagnostics and omitted binary output prevent unsupported completi
     { output: [{ type: 'text', text: 'A cut match line.' }], details: { linesTruncated: true } },
     {},
   ]) {
-    const runtime = createAgentPluginRuntime({ store: createExperienceStore(join(root, 'experience.json')), config: { enabled: ['completion'] }, infer: async (_kind, input) => {
+    const runtime = createAgentPluginRuntime({ store: fixtureExperience(join(root, 'experience.json')), config: { enabled: ['completion'] }, infer: async (_kind, input) => {
       assert(!JSON.stringify(input.receipts).includes('binary-fixture-private-marker'))
       return passed(input.receipts)
     } })
@@ -79,7 +79,7 @@ test('Durable inspection failure and late completion cannot supply another task 
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-inspection-cancel-')))
   t.after(() => rm(root, { recursive: true, force: true }))
   let observed
-  const runtime = createAgentPluginRuntime({ store: createExperienceStore(join(root, 'experience.json')), config: { enabled: ['completion'] }, infer: async (_kind, input) => { observed = input.receipts; return passed(input.receipts) } })
+  const runtime = createAgentPluginRuntime({ store: fixtureExperience(join(root, 'experience.json')), config: { enabled: ['completion'] }, infer: async (_kind, input) => { observed = input.receipts; return passed(input.receipts) } })
   runtime.beginTurn('Read a missing report')
   const [failed] = runtime.observeDurableTools([{ name: 'read', execute: async () => { throw Error('private-provider-error-marker') } }])
   await assert.rejects(failed.execute({}, {}, {}))

@@ -71,7 +71,7 @@ The selected workflow activates a bounded tool set through `codemode`.
 Generic shell and source mutation tools remain outside the resident coordinator.
 Hosted Pi handles authorized source work on an explicit target and project.
 
-Explicit notes and learned experience serve different purposes.
+A private Mem0 OSS worker supplies notes, conversation recall, experience, and recommendation feedback.
 Notes retain explicit owner memory commands.
 The runtime supplies notes and a bounded experience index as untrusted model context.
 `experience_read` retrieves full entries; `experience_list` searches entries omitted from the index.
@@ -85,7 +85,7 @@ They are DeskOS modules, not native Pi plugin packages.
 
 Completion uses a separate session with zero tools and checks actual execution receipts.
 A finished response, admission receipt, or model claim cannot prove completed work.
-Automatic procedural learning requires passed completion and validated lessons with evidence.
+Mem0 extracts procedural lessons from verified host check facts.
 Learning cannot accept an admission-only result as completed work.
 Learned procedures remain reference data and require later retrieval and independent evaluation before a benefit claim.
 
