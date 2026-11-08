@@ -15,6 +15,12 @@ Feature: Personal Agent uses Pi Durable 1.2
     And it leaves the legacy files unchanged
     And an existing Durable conversation takes precedence over legacy context
 
+  Scenario: Magpie Hy4 can compact a long resident conversation
+    Given an existing Personal Agent conversation and the Magpie Hy4 model
+    When Pi Durable requests a context summary
+    Then the request disables provider reasoning and keeps the summary token limit
+    And the ordinary conversation keeps its selected thinking level
+
   Scenario: Proactive generation runs independently of owner conversation history
     Given owner goals and current timestamped observations
     When the monitor requests advice or a home briefing without an owner message

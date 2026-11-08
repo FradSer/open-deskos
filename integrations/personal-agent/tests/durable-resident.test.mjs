@@ -123,6 +123,36 @@ test('an existing Durable conversation takes precedence over legacy context with
   assert.equal(await bot.prompt('current request'), '继续已有 Durable 会话。')
 })
 
+test('Durable compaction keeps the Hy4 summary budget for visible output', async t => {
+  const { config } = await fixture(t)
+  const directory = join(config.stateDir, 'durable', 'personal')
+  const model = { ...fixtureModel, api: 'openai-completions', provider: 'magpie', id: 'hunyuan-eval/hy4-dev', reasoning: true }
+  const ref = { provider: model.provider, modelId: model.id }
+  const models = { ...runtime(() => assistant('Ordinary reply.')), getModel: () => model, getModels: () => [model],
+    getAvailable: async () => [model], getAvailableSnapshot: () => [model] }
+  const seed = await openDurableRuntime({ directory, models, model: ref })
+  try {
+    for (const part of ['first', 'second', 'third']) await seed.prompt((part + ' retained text ').repeat(6000))
+  } finally { await seed.close() }
+
+  let request
+  models.completeSimple = async (selected, _context, options) => {
+    request = { options, payload: await options.onPayload?.({ test: true }, selected) }
+    return assistant('Summary of the retained conversation.')
+  }
+  const { session } = await createDurableAgentSession({ cwd: config.stateDir, durableDirectory: directory, modelRuntime: models,
+    model, thinkingLevel: 'low', settingsManager: SettingsManager.inMemory({}) })
+  t.after(() => session.dispose())
+  const { conversation } = session.runtime
+  await conversation.compact(undefined, BACKGROUND_CONTEXT)
+  await session.runtime.harness.waitForIdle(BACKGROUND_CONTEXT)
+  assert.ok(request)
+  assert.equal(request.options.reasoning, undefined)
+  assert.ok(request.options.maxTokens > 0)
+  assert.deepEqual(request.payload, { test: true, reasoning_effort: 'none' })
+  assert.equal(session.getThinkingLevel(), 'low')
+})
+
 test('history reads original legacy owner turns before compaction and stops at reset', async t => {
   const { config } = await fixture(t)
   const models = runtime(() => assistant('Exact retained answer.'))

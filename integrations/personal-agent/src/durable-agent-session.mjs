@@ -9,6 +9,7 @@ import { importLegacyContext } from './durable-legacy-context.mjs'
 import { createConnectorCompletionGuard, createConnectorCompletionExtension, runBufferedConnectorSubmission } from './connector-completion-guard.mjs'
 import { stripLegacyMemoryContext } from './memory.mjs'
 import { readResidentHistory } from './history-evidence.mjs'
+import { hy4OptionsWithoutReasoning } from './model-client-identity.mjs'
 
 /** @typedef {{status: 'succeeded'|'failed', output: string, diagnostics: {severity: 'info'|'warn'|'error', code?: string, message: string}[], truncated: boolean}} ComputationOutcome */
 /** @typedef {{requestId: string, taskId: string, callId: string, source: string, truncated: boolean, kind: 'computation', learningEligible: false}} ComputationStart */
@@ -63,8 +64,12 @@ function codeModeModels(source) {
     messages: context.messages.map(message => message.role === 'system' && message.toolsAdded
       ? { ...message, toolsAdded: message.toolsAdded.filter(tool => tool.name === 'codemode') } : message),
   }, options)
+  // Pi Durable compacts with completeSimple and streams ordinary turns.
+  const compact = /** @type {typeof source.completeSimple} */ ((model, context, options) =>
+    source.completeSimple(model, context, hy4OptionsWithoutReasoning(model, options)))
   return new Proxy(source, { get(target, key) {
     if (key === 'streamSimple') return stream
+    if (key === 'completeSimple') return compact
     const value = Reflect.get(target, key, target)
     return typeof value === 'function' ? value.bind(target) : value
   } })

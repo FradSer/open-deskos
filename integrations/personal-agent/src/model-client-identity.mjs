@@ -18,6 +18,27 @@ export function openDeskOSClientHeaders(name = clientName()) {
   return { 'User-Agent': escaped, 'X-Client-Name': escaped }
 }
 
+/**
+ * The Magpie Hy4 route enables reasoning even when Pi omits the option.
+ * @param {import('@earendil-works/pi-ai').Model<import('@earendil-works/pi-ai').Api>} model
+ * @param {import('@earendil-works/pi-ai').SimpleStreamOptions} [options]
+ * @param {number} [tokenLimit]
+ */
+export function hy4OptionsWithoutReasoning(model, options = {}, tokenLimit) {
+  if (model.provider !== 'magpie' || model.id !== 'hunyuan-eval/hy4-dev' || model.api !== 'openai-completions') return options
+  return {
+    ...options,
+    reasoning: undefined,
+    maxRetries: 0,
+    ...(tokenLimit === undefined ? {} : { maxTokens: Math.min(tokenLimit, options.maxTokens > 0 ? options.maxTokens : tokenLimit) }),
+    onPayload: async (payload, effectiveModel) => {
+      const transformed = await options.onPayload?.(payload, effectiveModel)
+      const body = transformed === undefined ? payload : transformed
+      return body && typeof body === 'object' && !Array.isArray(body) ? { ...body, reasoning_effort: 'none' } : body
+    },
+  }
+}
+
 const REQUEST_METHODS = new Set(['stream', 'streamSimple', 'complete', 'completeSimple', 'classify', 'generateImages'])
 const clients = new WeakSet()
 

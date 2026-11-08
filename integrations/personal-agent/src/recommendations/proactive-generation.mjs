@@ -173,9 +173,9 @@ export function validateGeneratedBatch(raw, topics, maxCandidates) {
     const intent = topic?.intentPreview === true
     const action = !intent && topic?.actions?.find(action => action.id === s.actionId)
     if (typeof s.advice === 'string') {
-      const label = action?.label?.trim()
-      // The label is already the button text. Copy is a decidable duplicate, not a style score.
-      if (label && label.length >= 2 && s.advice.includes(label)) throw Error('Advice repeats the action label')
+      const label = normalize(action?.label ?? '')
+      // The same words can occur in an observation. Only the label alone duplicates the button.
+      if (label && normalize(s.advice) === label) throw Error('Advice repeats the action label')
     }
     if (!exact(s, ['topicId', 'key', 'advice', intent ? 'nextStep' : 'actionId', 'evidenceIds', 'ui']) || !topic || typeof s.key !== 'string' || TEMPLATE_MARKER.test(s.key) || !KEY.test(s.key) || seen.has(key) || !text(s.advice, 400) || TECHNICAL_DETAIL.test(s.advice)
       || (intent ? !text(s.nextStep, 240) || /[\x00-\x1f\x7f]/.test(s.nextStep) || TECHNICAL_DETAIL.test(s.nextStep) : typeof s.actionId !== 'string' || !action)
