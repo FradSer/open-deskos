@@ -135,8 +135,8 @@
         return { article, body }
       })
       const remove = removeMessage ?? (article => article.remove())
-      const rideQuotePrefix = '查看报价'
-      const rideRefreshPrefix = '刷新行程'
+      const rideQuotePrefix = '\u67e5\u770b\u62a5\u4ef7'
+      const rideRefreshPrefix = '\u5237\u65b0\u884c\u7a0b'
       let closed = false
       let consumerUnavailable = false
       let consumerId
